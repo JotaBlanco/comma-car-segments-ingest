@@ -1,13 +1,19 @@
-metadata:
-  version: "2.0"
+# Quix Project Descriptor
+# This file describes the data pipeline and configuration of resources of a Quix Project.
 
+metadata:
+  version: 2.0
+
+# This section describes the Deployments of the data pipeline
 deployments:
   - name: HF CommaCarSegments Mirror
     application: hf-comma-dataset-mirror
-    deploymentType: Job
     version: latest
+    deploymentType: Job
     resources:
       limits:
         cpu: 500
         memory: 1000
-      replicas: 1
+    blobStorage:
+      bind: true
+
