@@ -170,11 +170,17 @@ deployments:
         inputType: OutputTopic
         required: true
         value: can-decoded
+      - name: config
+        inputType: InputTopic
+        description: DCM config events; QuixConfigurationService consumes this to
+          resolve the CAN database version per message
+        required: true
+        value: config-updates
       - name: CONSUMER_GROUP
         inputType: FreeText
         description: Change this to replay already-consumed files again
         required: true
-        value: mf4-replay-v1
+        value: mf4-replay-v2
       - name: MAX_FILES
         inputType: FreeText
         description: Debug-sized; 0 for no limit
@@ -185,10 +191,6 @@ deployments:
         description: ~100 envelopes per second, so 500 is about 5s of driving
         required: true
         value: "500"
-      - name: DCM_BASE_URL
-        inputType: FreeText
-        required: true
-        value: http://config-api-svc/api/v1
       - name: DCM_TYPE
         inputType: FreeText
         required: false
