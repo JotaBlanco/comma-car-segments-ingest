@@ -226,7 +226,7 @@ deployments:
         value: can-lake-sink-v2
       - name: SIGNALS_TABLE
         inputType: FreeText
-        description: grain is channel -> sender_node -> frame -> pdu -> signal
+        description: grain is channel -> sender_node -> frame -> signal
         required: true
         value: can_signals
       - name: UNKNOWN_TABLE
