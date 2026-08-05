@@ -87,6 +87,59 @@ deployments:
       mongoDatabase: quix
       mongoCollection: configuration-api
 
+  # Reads mirrored rlog.zst from blob, converts each segment to a raw CAN-FD
+  # bus-logging MF4 (DBC embedded + DCM key in the MDF4 header), writes it back
+  # to blob, and publishes one metadata message per file.
+  - name: rlog to MF4
+    application: rlog-to-mf4
+    version: latest
+    deploymentType: Job
+    resources:
+      cpu: 1000
+      memory: 2000
+      replicas: 1
+    blobStorage:
+      bind: true
+    variables:
+      - name: output
+        inputType: OutputTopic
+        description: Topic receiving one metadata message per converted MF4 file
+        required: true
+        value: mf4-metadata
+      - name: INPUT_PREFIX
+        inputType: FreeText
+        required: true
+        value: commacarsegments/segments/FORD_F_150_LIGHTNING_MK1/
+      - name: OUTPUT_PREFIX
+        inputType: FreeText
+        required: true
+        value: mf4/
+      - name: PLATFORM
+        inputType: FreeText
+        required: true
+        value: FORD_F_150_LIGHTNING_MK1
+      - name: DCM_TYPE
+        inputType: FreeText
+        required: true
+        value: dbc
+      - name: DCM_TARGET_KEY
+        inputType: FreeText
+        required: true
+        value: FORD_F_150_LIGHTNING_MK1
+      - name: DBC_FILE
+        inputType: FreeText
+        required: true
+        value: ford_lincoln_base_pt.dbc
+      - name: MAX_SEGMENTS
+        inputType: FreeText
+        description: Bulk backfill of a subset, not the whole dataset
+        required: true
+        value: "20"
+      - name: SKIP_EXISTING
+        inputType: FreeText
+        required: false
+        value: "true"
+
 # This section describes the Topics of the data pipeline
 topics:
   - name: config-updates

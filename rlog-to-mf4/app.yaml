@@ -1,0 +1,62 @@
+name: rlog-to-mf4
+language: python
+variables:
+  - name: output
+    inputType: OutputTopic
+    description: Topic receiving one metadata message per converted MF4 file
+    defaultValue: mf4-metadata
+    required: true
+  - name: INPUT_PREFIX
+    inputType: FreeText
+    description: Blob prefix holding the mirrored rlog segments
+    defaultValue: commacarsegments/segments/FORD_F_150_LIGHTNING_MK1/
+    required: true
+  - name: OUTPUT_PREFIX
+    inputType: FreeText
+    description: Blob prefix to write MF4 files under
+    defaultValue: mf4/
+    required: true
+  - name: PLATFORM
+    inputType: FreeText
+    description: Vehicle platform, used in output paths and MF4 metadata
+    defaultValue: FORD_F_150_LIGHTNING_MK1
+    required: true
+  - name: DCM_TYPE
+    inputType: FreeText
+    description: Dynamic Configuration Manager config type holding the DBC
+    defaultValue: dbc
+    required: true
+  - name: DCM_TARGET_KEY
+    inputType: FreeText
+    description: DCM target_key for this platform's DBC. Together with DCM_TYPE this
+      is written into each MF4 header so a decoder can resolve the right database.
+    defaultValue: FORD_F_150_LIGHTNING_MK1
+    required: true
+  - name: DBC_FILE
+    inputType: FreeText
+    description: DBC filename bundled with this application, embedded into each MF4
+    defaultValue: ford_lincoln_base_pt.dbc
+    required: true
+  - name: DBC_VERSION
+    inputType: FreeText
+    description: Version label recorded in the MF4 header
+    defaultValue: opendbc-master
+    required: false
+  - name: MAX_SEGMENTS
+    inputType: FreeText
+    description: Stop after converting this many segments
+    defaultValue: "20"
+    required: true
+  - name: SKIP_EXISTING
+    inputType: FreeText
+    description: If "true", skip segments whose MF4 already exists at the destination
+    defaultValue: "true"
+    required: false
+  - name: LOGLEVEL
+    inputType: FreeText
+    description: Python log level
+    defaultValue: INFO
+    required: false
+dockerfile: dockerfile
+runEntryPoint: main.py
+defaultFile: main.py
