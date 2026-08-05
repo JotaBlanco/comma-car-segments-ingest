@@ -97,6 +97,105 @@ deployments:
         - port: 80
           targetPort: 3000
 
+  # Consumes mf4-metadata, downloads each MF4 from blob, resolves its DBC from
+  # DCM using the dcm.config_id in the file's own header, decodes, and publishes
+  # one message per CAN envelope. No pacing - as fast as it can go.
+  - name: MF4 replay
+    application: mf4-replay
+    version: latest
+    deploymentType: Service
+    resources:
+      cpu: 1000
+      memory: 2000
+      replicas: 1
+    blobStorage:
+      bind: true
+    variables:
+      - name: input
+        inputType: InputTopic
+        required: true
+        value: mf4-metadata
+      - name: output
+        inputType: OutputTopic
+        required: true
+        value: can-decoded
+      - name: CONSUMER_GROUP
+        inputType: FreeText
+        description: Change this to replay already-consumed files again
+        required: true
+        value: mf4-replay-v1
+      - name: MAX_FILES
+        inputType: FreeText
+        description: Debug-sized; 0 for no limit
+        required: true
+        value: "1"
+      - name: MAX_ENVELOPES_PER_FILE
+        inputType: FreeText
+        description: ~100 envelopes per second, so 500 is about 5s of driving
+        required: true
+        value: "500"
+      - name: DCM_BASE_URL
+        inputType: FreeText
+        required: true
+        value: http://config-api-svc/api/v1
+      - name: DCM_TYPE
+        inputType: FreeText
+        required: false
+        value: dbc
+      - name: DCM_TARGET_KEY
+        inputType: FreeText
+        required: false
+        value: FORD_F_150_LIGHTNING_MK1
+
+  # Grafana with the QuixLakeHouse datasource plugin baked in (sc-74412). Queries the
+  # lakehouse over the Query API's POST /query; needs no topics, so it is not wired
+  # into the pipeline graph.
+  - name: Grafana
+    group: Aux services
+    application: quixlakehouse-grafana
+    version: latest
+    deploymentType: Service
+    resources:
+      cpu: 500
+      memory: 1000
+      replicas: 1
+    publicAccess:
+      enabled: true
+      urlPrefix: grafana
+    network:
+      serviceName: grafana
+      ports:
+        # Grafana listens on 3000. A mismatch here produces silent timeouts rather
+        # than an error.
+        - port: 80
+          targetPort: 3000
+    # Sibling of `variables`, not a member of it -- nested inside, it is silently
+    # ignored and the Quix__Lakehouse__* bundle never injects. Grafana itself never
+    # touches blob storage; the bind is purely the injection vehicle.
+    blobStorage:
+      bind: true
+    variables:
+      - name: GF_SECURITY_ADMIN_PASSWORD
+        inputType: Secret
+        description: Grafana admin password
+        required: true
+        secretKey: grafana_admin_password
+      - name: GF_SERVER_ROOT_URL
+        inputType: FreeText
+        description: From this environment's publicUrlTemplate with url-prefix=grafana
+        required: true
+        value: https://grafana-testrigorg-commacarsegmentsingest-grafana.testrig-depl.dev.quix.io
+      - name: GF_LOG_LEVEL
+        inputType: FreeText
+        required: false
+        value: info
+    # No `state:` deliberately. Grafana keeps dashboards/users/alert rules in SQLite
+    # at /var/lib/grafana, and the image does not redirect GF_PATHS_* to /app/state --
+    # its entrypoint runs as uid 472 and cannot chown that mount. Enabling state here
+    # would therefore persist nothing. The datasource survives regardless, being
+    # re-provisioned at every boot; UI-authored dashboards do not. Fix by provisioning
+    # dashboards as code, not by toggling this.
+
 # This section describes the Topics of the data pipeline
 topics:
   - name: config-updates
