@@ -80,23 +80,6 @@ deployments:
         description: Bulk backfill of a subset, not the whole dataset
     blobStorage:
       bind: true
-  - name: Grafana
-    application: grafana
-    version: latest
-    deploymentType: Service
-    resources:
-      limits:
-        cpu: 200
-        memory: 800
-    publicAccess:
-      enabled: true
-      urlPrefix: grafana
-    network:
-      serviceName: grafana
-      ports:
-        - port: 80
-          targetPort: 3000
-
   # Consumes mf4-metadata, downloads each MF4 from blob, resolves its DBC from
   # DCM using the dcm.config_id in the file's own header, decodes, and publishes
   # one message per CAN envelope. No pacing - as fast as it can go.
