@@ -1,0 +1,19 @@
+# Normalise text in the repo, but never rewrite line endings on files where a
+# byte change would break something at runtime.
+
+* text=auto
+
+# Shell scripts run in Linux containers - a CR in the shebang breaks the entry
+# point with a confusing "no such file or directory".
+*.sh text eol=lf
+
+# Container entry points and their configs.
+dockerfile text eol=lf
+Dockerfile text eol=lf
+
+# The DBC's sha256 is written into every MF4 header and must match the copy
+# served by the Dynamic Configuration Manager. Any EOL rewrite changes the hash.
+*.dbc -text
+
+# Cap'n Proto schemas are compiled at runtime by pycapnp.
+*.capnp text eol=lf
