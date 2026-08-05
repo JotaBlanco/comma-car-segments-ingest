@@ -16,22 +16,15 @@ deployments:
         memory: 1000
     blobStorage:
       bind: true
-
-  # Backing store for the Dynamic Configuration Manager. NOTE: dbpath is on the
-  # container's LOCAL disk (MONGO_DBPATH below), not the Quix state mount -
-  # WiredTiger fails there with EPERM. Configuration is therefore ephemeral and
-  # the DBC must be re-seeded after a restart. See mongodb/init.sh.
   - name: MongoDB
     group: Aux services
     application: mongodb
     version: latest
     deploymentType: Service
     resources:
-      cpu: 200
-      # WiredTiger takes a 256 MB cache before mongod's own overhead; at 800 MB
-      # mongod logged only 762 MB available to the process.
-      memory: 1200
-      replicas: 1
+      limits:
+        cpu: 200
+        memory: 1200
     state:
       enabled: true
       size: 1
@@ -41,43 +34,16 @@ deployments:
         - port: 27017
           targetPort: 27017
     variables:
-      - name: MONGO_INITDB_ROOT_USERNAME
-        inputType: FreeText
-        description: The root username to initialize MongoDB with
-        required: true
-        value: admin
-      - name: MONGO_INITDB_ROOT_PASSWORD
-        inputType: Secret
-        description: The root password to initialize MongoDB with
-        required: true
-        secretKey: mongo_password
       - name: MONGO_DBPATH
-        inputType: FreeText
         description: WiredTiger data directory (local disk = ephemeral; see mongodb/init.sh)
-        required: false
-        value: /data/db
-
-  # Platform-managed service (no application directory in this repo). Holds the
-  # Ford DBC as a versioned config; the decode service resolves it by the
-  # dcm.target_key stored in each MF4 header. Reachable in-cluster at
-  # http://config-api-svc/api/v1
   - name: Dynamic Configuration Manager
     application: DynamicConfiguration
     version: latest
     deploymentType: Managed
-    plugin:
-      embeddedView:
-        enabled: true
-        hideHeader: true
-        default: true
-      sidebarItem:
-        show: true
-        label: "Configurations"
-        icon: "tune"
     resources:
-      cpu: 100
-      memory: 500
-      replicas: 1
+      limits:
+        cpu: 100
+        memory: 500
     network:
       serviceName: config-api-svc
     configuration:
@@ -88,161 +54,72 @@ deployments:
       mongoPasswordSecret: mongo_password
       mongoDatabase: quix
       mongoCollection: configuration-api
-
-  # Reads mirrored rlog.zst from blob, converts each segment to a raw CAN-FD
-  # bus-logging MF4 (DBC embedded + DCM key in the MDF4 header), writes it back
-  # to blob, and publishes one metadata message per file.
+    plugin:
+      embeddedView:
+        enabled: true
+        hideHeader: true
+        default: true
+      sidebarItem:
+        show: true
+        label: Configurations
+        icon: tune
   - name: rlog to MF4
     application: rlog-to-mf4
     version: latest
     deploymentType: Job
     resources:
-      cpu: 1000
-      memory: 2000
-      replicas: 1
+      limits:
+        cpu: 1000
+        memory: 2000
+    variables:
+      - name: INPUT_PREFIX
+        description: The mirror keeps HuggingFace's layout, segments/<device>/<route>/<idx>/rlog.zst
+      - name: DEVICES
+        description: comma.ai device ids for this platform (manifest lookup, not a path level)
+      - name: MAX_SEGMENTS
+        description: Bulk backfill of a subset, not the whole dataset
     blobStorage:
       bind: true
-    variables:
-      - name: output
-        inputType: OutputTopic
-        description: Topic receiving one metadata message per converted MF4 file
-        required: true
-        value: mf4-metadata
-      - name: INPUT_PREFIX
-        inputType: FreeText
-        description: The mirror keeps HuggingFace's layout, segments/<device>/<route>/<idx>/rlog.zst
-        required: true
-        value: commacarsegments/segments/
-      - name: DEVICES
-        inputType: FreeText
-        description: comma.ai device ids for this platform (manifest lookup, not a path level)
-        required: false
-        value: 0b2c0bec9a28eb0f,112e4d6e0cad05e1,23ee3ec9ee4ee781,2eb001918aefbb1e,3b1f3f2a42d70b76,4580d36e7617c224,74e94569bd74054d,83f2cb32d4939244,a0a3c0b1c00408b0
-      - name: OUTPUT_PREFIX
-        inputType: FreeText
-        required: true
-        value: mf4/
-      - name: PLATFORM
-        inputType: FreeText
-        required: true
-        value: FORD_F_150_LIGHTNING_MK1
-      - name: DCM_TYPE
-        inputType: FreeText
-        required: true
-        value: dbc
-      - name: DCM_TARGET_KEY
-        inputType: FreeText
-        required: true
-        value: FORD_F_150_LIGHTNING_MK1
-      - name: DBC_FILE
-        inputType: FreeText
-        required: true
-        value: ford_lincoln_base_pt.dbc
-      - name: MAX_SEGMENTS
-        inputType: FreeText
-        description: Bulk backfill of a subset, not the whole dataset
-        required: true
-        value: "20"
-      - name: SKIP_EXISTING
-        inputType: FreeText
-        required: false
-        value: "true"
-
-  # Consumes mf4-metadata, downloads each MF4 from blob, resolves its DBC from
-  # DCM using the dcm.config_id stored in that file's own MDF4 header, decodes,
-  # and publishes one message per CAN envelope. No pacing - as fast as it goes.
   - name: MF4 replay
     application: mf4-replay
     version: latest
     deploymentType: Service
     resources:
-      cpu: 1000
-      memory: 2000
-      replicas: 1
-    blobStorage:
-      bind: true
+      limits:
+        cpu: 1000
+        memory: 2000
     variables:
-      - name: input
-        inputType: InputTopic
-        required: true
-        value: mf4-metadata
-      - name: output
-        inputType: OutputTopic
-        required: true
-        value: can-decoded
       - name: config
-        inputType: InputTopic
-        description: DCM config events; QuixConfigurationService consumes this to
-          resolve the CAN database version per message
-        required: true
-        value: config-updates
+        description: DCM config events; QuixConfigurationService consumes this to resolve the CAN database version per message
       - name: CONSUMER_GROUP
-        inputType: FreeText
         description: Change this to replay already-consumed files again
-        required: true
         value: mf4-replay-v3
       - name: MAX_FILES
-        inputType: FreeText
         description: Debug-sized; 0 for no limit
-        required: true
-        value: "1"
       - name: MAX_ENVELOPES_PER_FILE
-        inputType: FreeText
         description: ~100 envelopes per second, so 500 is about 5s of driving
-        required: true
-        value: "500"
-      - name: DCM_TYPE
-        inputType: FreeText
-        required: false
-        value: dbc
-      - name: DCM_TARGET_KEY
-        inputType: FreeText
-        required: false
-        value: FORD_F_150_LIGHTNING_MK1
-
-  # Consumes can-decoded and writes two Iceberg tables through the Lakehouse
-  # Query API. blobStorage.bind is required even though this service never
-  # touches blob: on dev it is the injection vehicle for the whole
-  # Quix__Lakehouse__* bundle.
+    blobStorage:
+      bind: true
   - name: CAN lake sink
     application: can-lake-sink
     version: latest
     deploymentType: Service
     resources:
-      cpu: 500
-      memory: 1000
-      replicas: 1
-    blobStorage:
-      bind: true
+      limits:
+        cpu: 500
+        memory: 1000
     variables:
-      - name: input
-        inputType: InputTopic
-        required: true
-        value: can-decoded
       - name: CONSUMER_GROUP
-        inputType: FreeText
         description: Change this to re-sink already-consumed messages
-        required: true
         value: can-lake-sink-v2
       - name: SIGNALS_TABLE
-        inputType: FreeText
         description: grain is channel -> sender_node -> frame -> signal
-        required: true
-        value: can_signals
       - name: UNKNOWN_TABLE
-        inputType: FreeText
         description: frames with no DBC entry, raw payload kept
-        required: false
-        value: can_unknown_frames
       - name: HIVE_COLUMNS
-        inputType: FreeText
         description: low-cardinality partitions only; a day partition is added from ts
-        required: true
-        value: platform,channel,sender_node
-      - name: COMMIT_EVERY
-        inputType: FreeText
-        required: false
-        value: "200"
+    blobStorage:
+      bind: true
 
 # This section describes the Topics of the data pipeline
 topics:
