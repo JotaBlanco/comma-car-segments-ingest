@@ -1,4 +1,4 @@
-name: rlog-to-mf4
+﻿name: rlog-to-mf4
 language: python
 variables:
   - name: output
@@ -8,14 +8,21 @@ variables:
     required: true
   - name: INPUT_PREFIX
     inputType: FreeText
-    description: Blob prefix holding the mirrored rlog segments
-    defaultValue: commacarsegments/segments/FORD_F_150_LIGHTNING_MK1/
+    description: Blob prefix holding the mirrored rlog segments. The mirror keeps HuggingFace's layout (segments/<device>/<route>/<idx>/rlog.zst) - there is no platform directory.
+    defaultValue: commacarsegments/segments/
     required: true
   - name: OUTPUT_PREFIX
     inputType: FreeText
     description: Blob prefix to write MF4 files under
     defaultValue: mf4/
     required: true
+  - name: DEVICES
+    inputType: FreeText
+    description: Comma-separated comma.ai device ids belonging to this platform. Empty
+      means every device in the dataset. Platform-to-device is a manifest lookup, not
+      a blob path segment, so this is how a platform is selected.
+    defaultValue: 0b2c0bec9a28eb0f,112e4d6e0cad05e1,23ee3ec9ee4ee781,2eb001918aefbb1e,3b1f3f2a42d70b76,4580d36e7617c224,74e94569bd74054d,83f2cb32d4939244,a0a3c0b1c00408b0
+    required: false
   - name: PLATFORM
     inputType: FreeText
     description: Vehicle platform, used in output paths and MF4 metadata

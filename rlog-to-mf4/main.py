@@ -28,9 +28,15 @@ logger = logging.getLogger("rlog-to-mf4")
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-INPUT_PREFIX = os.environ.get(
-    "INPUT_PREFIX", "commacarsegments/segments/FORD_F_150_LIGHTNING_MK1/"
-)
+# The mirror preserves HuggingFace's own layout, which is
+#   segments/<device>/<route>/<idx>/rlog.zst
+# There is NO platform directory - platform-to-device is a manifest lookup, not
+# a path segment. Selecting a platform therefore means selecting its devices.
+INPUT_PREFIX = os.environ.get("INPUT_PREFIX", "commacarsegments/segments/")
+# comma-separated device ids for this platform; empty means every device
+DEVICES = [
+    d.strip() for d in os.environ.get("DEVICES", "").split(",") if d.strip()
+]
 OUTPUT_PREFIX = os.environ.get("OUTPUT_PREFIX", "mf4/")
 PLATFORM = os.environ.get("PLATFORM", "FORD_F_150_LIGHTNING_MK1")
 DCM_TYPE = os.environ.get("DCM_TYPE", "dbc")
@@ -73,15 +79,33 @@ def main() -> int:
     app = Application(consumer_group="rlog-to-mf4")
     out_topic = app.topic(OUTPUT_TOPIC, value_serializer="json", key_serializer="str")
 
-    pattern = INPUT_PREFIX.rstrip("/") + "/**/rlog.zst"
-    logger.info("listing %s", pattern)
-    candidates = sorted(fs.glob(pattern))
-    logger.info("found %d rlog segments under the input prefix", len(candidates))
+    base = INPUT_PREFIX.rstrip("/")
+    candidates = []
+    if DEVICES:
+        logger.info("selecting %d device(s) for platform %s", len(DEVICES), PLATFORM)
+        for dev in DEVICES:
+            found = sorted(fs.glob(f"{base}/{dev}/**/rlog.zst"))
+            logger.info("  %s -> %d segments", dev, len(found))
+            candidates.extend(found)
+    else:
+        logger.info("listing every device under %s", base)
+        candidates = sorted(fs.glob(f"{base}/**/rlog.zst"))
+    logger.info("found %d rlog segments in total", len(candidates))
+
     if not candidates:
+        # The mirror job walks the whole dataset (188k files); a device this
+        # platform uses may simply not have been copied yet.
         logger.warning(
-            "nothing to convert - has the HF mirror job finished writing %s ?",
-            INPUT_PREFIX,
+            "nothing to convert under %s for devices=%s - the HF mirror may not "
+            "have reached these devices yet",
+            base,
+            DEVICES or "<all>",
         )
+        try:
+            top = fs.ls(base, detail=False)[:10]
+            logger.info("sample of what IS under %s: %s", base, top)
+        except Exception as exc:  # noqa: BLE001 - diagnostic only
+            logger.info("could not list %s: %s", base, exc)
         return 0
 
     converted = skipped = failed = 0
