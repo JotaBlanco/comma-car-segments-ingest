@@ -89,15 +89,8 @@ deployments:
         cpu: 1000
         memory: 2000
     variables:
-      - name: config
-        description: DCM config events; QuixConfigurationService consumes this to resolve the CAN database version per message
       - name: CONSUMER_GROUP
-        description: Change this to replay already-consumed files again
-        value: mf4-replay-v3
-      - name: MAX_FILES
-        description: Debug-sized; 0 for no limit
-      - name: MAX_ENVELOPES_PER_FILE
-        description: ~100 envelopes per second, so 500 is about 5s of driving
+        value: mf4-replay-v4
     blobStorage:
       bind: true
   - name: CAN lake sink
