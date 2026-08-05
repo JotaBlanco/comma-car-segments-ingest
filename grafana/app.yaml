@@ -1,0 +1,17 @@
+name: grafana
+language: docker
+variables:
+  - name: GF_SECURITY_ADMIN_PASSWORD
+    inputType: ProjectVariable
+    description: Password for the admin user
+    defaultValue: grafana_password
+    required: true
+    secret: true
+  - name: INFLUXDB_TOKEN
+    inputType: ProjectVariable
+    description: The optional InfluxDB Token to use
+    defaultValue: INFLUXDB_ADMIN_TOKEN
+    secret: true
+dockerfile: dockerfile
+defaultFile: dockerfile
+libraryItemId: grafana
