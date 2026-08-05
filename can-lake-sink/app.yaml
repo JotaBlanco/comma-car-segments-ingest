@@ -1,0 +1,50 @@
+name: can-lake-sink
+language: python
+variables:
+  - name: input
+    inputType: InputTopic
+    description: Topic carrying decoded CAN envelopes (published by mf4-replay)
+    defaultValue: can-decoded
+    required: true
+  - name: CONSUMER_GROUP
+    inputType: FreeText
+    description: Kafka consumer group. Change it to re-sink already-consumed messages.
+    defaultValue: can-lake-sink
+    required: true
+  - name: SIGNALS_TABLE
+    inputType: FreeText
+    description: Lakehouse table for decoded signal samples, at the grain
+      channel -> sender_node -> frame -> pdu -> signal
+    defaultValue: can_signals
+    required: true
+  - name: UNKNOWN_TABLE
+    inputType: FreeText
+    description: Table for frames with no DBC entry, raw payload preserved. Leave
+      empty to drop them instead (about a third of frames in this dataset).
+    defaultValue: can_unknown_frames
+    required: false
+  - name: HIVE_COLUMNS
+    inputType: FreeText
+    description: Partition columns, comma-separated. Keep low-cardinality - a day
+      partition is added from the timestamp. Do NOT add signal (2150 values) or
+      frame_name (331); Iceberg column stats prune those without partitioning.
+    defaultValue: platform,channel,sender_node
+    required: true
+  - name: COMMIT_INTERVAL
+    inputType: FreeText
+    description: Seconds before a batch is flushed to the lake
+    defaultValue: "30"
+    required: false
+  - name: COMMIT_EVERY
+    inputType: FreeText
+    description: Messages before a batch is flushed. Each envelope message expands
+      to roughly 200 signal rows, so 200 messages is about 40k rows per insert.
+    defaultValue: "200"
+    required: false
+  - name: LOGLEVEL
+    inputType: FreeText
+    defaultValue: INFO
+    required: false
+dockerfile: dockerfile
+runEntryPoint: main.py
+defaultFile: main.py

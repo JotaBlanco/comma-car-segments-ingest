@@ -200,6 +200,50 @@ deployments:
         required: false
         value: FORD_F_150_LIGHTNING_MK1
 
+  # Consumes can-decoded and writes two Iceberg tables through the Lakehouse
+  # Query API. blobStorage.bind is required even though this service never
+  # touches blob: on dev it is the injection vehicle for the whole
+  # Quix__Lakehouse__* bundle.
+  - name: CAN lake sink
+    application: can-lake-sink
+    version: latest
+    deploymentType: Service
+    resources:
+      cpu: 500
+      memory: 1000
+      replicas: 1
+    blobStorage:
+      bind: true
+    variables:
+      - name: input
+        inputType: InputTopic
+        required: true
+        value: can-decoded
+      - name: CONSUMER_GROUP
+        inputType: FreeText
+        description: Change this to re-sink already-consumed messages
+        required: true
+        value: can-lake-sink-v1
+      - name: SIGNALS_TABLE
+        inputType: FreeText
+        description: grain is channel -> sender_node -> frame -> pdu -> signal
+        required: true
+        value: can_signals
+      - name: UNKNOWN_TABLE
+        inputType: FreeText
+        description: frames with no DBC entry, raw payload kept
+        required: false
+        value: can_unknown_frames
+      - name: HIVE_COLUMNS
+        inputType: FreeText
+        description: low-cardinality partitions only; a day partition is added from ts
+        required: true
+        value: platform,channel,sender_node
+      - name: COMMIT_EVERY
+        inputType: FreeText
+        required: false
+        value: "200"
+
 # This section describes the Topics of the data pipeline
 topics:
   - name: config-updates
