@@ -49,6 +49,11 @@ deployments:
         description: The root password to initialize MongoDB with
         required: true
         secretKey: mongo_password
+      - name: MONGO_DBPATH
+        inputType: FreeText
+        description: WiredTiger data directory (local disk = ephemeral; see mongodb/init.sh)
+        required: false
+        value: /data/db
 
   # Platform-managed service (no application directory in this repo). Holds the
   # Ford DBC as a versioned config; the decode service resolves it by the

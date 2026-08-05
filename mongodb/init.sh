@@ -1,34 +1,37 @@
 #!/bin/sh
 set -e
 
-# Quix mounts persistent state at /app/state; keep the WiredTiger files in a
-# dedicated subdirectory below it.
+# WiredTiger needs a data directory with full POSIX semantics.
 #
-# The upstream template aligned the mongodb *user* to the directory's UID with
-# usermod. That is fragile: if the mount reports a different UID on a later
-# start, the mongodb uid shifts with it, and mongod can then write the
-# directory but not open files it wrote under the previous uid. WiredTiger
-# fails with EPERM on WiredTiger.wt, renames it aside, retries, and the
-# container crash-loops.
+# The Quix state mount (/app/state) does not provide them on this cluster:
+# with a brand-new, correctly-owned, empty directory, WiredTiger still fails
+# with EPERM when opening WiredTiger.wt, immediately after successfully
+# renaming that same file. Rename (a directory operation) works while open (a
+# file operation) does not - the signature of a network-backed filesystem.
+# MongoDB does not support NFS/SMB for the data directory.
 #
-# Inverting the fix is stable - chown the data to the mongodb user on every
-# start, so ownership is correct regardless of what the mount reports.
-#
-# The directory name differs from the template's ("mongodb") deliberately: the
-# original path holds files from the crash-looping runs, owned by a uid that no
-# longer exists in this container.
-TARGET_DIR="/app/state/mongodb-data"
+# MONGO_DBPATH therefore defaults to the container's local disk. That is
+# EPHEMERAL: configuration is lost when the container restarts and has to be
+# re-seeded. Point it back at a path under /app/state only if the mount is
+# changed to block storage.
+DBPATH="${MONGO_DBPATH:-/data/db}"
 TARGET_USER="mongodb"
 TARGET_GROUP="mongodb"
 
-mkdir -p "$TARGET_DIR"
+mkdir -p "$DBPATH"
+
+echo "mongod dbpath: $DBPATH"
+case "$DBPATH" in
+  /app/state/*) echo "WARNING: dbpath is on the Quix state mount; WiredTiger may fail with EPERM" ;;
+  *)            echo "NOTE: dbpath is on local disk - data does NOT survive a restart" ;;
+esac
 
 if [ "$(id -u)" = "0" ]; then
-  if chown -R "$TARGET_USER:$TARGET_GROUP" "$TARGET_DIR"; then
+  if chown -R "$TARGET_USER:$TARGET_GROUP" "$DBPATH"; then
     exec su -s /bin/sh "$TARGET_USER" -c \
-      "docker-entrypoint.sh mongod --bind_ip_all --dbpath $TARGET_DIR"
+      "docker-entrypoint.sh mongod --bind_ip_all --dbpath $DBPATH"
   fi
-  echo "WARN: could not chown $TARGET_DIR; starting mongod as root instead"
+  echo "WARN: could not chown $DBPATH; starting mongod as root instead"
 fi
 
-exec docker-entrypoint.sh mongod --bind_ip_all --dbpath "$TARGET_DIR"
+exec docker-entrypoint.sh mongod --bind_ip_all --dbpath "$DBPATH"
