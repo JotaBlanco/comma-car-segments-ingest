@@ -101,6 +101,22 @@ class CanLakeSink(BatchingSink):
                         hive,
                     )
                     raise
+                # 403 is the gateway refusing the write PATH, not a token problem:
+                # the shared Lakehouse permits /query, /tables and /partition-info
+                # but blocks /insert and /create-table, identically for the
+                # workspace PAT and the SDK token. Retrying and then backpressuring
+                # forever just hides a permission that has to be granted
+                # platform-side, so fail fast and say so.
+                if "403" in msg or "not permitted" in msg.lower():
+                    logger.error(
+                        "insert into %s rejected with 403 - the Lakehouse Query API "
+                        "is not permitting the write path. Reads (/query, /tables) "
+                        "work with the same token, so this is a path permission on "
+                        "the shared lakehouse, not a credential this service can "
+                        "change. Not retryable.",
+                        table,
+                    )
+                    raise
                 if attempt == self._max_attempts:
                     logger.error(
                         "insert into %s failed after %d attempts: %s",

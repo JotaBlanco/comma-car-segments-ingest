@@ -223,7 +223,7 @@ deployments:
         inputType: FreeText
         description: Change this to re-sink already-consumed messages
         required: true
-        value: can-lake-sink-v1
+        value: can-lake-sink-v2
       - name: SIGNALS_TABLE
         inputType: FreeText
         description: grain is channel -> sender_node -> frame -> pdu -> signal

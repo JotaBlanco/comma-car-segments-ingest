@@ -2,17 +2,17 @@
 
 The row grain follows the CAN hierarchy:
 
-    channel  ->  sender_node  ->  frame  ->  pdu  ->  signal
+    channel  ->  sender_node  ->  frame  ->  signal
 
 One row per signal sample, which absorbs the fact that frames run at different
 cycle times (a 50 Hz frame and a 100 Hz frame share no common row), where a wide
 row-per-timestamp would force resampling and bake an interpolation choice into
 stored data.
 
-`pdu` is carried explicitly even though it equals the frame today: nothing in the
-opendbc Ford database is multiplexed (0 of 331 frames), so frame == PDU. Keeping
-the column means a multiplexed database later populates it without a schema
-migration, and the hierarchy stays intact rather than silently collapsing.
+There is no `pdu` level: nothing in the opendbc Ford database is multiplexed
+(0 of 331 frames), so a PDU column would duplicate frame_name on every row. If a
+multiplexed database ever arrives, add it then - the multiplexor is already
+carried through dbc_json (is_multiplexer / multiplexer_ids).
 """
 
 from __future__ import annotations
@@ -39,7 +39,6 @@ SIGNAL_COLUMNS = [
     "frame_id",
     "frame_hex",
     "frame_name",
-    "pdu",
     "signal",
     "value",
     "seq",
@@ -134,7 +133,6 @@ def flatten(value: dict, ts) -> tuple[list[dict], list[dict]]:
                     common,
                     sender_node=fr.get("sender"),
                     frame_name=name,
-                    pdu=name,
                     signal=sig_name,
                     value=(
                         float(sig_value)
