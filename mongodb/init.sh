@@ -1,45 +1,34 @@
 #!/bin/sh
 set -e
 
-TARGET_DIR="/app/state/mongodb"
+# Quix mounts persistent state at /app/state; keep the WiredTiger files in a
+# dedicated subdirectory below it.
+#
+# The upstream template aligned the mongodb *user* to the directory's UID with
+# usermod. That is fragile: if the mount reports a different UID on a later
+# start, the mongodb uid shifts with it, and mongod can then write the
+# directory but not open files it wrote under the previous uid. WiredTiger
+# fails with EPERM on WiredTiger.wt, renames it aside, retries, and the
+# container crash-loops.
+#
+# Inverting the fix is stable - chown the data to the mongodb user on every
+# start, so ownership is correct regardless of what the mount reports.
+#
+# The directory name differs from the template's ("mongodb") deliberately: the
+# original path holds files from the crash-looping runs, owned by a uid that no
+# longer exists in this container.
+TARGET_DIR="/app/state/mongodb-data"
 TARGET_USER="mongodb"
 TARGET_GROUP="mongodb"
 
-# Check if directory already exists
-if [ ! -d "$TARGET_DIR" ]; then
-  su -s /bin/sh -c "mkdir -p '$TARGET_DIR'" "$TARGET_USER" 2>/dev/null || {
-    mkdir -p "$TARGET_DIR" || {
-      echo "❌ Failed to create directory as root"
-      exit 1
-    }
+mkdir -p "$TARGET_DIR"
 
-    chown "$TARGET_USER:$TARGET_GROUP" "$TARGET_DIR" 2>/dev/null || {
-      echo "❌ Failed to chown directory to $TARGET_USER"
-      exit 1
-    }
-  }
+if [ "$(id -u)" = "0" ]; then
+  if chown -R "$TARGET_USER:$TARGET_GROUP" "$TARGET_DIR"; then
+    exec su -s /bin/sh "$TARGET_USER" -c \
+      "docker-entrypoint.sh mongod --bind_ip_all --dbpath $TARGET_DIR"
+  fi
+  echo "WARN: could not chown $TARGET_DIR; starting mongod as root instead"
 fi
 
-# Get actual uid and gid assigned
-ACTUAL_DIR_UID=$(stat -c '%u' "$TARGET_DIR")
-ACTUAL_DIR_GID=$(stat -c '%g' "$TARGET_DIR")
-
-# Update user/group if needed
-TARGET_USER_UID=$(id -u "$TARGET_USER")
-TARGET_USER_GID=$(id -g "$TARGET_USER")
-
-if [ "$ACTUAL_DIR_UID" -ne "$TARGET_USER_UID" ] && [ "$ACTUAL_DIR_UID" -ne 0 ]; then
-  usermod -u "$ACTUAL_DIR_UID" "$TARGET_USER" || {
-    echo "❌ Failed to update $TARGET_USER UID"
-    exit 1
-  }
-fi
-
-if [ "$ACTUAL_DIR_GID" -ne "$TARGET_USER_GID" ] && [ "$ACTUAL_DIR_GID" -ne 0 ]; then
-  groupmod -g "$ACTUAL_DIR_GID" "$TARGET_GROUP" || {
-    echo "❌ Failed to update $TARGET_GROUP GID"
-    exit 1
-  }
-fi
-
-exec su -s /bin/sh $TARGET_USER -c "docker-entrypoint.sh mongod --bind_ip_all --dbpath $TARGET_DIR"
+exec docker-entrypoint.sh mongod --bind_ip_all --dbpath "$TARGET_DIR"
