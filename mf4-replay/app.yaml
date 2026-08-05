@@ -1,4 +1,4 @@
-﻿name: mf4-replay
+name: mf4-replay
 language: python
 variables:
   - name: input

@@ -1,4 +1,4 @@
-﻿name: rlog-to-mf4
+name: rlog-to-mf4
 language: python
 variables:
   - name: output

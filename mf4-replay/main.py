@@ -47,7 +47,7 @@ DCM_TARGET_KEY = os.environ.get("DCM_TARGET_KEY", "")
 # Field names the lookup writes into each message. Both are stripped before the
 # message is produced - the DBC document is ~850 KB and must not reach the topic.
 F_DOC = "_dbc_doc"
-F_VERSION = "_dbc_version"
+F_KEY = "_dbc_key"
 
 _state = {"files": 0}
 
@@ -70,7 +70,7 @@ def build_handler(fs, dbs: DatabaseCache):
         # Strip the enrichment fields first, so they cannot leak downstream even
         # if this function returns early.
         doc = value.pop(F_DOC, None)
-        version = value.pop(F_VERSION, None)
+        db_key = value.pop(F_KEY, None)
 
         if MAX_FILES and _state["files"] >= MAX_FILES:
             return []
@@ -90,10 +90,10 @@ def build_handler(fs, dbs: DatabaseCache):
             )
             return []
 
-        db = dbs.get(version, doc)
+        db = dbs.get(db_key, doc)
 
         t0 = time.time()
-        logger.info("replaying %s (config version %s)", blob_path, version)
+        logger.info("replaying %s (dbc %s)", blob_path, str(db_key)[:16])
         with fs.open(blob_path, "rb") as fh:
             mf4_bytes = fh.read()
 
@@ -126,7 +126,7 @@ def build_handler(fs, dbs: DatabaseCache):
                     "undecoded": unk,
                     "dbc": {
                         "config_id": (value.get("dcm") or {}).get("config_id"),
-                        "config_version": version,
+                        "dbc_sha256_from_config": db_key,
                         "name": props.get("dbc.name"),
                         "sha256": props.get("dbc.sha256"),
                     },
@@ -182,8 +182,15 @@ def main() -> int:
         # "$" pulls the whole config document; the lookup fetches it from the
         # contentUrl in the config event and caches it per version.
         F_DOC: lookup.json_field(jsonpath="$", type=DCM_TYPE, default=None),
-        # metadata-only, so this alone would need no content fetch
-        F_VERSION: lookup.get_config_version(type=DCM_TYPE, default=None),
+        # Cache key for the compiled database. Deliberately a field of the
+        # document rather than the configuration's version: get_config_version()
+        # / MetadataField only exist in unreleased quixstreams builds, so relying
+        # on them breaks any deployment installing from PyPI. The source DBC hash
+        # is also the more honest identity - it changes exactly when the database
+        # content changes.
+        F_KEY: lookup.json_field(
+            jsonpath="$.source.dbc_sha256", type=DCM_TYPE, default=None
+        ),
     }
 
     sdf = app.dataframe(in_topic)

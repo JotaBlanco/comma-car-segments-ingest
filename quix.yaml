@@ -180,7 +180,7 @@ deployments:
         inputType: FreeText
         description: Change this to replay already-consumed files again
         required: true
-        value: mf4-replay-v2
+        value: mf4-replay-v3
       - name: MAX_FILES
         inputType: FreeText
         description: Debug-sized; 0 for no limit
