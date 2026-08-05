@@ -26,7 +26,9 @@ deployments:
     deploymentType: Service
     resources:
       cpu: 200
-      memory: 800
+      # WiredTiger takes a 256 MB cache before mongod's own overhead; at 800 MB
+      # mongod logged only 762 MB available to the process.
+      memory: 1200
       replicas: 1
     state:
       enabled: true
