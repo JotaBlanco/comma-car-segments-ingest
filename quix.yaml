@@ -172,6 +172,16 @@ deployments:
         inputType: FreeText
         required: false
         value: info
+      # Overrides the token injected by the blobStorage bind. The Query API is
+      # cluster-scoped in testrigorg-global, so auth.py validates Organisation/Read,
+      # which the injected token does not satisfy -- hence "Authentication rejected".
+      # A PAT passes. Set the secret with:
+      #   quix cloud secrets set quixlake_query_token <PAT>
+      - name: Quix__Lakehouse__Query__AuthToken
+        inputType: Secret
+        description: Org-scoped token or PAT for the Lakehouse Query API
+        required: false
+        secretKey: quixlake_query_token
     # No `state:` deliberately. Grafana keeps dashboards/users/alert rules in SQLite
     # at /var/lib/grafana, and the image does not redirect GF_PATHS_* to /app/state --
     # its entrypoint runs as uid 472 and cannot chown that mount. Enabling state here
