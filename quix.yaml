@@ -17,3 +17,75 @@ deployments:
     blobStorage:
       bind: true
 
+  # Backing store for the Dynamic Configuration Manager. Data lives on the Quix
+  # state mount: init.sh runs mongod with --dbpath /app/state/mongodb.
+  - name: MongoDB
+    group: Aux services
+    application: mongodb
+    version: latest
+    deploymentType: Service
+    resources:
+      cpu: 200
+      memory: 800
+      replicas: 1
+    state:
+      enabled: true
+      size: 1
+    network:
+      serviceName: mongodb
+      ports:
+        - port: 27017
+          targetPort: 27017
+    variables:
+      - name: MONGO_INITDB_ROOT_USERNAME
+        inputType: FreeText
+        description: The root username to initialize MongoDB with
+        required: true
+        value: admin
+      - name: MONGO_INITDB_ROOT_PASSWORD
+        inputType: Secret
+        description: The root password to initialize MongoDB with
+        required: true
+        secretKey: mongo_password
+
+  # Platform-managed service (no application directory in this repo). Holds the
+  # Ford DBC as a versioned config; the decode service resolves it by the
+  # dcm.target_key stored in each MF4 header. Reachable in-cluster at
+  # http://config-api-svc/api/v1
+  - name: Dynamic Configuration Manager
+    application: DynamicConfiguration
+    version: latest
+    deploymentType: Managed
+    plugin:
+      embeddedView:
+        enabled: true
+        hideHeader: true
+        default: true
+      sidebarItem:
+        show: true
+        label: "Configurations"
+        icon: "tune"
+    resources:
+      cpu: 100
+      memory: 500
+      replicas: 1
+    network:
+      serviceName: config-api-svc
+    configuration:
+      topic: config-updates
+      mongoHost: mongodb
+      mongoPort: 27017
+      mongoUser: admin
+      mongoPasswordSecret: mongo_password
+      mongoDatabase: quix
+      mongoCollection: configuration-api
+
+# This section describes the Topics of the data pipeline
+topics:
+  - name: config-updates
+  - name: mf4-metadata
+    dataTier: Bronze
+  - name: can-raw
+    dataTier: Bronze
+  - name: can-decoded
+    dataTier: Silver
