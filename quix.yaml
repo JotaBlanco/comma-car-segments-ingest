@@ -17,8 +17,10 @@ deployments:
     blobStorage:
       bind: true
 
-  # Backing store for the Dynamic Configuration Manager. Data lives on the Quix
-  # state mount: init.sh runs mongod with --dbpath /app/state/mongodb.
+  # Backing store for the Dynamic Configuration Manager. NOTE: dbpath is on the
+  # container's LOCAL disk (MONGO_DBPATH below), not the Quix state mount -
+  # WiredTiger fails there with EPERM. Configuration is therefore ephemeral and
+  # the DBC must be re-seeded after a restart. See mongodb/init.sh.
   - name: MongoDB
     group: Aux services
     application: mongodb
@@ -145,6 +147,56 @@ deployments:
         inputType: FreeText
         required: false
         value: "true"
+
+  # Consumes mf4-metadata, downloads each MF4 from blob, resolves its DBC from
+  # DCM using the dcm.config_id stored in that file's own MDF4 header, decodes,
+  # and publishes one message per CAN envelope. No pacing - as fast as it goes.
+  - name: MF4 replay
+    application: mf4-replay
+    version: latest
+    deploymentType: Service
+    resources:
+      cpu: 1000
+      memory: 2000
+      replicas: 1
+    blobStorage:
+      bind: true
+    variables:
+      - name: input
+        inputType: InputTopic
+        required: true
+        value: mf4-metadata
+      - name: output
+        inputType: OutputTopic
+        required: true
+        value: can-decoded
+      - name: CONSUMER_GROUP
+        inputType: FreeText
+        description: Change this to replay already-consumed files again
+        required: true
+        value: mf4-replay-v1
+      - name: MAX_FILES
+        inputType: FreeText
+        description: Debug-sized; 0 for no limit
+        required: true
+        value: "1"
+      - name: MAX_ENVELOPES_PER_FILE
+        inputType: FreeText
+        description: ~100 envelopes per second, so 500 is about 5s of driving
+        required: true
+        value: "500"
+      - name: DCM_BASE_URL
+        inputType: FreeText
+        required: true
+        value: http://config-api-svc/api/v1
+      - name: DCM_TYPE
+        inputType: FreeText
+        required: false
+        value: dbc
+      - name: DCM_TARGET_KEY
+        inputType: FreeText
+        required: false
+        value: FORD_F_150_LIGHTNING_MK1
 
 # This section describes the Topics of the data pipeline
 topics:
