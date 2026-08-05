@@ -28,7 +28,7 @@ CHANNEL_NAMES = {
 # joined on (frame_id, signal). At ~1.2M signal rows per 60s segment, carrying it
 # inline would be almost pure duplication.
 SIGNAL_COLUMNS = [
-    "ts",
+    "ts_ms",
     "platform",
     "device",
     "route",
@@ -48,7 +48,7 @@ SIGNAL_COLUMNS = [
 ]
 
 UNKNOWN_COLUMNS = [
-    "ts",
+    "ts_ms",
     "platform",
     "device",
     "route",
@@ -66,15 +66,26 @@ UNKNOWN_COLUMNS = [
 ]
 
 
-def flatten(value: dict, ts) -> tuple[list[dict], list[dict]]:
+def to_signal_rows(value: dict, ts_ms) -> list[dict]:
+    """Signal rows only - for apply(expand=True) feeding the signals sink."""
+    return flatten(value, ts_ms)[0]
+
+
+def to_unknown_rows(value: dict, ts_ms) -> list[dict]:
+    """Unknown-frame rows only - for apply(expand=True) feeding the second sink."""
+    return flatten(value, ts_ms)[1]
+
+
+def flatten(value: dict, ts_ms) -> tuple[list[dict], list[dict]]:
     """Turn one envelope message into (signal rows, unknown-frame rows).
 
-    `ts` is the event time. The source has no wall clock of its own - rlog
-    logMonoTime is monotonic-since-boot - so this is the replay timestamp, which
-    is what makes the rows partitionable by day.
+    `ts_ms` is the Kafka message timestamp in milliseconds. The source has no
+    wall clock of its own - rlog logMonoTime is monotonic-since-boot - so this
+    replay timestamp is the only absolute time, and it is what the sink derives
+    year/month/day partitions from.
     """
     base = {
-        "ts": ts,
+        "ts_ms": ts_ms,
         "platform": value.get("platform"),
         "device": value.get("device"),
         "route": value.get("route"),

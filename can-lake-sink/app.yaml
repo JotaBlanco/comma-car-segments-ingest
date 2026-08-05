@@ -14,7 +14,7 @@ variables:
   - name: SIGNALS_TABLE
     inputType: FreeText
     description: Lakehouse table for decoded signal samples, at the grain
-      channel -> sender_node -> frame -> pdu -> signal
+      channel -> sender_node -> frame -> signal
     defaultValue: can_signals
     required: true
   - name: UNKNOWN_TABLE
@@ -23,22 +23,38 @@ variables:
       empty to drop them instead (about a third of frames in this dataset).
     defaultValue: can_unknown_frames
     required: false
+  - name: S3_PREFIX
+    inputType: FreeText
+    description: Blob path prefix the sink writes Hive-partitioned parquet under
+    defaultValue: can-lake
+    required: true
+  - name: NAMESPACE
+    inputType: FreeText
+    description: REST Catalog namespace the tables are registered in
+    defaultValue: default
+    required: false
   - name: HIVE_COLUMNS
     inputType: FreeText
-    description: Partition columns, comma-separated. Keep low-cardinality - a day
-      partition is added from the timestamp. Do NOT add signal (2150 values) or
-      frame_name (331); Iceberg column stats prune those without partitioning.
-    defaultValue: platform,channel,sender_node
+    description: Partition columns for can_signals. year/month/day are derived by
+      the sink from the timestamp column. Keep low-cardinality - do NOT add signal
+      (2150 values) or frame_name (331); Iceberg column stats prune those anyway.
+    defaultValue: platform,channel,sender_node,year,month,day
+    required: true
+  - name: UNKNOWN_HIVE_COLUMNS
+    inputType: FreeText
+    description: Partition columns for can_unknown_frames (no sender_node - those
+      frames have no DBC entry, so no sender is known)
+    defaultValue: platform,channel,year,month,day
     required: true
   - name: COMMIT_INTERVAL
     inputType: FreeText
-    description: Seconds before a batch is flushed to the lake
+    description: Seconds before a batch is flushed
     defaultValue: "30"
     required: false
   - name: COMMIT_EVERY
     inputType: FreeText
-    description: Messages before a batch is flushed. Each envelope message expands
-      to roughly 200 signal rows, so 200 messages is about 40k rows per insert.
+    description: Messages before a batch is flushed. Each envelope expands to
+      roughly 200 signal rows, so 200 messages is about 40k rows.
     defaultValue: "200"
     required: false
   - name: LOGLEVEL

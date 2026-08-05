@@ -101,18 +101,46 @@ deployments:
       limits:
         cpu: 500
         memory: 1000
-    variables:
-      - name: CONSUMER_GROUP
-        description: Change this to re-sink already-consumed messages
-        value: can-lake-sink-v2
-      - name: SIGNALS_TABLE
-        description: grain is channel -> sender_node -> frame -> signal
-      - name: UNKNOWN_TABLE
-        description: frames with no DBC entry, raw payload kept
-      - name: HIVE_COLUMNS
-        description: low-cardinality partitions only; a day partition is added from ts
     blobStorage:
       bind: true
+    variables:
+      - name: input
+        inputType: InputTopic
+        required: true
+        value: can-decoded
+      - name: CONSUMER_GROUP
+        inputType: FreeText
+        description: Change this to re-sink already-consumed messages
+        required: true
+        value: can-lake-sink-v3
+      - name: SIGNALS_TABLE
+        inputType: FreeText
+        description: grain is channel -> sender_node -> frame -> signal
+        required: true
+        value: can_signals
+      - name: UNKNOWN_TABLE
+        inputType: FreeText
+        description: frames with no DBC entry, raw payload kept
+        required: false
+        value: can_unknown_frames
+      - name: S3_PREFIX
+        inputType: FreeText
+        required: true
+        value: can-lake
+      - name: HIVE_COLUMNS
+        inputType: FreeText
+        description: year/month/day are derived by the sink from the timestamp column
+        required: true
+        value: platform,channel,sender_node,year,month,day
+      - name: UNKNOWN_HIVE_COLUMNS
+        inputType: FreeText
+        description: no sender_node - these frames have no DBC entry
+        required: true
+        value: platform,channel,year,month,day
+      - name: COMMIT_EVERY
+        inputType: FreeText
+        required: false
+        value: "200"
 
 # This section describes the Topics of the data pipeline
 topics:
