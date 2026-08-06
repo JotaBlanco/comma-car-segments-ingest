@@ -112,18 +112,18 @@ deployments:
         inputType: FreeText
         description: Change this to re-sink already-consumed messages
         required: true
-        value: can-lake-sink-v5
+        value: can-lake-sink-v6
       - name: SIGNALS_TABLE
         inputType: FreeText
-        description: v3 - partition columns are fixed once a table registers and
-          DELETE /delete is 403 here, so each partitioning change needs a new name
+        description: the v1 names, recreated after the originals were dropped. Partition
+          columns are fixed once a table registers, so changing them needs a drop or a new name
         required: true
-        value: can_signals_v3
+        value: can_signals
       - name: UNKNOWN_TABLE
         inputType: FreeText
         description: frames with no DBC entry, raw payload kept
         required: false
-        value: can_unknown_frames_v3
+        value: can_unknown_frames
       - name: S3_PREFIX
         inputType: FreeText
         required: true
