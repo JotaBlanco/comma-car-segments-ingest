@@ -53,7 +53,7 @@ def frame_frequency():
     """)
 
 
-@canvas.cell(position=(231, 1792), size=(612, 552), code_height=167, viz={'type': 'line', 'x': 't_rel', 'y': ['WhlFl_W_Meas', 'WhlFr_W_Meas', 'VehLat2_A_Actl', 'VehLong2_A_Actl', 'BattTrac_U_Actl']})
+@canvas.cell(position=(-720, 1978), size=(612, 552), code_height=167, viz={'type': 'line', 'x': 't_rel', 'y': ['WhlFl_W_Meas', 'WhlFr_W_Meas', 'VehLat2_A_Actl', 'VehLong2_A_Actl', 'BattTrac_U_Actl']})
 def key_signals_timeseries(can_signals_sample):
     signals_of_interest = [
         "WhlFl_W_Meas", "WhlFr_W_Meas",     # front wheel speeds
@@ -66,7 +66,7 @@ def key_signals_timeseries(can_signals_sample):
     return wide.reset_index()
 
 
-@canvas.file(position=(355, 1534), size=(619, 402), code_height=0, path='can_signals_eda_notes.md')
+@canvas.file(position=(-511, 1652), size=(619, 402), code_height=0, path='can_signals_eda_notes.md')
 def can_signals_eda_notes():
     pass
 
@@ -88,7 +88,7 @@ def sender_summary():
     """)
 
 
-@canvas.cell(position=(-619, 1455), size=(560, 420), code_height=200)
+@canvas.cell(position=(-22, 1353), size=(789, 538), code_height=200)
 def signal_taxonomy(signal_catalog):
     import re
 
