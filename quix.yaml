@@ -101,57 +101,63 @@ deployments:
       limits:
         cpu: 1000
         memory: 2000
-    blobStorage:
-      bind: true
     variables:
-      - name: input
-        inputType: InputTopic
-        required: true
-        value: can-decoded
       - name: CONSUMER_GROUP
-        inputType: FreeText
         description: Change this to re-sink already-consumed messages
-        required: true
         value: can-lake-sink-v6
       - name: SIGNALS_TABLE
-        inputType: FreeText
-        description: the v1 names, recreated after the originals were dropped. Partition
-          columns are fixed once a table registers, so changing them needs a drop or a new name
-        required: true
-        value: can_signals
+        description: the v1 names, recreated after the originals were dropped. Partition columns are fixed once a table registers, so changing them needs a drop or a new name
       - name: UNKNOWN_TABLE
-        inputType: FreeText
         description: frames with no DBC entry, raw payload kept
-        required: false
-        value: can_unknown_frames
-      - name: S3_PREFIX
-        inputType: FreeText
-        required: true
-        value: can-lake
       - name: HIVE_COLUMNS
-        inputType: FreeText
-        description: drive identity, not the CAN hierarchy. sender_node/frame_name/
-          signal stay ordinary columns - Iceberg column stats prune them without
-          partitioning, and partitioning on them cost 1830 files per 255k rows.
-          No year/month/day either - those derive from the replay wall-clock.
-        required: true
+        description: drive identity, not the CAN hierarchy. sender_node/frame_name/ signal stay ordinary columns - Iceberg column stats prune them without partitioning, and partitioning on them cost 1830 files per 255k rows. No year/month/day either - those derive from the replay wall-clock.
         value: platform,device,route,channel
       - name: UNKNOWN_HIVE_COLUMNS
-        inputType: FreeText
         description: same layout; these frames have no sender or signal
-        required: true
         value: platform,device,route,channel
       - name: COMMIT_EVERY
-        inputType: FreeText
-        description: envelopes per flush. Each expands to roughly 255 signal rows,
-          so 2000 is about 500k rows per write.
-        required: false
-        value: "2000"
+        description: envelopes per flush. Each expands to roughly 255 signal rows, so 2000 is about 500k rows per write.
+        value: 2000
       - name: COMMIT_INTERVAL
-        inputType: FreeText
         description: seconds before a partial batch is flushed
-        required: false
-        value: "60"
+        value: 60
+    blobStorage:
+      bind: true
+  - name: QuixLab
+    application: quixlab
+    version: latest
+    deploymentType: Service
+    resources:
+      limits:
+        cpu: 500
+        memory: 2000
+    publicAccess:
+      enabled: true
+      urlPrefix: quixlab
+    state:
+      enabled: true
+      size: 1
+    network:
+      ports:
+        - port: 80
+          targetPort: 80
+    plugin:
+      embeddedView:
+        enabled: true
+        hideHeader: true
+        default: true
+      sidebarItem:
+        show: true
+        label: QuixLab
+        icon: grid_view
+        order: 1
+      globalItem:
+        show: true
+        label: QuixLab
+        icon: find_in_page
+        order: 1
+    blobStorage:
+      bind: true
 
 # This section describes the Topics of the data pipeline
 topics:
