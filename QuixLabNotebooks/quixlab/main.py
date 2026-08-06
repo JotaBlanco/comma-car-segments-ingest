@@ -88,7 +88,7 @@ def sender_summary():
     """)
 
 
-@canvas.cell(position=(525, 1094), size=(560, 420), code_height=200)
+@canvas.cell(position=(-619, 1455), size=(560, 420), code_height=200)
 def signal_taxonomy(signal_catalog):
     import re
 
