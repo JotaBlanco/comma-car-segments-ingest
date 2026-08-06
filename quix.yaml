@@ -99,8 +99,8 @@ deployments:
     deploymentType: Service
     resources:
       limits:
-        cpu: 500
-        memory: 1000
+        cpu: 1000
+        memory: 2000
     blobStorage:
       bind: true
     variables:
@@ -112,40 +112,46 @@ deployments:
         inputType: FreeText
         description: Change this to re-sink already-consumed messages
         required: true
-        value: can-lake-sink-v4
+        value: can-lake-sink-v5
       - name: SIGNALS_TABLE
         inputType: FreeText
-        description: v2 because partitioning changed and /delete is blocked, so the
-          original can_signals is stuck on its old partition columns
+        description: v3 - partition columns are fixed once a table registers and
+          DELETE /delete is 403 here, so each partitioning change needs a new name
         required: true
-        value: can_signals_v2
+        value: can_signals_v3
       - name: UNKNOWN_TABLE
         inputType: FreeText
         description: frames with no DBC entry, raw payload kept
         required: false
-        value: can_unknown_frames_v2
+        value: can_unknown_frames_v3
       - name: S3_PREFIX
         inputType: FreeText
         required: true
         value: can-lake
       - name: HIVE_COLUMNS
         inputType: FreeText
-        description: the full CAN hierarchy. No year/month/day - those derive from the
-          replay wall-clock, which says when the job ran, not when the driving
-          happened. ~2150 leaf partitions per platform, so run /compact to merge
-          small files.
+        description: drive identity, not the CAN hierarchy. sender_node/frame_name/
+          signal stay ordinary columns - Iceberg column stats prune them without
+          partitioning, and partitioning on them cost 1830 files per 255k rows.
+          No year/month/day either - those derive from the replay wall-clock.
         required: true
-        value: platform,channel,sender_node,frame_name,signal
+        value: platform,device,route,channel
       - name: UNKNOWN_HIVE_COLUMNS
         inputType: FreeText
-        description: no sender_node or signal - these frames have no DBC entry
+        description: same layout; these frames have no sender or signal
         required: true
-        value: platform,channel,frame_hex
+        value: platform,device,route,channel
       - name: COMMIT_EVERY
         inputType: FreeText
-        description: bigger batches, so many partitions produce fewer tiny files
+        description: envelopes per flush. Each expands to roughly 255 signal rows,
+          so 2000 is about 500k rows per write.
         required: false
-        value: "1000"
+        value: "2000"
+      - name: COMMIT_INTERVAL
+        inputType: FreeText
+        description: seconds before a partial batch is flushed
+        required: false
+        value: "60"
 
 # This section describes the Topics of the data pipeline
 topics:
