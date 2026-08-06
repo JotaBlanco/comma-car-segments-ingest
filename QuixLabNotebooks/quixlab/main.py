@@ -88,5 +88,66 @@ def sender_summary():
     """)
 
 
+@canvas.cell(position=(882, 887), size=(560, 420), code_height=200)
+def signal_taxonomy(signal_catalog):
+    import re
+
+    df = signal_catalog.copy()
+
+    def classify_domain(row):
+        text = f"{row['signal']} {row['frame_name']}".upper()
+        if re.search(r'WHL|WHEEL', text) and re.search(r'W_MEAS|_W_|SPD', text):
+            return 'Wheel Speed / ABS'
+        if re.search(r'BRK|BRAKE', text):
+            return 'Braking'
+        if re.search(r'STR|STEER', text):
+            return 'Steering'
+        if re.search(r'YAW', text):
+            return 'Vehicle Dynamics (Yaw)'
+        if re.search(r'VEHLAT|VEHLONG|VEHVERT|ACCEL_DATA|\bA_ACTL\b', text):
+            return 'Vehicle Dynamics (Accel/IMU)'
+        if re.search(r'BATT|HEV|\bSOC\b|CHRG', text):
+            return 'Battery / EV Powertrain'
+        if re.search(r'\bENG\b|\bPT_|PWT|IGNSWTCH|GEAR|TORQ', text):
+            return 'Engine / Powertrain'
+        if re.search(r'RADAR|OBJECT|TRK\d|TARGET', text):
+            return 'Radar / Object Detection'
+        if re.search(r'LANE|LKA|IPMA|\bCAM\b|ADAS|ACC_', text):
+            return 'Camera / ADAS'
+        if re.search(r'DOOR|LOCK|LIGHT|HVAC|CLIMA|SEAT|WIPER', text):
+            return 'Body / Comfort'
+        if re.search(r'TIRE|TPMS', text):
+            return 'Tire Pressure'
+        if re.search(r'GPS|\bNAV\b', text):
+            return 'Navigation'
+        return 'Other / Unclassified'
+
+    def classify_role(name):
+        n = name.upper()
+        if '_D_STAT' in n:
+            return 'Discrete State'
+        if '_QF' in n:
+            return 'Quality Flag'
+        if '_NO_CNT' in n or n.endswith('_CNT'):
+            return 'Message Counter'
+        if '_NO_CS' in n or n.endswith('_CS'):
+            return 'Checksum'
+        if '_ACTL' in n:
+            return 'Actual / Measured Value'
+        if '_MEAS' in n:
+            return 'Measured Value'
+        if '_EST' in n:
+            return 'Estimated Value'
+        if '_CMD' in n or '_REQ' in n:
+            return 'Command / Request'
+        if '_TRG' in n or 'TRGT' in n:
+            return 'Target Value'
+        return 'Other'
+
+    df['domain'] = df.apply(classify_domain, axis=1)
+    df['signal_role'] = df['signal'].apply(classify_role)
+    return df
+
+
 if __name__ == "__main__":
     canvas.serve()
