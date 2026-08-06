@@ -36,7 +36,7 @@ def signal_catalog():
     """)
 
 
-@canvas.dataset(position=(102, 1328), size=(560, 420), code_height=200, viz={'type': 'table'})
+@canvas.dataset(position=(-608, 1711), size=(560, 420), code_height=200, viz={'type': 'table'})
 def frame_frequency():
     return ql.sql("""
         SELECT channel_name, sender_node, frame_name,
@@ -66,7 +66,7 @@ def key_signals_timeseries(can_signals_sample):
     return wide.reset_index()
 
 
-@canvas.file(position=(740, 770), size=(560, 420), code_height=0, path='can_signals_eda_notes.md')
+@canvas.file(position=(136, 1244), size=(560, 420), code_height=0, path='can_signals_eda_notes.md')
 def can_signals_eda_notes():
     pass
 
