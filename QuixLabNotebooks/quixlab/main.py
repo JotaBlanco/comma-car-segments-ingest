@@ -36,7 +36,7 @@ def signal_catalog():
     """)
 
 
-@canvas.dataset(position=(-608, 1711), size=(560, 420), code_height=200, viz={'type': 'table'})
+@canvas.dataset(position=(-608, 1711), size=(556, 461), code_height=200, viz={'type': 'table'})
 def frame_frequency():
     return ql.sql("""
         SELECT channel_name, sender_node, frame_name,
