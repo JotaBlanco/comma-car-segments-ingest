@@ -66,7 +66,7 @@ def key_signals_timeseries(can_signals_sample):
     return wide.reset_index()
 
 
-@canvas.file(position=(-511, 1652), size=(619, 402), code_height=0, path='can_signals_eda_notes.md')
+@canvas.file(position=(83, 2667), size=(619, 402), code_height=0, path='can_signals_eda_notes.md')
 def can_signals_eda_notes():
     pass
 
@@ -206,14 +206,14 @@ def representative_signals_by_domain(signal_taxonomy, can_signals_sample):
     return fig
 
 
-@canvas.cell(position=(282, 1807), size=(560, 420), code_height=200, viz={'type': 'heatmap', 'x': 'domain', 'y': 'sender_node', 'z': 'n_signals'})
+@canvas.cell(position=(101, 1987), size=(560, 420), code_height=200, viz={'type': 'heatmap', 'x': 'domain', 'y': 'sender_node', 'z': 'n_signals'})
 def node_domain_heatmap(signal_taxonomy):
     matrix = (signal_taxonomy.groupby(['sender_node', 'domain'])['signal']
               .nunique().reset_index(name='n_signals'))
     return matrix
 
 
-@canvas.file(position=(1482, 1807), size=(560, 420), code_height=0, path='can_signal_domain_guide.md')
+@canvas.file(position=(558, 2689), size=(560, 420), code_height=0, path='can_signal_domain_guide.md')
 def can_signal_domain_guide():
     pass
 
