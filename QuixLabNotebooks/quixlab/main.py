@@ -71,7 +71,7 @@ def can_signals_eda_notes():
     pass
 
 
-@canvas.dataset(position=(1940, 310), size=(560, 420), code_height=200, viz={'type': 'bar', 'x': 'sender_node', 'y': ['n_messages']})
+@canvas.dataset(position=(1576, 691), size=(688, 571), code_height=200, viz={'type': 'bar', 'x': 'sender_node', 'y': ['n_messages']})
 def sender_summary():
     return ql.sql("""
         SELECT sender_node,
