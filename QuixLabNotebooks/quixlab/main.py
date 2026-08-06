@@ -66,7 +66,7 @@ def key_signals_timeseries(can_signals_sample):
     return wide.reset_index()
 
 
-@canvas.file(position=(136, 1244), size=(560, 420), code_height=0, path='can_signals_eda_notes.md')
+@canvas.file(position=(136, 1244), size=(662, 961), code_height=0, path='can_signals_eda_notes.md')
 def can_signals_eda_notes():
     pass
 
