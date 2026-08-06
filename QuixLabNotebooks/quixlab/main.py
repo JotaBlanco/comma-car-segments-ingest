@@ -178,5 +178,45 @@ def hierarchy_sunburst(signal_taxonomy):
     return fig
 
 
+@canvas.cell(position=(1482, 1347), size=(560, 420), code_height=200, viz={'type': 'bar', 'x': 'domain', 'y': 'n_rows'})
+def bus_traffic_by_domain(frame_frequency, signal_taxonomy):
+    lookup = signal_taxonomy[['sender_node', 'frame_name', 'domain']].drop_duplicates()
+    merged = frame_frequency.merge(lookup, on=['sender_node', 'frame_name'], how='left')
+    by_domain = (merged.groupby('domain', as_index=False)['n_rows']
+                 .sum().sort_values('n_rows', ascending=False))
+    return by_domain
+
+
+@canvas.cell(position=(882, 1807), size=(560, 420), code_height=200)
+def representative_signals_by_domain(signal_taxonomy, can_signals_sample):
+    top_per_domain = (signal_taxonomy.sort_values('n_messages', ascending=False)
+                      .groupby('domain').first().reset_index())
+    sig_names = top_per_domain['signal'].tolist()
+
+    df = can_signals_sample[can_signals_sample['signal'].isin(sig_names)]
+    wide = (df.pivot_table(index='t_rel', columns='signal', values='value', aggfunc='mean')
+            .sort_index())
+    wide = wide.interpolate(method='index', limit_direction='both').reset_index()
+
+    import plotly.express as px
+    value_cols = [c for c in wide.columns if c != 't_rel']
+    fig = px.line(wide, x='t_rel', y=value_cols,
+                  title='Highest-traffic signal per domain, over one drive segment')
+    fig.update_layout(legend_title_text='Signal')
+    return fig
+
+
+@canvas.cell(position=(282, 1807), size=(560, 420), code_height=200, viz={'type': 'heatmap', 'x': 'domain', 'y': 'sender_node', 'z': 'n_signals'})
+def node_domain_heatmap(signal_taxonomy):
+    matrix = (signal_taxonomy.groupby(['sender_node', 'domain'])['signal']
+              .nunique().reset_index(name='n_signals'))
+    return matrix
+
+
+@canvas.file(position=(1482, 1807), size=(560, 420), code_height=0, path='can_signal_domain_guide.md')
+def can_signal_domain_guide():
+    pass
+
+
 if __name__ == "__main__":
     canvas.serve()
