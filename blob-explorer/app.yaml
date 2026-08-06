@@ -1,0 +1,30 @@
+name: blob-explorer
+language: python
+variables:
+  - name: PREFIXES
+    inputType: FreeText
+    description: Comma-separated blob prefixes to inspect. An empty entry means the root.
+    defaultValue: ",car-data-raw,commacarsegments,mf4,can-lake"
+    required: true
+  - name: MAX_DEPTH
+    inputType: FreeText
+    defaultValue: "3"
+    required: false
+  - name: MAX_ENTRIES
+    inputType: FreeText
+    description: Max directories listed per level
+    defaultValue: "40"
+    required: false
+  - name: COUNT_PREFIX
+    inputType: FreeText
+    description: Prefix under which to count rlog.zst per device
+    defaultValue: commacarsegments/segments
+    required: false
+  - name: DEVICES
+    inputType: FreeText
+    description: Device ids to count segments for; empty skips the count
+    defaultValue: 0b2c0bec9a28eb0f,112e4d6e0cad05e1,23ee3ec9ee4ee781,2eb001918aefbb1e,3b1f3f2a42d70b76,4580d36e7617c224,74e94569bd74054d,83f2cb32d4939244,a0a3c0b1c00408b0
+    required: false
+dockerfile: dockerfile
+runEntryPoint: main.py
+defaultFile: main.py
