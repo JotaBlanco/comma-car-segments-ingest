@@ -149,5 +149,13 @@ def signal_taxonomy(signal_catalog):
     return df
 
 
+@canvas.cell(position=(882, 1347), size=(560, 420), code_height=200, viz={'type': 'bar', 'x': 'domain', 'y': 'n_signals'})
+def domain_signal_counts(signal_taxonomy):
+    counts = (signal_taxonomy.groupby('domain')['signal']
+              .nunique().reset_index(name='n_signals')
+              .sort_values('n_signals', ascending=False))
+    return counts
+
+
 if __name__ == "__main__":
     canvas.serve()
