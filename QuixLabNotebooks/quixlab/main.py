@@ -149,7 +149,7 @@ def signal_taxonomy(signal_catalog):
     return df
 
 
-@canvas.cell(position=(882, 1347), size=(560, 420), code_height=200, viz={'type': 'bar', 'x': 'domain', 'y': 'n_signals'})
+@canvas.cell(position=(748, 1977), size=(597, 552), code_height=200, viz={'type': 'bar', 'x': 'domain', 'y': 'n_signals'})
 def domain_signal_counts(signal_taxonomy):
     counts = (signal_taxonomy.groupby('domain')['signal']
               .nunique().reset_index(name='n_signals')
@@ -178,7 +178,7 @@ def hierarchy_sunburst(signal_taxonomy):
     return fig
 
 
-@canvas.cell(position=(1482, 1347), size=(560, 420), code_height=200, viz={'type': 'bar', 'x': 'domain', 'y': 'n_rows'})
+@canvas.cell(position=(1519, 1699), size=(560, 420), code_height=200, viz={'type': 'bar', 'x': 'domain', 'y': 'n_rows'})
 def bus_traffic_by_domain(frame_frequency, signal_taxonomy):
     lookup = signal_taxonomy[['sender_node', 'frame_name', 'domain']].drop_duplicates()
     merged = frame_frequency.merge(lookup, on=['sender_node', 'frame_name'], how='left')
@@ -206,7 +206,7 @@ def representative_signals_by_domain(signal_taxonomy, can_signals_sample):
     return fig
 
 
-@canvas.cell(position=(102, 1972), size=(560, 420), code_height=200, viz={'type': 'heatmap', 'x': 'domain', 'y': 'sender_node', 'z': 'n_signals'})
+@canvas.cell(position=(60, 1978), size=(634, 546), code_height=200, viz={'type': 'heatmap', 'x': 'domain', 'y': 'sender_node', 'z': 'n_signals'})
 def node_domain_heatmap(signal_taxonomy):
     matrix = (signal_taxonomy.groupby(['sender_node', 'domain'])['signal']
               .nunique().reset_index(name='n_signals'))
