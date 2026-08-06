@@ -3,7 +3,7 @@ import quixlab as ql
 canvas = ql.Canvas(title="My Notebook")
 
 
-@canvas.dataset(position=(-610, 687), size=(560, 420), code_height=200, viz={'type': 'table'})
+@canvas.dataset(position=(-610, 687), size=(567, 513), code_height=200, viz={'type': 'table'})
 def can_signals_sample():
     return ql.sql("""
         SELECT ts_ms, segment, seq, t_rel, channel_name, frame_id, frame_hex,
