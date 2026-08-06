@@ -157,5 +157,26 @@ def domain_signal_counts(signal_taxonomy):
     return counts
 
 
+@canvas.cell(position=(1482, 887), size=(560, 420), code_height=200)
+def hierarchy_sunburst(signal_taxonomy):
+    import plotly.express as px
+
+    agg = (signal_taxonomy
+           .groupby(['channel_name', 'sender_node', 'frame_name'])
+           .agg(n_signals=('signal', 'nunique'), n_messages=('n_messages', 'sum'))
+           .reset_index())
+
+    fig = px.sunburst(
+        agg,
+        path=['channel_name', 'sender_node', 'frame_name'],
+        values='n_signals',
+        color='n_messages',
+        color_continuous_scale='Viridis',
+        title='CAN hierarchy: Bus -> ECU -> Frame (size=#signals, color=message volume)'
+    )
+    fig.update_layout(margin=dict(t=60, l=0, r=0, b=0))
+    return fig
+
+
 if __name__ == "__main__":
     canvas.serve()
