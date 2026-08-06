@@ -157,7 +157,7 @@ def domain_signal_counts(signal_taxonomy):
     return counts
 
 
-@canvas.cell(position=(1482, 887), size=(560, 420), code_height=200)
+@canvas.cell(position=(2028, 1975), size=(806, 549), code_height=200)
 def hierarchy_sunburst(signal_taxonomy):
     import plotly.express as px
 
@@ -178,7 +178,7 @@ def hierarchy_sunburst(signal_taxonomy):
     return fig
 
 
-@canvas.cell(position=(1519, 1699), size=(560, 420), code_height=200, viz={'type': 'bar', 'x': 'domain', 'y': 'n_rows'})
+@canvas.cell(position=(1375, 1974), size=(607, 550), code_height=200, viz={'type': 'bar', 'x': 'domain', 'y': 'n_rows'})
 def bus_traffic_by_domain(frame_frequency, signal_taxonomy):
     lookup = signal_taxonomy[['sender_node', 'frame_name', 'domain']].drop_duplicates()
     merged = frame_frequency.merge(lookup, on=['sender_node', 'frame_name'], how='left')
