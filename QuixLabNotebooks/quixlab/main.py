@@ -53,7 +53,7 @@ def frame_frequency():
     """)
 
 
-@canvas.cell(position=(140, 770), size=(560, 420), code_height=200, viz={'type': 'line', 'x': 't_rel', 'y': ['WhlFl_W_Meas', 'WhlFr_W_Meas', 'VehLat2_A_Actl', 'VehLong2_A_Actl', 'BattTrac_U_Actl']})
+@canvas.cell(position=(139, 672), size=(621, 458), code_height=149, viz={'type': 'line', 'x': 't_rel', 'y': ['WhlFl_W_Meas', 'WhlFr_W_Meas', 'VehLat2_A_Actl', 'VehLong2_A_Actl', 'BattTrac_U_Actl']})
 def key_signals_timeseries(can_signals_sample):
     signals_of_interest = [
         "WhlFl_W_Meas", "WhlFr_W_Meas",     # front wheel speeds
@@ -66,7 +66,7 @@ def key_signals_timeseries(can_signals_sample):
     return wide.reset_index()
 
 
-@canvas.file(position=(136, 1244), size=(662, 961), code_height=0, path='can_signals_eda_notes.md')
+@canvas.file(position=(136, 1244), size=(619, 402), code_height=0, path='can_signals_eda_notes.md')
 def can_signals_eda_notes():
     pass
 
