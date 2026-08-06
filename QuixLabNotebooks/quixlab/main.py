@@ -3,7 +3,7 @@ import quixlab as ql
 canvas = ql.Canvas(title="My Notebook")
 
 
-@canvas.dataset(position=(-610, 687), size=(567, 513), code_height=200, viz={'type': 'table'})
+@canvas.dataset(position=(-743, 688), size=(711, 568), code_height=200, viz={'type': 'table'})
 def can_signals_sample():
     return ql.sql("""
         SELECT ts_ms, segment, seq, t_rel, channel_name, frame_id, frame_hex,
@@ -17,7 +17,7 @@ def can_signals_sample():
     """)
 
 
-@canvas.dataset(position=(-610, 1237), size=(560, 420), code_height=200, viz={'type': 'table'})
+@canvas.dataset(position=(17, 686), size=(687, 544), code_height=200, viz={'type': 'table'})
 def signal_catalog():
     return ql.sql("""
         SELECT channel_name, sender_node, frame_name, signal,
@@ -36,7 +36,7 @@ def signal_catalog():
     """)
 
 
-@canvas.dataset(position=(-608, 1711), size=(556, 461), code_height=200, viz={'type': 'table'})
+@canvas.dataset(position=(749, 687), size=(745, 581), code_height=200, viz={'type': 'table'})
 def frame_frequency():
     return ql.sql("""
         SELECT channel_name, sender_node, frame_name,
@@ -53,7 +53,7 @@ def frame_frequency():
     """)
 
 
-@canvas.cell(position=(175, 1802), size=(612, 552), code_height=167, viz={'type': 'line', 'x': 't_rel', 'y': ['WhlFl_W_Meas', 'WhlFr_W_Meas', 'VehLat2_A_Actl', 'VehLong2_A_Actl', 'BattTrac_U_Actl']})
+@canvas.cell(position=(231, 1792), size=(612, 552), code_height=167, viz={'type': 'line', 'x': 't_rel', 'y': ['WhlFl_W_Meas', 'WhlFr_W_Meas', 'VehLat2_A_Actl', 'VehLong2_A_Actl', 'BattTrac_U_Actl']})
 def key_signals_timeseries(can_signals_sample):
     signals_of_interest = [
         "WhlFl_W_Meas", "WhlFr_W_Meas",     # front wheel speeds
@@ -66,7 +66,7 @@ def key_signals_timeseries(can_signals_sample):
     return wide.reset_index()
 
 
-@canvas.file(position=(136, 1271), size=(619, 402), code_height=0, path='can_signals_eda_notes.md')
+@canvas.file(position=(355, 1534), size=(619, 402), code_height=0, path='can_signals_eda_notes.md')
 def can_signals_eda_notes():
     pass
 
@@ -88,7 +88,7 @@ def sender_summary():
     """)
 
 
-@canvas.cell(position=(882, 887), size=(560, 420), code_height=200)
+@canvas.cell(position=(525, 1094), size=(560, 420), code_height=200)
 def signal_taxonomy(signal_catalog):
     import re
 
