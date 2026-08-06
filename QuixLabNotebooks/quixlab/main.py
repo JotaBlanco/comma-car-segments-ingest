@@ -53,7 +53,7 @@ def frame_frequency():
     """)
 
 
-@canvas.cell(position=(-700, 1976), size=(612, 552), code_height=167, viz={'type': 'line', 'x': 't_rel', 'y': ['WhlFl_W_Meas', 'WhlFr_W_Meas', 'VehLat2_A_Actl', 'VehLong2_A_Actl', 'BattTrac_U_Actl']})
+@canvas.cell(position=(-1221, 1973), size=(612, 552), code_height=167, viz={'type': 'line', 'x': 't_rel', 'y': ['WhlFl_W_Meas', 'WhlFr_W_Meas', 'VehLat2_A_Actl', 'VehLong2_A_Actl', 'BattTrac_U_Actl']})
 def key_signals_timeseries(can_signals_sample):
     signals_of_interest = [
         "WhlFl_W_Meas", "WhlFr_W_Meas",     # front wheel speeds
@@ -187,7 +187,7 @@ def bus_traffic_by_domain(frame_frequency, signal_taxonomy):
     return by_domain
 
 
-@canvas.cell(position=(-200, 2103), size=(560, 420), code_height=200)
+@canvas.cell(position=(-571, 1974), size=(624, 552), code_height=197)
 def representative_signals_by_domain(signal_taxonomy, can_signals_sample):
     top_per_domain = (signal_taxonomy.sort_values('n_messages', ascending=False)
                       .groupby('domain').first().reset_index())
@@ -206,7 +206,7 @@ def representative_signals_by_domain(signal_taxonomy, can_signals_sample):
     return fig
 
 
-@canvas.cell(position=(650, 2034), size=(560, 420), code_height=200, viz={'type': 'heatmap', 'x': 'domain', 'y': 'sender_node', 'z': 'n_signals'})
+@canvas.cell(position=(102, 1972), size=(560, 420), code_height=200, viz={'type': 'heatmap', 'x': 'domain', 'y': 'sender_node', 'z': 'n_signals'})
 def node_domain_heatmap(signal_taxonomy):
     matrix = (signal_taxonomy.groupby(['sender_node', 'domain'])['signal']
               .nunique().reset_index(name='n_signals'))
