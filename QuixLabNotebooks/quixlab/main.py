@@ -364,10 +364,53 @@ def ai_1():
     """
 
 
-@canvas.ai(position=(1406, 2965), size=(873, 648), code_height=302)
+@canvas.ai(position=(1689, 3313), size=(873, 648), code_height=302)
 def ai_2(can_signals_sample):
     """please analyse the vehicle dynamics signals from @can_signals_sample 
     """
+    # ql-ai: generated from prompt 788ed68d5a9194e2
+    import pandas as pd
+    import numpy as np
+
+    df = can_signals_sample
+
+    # Vehicle-dynamics-related signal keywords: speed, yaw, lateral/longitudinal
+    # acceleration, steering, wheel, slip, roll, pitch, brake, suspension, gyro
+    vd_keywords = [
+        'speed', 'spd', 'yaw', 'accel', 'accl', 'steer', 'whl', 'wheel',
+        'lat', 'long', 'gyro', 'brake', 'susp', 'roll', 'pitch', 'slip',
+        'gforce', 'g_force'
+    ]
+    pattern = '|'.join(vd_keywords)
+
+    mask = df['signal'].str.lower().str.contains(pattern, na=False)
+    vd = df[mask].copy()
+
+    if vd.empty:
+        result = "No signals matched the vehicle-dynamics keyword filter (speed/yaw/accel/steer/wheel/slip/roll/pitch/brake/suspension/gyro)."
+    else:
+        # Per-signal summary: source frame/sender, sample count, and value stats
+        summary = (
+            vd.groupby(['signal', 'frame_name', 'sender_node'])['value']
+            .agg(count='count', mean='mean', std='std', min='min', max='max')
+            .reset_index()
+            .sort_values('std', ascending=False)
+        )
+
+        # Time-series view of the most variable vehicle-dynamics signals
+        top_signals = summary.head(8)['signal'].tolist()
+        ts = vd[vd['signal'].isin(top_signals)]
+        wide = (
+            ts.pivot_table(index='t_rel', columns='signal', values='value', aggfunc='mean')
+            .sort_index()
+            .interpolate(method='index', limit_direction='both')
+            .reset_index()
+        )
+
+        chart = ql.viz(wide, type='line', x='t_rel', y=top_signals)
+        result = [summary, chart]
+
+    result
 
 
 if __name__ == "__main__":
