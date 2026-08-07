@@ -101,63 +101,28 @@ deployments:
       limits:
         cpu: 1000
         memory: 2000
-    blobStorage:
-      bind: true
     variables:
-      - name: input
-        inputType: InputTopic
-        required: true
-        value: can-decoded
       - name: CONSUMER_GROUP
-        inputType: FreeText
         description: Change this to re-sink already-consumed messages
-        required: true
         value: can-lake-sink-v7
       - name: SIGNALS_TABLE
-        inputType: FreeText
-        description: the v1 names, recreated after the originals were dropped. Partition
-          columns are fixed once a table registers, so changing them needs a drop or a new name
-        required: true
-        value: can_signals
+        description: the v1 names, recreated after the originals were dropped. Partition columns are fixed once a table registers, so changing them needs a drop or a new name
       - name: UNKNOWN_TABLE
-        inputType: FreeText
         description: frames with no DBC entry, raw payload kept
-        required: false
-        value: can_unknown_frames
-      - name: S3_PREFIX
-        inputType: FreeText
-        required: true
-        value: can-lake
       - name: HIVE_COLUMNS
-        inputType: FreeText
-        description: drive identity, not the CAN hierarchy. sender_node/frame_name/
-          signal stay ordinary columns - Iceberg column stats prune them without
-          partitioning, and partitioning on them cost 1830 files per 255k rows.
-          No year/month/day either - those derive from the replay wall-clock.
-        required: true
+        description: drive identity, not the CAN hierarchy. sender_node/frame_name/ signal stay ordinary columns - Iceberg column stats prune them without partitioning, and partitioning on them cost 1830 files per 255k rows. No year/month/day either - those derive from the replay wall-clock.
         value: platform,device,route,channel
       - name: UNKNOWN_HIVE_COLUMNS
-        inputType: FreeText
         description: same layout; these frames have no sender or signal
-        required: true
         value: platform,device,route,channel
       - name: COMMIT_EVERY
-        inputType: FreeText
-        description: envelopes per flush. Each expands to roughly 255 signal rows,
-          so 2000 is about 500k rows per write.
-        required: false
-        value: "2000"
+        description: envelopes per flush. Each expands to roughly 255 signal rows, so 2000 is about 500k rows per write.
+        value: 2000
       - name: COMMIT_INTERVAL
-        inputType: FreeText
         description: seconds before a partial batch is flushed
-        required: false
-        value: "60"
-
-  # Read-only one-shot: prints what is actually in blob storage. Blob is only
-  # reachable in-cluster - the Storage Access Gateway is publicly routable but
-  # needs SigV4 credentials that exist solely as
-  # Quix__BlobStorage__Connection__Json inside a deployment - so inspecting a
-  # prefix needs a job rather than a local script.
+        value: 60
+    blobStorage:
+      bind: true
   - name: Blob explorer
     application: blob-explorer
     version: latest
@@ -166,23 +131,13 @@ deployments:
       limits:
         cpu: 200
         memory: 500
-    blobStorage:
-      bind: true
     variables:
       - name: PREFIXES
-        inputType: FreeText
         description: blob prefixes to inspect; the leading empty entry is the root
-        required: true
-        value: ",car-data-raw,commacarsegments,mf4,can-lake"
-      - name: MAX_DEPTH
-        inputType: FreeText
-        required: false
-        value: "3"
       - name: DEVICES
-        inputType: FreeText
         description: count rlog.zst per device, to see how far the mirror got
-        required: false
-        value: 0b2c0bec9a28eb0f,112e4d6e0cad05e1,23ee3ec9ee4ee781,2eb001918aefbb1e,3b1f3f2a42d70b76,4580d36e7617c224,74e94569bd74054d,83f2cb32d4939244,a0a3c0b1c00408b0
+    blobStorage:
+      bind: true
 
 # This section describes the Topics of the data pipeline
 topics:
