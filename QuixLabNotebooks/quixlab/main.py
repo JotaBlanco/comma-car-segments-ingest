@@ -218,7 +218,7 @@ def can_signal_domain_guide():
     pass
 
 
-@canvas.notebook(position=(1004, 2861), size=(1010, 719), code_height=200, viz={'outputCell': 0})
+@canvas.notebook(position=(788, 2656), size=(1010, 719), code_height=200, viz={'outputCell': 0})
 def can_signals_notebook(signal_catalog, frame_frequency, can_signals_sample, sender_summary):
     # %%
     import re
