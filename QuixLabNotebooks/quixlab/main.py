@@ -357,17 +357,10 @@ def can_signals_notebook(signal_catalog, frame_frequency, can_signals_sample, se
     sender_enriched.sort_values('n_messages', ascending=False)
 
 
-@canvas.ai(position=(1564, 2434), size=(560, 420), code_height=200)
+@canvas.ai(position=(2110, 2743), size=(908, 748), code_height=381)
 def ai_1():
-    """Describe what you want computed — plain English, not code.
-
-    Reference other cells with `@cell_id`; their results are this cell's inputs.
-    Example: *Calculate the 95th percentile of every numeric column in @my_cell.*
-
-    Press ▶ to run. In **generated code** mode (default) the AI writes hidden
-    Python for this prompt and the cell runs it like a normal cell — regenerated
-    only when you change the prompt. Switch the dropdown to **live agent** for a
-    full analysis session (lakehouse + sub-agent) on every run."""
+    """I want a much better understanding of the data. 
+    Use can_signals_sample and maybe signal_catalog too as source of data for a full notebook cell understanding each signal, their domain, how they interact, the hierarchy relationships, which upper hierarchy they belong to, what they mean, some examples of data visualisation, etc. With what you gave me I still don't know anythign about the data. Have a domain knowledge angle too. It's over 1000 signals, so think well how to structure the visualisation"""
 
 
 if __name__ == "__main__":
