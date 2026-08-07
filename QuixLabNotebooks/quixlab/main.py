@@ -157,7 +157,7 @@ def domain_signal_counts(signal_taxonomy):
     return counts
 
 
-@canvas.cell(position=(2292, 1968), size=(849, 553), code_height=153)
+@canvas.cell(position=(2292, 1968), size=(849, 553), code_height=190)
 def hierarchy_sunburst(signal_taxonomy):
     import plotly.express as px
 
