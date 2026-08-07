@@ -364,7 +364,7 @@ def ai_1():
     """
 
 
-@canvas.ai(position=(1675, 2462), size=(873, 648), code_height=302)
+@canvas.ai(position=(1406, 2965), size=(873, 648), code_height=302)
 def ai_2():
     """Describe what you want computed — plain English, not code.
 
