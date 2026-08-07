@@ -76,6 +76,19 @@ def to_unknown_rows(value: dict, ts_ms) -> list[dict]:
     return flatten(value, ts_ms)[1]
 
 
+def _resolve_ts(value: dict, ts_ms):
+    """Prefer the producer's explicit ts_ms over the Kafka message timestamp.
+
+    Expanded messages inherit their source message's timestamp, so relying on
+    Kafka metadata alone once produced every row of a file with one identical
+    value. mf4-replay now sets the timestamp explicitly and also carries it in
+    the payload; trusting the payload first means a regression upstream cannot
+    silently flatten the time axis again.
+    """
+    explicit = value.get("ts_ms")
+    return int(explicit) if explicit is not None else ts_ms
+
+
 def flatten(value: dict, ts_ms) -> tuple[list[dict], list[dict]]:
     """Turn one envelope message into (signal rows, unknown-frame rows).
 
@@ -85,7 +98,7 @@ def flatten(value: dict, ts_ms) -> tuple[list[dict], list[dict]]:
     year/month/day partitions from.
     """
     base = {
-        "ts_ms": ts_ms,
+        "ts_ms": _resolve_ts(value, ts_ms),
         "platform": value.get("platform"),
         "device": value.get("device"),
         "route": value.get("route"),

@@ -66,7 +66,7 @@ def lookup_key(value: dict, _key) -> str:
 def build_handler(fs, dbs: DatabaseCache):
     """One mf4-metadata message -> many envelope messages (apply(expand=True))."""
 
-    def handle(value: dict) -> list:
+    def handle(value: dict, _key, source_ts_ms: int, _headers) -> list:
         # Strip the enrichment fields first, so they cannot leak downstream even
         # if this function returns early.
         doc = value.pop(F_DOC, None)
@@ -121,6 +121,14 @@ def build_handler(fs, dbs: DatabaseCache):
                     # does not preserve row order.
                     "seq": seq,
                     "t_rel": round(t_rel, 6),
+                    # Absolute time for this envelope. Expanded messages inherit
+                    # the SOURCE message's Kafka timestamp, so without this every
+                    # row of a file would carry one identical timestamp and the
+                    # time axis would be dead. The recording itself has no wall
+                    # clock (logMonoTime is monotonic-since-boot), so anchor on
+                    # when the file was announced and lay t_rel on top - that
+                    # reconstructs the drive's timeline at the right spacing.
+                    "ts_ms": int(source_ts_ms + round(t_rel * 1000)),
                     "frame_count": len(recs),
                     "decoded": dec,
                     "undecoded": unk,
@@ -195,7 +203,11 @@ def main() -> int:
 
     sdf = app.dataframe(in_topic)
     sdf = sdf.join_lookup(lookup, fields, on=lookup_key)
-    sdf = sdf.apply(build_handler(fs, dbs), expand=True)
+    sdf = sdf.apply(build_handler(fs, dbs), expand=True, metadata=True)
+    # Carry the per-envelope time onto the Kafka message itself, so every
+    # downstream consumer (the lake sink included) sees a real time axis rather
+    # than the source message's single inherited timestamp.
+    sdf = sdf.set_timestamp(lambda value, _key, _ts, _headers: int(value["ts_ms"]))
     sdf = sdf.to_topic(
         out_topic, key=lambda v: f"{v['device']}/{v['route']}/{v['segment']}"
     )

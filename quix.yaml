@@ -90,7 +90,7 @@ deployments:
         memory: 2000
     variables:
       - name: CONSUMER_GROUP
-        value: mf4-replay-v4
+        value: mf4-replay-v5
     blobStorage:
       bind: true
   - name: CAN lake sink
@@ -112,7 +112,7 @@ deployments:
         inputType: FreeText
         description: Change this to re-sink already-consumed messages
         required: true
-        value: can-lake-sink-v6
+        value: can-lake-sink-v7
       - name: SIGNALS_TABLE
         inputType: FreeText
         description: the v1 names, recreated after the originals were dropped. Partition
