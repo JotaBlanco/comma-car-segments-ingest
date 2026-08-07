@@ -218,7 +218,7 @@ def can_signal_domain_guide():
     pass
 
 
-@canvas.notebook(position=(788, 2656), size=(1010, 719), code_height=200, viz={'outputCell': 0})
+@canvas.notebook(position=(777, 2664), size=(1010, 719), code_height=200, viz={'outputCell': 0})
 def can_signals_notebook(signal_catalog, frame_frequency, can_signals_sample, sender_summary):
     # %%
     import re
@@ -357,7 +357,7 @@ def can_signals_notebook(signal_catalog, frame_frequency, can_signals_sample, se
     sender_enriched.sort_values('n_messages', ascending=False)
 
 
-@canvas.ai(position=(2110, 2743), size=(908, 748), code_height=381)
+@canvas.ai(position=(1853, 2663), size=(1285, 882), code_height=190)
 def ai_1():
     """I want a much better understanding of the data. 
     Use can_signals_sample and maybe signal_catalog too as source of data for a full analysis. Create one notebook cell to analyse the different domain signal groups (braking, steering, navigation, etc.) and the one notebook cell PER signal group where it is explored from the domain knowledge point of view the understanding each signal, their domain, how they interact, the hierarchy relationships, which upper hierarchy they belong to, what they mean, some examples of data visualisation, etc. It's over 1000 signals, so think well how to structure the visualisation to make it powerfull and useful
