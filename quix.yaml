@@ -147,4 +147,6 @@ topics:
   - name: can-raw
     dataTier: Bronze
   - name: can-decoded
+    configuration:
+      retentionInBytes: 5368709120
     dataTier: Silver
