@@ -88,11 +88,46 @@ deployments:
       limits:
         cpu: 1000
         memory: 2000
-    variables:
-      - name: CONSUMER_GROUP
-        value: mf4-replay-v5
     blobStorage:
       bind: true
+    variables:
+      - name: input
+        inputType: InputTopic
+        required: true
+        value: mf4-metadata
+      - name: output
+        inputType: OutputTopic
+        required: true
+        value: can-decoded
+      - name: config
+        inputType: InputTopic
+        description: DCM config events; QuixConfigurationService resolves the CAN
+          database version per message from this
+        required: true
+        value: config-updates
+      - name: CONSUMER_GROUP
+        inputType: FreeText
+        description: Change this to replay already-consumed files again
+        required: true
+        value: mf4-replay-v6
+      - name: MAX_FILES
+        inputType: FreeText
+        description: 0 = every converted MF4 (20 today)
+        required: true
+        value: "0"
+      - name: MAX_ENVELOPES_PER_FILE
+        inputType: FreeText
+        description: 0 = the whole 60s segment, ~6000 envelopes
+        required: true
+        value: "0"
+      - name: DCM_TYPE
+        inputType: FreeText
+        required: false
+        value: dbc
+      - name: DCM_TARGET_KEY
+        inputType: FreeText
+        required: false
+        value: FORD_F_150_LIGHTNING_MK1
   - name: CAN lake sink
     application: can-lake-sink
     version: latest
