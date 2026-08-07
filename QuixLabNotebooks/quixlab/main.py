@@ -53,7 +53,7 @@ def frame_frequency():
     """)
 
 
-@canvas.cell(position=(-1221, 1973), size=(612, 552), code_height=167, viz={'type': 'line', 'x': 't_rel', 'y': ['WhlFl_W_Meas', 'WhlFr_W_Meas', 'VehLat2_A_Actl', 'VehLong2_A_Actl', 'BattTrac_U_Actl']})
+@canvas.cell(position=(-1282, 1973), size=(612, 552), code_height=167, viz={'type': 'line', 'x': 't_rel', 'y': ['WhlFl_W_Meas', 'WhlFr_W_Meas', 'VehLat2_A_Actl', 'VehLong2_A_Actl', 'BattTrac_U_Actl']})
 def key_signals_timeseries(can_signals_sample):
     signals_of_interest = [
         "WhlFl_W_Meas", "WhlFr_W_Meas",     # front wheel speeds
