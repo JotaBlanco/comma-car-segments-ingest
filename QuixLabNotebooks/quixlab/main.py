@@ -365,8 +365,9 @@ def ai_1():
 
 
 @canvas.ai(position=(1406, 2965), size=(873, 648), code_height=302)
-def ai_2():
-    """please analyse the vehicle dynamics signals from """
+def ai_2(can_signals_sample):
+    """please analyse the vehicle dynamics signals from @can_signals_sample 
+    """
 
 
 if __name__ == "__main__":
