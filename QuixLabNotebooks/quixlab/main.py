@@ -149,7 +149,7 @@ def signal_taxonomy(signal_catalog):
     return df
 
 
-@canvas.cell(position=(748, 1977), size=(597, 552), code_height=200, viz={'type': 'bar', 'x': 'domain', 'y': 'n_signals'})
+@canvas.cell(position=(818, 1971), size=(697, 556), code_height=200, viz={'type': 'bar', 'x': 'domain', 'y': 'n_signals'})
 def domain_signal_counts(signal_taxonomy):
     counts = (signal_taxonomy.groupby('domain')['signal']
               .nunique().reset_index(name='n_signals')
@@ -157,7 +157,7 @@ def domain_signal_counts(signal_taxonomy):
     return counts
 
 
-@canvas.cell(position=(2028, 1975), size=(806, 549), code_height=200)
+@canvas.cell(position=(2292, 1968), size=(806, 549), code_height=200)
 def hierarchy_sunburst(signal_taxonomy):
     import plotly.express as px
 
@@ -178,7 +178,7 @@ def hierarchy_sunburst(signal_taxonomy):
     return fig
 
 
-@canvas.cell(position=(1375, 1974), size=(607, 550), code_height=200, viz={'type': 'bar', 'x': 'domain', 'y': 'n_rows'})
+@canvas.cell(position=(1535, 1972), size=(730, 545), code_height=200, viz={'type': 'bar', 'x': 'domain', 'y': 'n_rows'})
 def bus_traffic_by_domain(frame_frequency, signal_taxonomy):
     lookup = signal_taxonomy[['sender_node', 'frame_name', 'domain']].drop_duplicates()
     merged = frame_frequency.merge(lookup, on=['sender_node', 'frame_name'], how='left')
