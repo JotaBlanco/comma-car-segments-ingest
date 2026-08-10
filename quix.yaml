@@ -150,7 +150,7 @@ deployments:
         memory: 500
     variables:
       - name: BATCH_SIZE
-        value: 10000
+        value: 1000
     blobStorage:
       bind: true
 
