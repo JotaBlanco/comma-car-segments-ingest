@@ -88,46 +88,20 @@ deployments:
       limits:
         cpu: 1000
         memory: 2000
-    blobStorage:
-      bind: true
     variables:
-      - name: input
-        inputType: InputTopic
-        required: true
-        value: mf4-metadata
-      - name: output
-        inputType: OutputTopic
-        required: true
-        value: can-decoded
       - name: config
-        inputType: InputTopic
-        description: DCM config events; QuixConfigurationService resolves the CAN
-          database version per message from this
-        required: true
-        value: config-updates
+        description: DCM config events; QuixConfigurationService resolves the CAN database version per message from this
       - name: CONSUMER_GROUP
-        inputType: FreeText
         description: Change this to replay already-consumed files again
-        required: true
         value: mf4-replay-v6
       - name: MAX_FILES
-        inputType: FreeText
         description: 0 = every converted MF4 (20 today)
-        required: true
-        value: "0"
+        value: 0
       - name: MAX_ENVELOPES_PER_FILE
-        inputType: FreeText
         description: 0 = the whole 60s segment, ~6000 envelopes
-        required: true
-        value: "0"
-      - name: DCM_TYPE
-        inputType: FreeText
-        required: false
-        value: dbc
-      - name: DCM_TARGET_KEY
-        inputType: FreeText
-        required: false
-        value: FORD_F_150_LIGHTNING_MK1
+        value: 0
+    blobStorage:
+      bind: true
   - name: CAN lake sink
     application: can-lake-sink
     version: latest
@@ -138,24 +112,19 @@ deployments:
         memory: 2000
     variables:
       - name: CONSUMER_GROUP
-        description: Change this to re-sink already-consumed messages
         value: can-lake-sink-v7
       - name: SIGNALS_TABLE
-        description: the v1 names, recreated after the originals were dropped. Partition columns are fixed once a table registers, so changing them needs a drop or a new name
+        value: can_signals_v3
       - name: UNKNOWN_TABLE
-        description: frames with no DBC entry, raw payload kept
+        value: can_unknown_frames_v3
       - name: HIVE_COLUMNS
-        description: drive identity, not the CAN hierarchy. sender_node/frame_name/ signal stay ordinary columns - Iceberg column stats prune them without partitioning, and partitioning on them cost 1830 files per 255k rows. No year/month/day either - those derive from the replay wall-clock.
         value: platform,device,route,channel
       - name: UNKNOWN_HIVE_COLUMNS
-        description: same layout; these frames have no sender or signal
         value: platform,device,route,channel
-      - name: COMMIT_EVERY
-        description: envelopes per flush. Each expands to roughly 255 signal rows, so 2000 is about 500k rows per write.
-        value: 2000
       - name: COMMIT_INTERVAL
-        description: seconds before a partial batch is flushed
         value: 60
+      - name: COMMIT_EVERY
+        value: 2000
     blobStorage:
       bind: true
   - name: Blob explorer
