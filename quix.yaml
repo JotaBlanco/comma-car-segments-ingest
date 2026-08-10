@@ -148,6 +148,9 @@ deployments:
       limits:
         cpu: 200
         memory: 500
+    variables:
+      - name: BATCH_SIZE
+        value: 10000
     blobStorage:
       bind: true
 
