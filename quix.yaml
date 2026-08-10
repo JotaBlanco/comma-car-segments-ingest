@@ -74,11 +74,8 @@ deployments:
       - name: DEVICES
         description: comma.ai device ids for this platform (manifest lookup, not a path level)
       - name: MAX_SEGMENTS
-        inputType: FreeText
-        description: 0 = every segment the mirror copied (206 of the platform's
-          230; the mirror job was OOM-killed before finishing)
-        required: false
-        value: "0"
+        description: 0 = every segment the mirror copied (206 of the platform's 230; the mirror job was OOM-killed before finishing)
+        value: 0
     blobStorage:
       bind: true
   - name: MF4 replay
@@ -103,34 +100,6 @@ deployments:
         value: 0
     blobStorage:
       bind: true
-  - name: CAN lake sink
-    application: can-lake-sink
-    version: latest
-    deploymentType: Service
-    resources:
-      limits:
-        cpu: 1000
-        memory: 2000
-    variables:
-      - name: CONSUMER_GROUP
-        value: can-lake-sink-v7
-      - name: SIGNALS_TABLE
-        value: can_signals_v3
-      - name: SINK_UNKNOWN_FRAMES
-        description: false = decoded signals only. Frames with no DBC entry are ~75% of this dataset's frames, and no DBC exists for the F-150 Lightning's radar bus at all, so they can never become signals.
-        value: false
-      - name: UNKNOWN_TABLE
-        value: can_unknown_frames_v3
-      - name: HIVE_COLUMNS
-        value: platform,device,route,channel
-      - name: UNKNOWN_HIVE_COLUMNS
-        value: platform,device,route,channel
-      - name: COMMIT_INTERVAL
-        value: 60
-      - name: COMMIT_EVERY
-        value: 2000
-    blobStorage:
-      bind: true
   - name: Blob explorer
     application: blob-explorer
     version: latest
@@ -144,6 +113,31 @@ deployments:
         description: blob prefixes to inspect; the leading empty entry is the root
       - name: DEVICES
         description: count rlog.zst per device, to see how far the mirror got
+    blobStorage:
+      bind: true
+  - name: CAN lake sink 2
+    application: can-lake-sink
+    version: latest
+    deploymentType: Service
+    resources:
+      limits:
+        cpu: 1000
+        memory: 2000
+    variables:
+      - name: CONSUMER_GROUP
+        value: can-lake-sink-v7
+      - name: SIGNALS_TABLE
+        value: can_signals_v4
+      - name: SINK_UNKNOWN_FRAMES
+        value: false
+      - name: UNKNOWN_TABLE
+        value: can_unknown_frames_v3
+      - name: HIVE_COLUMNS
+        value: platform,device,route,~channel,~sender_node,~frame_name,~signal,~channel_name
+      - name: UNKNOWN_HIVE_COLUMNS
+        value: platform,device,route,channel
+      - name: COMMIT_EVERY
+        value: 100000
     blobStorage:
       bind: true
 
