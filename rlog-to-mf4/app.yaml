@@ -51,7 +51,10 @@ variables:
     required: false
   - name: MAX_SEGMENTS
     inputType: FreeText
-    description: Stop after converting this many segments
+    description: Stop after converting this many segments. 0 = no limit (convert
+      every segment the mirror has copied). Candidates are drained device by
+      device, so a small value takes everything from the first device rather
+      than sampling across the fleet.
     defaultValue: "20"
     required: true
   - name: SKIP_EXISTING

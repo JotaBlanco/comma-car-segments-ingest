@@ -74,7 +74,11 @@ deployments:
       - name: DEVICES
         description: comma.ai device ids for this platform (manifest lookup, not a path level)
       - name: MAX_SEGMENTS
-        description: Bulk backfill of a subset, not the whole dataset
+        inputType: FreeText
+        description: 0 = every segment the mirror copied (206 of the platform's
+          230; the mirror job was OOM-killed before finishing)
+        required: false
+        value: "0"
     blobStorage:
       bind: true
   - name: MF4 replay

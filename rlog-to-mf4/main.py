@@ -111,7 +111,9 @@ def main() -> int:
     converted = skipped = failed = 0
     with app.get_producer() as producer:
         for src in candidates:
-            if converted >= MAX_SEGMENTS:
+            # 0 = no limit, matching MAX_FILES in mf4-replay. Without the guard
+            # 0 would break on the first candidate and convert nothing.
+            if MAX_SEGMENTS and converted >= MAX_SEGMENTS:
                 logger.info(
                     "reached MAX_SEGMENTS=%d; %d candidates left unconverted",
                     MAX_SEGMENTS,
