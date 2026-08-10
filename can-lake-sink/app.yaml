@@ -17,10 +17,18 @@ variables:
       channel -> sender_node -> frame -> signal
     defaultValue: can_signals
     required: true
+  - name: SINK_UNKNOWN_FRAMES
+    inputType: FreeText
+    description: true/false. false keeps the lake to decoded signals only - frames
+      with no DBC entry are dropped rather than written. They are ~75% of frames
+      on the Ford data, so this is the difference between a signals lake and a
+      raw-frame archive.
+    defaultValue: "true"
+    required: false
   - name: UNKNOWN_TABLE
     inputType: FreeText
-    description: Table for frames with no DBC entry, raw payload preserved. Leave
-      empty to drop them instead (about a third of frames in this dataset).
+    description: Table for frames with no DBC entry, raw payload preserved. Ignored
+      when SINK_UNKNOWN_FRAMES is false.
     defaultValue: can_unknown_frames
     required: false
   - name: S3_PREFIX

@@ -42,10 +42,28 @@ logging.basicConfig(
 )
 logger = logging.getLogger("can-lake-sink")
 
+def _bool(name: str, default: str) -> bool:
+    return str(os.environ.get(name, default)).strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "y",
+        "on",
+    )
+
+
 INPUT_TOPIC = os.environ.get("input", "can-decoded")
 CONSUMER_GROUP = os.environ.get("CONSUMER_GROUP", "can-lake-sink")
 SIGNALS_TABLE = os.environ.get("SIGNALS_TABLE", "can_signals")
-UNKNOWN_TABLE = os.environ.get("UNKNOWN_TABLE", "can_unknown_frames") or None
+# Frames with no DBC entry are ~75% of this dataset's frames. Set false to keep
+# the lake to decoded signals only; the frames are still produced upstream, they
+# just stop being written.
+SINK_UNKNOWN_FRAMES = _bool("SINK_UNKNOWN_FRAMES", "true")
+UNKNOWN_TABLE = (
+    (os.environ.get("UNKNOWN_TABLE", "can_unknown_frames") or None)
+    if SINK_UNKNOWN_FRAMES
+    else None
+)
 S3_PREFIX = os.environ.get("S3_PREFIX", "can-lake")
 NAMESPACE = os.environ.get("NAMESPACE", "default")
 TIMESTAMP_COLUMN = "ts_ms"
@@ -126,6 +144,11 @@ def main() -> int:
         catalog_url,
     )
     logger.info("hive signals=%s unknown=%s", HIVE_COLUMNS, UNKNOWN_HIVE_COLUMNS)
+    if not SINK_UNKNOWN_FRAMES:
+        logger.info(
+            "SINK_UNKNOWN_FRAMES=false - frames with no DBC entry are dropped, "
+            "only decoded signals reach the lake"
+        )
 
     app = Application(
         consumer_group=CONSUMER_GROUP,

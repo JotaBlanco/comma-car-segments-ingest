@@ -112,6 +112,13 @@ deployments:
         value: can-lake-sink-v7
       - name: SIGNALS_TABLE
         value: can_signals_v3
+      - name: SINK_UNKNOWN_FRAMES
+        inputType: FreeText
+        description: false = decoded signals only. Frames with no DBC entry are
+          ~75% of this dataset's frames, and no DBC exists for the F-150
+          Lightning's radar bus at all, so they can never become signals.
+        required: false
+        value: "false"
       - name: UNKNOWN_TABLE
         value: can_unknown_frames_v3
       - name: HIVE_COLUMNS
