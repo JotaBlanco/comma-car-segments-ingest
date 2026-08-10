@@ -18,6 +18,8 @@ import logging
 from quixstreams import Application
 from quixstreams.sinks.core.quix_ts_datalake_sink import QuixTSDataLakeSink
 
+from flatten import to_signal_rows, to_unknown_rows
+
 # Configure logging
 logging.basicConfig(
     level=os.getenv("LOGLEVEL", "INFO"),
