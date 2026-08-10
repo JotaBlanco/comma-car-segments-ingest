@@ -3,5 +3,7 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONIOENCODING=UTF-8
 WORKDIR /app
 COPY --from=git /project .
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir -r requirements.txt
 ENTRYPOINT ["python", "main.py"]
