@@ -33,9 +33,6 @@ deployments:
       ports:
         - port: 27017
           targetPort: 27017
-    variables:
-      - name: MONGO_DBPATH
-        description: WiredTiger data directory (local disk = ephemeral; see mongodb/init.sh)
   - name: Dynamic Configuration Manager
     application: DynamicConfiguration
     version: latest
