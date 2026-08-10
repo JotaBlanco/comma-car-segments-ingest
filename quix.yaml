@@ -151,6 +151,8 @@ deployments:
     variables:
       - name: BATCH_SIZE
         value: 100
+      - name: CONSUMER_GROUP
+        value: s3_direct_sink_v1.1
     blobStorage:
       bind: true
 
