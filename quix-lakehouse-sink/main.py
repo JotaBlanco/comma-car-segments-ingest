@@ -125,6 +125,15 @@ blob_sink = QuixTSDataLakeSink(
 # Create streaming dataframe and attach sink
 sdf = app.dataframe(topic=app.topic(os.environ["input"]))
 
+# One envelope carries many frames and the sink writes one row per record,
+# so expand here. metadata=True supplies the Kafka timestamp - the replay
+# wall-clock, which is the only absolute time this data has.
+sdf = sdf.apply(
+    lambda v, key, timestamp, headers: to_signal_rows(v, timestamp),
+    expand=True,
+    metadata=True,
+)
+
 # Attach sink (batching is handled by BatchingSink)
 sdf.sink(blob_sink)
 
