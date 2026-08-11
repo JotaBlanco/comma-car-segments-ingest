@@ -27,6 +27,22 @@ CHANNEL_NAMES = {
 # on every row - it belongs in a dimension table built from the DCM config and
 # joined on (frame_id, signal). At ~1.2M signal rows per 60s segment, carrying it
 # inline would be almost pure duplication.
+#
+# Two clocks, both in milliseconds, and only one of them is real:
+#
+#   t_rel_ms  milliseconds since the start of THIS segment, from the rlog's
+#             100 Hz logMonoTime envelope clock. Genuine measured time,
+#             0 .. ~60000, sub-ms precision retained.
+#   ts_ms     epoch milliseconds, but SYNTHETIC: the Kafka timestamp of the
+#             mf4-metadata message (i.e. when we replayed) plus t_rel_ms. It is
+#             NOT when the vehicle was driven - these rlogs carry no wall clock
+#             at all (no `clocks` / `gpsLocation` service, and logMonoTime is
+#             monotonic-since-boot), so no offset exists to recover one.
+#             Re-running the replay yields different values for the same
+#             sample, and segments overlap each other in it.
+#
+# Absolute ordering is therefore only meaningful within one
+# (device, route, segment); use t_rel_ms / seq for that.
 SIGNAL_COLUMNS = [
     "ts_ms",
     "platform",
@@ -43,7 +59,7 @@ SIGNAL_COLUMNS = [
     "value",
     "seq",
     "frame_index",
-    "t_rel",
+    "t_rel_ms",
     "dbc_sha256",
 ]
 
@@ -61,23 +77,23 @@ UNKNOWN_COLUMNS = [
     "raw",
     "seq",
     "frame_index",
-    "t_rel",
+    "t_rel_ms",
     "reason",
 ]
 
 
-def to_signal_rows(value: dict, ts_ms) -> list[dict]:
+def to_signal_rows(value: dict, kafka_ts_ms) -> list[dict]:
     """Signal rows only - for apply(expand=True) feeding the signals sink."""
-    return flatten(value, ts_ms)[0]
+    return flatten(value, kafka_ts_ms)[0]
 
 
-def to_unknown_rows(value: dict, ts_ms) -> list[dict]:
+def to_unknown_rows(value: dict, kafka_ts_ms) -> list[dict]:
     """Unknown-frame rows only - for apply(expand=True) feeding the second sink."""
-    return flatten(value, ts_ms)[1]
+    return flatten(value, kafka_ts_ms)[1]
 
 
-def _resolve_ts(value: dict, ts_ms):
-    """Prefer the producer's explicit ts_ms over the Kafka message timestamp.
+def _resolve_ts(value: dict, kafka_ts_ms):
+    """Prefer the producer's explicit ts_ms over the Kafka timestamp.
 
     Expanded messages inherit their source message's timestamp, so relying on
     Kafka metadata alone once produced every row of a file with one identical
@@ -86,25 +102,26 @@ def _resolve_ts(value: dict, ts_ms):
     silently flatten the time axis again.
     """
     explicit = value.get("ts_ms")
-    return int(explicit) if explicit is not None else ts_ms
+    return int(explicit) if explicit is not None else kafka_ts_ms
 
 
-def flatten(value: dict, ts_ms) -> tuple[list[dict], list[dict]]:
+def flatten(value: dict, kafka_ts_ms) -> tuple[list[dict], list[dict]]:
     """Turn one envelope message into (signal rows, unknown-frame rows).
 
-    `ts_ms` is the Kafka message timestamp in milliseconds. The source has no
-    wall clock of its own - rlog logMonoTime is monotonic-since-boot - so this
-    replay timestamp is the only absolute time, and it is what the sink derives
-    year/month/day partitions from.
+    `kafka_ts_ms` is the Kafka message timestamp in milliseconds, used only as a
+    fallback. The source has no wall clock of its own - rlog logMonoTime is
+    monotonic-since-boot - so the replay timestamp is the only absolute time
+    available, and it is what the sink partitions on. See the note above
+    SIGNAL_COLUMNS for why it must not be read as a recording date.
     """
     base = {
-        "ts_ms": _resolve_ts(value, ts_ms),
+        "ts_ms": _resolve_ts(value, kafka_ts_ms),
         "platform": value.get("platform"),
         "device": value.get("device"),
         "route": value.get("route"),
         "segment": value.get("segment"),
         "seq": value.get("seq"),
-        "t_rel": value.get("t_rel"),
+        "t_rel_ms": value.get("t_rel_ms"),
     }
     dbc_sha = (value.get("dbc") or {}).get("sha256")
 

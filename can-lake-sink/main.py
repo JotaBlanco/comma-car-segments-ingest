@@ -42,6 +42,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("can-lake-sink")
 
+
 def _bool(name: str, default: str) -> bool:
     return str(os.environ.get(name, default)).strip().lower() in (
         "1",

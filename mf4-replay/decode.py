@@ -59,6 +59,9 @@ def load_frames(mf4_bytes: bytes):
 def envelopes(frames: dict, max_envelopes: int = 0):
     """Yield (seq, t_rel, slice) per envelope, in file order.
 
+    t_rel is in SECONDS from the start of the segment (MDF channel timestamps).
+    main.py multiplies by 1000 to emit the `t_rel_ms` column.
+
     Timestamps are non-decreasing across rows, so envelope boundaries are just
     the points where the value changes - no sorting required.
     """

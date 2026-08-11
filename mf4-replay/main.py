@@ -104,6 +104,15 @@ def build_handler(fs, dbs: DatabaseCache):
         segment = props.get("source.segment") or value.get("segment")
         platform = props.get("platform") or value.get("platform")
 
+        # Presentation anchor for the whole segment, captured ONCE. This is the
+        # broker timestamp of the single mf4-metadata message announcing this
+        # file, so it is per segment by construction. It must not be taken per
+        # envelope: every can-decoded message carries its own advancing Kafka
+        # timestamp, and anchoring per message before adding t_rel_ms would
+        # double-count the elapsed time and stretch the axis to ~2x the real
+        # duration.
+        seg_anchor_ms = int(source_ts_ms)
+
         out = []
         dec_total = unk_total = 0
         for seq, t_rel, sl in envelopes(frames, MAX_ENVELOPES_PER_FILE):
@@ -120,14 +129,40 @@ def build_handler(fs, dbs: DatabaseCache):
                     # every frame in an envelope shares one timestamp, and Kafka
                     # does not preserve row order.
                     "seq": seq,
-                    "t_rel": round(t_rel, 6),
-                    # Absolute time for this envelope. Expanded messages inherit
-                    # the SOURCE message's Kafka timestamp, so without this every
-                    # row of a file would carry one identical timestamp and the
-                    # time axis would be dead. The recording itself has no wall
-                    # clock (logMonoTime is monotonic-since-boot), so anchor on
-                    # when the file was announced and lay t_rel on top - that
-                    # reconstructs the drive's timeline at the right spacing.
+                    # Milliseconds since the start of this segment, from the
+                    # rlog's 100 Hz logMonoTime envelope clock. The only real
+                    # time this data has. decode.py yields seconds; the *1000
+                    # here is what makes the _ms suffix true.
+                    "t_rel_ms": round(t_rel * 1000, 3),
+                    # The segment's anchor, repeated on every envelope so
+                    # t_abs_ms is reproducible from payload fields alone - no
+                    # message metadata, no downstream "first timestamp I saw",
+                    # which would need state and break on out-of-order delivery.
+                    "seg_anchor_ms": seg_anchor_ms,
+                    # ANCHORED absolute time, for plotting. The recording has no
+                    # wall clock at all (logMonoTime is monotonic-since-boot and
+                    # these segments carry no `clocks` / `gpsLocation` service),
+                    # so t_rel_ms alone would render at 1970-01-01. Translating
+                    # it by the segment's broker anchor puts the data on a
+                    # readable axis while the SPACING still comes entirely from
+                    # t_rel_ms, which is the real measured time.
+                    #
+                    # It says "plotted on a plausible axis", NOT "happened at
+                    # this time" - the origin is arbitrary and shifts if the
+                    # segment is re-announced. Within a segment only t_rel_ms
+                    # and seq are stable identities. Integer ms suits Grafana;
+                    # sub-ms precision stays available in t_rel_ms.
+                    "t_abs_ms": int(seg_anchor_ms + round(t_rel * 1000)),
+                    # Absolute time, but SYNTHETIC - not a recording date.
+                    # Expanded messages inherit the SOURCE message's Kafka
+                    # timestamp, so without this every row of a file would carry
+                    # one identical value and the time axis would be dead. The
+                    # recording has no wall clock (logMonoTime is monotonic-
+                    # since-boot, and these segments carry no `clocks` or
+                    # `gpsLocation` service), so anchor on when the file was
+                    # announced and lay the relative offset on top: correct
+                    # spacing, invented origin. Do not read it as when the
+                    # vehicle was driven - that is unknown and unrecoverable.
                     "ts_ms": int(source_ts_ms + round(t_rel * 1000)),
                     "frame_count": len(recs),
                     "decoded": dec,
