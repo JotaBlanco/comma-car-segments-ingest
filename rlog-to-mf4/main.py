@@ -19,6 +19,7 @@ from quixportal import get_filesystem
 from quixstreams import Application
 
 from converter import build_mf4, decompress_rlog, read_can_frames
+from resolve import Resolver
 
 logging.basicConfig(
     level=os.environ.get("LOGLEVEL", "INFO"),
@@ -33,16 +34,19 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # There is NO platform directory - platform-to-device is a manifest lookup, not
 # a path segment. Selecting a platform therefore means selecting its devices.
 INPUT_PREFIX = os.environ.get("INPUT_PREFIX", "commacarsegments/segments/")
-# comma-separated device ids for this platform; empty means every device
+# Optional narrowing, both empty = convert every vehicle in blob. PLATFORMS is
+# expanded to its devices through the same tables used to resolve each
+# recording, so a filter can never disagree with the data the way a PLATFORM
+# constant could.
+PLATFORMS = [
+    p.strip() for p in os.environ.get("PLATFORMS", "").split(",") if p.strip()
+]
 DEVICES = [
     d.strip() for d in os.environ.get("DEVICES", "").split(",") if d.strip()
 ]
 OUTPUT_PREFIX = os.environ.get("OUTPUT_PREFIX", "mf4/")
-PLATFORM = os.environ.get("PLATFORM", "FORD_F_150_LIGHTNING_MK1")
 DCM_TYPE = os.environ.get("DCM_TYPE", "dbc")
-DCM_TARGET_KEY = os.environ.get("DCM_TARGET_KEY", PLATFORM)
-DBC_FILE = os.environ.get("DBC_FILE", "ford_lincoln_base_pt.dbc")
-DBC_VERSION = os.environ.get("DBC_VERSION", "opendbc-master")
+DBC_VERSION = os.environ.get("DBC_VERSION", "opendbc-0.3.1")
 MAX_SEGMENTS = int(os.environ.get("MAX_SEGMENTS", "20"))
 SKIP_EXISTING = os.environ.get("SKIP_EXISTING", "true").strip().lower() in (
     "1",
@@ -66,12 +70,7 @@ def parse_segment_path(path: str):
 
 
 def main() -> int:
-    dbc_path = os.path.join(HERE, DBC_FILE)
-    dbc_bytes = open(dbc_path, "rb").read()
-    dbc_sha = hashlib.sha256(dbc_bytes).hexdigest()
-    logger.info(
-        "DBC %s  %d bytes  sha256=%s", DBC_FILE, len(dbc_bytes), dbc_sha[:16]
-    )
+    resolver = Resolver()
     logger.info("input=%s  output=%s  max=%d", INPUT_PREFIX, OUTPUT_PREFIX, MAX_SEGMENTS)
 
     fs = get_filesystem()
@@ -80,10 +79,23 @@ def main() -> int:
     out_topic = app.topic(OUTPUT_TOPIC, value_serializer="json", key_serializer="str")
 
     base = INPUT_PREFIX.rstrip("/")
+    # PLATFORMS wins over DEVICES: it is derived from the same tables that
+    # resolve each recording, so it cannot drift from the dataset the way a
+    # hand-maintained device list can. Both empty = every vehicle in blob.
+    if PLATFORMS:
+        devices = resolver.devices_for_platforms(PLATFORMS)
+        logger.info(
+            "PLATFORMS=%s -> %d device(s)", ",".join(PLATFORMS), len(devices)
+        )
+        if DEVICES:
+            logger.warning("DEVICES ignored because PLATFORMS is set")
+    else:
+        devices = DEVICES
+
     candidates = []
-    if DEVICES:
-        logger.info("selecting %d device(s) for platform %s", len(DEVICES), PLATFORM)
-        for dev in DEVICES:
+    if devices:
+        logger.info("selecting %d device(s)", len(devices))
+        for dev in devices:
             found = sorted(fs.glob(f"{base}/{dev}/**/rlog.zst"))
             logger.info("  %s -> %d segments", dev, len(found))
             candidates.extend(found)
@@ -99,7 +111,7 @@ def main() -> int:
             "nothing to convert under %s for devices=%s - the HF mirror may not "
             "have reached these devices yet",
             base,
-            DEVICES or "<all>",
+            devices or "<all>",
         )
         try:
             top = fs.ls(base, detail=False)[:10]
@@ -109,6 +121,7 @@ def main() -> int:
         return 0
 
     converted = skipped = failed = 0
+    unresolved: dict[str, int] = {}
     with app.get_producer() as producer:
         for src in candidates:
             # 0 = no limit, matching MAX_FILES in mf4-replay. Without the guard
@@ -127,8 +140,16 @@ def main() -> int:
                 continue
             device, route, segment = parsed
 
+            # Platform comes from the recording, never from configuration. A
+            # device that was moved between cars resolves at route grain.
+            platform, dbc_name, dbc_bytes, why = resolver.resolve(device, route)
+            if why:
+                unresolved[why] = unresolved.get(why, 0) + 1
+                logger.debug("skip (%s): %s/%s", why, device, route)
+                continue
+
             dest = (
-                f"{OUTPUT_PREFIX.rstrip('/')}/{PLATFORM}/{device}/{route}/"
+                f"{OUTPUT_PREFIX.rstrip('/')}/{platform}/{device}/{route}/"
                 f"{segment}.mf4"
             )
             if SKIP_EXISTING and fs.exists(dest):
@@ -144,11 +165,14 @@ def main() -> int:
                 data, stats = build_mf4(
                     frames,
                     dbc_bytes=dbc_bytes,
-                    dbc_name=DBC_FILE,
+                    dbc_name=f"{dbc_name}.dbc",
                     dbc_version=DBC_VERSION,
                     dcm_type=DCM_TYPE,
-                    dcm_target_key=DCM_TARGET_KEY,
-                    platform=PLATFORM,
+                    # The DCM configs are keyed by DBC name, not by platform:
+                    # one database serves many platforms, so platform-keying
+                    # would duplicate 40 databases across 188 configs.
+                    dcm_target_key=dbc_name,
+                    platform=platform,
                     device=device,
                     route=route,
                     segment=segment,
@@ -161,7 +185,7 @@ def main() -> int:
                 continue
 
             payload = {
-                "platform": PLATFORM,
+                "platform": platform,
                 "device": device,
                 "route": route,
                 "segment": segment,
@@ -170,7 +194,7 @@ def main() -> int:
                 "sha256_dbc": stats["dbc_sha256"],
                 "dcm": {
                     "type": DCM_TYPE,
-                    "target_key": DCM_TARGET_KEY,
+                    "target_key": dbc_name,
                     "config_id": stats["dcm_config_id"],
                 },
                 "frames": stats["frames"],
@@ -197,8 +221,16 @@ def main() -> int:
             )
 
     logger.info(
-        "done. converted=%d skipped=%d failed=%d", converted, skipped, failed
+        "done. converted=%d skipped=%d failed=%d unresolved=%d",
+        converted,
+        skipped,
+        failed,
+        sum(unresolved.values()),
     )
+    # Never let skipped work be silent - "converted 0" with no reason is the
+    # failure mode that wastes an afternoon.
+    for why, n in sorted(unresolved.items(), key=lambda kv: -kv[1]):
+        logger.info("  unresolved %-22s %d segments", why, n)
     return 0
 
 
