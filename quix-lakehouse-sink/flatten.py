@@ -91,8 +91,13 @@ UNKNOWN_COLUMNS = [
 
 
 def to_signal_rows(value: dict, ts_ms) -> list[dict]:
-    """Signal rows only - for apply(expand=True) feeding the signals sink."""
-    return flatten(value, ts_ms)[0]
+    """Signal rows only - for apply(expand=True) feeding the signals sink.
+
+    signals_only skips building the unknown rows rather than building and
+    discarding them. Frames with no DBC entry are ~75% of frames on this
+    dataset, so the discarded half was the larger one.
+    """
+    return flatten(value, ts_ms, signals_only=True)[0]
 
 
 def to_unknown_rows(value: dict, ts_ms) -> list[dict]:
@@ -113,7 +118,9 @@ def _resolve_ts(value: dict, ts_ms):
     return int(explicit) if explicit is not None else ts_ms
 
 
-def flatten(value: dict, ts_ms) -> tuple[list[dict], list[dict]]:
+def flatten(
+    value: dict, ts_ms, *, signals_only: bool = False
+) -> tuple[list[dict], list[dict]]:
     """Turn one envelope message into (signal rows, unknown-frame rows).
 
     `ts_ms` here is the Kafka message timestamp in milliseconds, used only as a
@@ -139,6 +146,14 @@ def flatten(value: dict, ts_ms) -> tuple[list[dict], list[dict]]:
     unknown: list[dict] = []
 
     for idx, fr in enumerate(value.get("frames") or []):
+        name = fr.get("name")
+        sigs = fr.get("signals")
+        # Bail before building `common`: on this dataset ~75% of frames have no
+        # DBC entry, so allocating a dict for them and discarding it was the
+        # dominant cost of the signals-only path.
+        if signals_only and not (name and sigs):
+            continue
+
         channel = fr.get("bus")
         common = dict(
             base,
@@ -152,7 +167,6 @@ def flatten(value: dict, ts_ms) -> tuple[list[dict], list[dict]]:
             frame_index=idx,
         )
 
-        name = fr.get("name")
         if not name:
             unknown.append(
                 dict(
@@ -164,7 +178,6 @@ def flatten(value: dict, ts_ms) -> tuple[list[dict], list[dict]]:
             )
             continue
 
-        sigs = fr.get("signals")
         if not sigs:
             # decoded to a known frame but produced no values (e.g. a decode
             # error recorded upstream) - keep it rather than dropping it

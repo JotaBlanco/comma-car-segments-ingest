@@ -18,7 +18,7 @@ import logging
 from quixstreams import Application
 from quixstreams.sinks.core.quix_ts_datalake_sink import QuixTSDataLakeSink
 
-from flatten import to_signal_rows, to_unknown_rows
+from flatten import to_signal_rows
 
 # Configure logging
 logging.basicConfig(
@@ -125,6 +125,11 @@ blob_sink = QuixTSDataLakeSink(
 # Create streaming dataframe and attach sink
 sdf = app.dataframe(topic=app.topic(os.environ["input"]))
 
+# This sink writes DECODED SIGNALS ONLY. Frames with no DBC entry (~75% of
+# frames on this dataset) and frames that decoded to no values are dropped
+# here, not written to a second table. to_signal_rows skips building them
+# rather than building and discarding them.
+#
 # One envelope carries many frames and the sink writes one row per record,
 # so expand here. metadata=True supplies the Kafka timestamp - the replay
 # wall-clock, which is the only absolute time this data has.
@@ -143,6 +148,7 @@ logger.info("Starting Quix Lakehouse Sink")
 logger.info(f"  Input topic: {os.environ['input']}")
 logger.info(f"  Storage path: {storage_path}/{table_name}")
 logger.info(f"  Partitioning: {hive_columns if hive_columns else 'none'}")
+logger.info("  Frames with no DBC entry: DROPPED (decoded signals only)")
 
 if __name__ == "__main__":
     app.run()
