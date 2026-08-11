@@ -146,6 +146,10 @@ deployments:
     variables:
       - name: TABLE_NAME
         value: can_signals_v8
+      - name: TIMESTAMP_COLUMN
+        value: t_abs_ms
+      - name: SORT_COLUMN
+        value: t_abs_ms
       - name: BATCH_SIZE
         value: 100
       - name: CONSUMER_GROUP
