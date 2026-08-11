@@ -145,7 +145,7 @@ deployments:
         memory: 3000
     variables:
       - name: TABLE_NAME
-        value: can_signals_v12
+        value: can_signals_v13
       - name: HIVE_COLUMNS
         value: platform,device,route,~channel_name,~sender_node,~frame_name,~signal
       - name: TIMESTAMP_COLUMN
@@ -153,9 +153,9 @@ deployments:
       - name: SORT_COLUMN
         value: t_abs_ms
       - name: BATCH_SIZE
-        value: 5000
+        value: 2000
       - name: CONSUMER_GROUP
-        value: s3_direct_sink_v1.9
+        value: s3_direct_sink_v2.0
     blobStorage:
       bind: true
 
