@@ -155,7 +155,7 @@ deployments:
       - name: BATCH_SIZE
         value: 100
       - name: CONSUMER_GROUP
-        value: s3_direct_sink_v1.5
+        value: s3_direct_sink_v1.6
     blobStorage:
       bind: true
 
