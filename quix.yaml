@@ -87,16 +87,11 @@ deployments:
         cpu: 1000
         memory: 2000
     variables:
-      - name: config
-        description: DCM config events; QuixConfigurationService resolves the CAN database version per message from this
       - name: CONSUMER_GROUP
-        description: Change this to replay already-consumed files again
-        value: mf4-replay-v6
+        value: mf4-replay-v7
       - name: MAX_FILES
-        description: 0 = every converted MF4 (20 today)
         value: 0
       - name: MAX_ENVELOPES_PER_FILE
-        description: 0 = the whole 60s segment, ~6000 envelopes
         value: 0
     blobStorage:
       bind: true
