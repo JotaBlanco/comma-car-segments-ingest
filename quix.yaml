@@ -168,5 +168,6 @@ topics:
     dataTier: Bronze
   - name: can-decoded
     configuration:
+      partitions: 8
       retentionInBytes: 5368709120
     dataTier: Silver
