@@ -42,7 +42,6 @@ CONSUMER_GROUP = os.environ.get("CONSUMER_GROUP", "mf4-replay")
 MAX_FILES = int(os.environ.get("MAX_FILES", "1"))
 MAX_ENVELOPES_PER_FILE = int(os.environ.get("MAX_ENVELOPES_PER_FILE", "500"))
 DCM_TYPE = os.environ.get("DCM_TYPE", "dbc")
-DCM_TARGET_KEY = os.environ.get("DCM_TARGET_KEY", "")
 
 # Field names the lookup writes into each message. Both are stripped before the
 # message is produced - the DBC document is ~850 KB and must not reach the topic.
@@ -58,9 +57,21 @@ def lookup_key(value: dict, _key) -> str:
     The converter writes dcm.target_key into every mf4-metadata message, taken
     from the MF4's own header, so each file resolves against the database it was
     converted with rather than whatever this service is configured for.
+
+    Deliberately NOT falling back to a service-wide default. This runs over a
+    230-platform dataset; a default would quietly apply one car's database to
+    another car's frames, which decodes to plausible-looking nonsense rather
+    than failing. No key -> no config -> the message is dropped, which is the
+    intended behaviour for a platform we cannot decode.
+
+    An unknown/empty key is safe as-is: an ABSENT config reaches field.missing()
+    and yields our default of None, which the handler drops. A config that
+    exists but whose content cannot be FETCHED is the separate case that still
+    re-raises and kills the service, because the lookup defaults to
+    fallback="error" - see the backlog.
     """
     dcm = value.get("dcm") or {}
-    return dcm.get("target_key") or DCM_TARGET_KEY or value.get("platform", "")
+    return dcm.get("target_key") or ""
 
 
 def build_handler(fs, dbs: DatabaseCache):
