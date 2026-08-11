@@ -27,8 +27,30 @@ CHANNEL_NAMES = {
 # on every row - it belongs in a dimension table built from the DCM config and
 # joined on (frame_id, signal). At ~1.2M signal rows per 60s segment, carrying it
 # inline would be almost pure duplication.
+#
+# Three clocks, all in milliseconds, and only one of them is measured:
+#
+#   t_rel_ms       ms since the start of THIS segment, from the rlog's 100 Hz
+#                  logMonoTime envelope clock. The real measured time.
+#                  0 .. ~60000, sub-ms precision retained.
+#   seg_anchor_ms  the broker timestamp of the segment's mf4-metadata message,
+#                  captured once by mf4-replay and repeated on every envelope.
+#   t_abs_ms       seg_anchor_ms + t_rel_ms. An ANCHORED absolute time, suitable
+#                  as timestamp_column / sort_column: it is computed from
+#                  payload fields only, so it survives broker timestamp
+#                  semantics and re-produces. This is the one to partition and
+#                  order on - NOT t_rel_ms, which is 0..60000 and would put
+#                  every row in January 1970.
+#   ts_ms          legacy absolute time. Same arithmetic today, but sourced
+#                  from message metadata, so it is the weaker of the two.
+#
+# t_abs_ms says "plotted on a plausible axis", NOT "happened at this time" -
+# these rlogs carry no wall clock at all, so the origin is arbitrary. It is
+# stable across replays and moves only if the converter re-announces a segment.
 SIGNAL_COLUMNS = [
     "ts_ms",
+    "t_abs_ms",
+    "seg_anchor_ms",
     "platform",
     "device",
     "route",
@@ -43,12 +65,14 @@ SIGNAL_COLUMNS = [
     "value",
     "seq",
     "frame_index",
-    "t_rel",
+    "t_rel_ms",
     "dbc_sha256",
 ]
 
 UNKNOWN_COLUMNS = [
     "ts_ms",
+    "t_abs_ms",
+    "seg_anchor_ms",
     "platform",
     "device",
     "route",
@@ -61,7 +85,7 @@ UNKNOWN_COLUMNS = [
     "raw",
     "seq",
     "frame_index",
-    "t_rel",
+    "t_rel_ms",
     "reason",
 ]
 
@@ -92,10 +116,11 @@ def _resolve_ts(value: dict, ts_ms):
 def flatten(value: dict, ts_ms) -> tuple[list[dict], list[dict]]:
     """Turn one envelope message into (signal rows, unknown-frame rows).
 
-    `ts_ms` is the Kafka message timestamp in milliseconds. The source has no
-    wall clock of its own - rlog logMonoTime is monotonic-since-boot - so this
-    replay timestamp is the only absolute time, and it is what the sink derives
-    year/month/day partitions from.
+    `ts_ms` here is the Kafka message timestamp in milliseconds, used only as a
+    fallback when the payload carries no explicit ts_ms. The source has no wall
+    clock of its own - rlog logMonoTime is monotonic-since-boot - so every
+    absolute column is anchored rather than measured. The sink partitions and
+    sorts on t_abs_ms; see the note above SIGNAL_COLUMNS.
     """
     base = {
         "ts_ms": _resolve_ts(value, ts_ms),
@@ -104,7 +129,9 @@ def flatten(value: dict, ts_ms) -> tuple[list[dict], list[dict]]:
         "route": value.get("route"),
         "segment": value.get("segment"),
         "seq": value.get("seq"),
-        "t_rel": value.get("t_rel"),
+        "t_rel_ms": value.get("t_rel_ms"),
+        "t_abs_ms": value.get("t_abs_ms"),
+        "seg_anchor_ms": value.get("seg_anchor_ms"),
     }
     dbc_sha = (value.get("dbc") or {}).get("sha256")
 

@@ -38,8 +38,12 @@ CHANNEL_NAMES = {
 #             NOT when the vehicle was driven - these rlogs carry no wall clock
 #             at all (no `clocks` / `gpsLocation` service, and logMonoTime is
 #             monotonic-since-boot), so no offset exists to recover one.
-#             Re-running the replay yields different values for the same
-#             sample, and segments overlap each other in it.
+#             The anchor is the mf4-metadata message's own broker timestamp,
+#             fixed when the converter announced the file - so re-running the
+#             REPLAY reproduces identical values. Only re-running the CONVERTER
+#             moves them, because that produces new metadata messages. Segments
+#             still overlap each other, since they share one announcement
+#             window.
 #
 # Absolute ordering is therefore only meaningful within one
 # (device, route, segment); use t_rel_ms / seq for that.
