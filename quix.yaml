@@ -150,11 +150,11 @@ deployments:
         memory: 500
     variables:
       - name: TABLE_NAME
-        value: can_signals_v7
+        value: can_signals_v8
       - name: BATCH_SIZE
         value: 100
       - name: CONSUMER_GROUP
-        value: s3_direct_sink_v1.4
+        value: s3_direct_sink_v1.5
     blobStorage:
       bind: true
 
