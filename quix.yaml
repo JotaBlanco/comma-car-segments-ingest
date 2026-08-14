@@ -27,7 +27,7 @@ deployments:
         memory: 1200
     state:
       enabled: true
-      size: 1
+      size: 5
     network:
       serviceName: mongodb
       ports:
