@@ -169,7 +169,7 @@ deployments:
       limits:
         cpu: 1000
         memory: 3000
-      replicas: 6
+      replicas: 8
     variables:
       - name: TABLE_NAME
         value: can_signals_v13
