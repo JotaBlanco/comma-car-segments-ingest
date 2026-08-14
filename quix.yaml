@@ -42,21 +42,17 @@ deployments:
       limits:
         cpu: 200
         memory: 500
+    state:
+      enabled: true
+      size: 1
     network:
       serviceName: mongodb-backup-manager
       ports:
         - port: 80
           targetPort: 80
     variables:
-      - name: METADATA_BACKEND
-        inputType: FreeText
-        description: json keeps the manager's OWN state in one file synced to blob, so the manager survives the same pod recycles that wipe the Mongo it is protecting. mongo would need a second database that is just as ephemeral.
-        required: true
       - name: SECRET_KEY
-        description: Fernet key encrypting stored server passwords. This is a workspace SECRET NAME, not the value - create the secret first.
         variableKey: mongo_backup_secret_key
-      - name: BLOB_BASE_PATH
-        description: Backups land at <path>/YYYY/MM/DD/mongodb_backup_TIMESTAMP.tar.gz
     blobStorage:
       bind: true
   - name: Dynamic Configuration Manager
