@@ -183,6 +183,8 @@ deployments:
         value: 2000
       - name: CONSUMER_GROUP
         value: s3_direct_sink_v2.0
+      - name: MAX_WRITE_WORKERS
+        value: 1
     blobStorage:
       bind: true
 
