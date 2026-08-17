@@ -15,7 +15,7 @@ def can_signals_v13():
     LIMIT 100""")
 
 
-@canvas.dataset(position=(763, 129), size=(1029, 641), code_height=147, viz={'measure': {'columns': {'x': None, 'y': None}, 'range': {'from': 1786514281851, 'mode': 'absolute', 'to': 1786514401851}, 'signals': [{'color': '--qm-sig-1', 'dec': 2, 'id': 'AUDI_Q3_MK2/AUDI_A3_MK3/AUDI_A3_MK3/AUDI_A3_MK3/AUDI_A3_MK3/AUDI_A3_MK3/AUDI_A3_MK3/value', 'name': 'value', 'unit': ''}], 'table': 'can_signals_v13', 'windows': [{'axes': ['AUDI_Q3_MK2/AUDI_A3_MK3/AUDI_A3_MK3/AUDI_A3_MK3/AUDI_A3_MK3/AUDI_A3_MK3/AUDI_A3_MK3/value'], 'cursor': {'scope': 'shared'}, 'height': 176, 'hidden': [], 'id': 'w1_1', 'signals': ['AUDI_Q3_MK2/AUDI_A3_MK3/AUDI_A3_MK3/AUDI_A3_MK3/AUDI_A3_MK3/AUDI_A3_MK3/AUDI_A3_MK3/value'], 'yMode': 'auto'}]}})
+@canvas.dataset(position=(737, 182), size=(1029, 641), code_height=147, viz={'measure': {'columns': {'x': None, 'y': None}, 'range': {'from': 1786514281851, 'mode': 'absolute', 'to': 1786514401851}, 'signals': [{'color': '--qm-sig-1', 'dec': 2, 'id': 'AUDI_Q3_MK2/AUDI_A3_MK3/AUDI_A3_MK3/AUDI_A3_MK3/AUDI_A3_MK3/AUDI_A3_MK3/AUDI_A3_MK3/value', 'name': 'value', 'unit': ''}], 'table': 'can_signals_v13', 'windows': [{'axes': ['AUDI_Q3_MK2/AUDI_A3_MK3/AUDI_A3_MK3/AUDI_A3_MK3/AUDI_A3_MK3/AUDI_A3_MK3/AUDI_A3_MK3/value'], 'cursor': {'scope': 'shared'}, 'height': 176, 'hidden': [], 'id': 'w1_1', 'signals': ['AUDI_Q3_MK2/AUDI_A3_MK3/AUDI_A3_MK3/AUDI_A3_MK3/AUDI_A3_MK3/AUDI_A3_MK3/AUDI_A3_MK3/value'], 'yMode': 'auto'}]}})
 def can_signals_v13_2():
     return ql.sql("""SELECT *
     FROM can_signals_v13
