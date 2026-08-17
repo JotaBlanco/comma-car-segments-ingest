@@ -15,7 +15,7 @@ def can_signals_v13():
     LIMIT 100""")
 
 
-@canvas.dataset(position=(763, 129), size=(1029, 641), code_height=147)
+@canvas.dataset(position=(763, 129), size=(1029, 641), code_height=147, viz={'measure': {'columns': {'x': None, 'y': None}, 'range': {'from': 1786962642356, 'mode': 'absolute', 'to': 1786962762356}, 'signals': [], 'table': 'can_signals_v13', 'windows': []}})
 def can_signals_v13_2():
     return ql.sql("""SELECT *
     FROM can_signals_v13
