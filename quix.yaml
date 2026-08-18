@@ -7,6 +7,5 @@ metadata:
 
 # This section describes the Topics of the data pipeline
 topics:
-  - name: config-updates
   - name: mf4-metadata
     dataTier: Bronze
