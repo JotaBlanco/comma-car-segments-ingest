@@ -50,15 +50,22 @@ deployments:
       enabled: true
       urlPrefix: api
 
-  - name: Mongo Sink
-    application: mongo-sink
+  - name: Lakehouse Sink - Test Data
+    application: Lakehouse.Sink
     version: latest
-    deploymentType: Service
+    deploymentType: Managed
     resources:
       limits:
-        cpu: 200
-        memory: 300
+        cpu: 500
+        memory: 1024
       replicas: 1
+    configuration:
+      topic: test-data-uploads
+      timestampColumn: received_at
+      consumerGroup: lakehouse-sink-test-data-uploads
+      autoOffsetReset: earliest
+      commitTimeInterval: 60
+      logLevel: INFO
 
   - name: Mongo Backup Manager
     application: mongo-backup-manager

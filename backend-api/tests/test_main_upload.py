@@ -1,5 +1,6 @@
 import os
 import sys
+from datetime import datetime
 
 os.environ.setdefault("config_input", "config-updates")
 os.environ.setdefault("uploads_output", "test-data-uploads")
@@ -37,5 +38,20 @@ def test_publish_upload_event_produces_expected_message():
     assert len(producer.produced) == 1
     produced = producer.produced[0]
     assert produced["key"] == b"run-1"
-    assert produced["value"] == {"test_run_id": "run-1", "status": "pass"}
+    assert produced["value"]["test_run_id"] == "run-1"
+    assert produced["value"]["status"] == "pass"
+    assert "received_at" in produced["value"]
+    datetime.fromisoformat(produced["value"]["received_at"])  # raises if not valid ISO-8601
     assert value == produced["value"]
+
+
+def test_publish_upload_event_always_sets_received_at_regardless_of_caller_payload():
+    producer = FakeProducer()
+    topic = FakeTopic()
+
+    value = publish_upload_event(
+        {"test_run_id": "run-2", "received_at": "bogus-timestamp"}, producer, topic
+    )
+
+    assert value["received_at"] != "bogus-timestamp"
+    datetime.fromisoformat(value["received_at"])

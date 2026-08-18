@@ -1,6 +1,12 @@
 """Wrapper around the Quix Lakehouse Query REST API. Guarded so the app
 keeps running (with this feature disabled) when Lakehouse is not bound to
-the deployment."""
+the deployment.
+
+Uploaded test data (published by ``POST /uploads/test-data`` to the
+``test-data-uploads`` Kafka topic) is written to the Lakehouse by the
+"Lakehouse Sink - Test Data" managed deployment. The Iceberg table name in
+the Lakehouse catalog is derived from the topic name, i.e. query it as
+``test-data-uploads`` via ``query_lakehouse()`` below."""
 import logging
 import os
 
