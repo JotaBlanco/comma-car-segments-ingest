@@ -10,5 +10,3 @@ topics:
   - name: config-updates
   - name: mf4-metadata
     dataTier: Bronze
-  - name: can-raw
-    dataTier: Bronze
