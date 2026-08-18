@@ -15,7 +15,7 @@ def can_signals_v13():
     LIMIT 100""")
 
 
-@canvas.dataset(position=(-111, -835), size=(1565, 813), code_height=200, viz={'datasetMode': 'sql', 'measure': {'columns': {'x': 't_abs_ms', 'y': 'value'}, 'range': {'from': 1787053890964, 'mode': 'absolute', 'to': 1787054010964}, 'signals': [], 'table': 'can_signals_v13', 'windows': []}, 'type': 'line', 'x': 't_rel_ms', 'y': ['value']})
+@canvas.dataset(position=(-111, -835), size=(1565, 813), code_height=200, viz={'datasetMode': 'sql', 'measure': {'columns': {'x': 't_abs_ms', 'y': 'value'}, 'range': {'from': 1787053890964, 'mode': 'absolute', 'to': 1787054010964}, 'signals': [{'color': '--qm-sig-1', 'dec': 3, 'id': 'platform=CHEVROLET_VOLT/device=180ea5df0f0b4db9/route=00000000--7b23a7654b/channel_name=powertrain_hs_can1/sender_node=K73_TCIC/frame_name=TCICOnStarGPSPosition/signal=GPSLatitude', 'name': 'GPSLatitude', 'unit': ''}], 'table': 'can_signals_v13', 'windows': [{'axes': ['platform=CHEVROLET_VOLT/device=180ea5df0f0b4db9/route=00000000--7b23a7654b/channel_name=powertrain_hs_can1/sender_node=K73_TCIC/frame_name=TCICOnStarGPSPosition/signal=GPSLatitude'], 'cursor': {'scope': 'shared'}, 'height': 176, 'hidden': [], 'id': 'w1_1', 'signals': ['platform=CHEVROLET_VOLT/device=180ea5df0f0b4db9/route=00000000--7b23a7654b/channel_name=powertrain_hs_can1/sender_node=K73_TCIC/frame_name=TCICOnStarGPSPosition/signal=GPSLatitude'], 'yMode': 'auto'}]}, 'type': 'line', 'x': 't_rel_ms', 'y': ['value']})
 def can_signals_v13_2():
     return ql.sql("""SELECT t_rel_ms, value
     FROM can_signals_v13
