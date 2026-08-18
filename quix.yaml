@@ -6,23 +6,6 @@ metadata:
 
 # This section describes the Deployments of the data pipeline
 deployments:
-  - name: MongoDB
-    group: Aux services
-    application: mongodb
-    version: latest
-    deploymentType: Service
-    resources:
-      limits:
-        cpu: 200
-        memory: 1200
-    state:
-      enabled: true
-      size: 5
-    network:
-      serviceName: mongodb
-      ports:
-        - port: 27017
-          targetPort: 27017
   - name: MF4 replay
     application: mf4-replay
     version: latest
