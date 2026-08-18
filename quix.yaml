@@ -2,7 +2,7 @@
 # This file describes the data pipeline and configuration of resources of a Quix Project.
 
 metadata:
-  version: "2.0"
+  version: 2.0
 
 # This section describes the Deployments of the data pipeline
 deployments:
@@ -14,12 +14,14 @@ deployments:
       limits:
         cpu: 200
         memory: 800
+    state:
+      enabled: true
+      size: 1
     network:
       serviceName: mongodb
       ports:
         - port: 27017
           targetPort: 27017
-
   - name: Dynamic Config Manager
     application: dynamic-config-manager
     version: latest
@@ -28,11 +30,9 @@ deployments:
       limits:
         cpu: 200
         memory: 300
-      replicas: 1
     publicAccess:
       enabled: true
       urlPrefix: config-manager
-
   - name: Backend API
     application: backend-api
     version: latest
@@ -41,15 +41,13 @@ deployments:
       limits:
         cpu: 300
         memory: 500
-      replicas: 1
+    publicAccess:
+      enabled: true
+      urlPrefix: api
     network:
       serviceName: backend-api
       ports:
         - port: 80
-    publicAccess:
-      enabled: true
-      urlPrefix: api
-
   - name: Lakehouse Sink - Test Data
     application: lakehouse-sink
     version: latest
@@ -58,17 +56,13 @@ deployments:
       limits:
         cpu: 200
         memory: 500
-      replicas: 1
     variables:
       - name: input
         value: test-data-uploads
       - name: TIMESTAMP_COLUMN
         value: received_at
-    # NOTE: this connector requires blob storage credentials bound to the deployment
-    # (deploySettings.blobStorage.bind: true in the library item). This toggle is only
-    # available in the deployment's Advanced tab in the Portal UI and cannot be set via
-    # quix.yaml - enable "Bind workspace blob storage credentials" manually after sync.
-
+    blobStorage:
+      bind: true
   - name: Mongo Backup Manager
     application: mongo-backup-manager
     version: latest
@@ -77,8 +71,6 @@ deployments:
       limits:
         cpu: 200
         memory: 300
-      replicas: 1
-
   - name: Frontend
     application: frontend
     version: latest
@@ -87,7 +79,6 @@ deployments:
       limits:
         cpu: 200
         memory: 400
-      replicas: 1
     publicAccess:
       enabled: true
       urlPrefix: app
@@ -98,7 +89,6 @@ topics:
     configuration:
       partitions: 1
       retentionInMinutes: 1440
-
   - name: test-data-uploads
     configuration:
       partitions: 2
