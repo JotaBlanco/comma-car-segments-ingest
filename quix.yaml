@@ -14,9 +14,6 @@ deployments:
       limits:
         cpu: 200
         memory: 800
-    state:
-      enabled: true
-      size: 1
     network:
       serviceName: mongodb
       ports:
@@ -59,6 +56,8 @@ deployments:
     variables:
       - name: input
         value: test-data-uploads
+      - name: TABLE_NAME
+        value: validation-test
       - name: TIMESTAMP_COLUMN
         value: received_at
     blobStorage:
@@ -71,6 +70,8 @@ deployments:
       limits:
         cpu: 200
         memory: 300
+    blobStorage:
+      bind: true
   - name: Frontend
     application: frontend
     version: latest
