@@ -30,6 +30,17 @@ deployments:
       limits:
         cpu: 200
         memory: 300
+    variables:
+      # Now emits real Quix DCM events (id / event / contentUrl / metadata) so
+      # QuixConfigurationService could work against the topic. The read path is
+      # the Test Manager API's /parameter-sets, backed by the parameter_sets
+      # collection that mongo-writer fills from this topic - the old in-memory
+      # last-write-wins slot is gone, because a run must pin a specific
+      # (config_id, config_version) and a volatile slot cannot serve that.
+      - name: output
+        value: config-events
+      - name: BACKEND_API_URL
+        value: http://backend-api
     publicAccess:
       enabled: true
       urlPrefix: config-manager
@@ -48,8 +59,46 @@ deployments:
       serviceName: backend-api
       ports:
         - port: 80
-    blobStorage:
-      bind: true
+    variables:
+      - name: trace_ingest_requests
+        value: trace-ingest-requests
+      - name: evaluation_requests
+        value: evaluation-requests
+      - name: test_results
+        value: test-results
+      - name: run_summaries
+        value: run-summaries
+      - name: report_completed
+        value: report-completed
+      - name: config_events
+        value: config-events
+      # Blob seam. "auto" prefers the Quix filesystem when the platform injects
+      # credentials and falls back to the local filesystem below. Point
+      # TM_BLOB_LOCAL_ROOT at a state-mounted path to keep artifact storage
+      # usable while blobStorage.bind is disabled; leave it empty to make every
+      # blob-backed endpoint return 503 naming the cause instead of pretending.
+      - name: TM_BLOB_BACKEND
+        value: auto
+      - name: TM_BLOB_LOCAL_ROOT
+        value: ""
+      - name: TM_MAX_UPLOAD_BYTES
+        value: "536870912"
+      # Lakehouse Query API. On the dev cluster these four variables inject only
+      # when the deployment carries blobStorage.bind: true, which is impossible
+      # while the gateway is down - so they are declared explicitly here, the
+      # same way a BYOX environment has to declare them.
+      - name: Quix__Lakehouse__Query__Url
+        value: ""
+      - name: Quix__Lakehouse__Query__AuthToken
+        value: ""
+    # blobStorage.bind disabled 2026-08-18: the testrig Storage Gateway is
+    # unreachable, and any deploy carrying the bind is aborted by the gateway
+    # admin ("Storage Gateway unreachable - deploy aborted"), leaving the
+    # service Stopped and unstartable from both the API and the portal. The
+    # live deployment is already unbound. Re-enable once the gateway is
+    # healthy - the backend needs blob for Reqs/TS/TI storage.
+    # blobStorage:
+    #   bind: true
   - name: Lakehouse Sink - Test Data
     application: lakehouse-sink
     version: latest
@@ -63,6 +112,11 @@ deployments:
         value: test-data-uploads
       - name: TIMESTAMP_COLUMN
         value: received_at
+      # Code default in main.py is "latest", which silently skips every message
+      # already on the topic. The managed block replaced by 1e14f65 had
+      # autoOffsetReset: earliest; restoring it here.
+      - name: AUTO_OFFSET_RESET
+        value: earliest
     blobStorage:
       bind: true
   - name: Mongo Backup Manager
@@ -84,14 +138,195 @@ deployments:
     publicAccess:
       enabled: true
       urlPrefix: app
+  - name: MF4 Extractor
+    application: mf4-extractor
+    version: latest
+    deploymentType: Service
+    resources:
+      limits:
+        cpu: 500
+        memory: 1000
+    state:
+      enabled: true
+      size: 1
+    variables:
+      - name: input
+        value: trace-ingest-requests
+      - name: output_pt_can
+        value: test-vectors-pt-can-100hz
+      - name: output_radar_obj
+        value: test-vectors-radar-obj-50hz
+      - name: output_hmi
+        value: test-vectors-hmi-10hz
+      - name: output_sim_ref
+        value: test-vectors-sim-ref-100hz
+      - name: output_completed
+        value: trace-ingest-completed
+      - name: AUTO_OFFSET_RESET
+        value: earliest
+      # One input message expands to ~6400 row messages. A larger checkpoint
+      # holds several traces' expansions at once, which is the standard OOM in
+      # expand-then-produce topologies.
+      - name: COMMIT_EVERY
+        value: "1"
+      - name: TM_BLOB_BACKEND
+        value: auto
+      - name: TM_BLOB_LOCAL_ROOT
+        value: ""
+    # This service reads the raw MF4 object, so it genuinely needs blob. The bind
+    # is commented out for the same reason as on Backend API: any deploy carrying
+    # it is aborted while the testrig Storage Gateway is unreachable. Until the
+    # gateway is healthy this service cannot extract anything, and it says so -
+    # it marks the trace "failed" with the blob reason rather than reporting an
+    # empty extraction as success.
+    # blobStorage:
+    #   bind: true
+  - name: Test Vectors Sink
+    application: test-vectors-sink
+    version: latest
+    deploymentType: Service
+    resources:
+      limits:
+        cpu: 400
+        memory: 1000
+    variables:
+      - name: input_pt_can
+        value: test-vectors-pt-can-100hz
+      - name: input_radar_obj
+        value: test-vectors-radar-obj-50hz
+      - name: input_hmi
+        value: test-vectors-hmi-10hz
+      - name: input_sim_ref
+        value: test-vectors-sim-ref-100hz
+      - name: AUTO_OFFSET_RESET
+        value: earliest
+      - name: BATCH_SIZE
+        value: "1000"
+    # QuixTSDataLakeSink needs blob credentials plus the catalog variables, so
+    # this deployment cannot function without the bind. Commented out for the
+    # same gateway reason; re-enable together with the two above. Fallback with
+    # no code change: deploy "lakehouse-sink" four times with different
+    # input / TABLE_NAME / HIVE_COLUMNS values instead.
+    # blobStorage:
+    #   bind: true
+  - name: TM Evaluator
+    application: tm-evaluator
+    version: latest
+    deploymentType: Service
+    resources:
+      limits:
+        cpu: 500
+        memory: 800
+    state:
+      enabled: true
+      size: 1
+    variables:
+      - name: input_evaluation_requests
+        value: evaluation-requests
+      - name: input_trace_completed
+        value: trace-ingest-completed
+      - name: BACKEND_API_URL
+        value: http://backend-api
+      - name: AUTO_OFFSET_RESET
+        value: earliest
+      - name: COMMIT_EVERY
+        value: "1"
+      # Declared explicitly rather than relying on the blob bind to inject them.
+      - name: Quix__Lakehouse__Query__Url
+        value: ""
+      - name: Quix__Lakehouse__Query__AuthToken
+        value: ""
+  - name: Mongo Writer
+    application: mongo-writer
+    version: latest
+    deploymentType: Service
+    resources:
+      limits:
+        cpu: 200
+        memory: 400
+    variables:
+      - name: input_test_results
+        value: test-results
+      - name: input_run_summaries
+        value: run-summaries
+      - name: input_trace_completed
+        value: trace-ingest-completed
+      - name: input_config_events
+        value: config-events
+      - name: input_report_completed
+        value: report-completed
+      - name: MONGO_HOST
+        value: mongodb:27017
+      - name: MONGO_USER
+        value: admin
+      - name: MONGO_PASSWORD
+        value: mongo_password
+      - name: MONGO_DB_NAME
+        value: testmanager
+      - name: AUTO_OFFSET_RESET
+        value: earliest
 
 # This section describes the Topics of the data pipeline
 topics:
+  # Legacy. Superseded by config-events; kept so the old Dynamic Config Manager
+  # deployment does not break mid-rollout. Nothing consumes it any more.
   - name: config-updates
     configuration:
       partitions: 1
       retentionInMinutes: 1440
+  # Legacy. Superseded by trace-ingest-requests plus the four vector topics;
+  # still consumed by "Lakehouse Sink - Test Data".
   - name: test-data-uploads
     configuration:
       partitions: 2
       retentionInMinutes: 1440
+  # Quix DCM-shaped parameter-set events. 30 d so the registry can be rebuilt by
+  # replay, which is what makes the Mongo copy derived rather than authoritative.
+  - name: config-events
+    configuration:
+      partitions: 1
+      retentionInMinutes: 43200
+  # Trace metadata plus blob_path - never the file bytes.
+  - name: trace-ingest-requests
+    configuration:
+      partitions: 2
+      retentionInMinutes: 43200
+  - name: trace-ingest-completed
+    configuration:
+      partitions: 2
+      retentionInMinutes: 43200
+  # Vector rows, keyed by trace_key so per-trace ordering is guaranteed. 7 d:
+  # long enough to redeploy a sink without data loss, short enough that the rows
+  # (which are already in Iceberg) do not sit on the broker for a month.
+  - name: test-vectors-pt-can-100hz
+    configuration:
+      partitions: 4
+      retentionInMinutes: 10080
+  - name: test-vectors-radar-obj-50hz
+    configuration:
+      partitions: 4
+      retentionInMinutes: 10080
+  - name: test-vectors-hmi-10hz
+    configuration:
+      partitions: 2
+      retentionInMinutes: 10080
+  - name: test-vectors-sim-ref-100hz
+    configuration:
+      partitions: 4
+      retentionInMinutes: 10080
+  - name: evaluation-requests
+    configuration:
+      partitions: 1
+      retentionInMinutes: 43200
+  - name: test-results
+    configuration:
+      partitions: 2
+      retentionInMinutes: 43200
+  - name: run-summaries
+    configuration:
+      partitions: 1
+      retentionInMinutes: 43200
+  - name: report-completed
+    configuration:
+      partitions: 1
+      retentionInMinutes: 43200
