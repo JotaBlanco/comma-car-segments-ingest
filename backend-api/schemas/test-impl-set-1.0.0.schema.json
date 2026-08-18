@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acc-project.local/schemas/test-impl-set-1.0.0.schema.json",
+  "title": "Test-implementation set + version manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "set", "version", "created_utc", "source_upload", "item_count",
+    "item_ids", "set_canonical_sha256", "validator_version", "items"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "set": { "const": "test_impl" },
+    "version": { "type": "string", "pattern": "^v[0-9]{4}$" },
+    "parent_version": { "type": ["string", "null"], "pattern": "^v[0-9]{4}$" },
+    "created_utc": { "type": "string", "format": "date-time" },
+    "created_by": { "type": "string" },
+    "source_upload": {
+      "type": "object", "additionalProperties": false,
+      "required": ["filename", "media_type", "size_bytes", "sha256"],
+      "properties": {
+        "filename": { "type": "string" },
+        "media_type": { "enum": ["text/x-python", "application/zip", "application/json"] },
+        "size_bytes": { "type": "integer", "minimum": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "upload_kind": { "enum": ["py", "zip"] }
+      }
+    },
+    "item_count": { "type": "integer", "minimum": 1 },
+    "item_ids": { "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^ACC-SYS-TC-[0-9]{3}$" } },
+    "set_canonical_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "schema_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "validator_version": { "type": "string" },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "notes": { "type": "string" },
+    "items": { "type": "array", "minItems": 1,
+      "items": { "$ref": "test-impl-1.0.0.schema.json" } }
+  }
+}

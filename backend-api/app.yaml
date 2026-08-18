@@ -1,16 +1,36 @@
 name: backend-api
 language: python
 variables:
-  - name: config_input
-    inputType: InputTopic
-    description: Topic to consume configuration update events from
-    defaultValue: config-updates
-    required: true
-  - name: uploads_output
+  - name: trace_ingest_requests
     inputType: OutputTopic
-    description: Topic to publish incoming test data uploads to
-    defaultValue: test-data-uploads
+    description: Topic the API publishes one metadata message per stored MF4 to
+    defaultValue: trace-ingest-requests
     required: true
+  - name: evaluation_requests
+    inputType: OutputTopic
+    description: Topic the API publishes evaluation triggers to (manual or readiness)
+    defaultValue: evaluation-requests
+    required: true
+  - name: test_results
+    inputType: OutputTopic
+    description: Topic the API publishes one result document per test case to
+    defaultValue: test-results
+    required: true
+  - name: run_summaries
+    inputType: OutputTopic
+    description: Topic the API publishes the run metric block to
+    defaultValue: run-summaries
+    required: true
+  - name: report_completed
+    inputType: OutputTopic
+    description: Topic the API publishes rendered-report references to
+    defaultValue: report-completed
+    required: true
+  - name: config_events
+    inputType: OutputTopic
+    description: Quix DCM-shaped configuration events (parameter sets)
+    defaultValue: config-events
+    required: false
   - name: MONGO_HOST
     inputType: FreeText
     description: MongoDB host:port
@@ -32,6 +52,48 @@ variables:
     description: MongoDB database name
     defaultValue: "testmanager"
     required: true
+  - name: TM_BLOB_BACKEND
+    inputType: FreeText
+    description: >-
+      Blob backend selector: auto (Quix filesystem if credentials are injected, else the local
+      filesystem if TM_BLOB_LOCAL_ROOT is set), quix, local, or off. Keep "auto".
+    defaultValue: "auto"
+    required: false
+  - name: TM_BLOB_LOCAL_ROOT
+    inputType: FreeText
+    description: >-
+      Root directory for the local blob backend. Set this to a state-mounted path (for example
+      /app/state/blob) to keep the Test Manager usable while blobStorage.bind is disabled because
+      the Storage Gateway is unreachable. Leave empty to require real blob storage.
+    defaultValue: ""
+    required: false
+  - name: TM_MAX_UPLOAD_BYTES
+    inputType: FreeText
+    description: Per-request upload ceiling in bytes (MF4 files are megabytes)
+    defaultValue: "536870912"
+    required: false
+  - name: TM_FRONTEND_BASE_URL
+    inputType: FreeText
+    description: >-
+      Public base URL of the Streamlit frontend. Used only to turn requirement and test-case ids
+      in the generated report into deep links; empty means internal anchors only.
+    defaultValue: ""
+    required: false
+  - name: Quix__Lakehouse__Query__Url
+    inputType: FreeText
+    description: >-
+      Lakehouse Query API base URL. Auto-injected on the dev cluster only when the deployment
+      carries blobStorage.bind:true; declare it here while that bind is disabled.
+    required: false
+  - name: Quix__Lakehouse__Query__AuthToken
+    inputType: Secret
+    description: Bearer token for the Lakehouse Query API
+    required: false
+  - name: LOGLEVEL
+    inputType: FreeText
+    description: Application logging level
+    defaultValue: "INFO"
+    required: false
 dockerfile: dockerfile
 runEntryPoint: main.py
 defaultFile: main.py

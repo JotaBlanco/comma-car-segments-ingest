@@ -1,0 +1,75 @@
+name: mf4-extractor
+language: python
+variables:
+  - name: input
+    inputType: InputTopic
+    description: Trace metadata messages (never the file bytes)
+    defaultValue: trace-ingest-requests
+    required: true
+  - name: output_pt_can
+    inputType: OutputTopic
+    description: PT_CAN_100Hz rows
+    defaultValue: test-vectors-pt-can-100hz
+    required: true
+  - name: output_radar_obj
+    inputType: OutputTopic
+    description: RADAR_OBJ_50Hz rows
+    defaultValue: test-vectors-radar-obj-50hz
+    required: true
+  - name: output_hmi
+    inputType: OutputTopic
+    description: ACC_HMI_10Hz rows
+    defaultValue: test-vectors-hmi-10hz
+    required: true
+  - name: output_sim_ref
+    inputType: OutputTopic
+    description: SIM_REF_100Hz rows (reference group, never readable by a verdict)
+    defaultValue: test-vectors-sim-ref-100hz
+    required: true
+  - name: output_completed
+    inputType: OutputTopic
+    description: Extraction completion events (row counts, signals, t_s span)
+    defaultValue: trace-ingest-completed
+    required: true
+  - name: CONSUMER_GROUP
+    inputType: FreeText
+    description: Kafka consumer group name
+    defaultValue: "mf4-extractor"
+    required: false
+  - name: AUTO_OFFSET_RESET
+    inputType: Options
+    description: Where to start consuming if no offset exists. Must be earliest.
+    defaultValue: "earliest"
+    required: false
+  - name: COMMIT_EVERY
+    inputType: FreeText
+    description: >-
+      Input messages per checkpoint. Keep at 1: one message expands to roughly 6400 rows, and a
+      larger value holds several traces' expansions in memory at once.
+    defaultValue: "1"
+    required: false
+  - name: COMMIT_INTERVAL
+    inputType: FreeText
+    description: Kafka commit interval in seconds
+    defaultValue: "5"
+    required: false
+  - name: TM_BLOB_BACKEND
+    inputType: FreeText
+    description: Blob backend selector - auto, quix, local or off
+    defaultValue: "auto"
+    required: false
+  - name: TM_BLOB_LOCAL_ROOT
+    inputType: FreeText
+    description: >-
+      Root directory for the local blob backend (development and testing only - two Quix
+      deployments do not share a filesystem).
+    defaultValue: ""
+    required: false
+  - name: LOGLEVEL
+    inputType: Options
+    description: Application logging level
+    defaultValue: "INFO"
+    required: false
+dockerfile: dockerfile
+runEntryPoint: main.py
+defaultFile: main.py

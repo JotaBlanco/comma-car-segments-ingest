@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acc-project.local/schemas/signal-catalog-1.0.0.schema.json",
+  "title": "Signal catalogue entry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "signal", "channel_group", "table", "unit", "dtype", "role",
+    "raster_hz", "source_spec"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "signal": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$" },
+    "channel_group": { "enum": ["PT_CAN_100Hz", "RADAR_OBJ_50Hz", "ACC_HMI_10Hz",
+      "SIM_REF_100Hz"] },
+    "table": { "enum": ["acc_pt_can_100hz", "acc_radar_obj_50hz", "acc_hmi_10hz",
+      "acc_sim_ref_100hz"] },
+    "unit": { "type": "string" },
+    "dtype": { "enum": ["float32", "float64", "uint8", "uint16"] },
+    "column_type": { "enum": ["double", "int32"] },
+    "raster_hz": { "enum": [10, 50, 100] },
+    "role": { "enum": ["stimulus", "response", "reference", "diagnostic"] },
+    "enum_map": { "type": ["object", "null"], "additionalProperties": { "type": "string" } },
+    "quantisation": { "type": ["number", "null"] },
+    "source_spec": { "type": "string" },
+    "notes": { "type": "string" }
+  }
+}

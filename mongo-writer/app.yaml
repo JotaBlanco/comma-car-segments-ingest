@@ -1,0 +1,77 @@
+name: mongo-writer
+language: python
+variables:
+  - name: input_test_results
+    inputType: InputTopic
+    description: One result document per test case, sunk to the results collection
+    defaultValue: test-results
+    required: true
+  - name: input_run_summaries
+    inputType: InputTopic
+    description: Run metric blocks, sunk to run_metrics and fanned out to req_verdicts
+    defaultValue: run-summaries
+    required: true
+  - name: input_trace_completed
+    inputType: InputTopic
+    description: Extraction completion events, upserted onto the traces registry
+    defaultValue: trace-ingest-completed
+    required: true
+  - name: input_config_events
+    inputType: InputTopic
+    description: Quix DCM-shaped configuration events, sunk to parameter_sets
+    defaultValue: config-events
+    required: true
+  - name: input_report_completed
+    inputType: InputTopic
+    description: Rendered-report references, folded onto the run document
+    defaultValue: report-completed
+    required: true
+  - name: MONGO_HOST
+    inputType: FreeText
+    description: MongoDB host:port
+    defaultValue: "mongodb:27017"
+    required: true
+  - name: MONGO_USER
+    inputType: FreeText
+    description: MongoDB root username
+    defaultValue: "admin"
+    required: true
+  - name: MONGO_PASSWORD
+    inputType: ProjectVariable
+    description: MongoDB root password (project secret)
+    defaultValue: mongo_password
+    secret: true
+    required: true
+  - name: MONGO_DB_NAME
+    inputType: FreeText
+    description: MongoDB database name
+    defaultValue: "testmanager"
+    required: true
+  - name: CONSUMER_GROUP
+    inputType: FreeText
+    description: Kafka consumer group name
+    defaultValue: "mongo-writer"
+    required: false
+  - name: AUTO_OFFSET_RESET
+    inputType: Options
+    description: Where to start consuming if no offset exists. Must be earliest.
+    defaultValue: "earliest"
+    required: false
+  - name: BATCH_SIZE
+    inputType: FreeText
+    description: Messages per checkpoint
+    defaultValue: "200"
+    required: false
+  - name: COMMIT_INTERVAL
+    inputType: FreeText
+    description: Kafka commit interval in seconds
+    defaultValue: "10"
+    required: false
+  - name: LOGLEVEL
+    inputType: Options
+    description: Application logging level
+    defaultValue: "INFO"
+    required: false
+dockerfile: dockerfile
+runEntryPoint: main.py
+defaultFile: main.py

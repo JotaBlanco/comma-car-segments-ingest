@@ -1,0 +1,58 @@
+name: tm-evaluator
+language: python
+variables:
+  - name: input_evaluation_requests
+    inputType: InputTopic
+    description: Evaluation triggers (manual or readiness). Evaluation never happens on arrival.
+    defaultValue: evaluation-requests
+    required: true
+  - name: input_trace_completed
+    inputType: InputTopic
+    description: Extraction completion events, used by the readiness trigger
+    defaultValue: trace-ingest-completed
+    required: true
+  - name: BACKEND_API_URL
+    inputType: FreeText
+    description: >-
+      In-cluster base URL of the Backend API. The API is the single authority for artifacts, the
+      registry, the metric formulas and the outgoing result topics.
+    defaultValue: "http://backend-api"
+    required: true
+  - name: CONSUMER_GROUP
+    inputType: FreeText
+    description: Kafka consumer group name
+    defaultValue: "tm-evaluator"
+    required: false
+  - name: AUTO_OFFSET_RESET
+    inputType: Options
+    description: Where to start consuming if no offset exists. Must be earliest.
+    defaultValue: "earliest"
+    required: false
+  - name: COMMIT_EVERY
+    inputType: FreeText
+    description: Requests per checkpoint. One run per checkpoint keeps retries cheap.
+    defaultValue: "1"
+    required: false
+  - name: COMMIT_INTERVAL
+    inputType: FreeText
+    description: Kafka commit interval in seconds
+    defaultValue: "5"
+    required: false
+  - name: Quix__Lakehouse__Query__Url
+    inputType: FreeText
+    description: >-
+      Lakehouse Query API base URL. Auto-injected on the dev cluster only when the deployment
+      carries blobStorage.bind:true; declare it here while that bind is disabled.
+    required: true
+  - name: Quix__Lakehouse__Query__AuthToken
+    inputType: Secret
+    description: Bearer token for the Lakehouse Query API
+    required: true
+  - name: LOGLEVEL
+    inputType: Options
+    description: Application logging level
+    defaultValue: "INFO"
+    required: false
+dockerfile: dockerfile
+runEntryPoint: main.py
+defaultFile: main.py

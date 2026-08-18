@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acc-project.local/schemas/trace-meta-1.0.0.schema.json",
+  "title": "MF4 trace metadata (trace.meta.json)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "trace_key", "device_id", "sw_version", "hw_version",
+    "blob_path", "content_sha256", "size_bytes", "uploaded_utc", "uploaded_by", "mdf_version",
+    "is_raw_can", "trace_epoch_ms", "epoch_source", "mf4", "attachments", "groups", "signals",
+    "ingest_status"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "trace_key": { "type": "string", "pattern": "^TRC-[a-z0-9._-]{3,32}-[0-9a-f]{12}$" },
+    "device_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,31}$" },
+    "sw_version": { "type": "string", "minLength": 1 },
+    "hw_version": { "type": "string", "minLength": 1 },
+    "blob_path": { "type": "string", "minLength": 1 },
+    "content_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "size_bytes": { "type": "integer", "minimum": 1 },
+    "uploaded_utc": { "type": "string", "format": "date-time" },
+    "uploaded_by": { "type": "string" },
+    "mdf_version": { "type": ["string", "null"] },
+    "is_raw_can": { "type": "boolean" },
+    "trace_epoch_ms": { "type": "integer" },
+    "epoch_source": { "enum": ["mf4_header", "upload_time"] },
+    "mf4": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "run_id": { "type": ["string", "null"] },
+        "scenario_name": { "type": ["string", "null"] },
+        "variant_id": { "type": ["string", "null"] },
+        "config_sha256": { "type": ["string", "null"] },
+        "config_hash12": { "type": ["string", "null"] },
+        "generated_utc": { "type": ["string", "null"] },
+        "tool_name": { "type": ["string", "null"] },
+        "tool_version": { "type": ["string", "null"] },
+        "spec_ref": { "type": ["string", "null"] },
+        "seed": { "type": ["integer", "null"] },
+        "duration_s": { "type": ["number", "null"] },
+        "dt_sim_s": { "type": ["number", "null"] },
+        "dt_ctrl_s": { "type": ["number", "null"] },
+        "system_type": { "type": ["string", "null"] },
+        "channel_groups": { "type": "array", "items": { "type": "string" } },
+        "git_commit": { "type": ["string", "null"] }
+      }
+    },
+    "attachments": { "type": "array", "items": { "type": "string" } },
+    "groups": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["name", "raster_hz", "sample_count", "signals"],
+        "properties": {
+          "name": { "type": "string" },
+          "raster_hz": { "type": ["number", "null"] },
+          "sample_count": { "type": "integer", "minimum": 0 },
+          "t_s_first": { "type": ["number", "null"] },
+          "t_s_last": { "type": ["number", "null"] },
+          "signals": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "signals": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+    "extraction": {
+      "type": ["object", "null"], "additionalProperties": false,
+      "properties": {
+        "extractor_version": { "type": "string" },
+        "extracted_utc": { "type": "string", "format": "date-time" },
+        "rows_per_table": { "type": "object", "additionalProperties": { "type": "integer" } },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "ingest_status": { "enum": ["stored", "vectorised", "failed", "unsupported_raw_can"] },
+    "ingest_log": { "type": "array", "items": { "type": "string" } }
+  }
+}

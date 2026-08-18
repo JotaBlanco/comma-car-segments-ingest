@@ -1,0 +1,9 @@
+quixstreams>=3.24.0
+python-dotenv>=1.0.0
+
+# Pinned to match the plant spec's writer so channel and metadata handling agree.
+asammdf==8.8.23
+
+# Blob storage support via quixportal (AWS S3, Azure, GCP, MinIO)
+--extra-index-url https://pkgs.dev.azure.com/quix-analytics/53f7fe95-59fe-4307-b479-2473b96de6d1/_packaging/public/pypi/simple/
+quixportal[all]>=2.0.2

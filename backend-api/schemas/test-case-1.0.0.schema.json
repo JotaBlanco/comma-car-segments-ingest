@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acc-project.local/schemas/test-case-1.0.0.schema.json",
+  "title": "System test case (ISO 29119-3 / ASPICE SYS.5.BP1 vocabulary)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "tc_id", "title", "objective", "covers_req_ids",
+    "verification_method", "technique", "preconditions", "steps", "pass_criteria_logic",
+    "pass_criteria", "data_requirements", "status", "revision"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "tc_id": { "type": "string", "pattern": "^ACC-SYS-TC-[0-9]{3}$" },
+    "mnemonic": { "type": "string", "pattern": "^TC-(FUN|PRF|SAF)-[0-9]{3}-[0-9]{2}$" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "objective": { "type": "string", "minLength": 1, "maxLength": 400 },
+    "covers_req_ids": { "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^ACC-SYS-(FUN|PRF|SAF)-[0-9]{3}$" } },
+    "priority": { "enum": ["high", "medium", "low"], "default": "medium" },
+    "verification_method": { "enum": ["Test", "Analysis", "Inspection", "Demonstration"] },
+    "technique": { "enum": ["SIL", "HIL", "track", "bench", "inspection"] },
+    "test_environment": { "type": "string" },
+    "entry_criteria": { "type": "string" },
+    "exit_criteria": { "type": "string" },
+    "depends_on": { "type": "array", "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^ACC-SYS-TC-[0-9]{3}$" } },
+    "regression_flag": { "type": "boolean", "default": false },
+    "stimulus": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "scenario_ref": { "type": "string" },
+        "variant_id": { "type": "string" },
+        "config_ref": { "type": ["string", "null"] },
+        "notes": { "type": "string" }
+      }
+    },
+    "preconditions": {
+      "type": "object", "additionalProperties": false, "required": ["prose", "gates"],
+      "properties": {
+        "prose": { "type": "string" },
+        "gates": { "type": "array", "items": { "$ref": "#/$defs/criterion" } }
+      }
+    },
+    "steps": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["step_no", "action", "expected"],
+        "properties": {
+          "step_no": { "type": "integer", "minimum": 1 },
+          "action": { "type": "string", "minLength": 1 },
+          "expected": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "pass_criteria_logic": { "enum": ["all", "any"], "default": "all" },
+    "pass_criteria": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/criterion" } },
+    "data_requirements": {
+      "type": "object", "additionalProperties": false,
+      "required": ["trace_required", "min_traces", "required_signals", "required_channel_groups"],
+      "properties": {
+        "trace_required": { "type": "boolean" },
+        "min_traces": { "type": "integer", "minimum": 0 },
+        "required_signals": { "type": "array", "items": { "type": "string" } },
+        "required_channel_groups": { "type": "array", "uniqueItems": true,
+          "items": { "enum": ["PT_CAN_100Hz", "RADAR_OBJ_50Hz", "ACC_HMI_10Hz"] } }
+      }
+    },
+    "impl_ref": {
+      "type": ["object", "null"], "additionalProperties": false,
+      "required": ["impl_id", "language", "entrypoint"],
+      "properties": {
+        "impl_id": { "type": "string", "pattern": "^ACC-SYS-TC-[0-9]{3}$" },
+        "language": { "enum": ["python", "capl", "etas"] },
+        "entrypoint": { "type": "string" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "notes": { "type": "string" },
+    "status": { "enum": ["Draft", "Reviewed", "Approved", "Rejected", "Obsolete"] },
+    "revision": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+$" },
+    "last_change": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "criterion": {
+      "type": "object", "additionalProperties": false,
+      "required": ["criterion_id", "description", "signal", "channel_group", "unit", "window",
+        "reduce", "rule"],
+      "properties": {
+        "criterion_id": { "type": "string", "pattern": "^C[0-9]{1,2}$" },
+        "description": { "type": "string", "minLength": 1 },
+        "signal": { "type": "string", "minLength": 1 },
+        "channel_group": { "enum": ["PT_CAN_100Hz", "RADAR_OBJ_50Hz", "ACC_HMI_10Hz"] },
+        "unit": { "type": "string", "minLength": 1 },
+        "window": { "$ref": "#/$defs/window" },
+        "reduce": { "$ref": "#/$defs/reduce" },
+        "rule": { "$ref": "#/$defs/rule" },
+        "tolerance": {
+          "type": ["object", "null"], "additionalProperties": false,
+          "properties": {
+            "abs": { "type": ["number", "null"] },
+            "rel": { "type": ["number", "null"], "minimum": 0 }
+          }
+        },
+        "min_samples": { "type": "integer", "minimum": 1, "default": 1 },
+        "on_missing_signal": { "enum": ["error", "not_run", "skip"], "default": "error" },
+        "requirement_ref": { "type": ["string", "null"],
+          "pattern": "^ACC-SYS-(FUN|PRF|SAF)-[0-9]{3}$" }
+      }
+    },
+    "window": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["type"],
+          "properties": { "type": { "const": "full" } } },
+        { "type": "object", "additionalProperties": false,
+          "required": ["type", "t_start_s", "t_end_s"],
+          "properties": { "type": { "const": "time_range" },
+            "t_start_s": { "type": "number", "minimum": 0 },
+            "t_end_s": { "type": "number", "exclusiveMinimum": 0 } } },
+        { "type": "object", "additionalProperties": false, "required": ["type", "signal", "in"],
+          "properties": { "type": { "const": "state_mask" },
+            "signal": { "type": "string" },
+            "in": { "type": "array", "minItems": 1, "items": { "type": ["number", "boolean"] } },
+            "settle_s": { "type": "number", "minimum": 0, "default": 0 },
+            "min_duration_s": { "type": "number", "minimum": 0, "default": 0 } } },
+        { "type": "object", "additionalProperties": false, "required": ["type", "event"],
+          "properties": { "type": { "const": "event_relative" },
+            "event": { "$ref": "#/$defs/event" },
+            "offset_start_s": { "type": "number", "default": 0 },
+            "offset_end_s": { "type": "number", "default": 0 },
+            "occurrence": { "enum": ["first", "last", "all"], "default": "first" } } },
+        { "type": "object", "additionalProperties": false,
+          "required": ["type", "signal", "op", "value"],
+          "properties": { "type": { "const": "signal_threshold" },
+            "signal": { "type": "string" },
+            "op": { "enum": ["lt", "le", "gt", "ge", "eq", "ne"] },
+            "value": { "type": "number" } } },
+        { "type": "object", "additionalProperties": false, "required": ["type", "parts"],
+          "properties": { "type": { "const": "all_of" },
+            "parts": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/window" } } } }
+      ]
+    },
+    "event": {
+      "type": "object", "additionalProperties": false, "required": ["signal", "kind"],
+      "properties": {
+        "signal": { "type": "string" },
+        "kind": { "enum": ["rising", "falling", "any_edge", "change", "to_value", "threshold"] },
+        "value": { "type": ["number", "null"] },
+        "op": { "enum": ["lt", "le", "gt", "ge", "eq", "ne"] }
+      }
+    },
+    "reduce": {
+      "type": "object", "additionalProperties": false, "required": ["op"],
+      "properties": {
+        "op": { "enum": ["none", "mean", "min", "max", "abs_max", "rms", "moving_average",
+          "moving_min", "moving_max", "derivative", "integral", "percentile", "duration_true",
+          "count_edges", "time_between_edges", "settling_time", "overshoot", "value_at"] },
+        "window_s": { "type": "number", "exclusiveMinimum": 0 },
+        "method": { "enum": ["central"], "default": "central" },
+        "p": { "type": "number", "minimum": 0, "maximum": 100 },
+        "edge": { "enum": ["rising", "falling", "any"] },
+        "from": { "$ref": "#/$defs/event" },
+        "to": { "$ref": "#/$defs/event" },
+        "occurrence": { "enum": ["first", "last", "all", "max"], "default": "first" },
+        "target": { "type": "number" },
+        "band_abs": { "type": "number", "exclusiveMinimum": 0 },
+        "hold_s": { "type": "number", "exclusiveMinimum": 0 },
+        "at": { "$ref": "#/$defs/event" }
+      },
+      "allOf": [
+        { "if": { "properties": { "op": { "enum": ["moving_average", "moving_min",
+          "moving_max"] } } },
+          "then": { "required": ["op", "window_s"] } },
+        { "if": { "properties": { "op": { "const": "percentile" } } },
+          "then": { "required": ["op", "p"] } },
+        { "if": { "properties": { "op": { "const": "count_edges" } } },
+          "then": { "required": ["op", "edge"] } },
+        { "if": { "properties": { "op": { "const": "time_between_edges" } } },
+          "then": { "required": ["op", "from", "to"] } },
+        { "if": { "properties": { "op": { "const": "settling_time" } } },
+          "then": { "required": ["op", "target", "band_abs", "hold_s"] } },
+        { "if": { "properties": { "op": { "const": "overshoot" } } },
+          "then": { "required": ["op", "target"] } },
+        { "if": { "properties": { "op": { "const": "value_at" } } },
+          "then": { "required": ["op", "at"] } }
+      ]
+    },
+    "rule": {
+      "type": "object", "additionalProperties": false, "required": ["op"],
+      "properties": {
+        "op": { "enum": ["lt", "le", "gt", "ge", "eq", "ne", "within", "outside", "is_true",
+          "is_false", "equals_enum"] },
+        "value": { "type": ["number", "boolean"] },
+        "value2": { "type": ["number", "null"] },
+        "quantifier": { "enum": ["all", "any", "none"], "default": "all" }
+      },
+      "allOf": [
+        { "if": { "properties": { "op": { "enum": ["within", "outside"] } } },
+          "then": { "required": ["op", "value", "value2"] } },
+        { "if": { "properties": { "op": { "enum": ["lt", "le", "gt", "ge", "eq", "ne",
+          "equals_enum"] } } },
+          "then": { "required": ["op", "value"] } }
+      ]
+    }
+  }
+}

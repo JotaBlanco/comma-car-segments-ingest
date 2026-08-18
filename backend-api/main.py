@@ -1,108 +1,107 @@
 from dotenv import load_dotenv
+
 load_dotenv()  # reads .env if present; does not override env vars already set by the platform
 
-import logging
-import os
-from contextlib import asynccontextmanager
+import logging  # noqa: E402
+import os  # noqa: E402
 
-from fastapi import FastAPI
-from quixstreams import Application
+from fastapi import FastAPI  # noqa: E402
 
-import blob_storage
-import lakehouse
-from config_consumer import start_background_consumer
-from config_store import ConfigStore
-from crud import make_crud_router, serialize_doc
-from db import get_client, get_db
-from transform import build_upload_message
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-config_store = ConfigStore()
-
-mongo_client = get_client()
-db = get_db(mongo_client)
-
-quix_app = Application(consumer_group="backend-api")
-uploads_topic = quix_app.topic(
-    os.environ.get("uploads_output", "test-data-uploads"),
-    value_serializer="json",
-    key_serializer="string",
+import blob_storage  # noqa: E402
+import deps  # noqa: E402
+import error_handlers  # noqa: E402
+import lakehouse  # noqa: E402
+import schema_registry  # noqa: E402
+import settings  # noqa: E402
+from routers import (  # noqa: E402
+    artifacts,
+    baselines,
+    catalog,
+    graph,
+    internal,
+    registry,
+    results,
+    test_runs,
+    traces,
+    uploads,
 )
 
+logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
+logger = logging.getLogger(__name__)
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    app.state.consumer_thread, app.state.consumer_stop_event = start_background_consumer(
-        os.environ.get("config_input", "config-updates"), config_store
-    )
-    yield
-    app.state.consumer_stop_event.set()
+api = FastAPI(
+    title="V-Model Test Manager API",
+    version="1.0.0",
+    description=(
+        "Requirements, test specifications, test implementations, traces, runs, results and "
+        "reports for the right leg of the V at system level. JSON Schema validates artifact "
+        "documents at the door; Pydantic validates API bodies. Artifacts live in immutable "
+        "versioned blob folders, the device/config registry and the operational records live in "
+        "MongoDB, and MF4-derived test vectors live in the Lakehouse."
+    ),
+)
 
+error_handlers.register(api)
 
-api = FastAPI(title="Test Manager Backend API", lifespan=lifespan)
-
-api.include_router(make_crud_router(db["requirements"], "/requirements", "requirements"))
-api.include_router(make_crud_router(db["test_specs"], "/test-specs", "test_specs"))
-api.include_router(make_crud_router(db["test_runs"], "/test-runs", "test_runs"))
-api.include_router(make_crud_router(db["results"], "/results", "results"))
-
-
-@api.get("/config/current")
-def get_current_config():
-    current = config_store.get()
-    if current is None:
-        return {"config": None}
-    return {"config": current}
-
-
-def publish_upload_event(payload: dict, producer, topic) -> dict:
-    """Serialize and produce the upload event. Split out for unit testing
-    with a fake producer/topic."""
-    key, value = build_upload_message(payload)
-    msg = topic.serialize(key=key, value=value)
-    producer.produce(topic=topic, key=msg.key, value=msg.value)
-    return value
+api.include_router(uploads.router)
+api.include_router(artifacts.router)
+api.include_router(artifacts.schemas_router)
+api.include_router(catalog.router)
+api.include_router(baselines.router)
+api.include_router(registry.router)
+api.include_router(traces.router)
+api.include_router(test_runs.router)
+api.include_router(results.router)
+api.include_router(results.reports_router)
+api.include_router(graph.router)
+api.include_router(internal.router)
 
 
-@api.post("/uploads/test-data")
-def post_upload(payload: dict):
-    with quix_app.get_producer() as producer:
-        value = publish_upload_event(payload, producer, uploads_topic)
-    return {"status": "accepted", "key": build_upload_message(payload)[0], "payload": value}
+@api.get("/health", tags=["ops"])
+def health() -> dict:
+    """Answers even with no Mongo, no broker and no blob storage.
 
-
-@api.get("/evaluate")
-def evaluate(test_run_id: str | None = None, status: str | None = None):
-    query = {}
-    if test_run_id:
-        query["test_run_id"] = test_run_id
-    if status:
-        query["status"] = status
-
-    results = list(db["results"].find(query))
-    summary: dict[str, int] = {}
-    for r in results:
-        s = r.get("status", "unknown")
-        summary[s] = summary.get(s, 0) + 1
-
+    Each dependency reports its own state and, when it is unavailable, the reason.
+    An endpoint that needs blob storage then fails with 503 carrying that same
+    reason rather than a 500 or, worse, a silent success.
+    """
     return {
-        "count": len(results),
-        "summary": summary,
-        "results": [serialize_doc(r) for r in results],
+        "status": "ok",
+        "blob_storage": {
+            "available": blob_storage.is_available(),
+            "backend": blob_storage.backend_name(),
+            "reason": blob_storage.unavailable_reason(),
+        },
+        "lakehouse_query": {
+            "available": lakehouse.is_available(),
+            "reason": lakehouse.unavailable_reason(),
+        },
+        "schemas": {
+            name: schema_registry.schema_sha256(name)[:12]
+            for name in schema_registry.schema_names()
+        },
+        "topics": settings.topic_names(),
+        "versions": {
+            "validator": settings.VALIDATOR_VERSION,
+            "evaluator": settings.EVALUATOR_VERSION,
+            "extractor": settings.EXTRACTOR_VERSION,
+            "report_generator": settings.REPORT_GENERATOR_VERSION,
+        },
     }
 
 
-@api.get("/health")
-def health():
+@api.get("/health/mongo", tags=["ops"])
+def mongo_health() -> dict:
+    """Separate from ``/health`` so a Mongo outage cannot make liveness fail."""
+    db = deps.get_db()
     return {
         "status": "ok",
-        "blob_storage_available": blob_storage.is_available(),
-        "lakehouse_available": lakehouse.is_available(),
+        "database": db.name,
+        "collections": sorted(db.list_collection_names()),
     }
 
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(api, host="0.0.0.0", port=80)

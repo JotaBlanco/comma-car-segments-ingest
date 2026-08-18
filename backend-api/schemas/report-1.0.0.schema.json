@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acc-project.local/schemas/report-1.0.0.schema.json",
+  "title": "Test report (report.json) - machine-readable twin of report.html",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "test_run_id", "run_version", "revision", "generated_utc",
+    "report_generator_version", "evaluator_version", "inputs_digest", "reproducible", "header",
+    "baseline", "scope", "metrics", "results", "requirement_verdicts", "deviations", "blockers",
+    "residual_risks", "deliverables", "data_preview", "parameter_set"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "test_run_id": { "type": "string", "pattern": "^TR-[0-9]{8}-[0-9]{3}$" },
+    "run_version": { "type": "integer", "minimum": 1 },
+    "revision": { "type": "string", "pattern": "^rev[0-9]{2}$" },
+    "generated_utc": { "type": "string", "format": "date-time" },
+    "report_generator_version": { "type": "string" },
+    "evaluator_version": { "type": "string" },
+    "inputs_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "inputs_digest_prev": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+    "reproducible": { "type": "boolean" },
+    "diff_summary": { "type": "array", "items": { "type": "string" } },
+    "header": {
+      "type": "object", "additionalProperties": false,
+      "required": ["device_id", "sw_version", "hw_version", "baseline_id", "config_id",
+        "config_version", "provenance_override"],
+      "properties": {
+        "device_id": { "type": "string" },
+        "sw_version": { "type": "string" },
+        "hw_version": { "type": "string" },
+        "baseline_id": { "type": "string", "pattern": "^BL-[0-9]{4}$" },
+        "config_id": { "type": ["string", "null"] },
+        "config_version": { "type": ["integer", "null"] },
+        "config_hash12": { "type": ["string", "null"] },
+        "version_descriptor": { "type": ["string", "null"] },
+        "provenance_override": { "type": "boolean" }
+      }
+    },
+    "baseline": {
+      "type": "object", "additionalProperties": false,
+      "required": ["baseline_id", "requirements_version", "test_specs_version",
+        "test_impl_version", "signal_catalog_version"],
+      "properties": {
+        "baseline_id": { "type": "string", "pattern": "^BL-[0-9]{4}$" },
+        "requirements_version": { "type": "string", "pattern": "^v[0-9]{4}$" },
+        "test_specs_version": { "type": "string", "pattern": "^v[0-9]{4}$" },
+        "test_impl_version": { "type": "string", "pattern": "^v[0-9]{4}$" },
+        "signal_catalog_version": { "type": "string", "pattern": "^v[0-9]{4}$" },
+        "set_hashes": { "type": ["object", "null"],
+          "additionalProperties": { "type": "string" } }
+      }
+    },
+    "scope": {
+      "type": "object", "additionalProperties": false,
+      "required": ["selector", "planned_tc_ids"],
+      "properties": {
+        "selector": { "type": "object" },
+        "planned_tc_ids": { "type": "array", "items": { "type": "string" } },
+        "expansion_note": { "type": ["string", "null"] }
+      }
+    },
+    "metrics": { "type": "object" },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["tc_id", "verdict", "reason_code", "req_ids", "trace_keys", "criteria"],
+        "properties": {
+          "tc_id": { "type": "string" },
+          "verdict": { "enum": ["pass", "fail", "not_run", "error", "inconclusive"] },
+          "reason_code": { "type": ["string", "null"] },
+          "req_ids": { "type": "array", "items": { "type": "string" } },
+          "trace_keys": { "type": "array", "items": { "type": "string" } },
+          "criteria": { "type": "array", "items": { "type": "object" } },
+          "alignment": { "type": ["object", "null"] },
+          "uncertainty": { "type": ["object", "null"] },
+          "evidence": { "type": ["object", "null"] },
+          "result_sha256": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "requirement_verdicts": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["req_id", "verdict", "covering_tc_ids"],
+        "properties": {
+          "req_id": { "type": "string" },
+          "verdict": { "enum": ["pass", "fail", "partial", "inconclusive", "error", "not_run"] },
+          "covering_tc_ids": { "type": "array", "items": { "type": "string" } },
+          "passed_tc_ids": { "type": "array", "items": { "type": "string" } },
+          "failed_tc_ids": { "type": "array", "items": { "type": "string" } },
+          "not_run_tc_ids": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "deviations": { "type": "array", "items": { "type": "object" } },
+    "blockers": { "type": "array", "items": { "type": "object" } },
+    "residual_risks": { "type": "array", "items": { "type": "object" } },
+    "deliverables": {
+      "type": "object", "additionalProperties": false,
+      "required": ["traces", "lake_tables", "queries", "plots"],
+      "properties": {
+        "traces": { "type": "array", "items": { "type": "object" } },
+        "lake_tables": { "type": "array", "items": { "type": "string" } },
+        "queries": { "type": "array", "items": { "type": "string" } },
+        "plots": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "data_preview": { "type": "array", "items": { "type": "object" } },
+    "parameter_set": { "type": ["object", "null"] },
+    "lessons_learned": { "type": ["string", "null"] }
+  }
+}

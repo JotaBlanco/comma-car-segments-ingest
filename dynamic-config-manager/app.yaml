@@ -3,9 +3,21 @@ language: python
 variables:
   - name: output
     inputType: OutputTopic
-    description: Topic to publish new configuration events to
-    defaultValue: config-updates
+    description: Topic to publish Quix DCM-shaped configuration events to
+    defaultValue: config-events
     required: true
+  - name: BACKEND_API_URL
+    inputType: FreeText
+    description: >-
+      Test Manager API base URL. Used only to mint a monotonic config_version by reading the
+      existing parameter sets; this service holds no state of its own.
+    defaultValue: "http://backend-api"
+    required: true
+  - name: LOGLEVEL
+    inputType: FreeText
+    description: Application logging level
+    defaultValue: "INFO"
+    required: false
 dockerfile: dockerfile
 runEntryPoint: main.py
 defaultFile: main.py

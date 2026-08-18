@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acc-project.local/schemas/baseline-1.0.0.schema.json",
+  "title": "Baseline - pins one version of each artifact set",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "baseline_id", "requirements_version", "test_specs_version",
+    "test_impl_version", "signal_catalog_version", "created_utc", "integrity", "counts",
+    "req_links"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "baseline_id": { "type": "string", "pattern": "^BL-[0-9]{4}$" },
+    "label": { "type": "string" },
+    "requirements_version": { "type": "string", "pattern": "^v[0-9]{4}$" },
+    "test_specs_version": { "type": "string", "pattern": "^v[0-9]{4}$" },
+    "test_impl_version": { "type": "string", "pattern": "^v[0-9]{4}$" },
+    "signal_catalog_version": { "type": "string", "pattern": "^v[0-9]{4}$" },
+    "set_hashes": {
+      "type": "object", "additionalProperties": false,
+      "required": ["requirements", "test_specs", "test_impl", "signal_catalog"],
+      "properties": {
+        "requirements": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "test_specs": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "test_impl": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "signal_catalog": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "created_utc": { "type": "string", "format": "date-time" },
+    "created_by": { "type": "string" },
+    "integrity": {
+      "type": "object", "additionalProperties": false, "required": ["ok", "findings"],
+      "properties": {
+        "ok": { "type": "boolean" },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["severity", "code", "message"],
+            "properties": {
+              "severity": { "enum": ["error", "warning", "info"] },
+              "code": { "enum": ["unresolved_req_ref", "unresolved_impl_ref", "unknown_signal",
+                "signal_group_mismatch", "unit_algebra_mismatch", "reference_group_signal",
+                "method_incompatible", "orphan_test_case", "uncovered_requirement"] },
+              "message": { "type": "string" },
+              "entity_id": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "counts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["requirements", "test_cases", "impls", "covered_requirements"],
+      "properties": {
+        "requirements": { "type": "integer", "minimum": 0 },
+        "test_cases": { "type": "integer", "minimum": 0 },
+        "impls": { "type": "integer", "minimum": 0 },
+        "covered_requirements": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "baseline_coverage_static": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "req_links": {
+      "type": "object",
+      "description": "The verified_by mirror: requirement id -> covering test case ids.",
+      "propertyNames": { "pattern": "^ACC-SYS-(FUN|PRF|SAF)-[0-9]{3}$" },
+      "additionalProperties": {
+        "type": "array", "uniqueItems": true,
+        "items": { "type": "string", "pattern": "^ACC-SYS-TC-[0-9]{3}$" }
+      }
+    }
+  }
+}

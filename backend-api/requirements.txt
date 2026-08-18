@@ -1,7 +1,15 @@
 quixstreams>=3.24.0
 fastapi>=0.110.0
 uvicorn>=0.29.0
+python-multipart>=0.0.9
+pydantic>=2.6.0
+jsonschema[format-nongpl]>=4.21.0
 pymongo>=4.11
 requests>=2.31.0
 python-dotenv>=1.0.0
-quixportal[s3]>=0.1.0
+
+# Blob storage support via quixportal (AWS S3, Azure, GCP, MinIO). Used only by
+# the "quix" blob backend; the "local" backend needs nothing beyond the stdlib,
+# which is what keeps the service runnable while the Storage Gateway is down.
+--extra-index-url https://pkgs.dev.azure.com/quix-analytics/53f7fe95-59fe-4307-b479-2473b96de6d1/_packaging/public/pypi/simple/
+quixportal[all]>=2.0.2
