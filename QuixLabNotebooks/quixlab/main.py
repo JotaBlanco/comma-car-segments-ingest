@@ -75,5 +75,10 @@ def can_signals_v13_4():
     """)
 
 
+@canvas.cell(position=(1921, -3904), size=(712, 637), code_height=200, viz={'type': 'line', 'x': 'ts_ms', 'y': 'segment'})
+def cell_1(can_signals_v13_4):
+    return can_signals_v13_4
+
+
 if __name__ == "__main__":
     canvas.serve()
