@@ -29,5 +29,10 @@ def can_signals_v13_2():
     LIMIT 5000""")
 
 
+@canvas.explore(position=(1170, -2303), size=(420, 260), code_height=0)
+def explore_1():
+    pass
+
+
 if __name__ == "__main__":
     canvas.serve()
