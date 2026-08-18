@@ -50,24 +50,6 @@ deployments:
         show: true
         label: Configurations
         icon: tune
-  - name: rlog to MF4
-    application: rlog-to-mf4
-    version: latest
-    deploymentType: Job
-    resources:
-      limits:
-        cpu: 1000
-        memory: 2000
-    variables:
-      - name: INPUT_PREFIX
-        description: The mirror keeps HuggingFace's layout, segments/<device>/<route>/<idx>/rlog.zst
-      - name: DEVICES
-        description: comma.ai device ids for this platform (manifest lookup, not a path level)
-      - name: MAX_SEGMENTS
-        description: 0 = every segment the mirror copied (206 of the platform's 230; the mirror job was OOM-killed before finishing)
-        value: 0
-    blobStorage:
-      bind: true
   - name: MF4 replay
     application: mf4-replay
     version: latest
