@@ -7,6 +7,11 @@
 # point with a confusing "no such file or directory".
 *.sh text eol=lf
 
+# Deployment descriptors are read by the platform and by python yaml; a CR
+# survives parsing but churns diffs and has already caused one bad edit.
+*.yaml text eol=lf
+*.yml text eol=lf
+
 # Container entry points and their configs.
 dockerfile text eol=lf
 Dockerfile text eol=lf

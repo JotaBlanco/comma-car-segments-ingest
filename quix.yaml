@@ -22,6 +22,17 @@ deployments:
       ports:
         - port: 27017
           targetPort: 27017
+    variables:
+      # Data directory for mongod, on the state volume mounted at /app/state.
+      # /app/state/mongodb was abandoned on 2026-08-18: unclean shutdowns (26
+      # restarts) left it with no valid WiredTiger.turtle and the metadata table
+      # stranded as WiredTiger.wt.17, unrecoverable in place and unfixable
+      # without a shell in the container. Pointing mongod at a fresh sibling
+      # directory recovers the deployment by deploy alone. Bump this value to
+      # force a clean database again; the entry point never deletes the old
+      # directory, so its files stay on the volume until a human removes them.
+      - name: MONGO_DBPATH
+        value: /app/state/mongodb-v2
   - name: Dynamic Config Manager
     application: dynamic-config-manager
     version: latest
