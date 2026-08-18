@@ -29,7 +29,7 @@ def can_signals_v13_2():
     LIMIT 5000""")
 
 
-@canvas.explore(position=(1170, -2303), size=(420, 260), code_height=0, viz={'measure': {'columns': {'x': 't_abs_ms', 'y': 'value'}, 'range': {'from': 1787057800899, 'mode': 'absolute', 'to': 1787057920899}, 'signals': [{'color': '--qm-sig-1', 'dec': 3, 'id': 'platform=FORD_F_150_MK14/device=00e5e26644f0f460/route=00000000--6ff6fdcca2/channel_name=powertrain_hs_can1/sender_node=TCCM/frame_name=WheelSpeed/signal=BalrLeft3Prev2X_L_Actl', 'name': 'BalrLeft3Prev2X_L_Actl', 'unit': ''}], 'table': 'can_signals_v13', 'windows': [{'axes': ['platform=FORD_F_150_MK14/device=00e5e26644f0f460/route=00000000--6ff6fdcca2/channel_name=powertrain_hs_can1/sender_node=TCCM/frame_name=WheelSpeed/signal=BalrLeft3Prev2X_L_Actl'], 'cursor': {'scope': 'shared'}, 'height': 176, 'hidden': [], 'id': 'w1_1', 'signals': ['platform=FORD_F_150_MK14/device=00e5e26644f0f460/route=00000000--6ff6fdcca2/channel_name=powertrain_hs_can1/sender_node=TCCM/frame_name=WheelSpeed/signal=BalrLeft3Prev2X_L_Actl'], 'yMode': 'auto'}]}})
+@canvas.explore(position=(1170, -2303), size=(420, 260), code_height=0, viz={'measure': {'columns': {'x': 't_abs_ms', 'y': 'value'}, 'range': {'from': 1787057800899, 'mode': 'absolute', 'to': 1787057920899}, 'signals': [], 'table': 'can_signals_v13', 'windows': [{'axes': ['platform=FORD_F_150_MK14/device=00e5e26644f0f460/route=00000000--6ff6fdcca2/channel_name=powertrain_hs_can1/sender_node=TCCM/frame_name=WheelSpeed/signal=BalrLeft3Prev2X_L_Actl'], 'cursor': {'scope': 'shared'}, 'height': 176, 'hidden': [], 'id': 'w1_1', 'signals': [], 'yMode': 'auto'}]}})
 def explore_1():
     pass
 
