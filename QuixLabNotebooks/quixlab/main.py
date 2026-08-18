@@ -29,7 +29,7 @@ def can_signals_v13_2():
     LIMIT 5000""")
 
 
-@canvas.explore(position=(1170, -2303), size=(420, 260), code_height=0)
+@canvas.explore(position=(1170, -2303), size=(420, 260), code_height=0, viz={'measure': {'columns': {'x': 't_abs_ms', 'y': 'value'}, 'range': {'from': 1787057800899, 'mode': 'absolute', 'to': 1787057920899}, 'signals': [], 'table': 'can_signals_v13', 'windows': []}})
 def explore_1():
     pass
 
