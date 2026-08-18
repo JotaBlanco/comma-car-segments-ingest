@@ -85,21 +85,6 @@ deployments:
         value: 0
     blobStorage:
       bind: true
-  - name: Blob explorer
-    application: blob-explorer
-    version: latest
-    deploymentType: Job
-    resources:
-      limits:
-        cpu: 200
-        memory: 500
-    variables:
-      - name: PREFIXES
-        description: blob prefixes to inspect; the leading empty entry is the root
-      - name: DEVICES
-        description: count rlog.zst per device, to see how far the mirror got
-    blobStorage:
-      bind: true
 
 # This section describes the Topics of the data pipeline
 topics:
