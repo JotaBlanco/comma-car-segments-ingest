@@ -8,7 +8,7 @@ def datastore_1():
     return ql.datastore("datastore_1")
 
 
-@canvas.dataset(position=(355, 201), size=(752, 647), code_height=138, viz={'measure': {'columns': {'x': 't_abs_ms', 'y': 'value'}, 'range': {'from': 1787043247305, 'mode': 'absolute', 'to': 1787043367305}, 'signals': [], 'table': 'can_signals_v13', 'windows': []}, 'type': 'line', 'x': '', 'y': ''})
+@canvas.dataset(position=(355, 201), size=(1608, 771), code_height=138, viz={'measure': {'columns': {'x': 't_abs_ms', 'y': 'value'}, 'range': {'from': 1787043247305, 'mode': 'absolute', 'to': 1787043367305}, 'signals': [], 'table': 'can_signals_v13', 'windows': []}, 'type': 'line', 'x': '', 'y': ''})
 def can_signals_v13():
     return ql.sql("""SELECT *
     FROM can_signals_v13
