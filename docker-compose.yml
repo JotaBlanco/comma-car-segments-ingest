@@ -1,0 +1,440 @@
+# Local development / demo stack for the Test Manager.
+#
+# Why this file exists: the testrig Storage Gateway is unreachable, so no
+# deployment may carry blobStorage.bind and every blob-backed endpoint 503s in
+# the cloud; and the four stream services (mf4-extractor, test-vectors-sink,
+# tm-evaluator, mongo-writer) have not been synced to any Quix environment, so
+# they exist nowhere else. Locally the blob seam's "local" backend makes the
+# artifact half fully usable and Docker is the only place the stream services run
+# at all.
+#
+# Layout, deliberately layered so that the demo cannot be broken by the parts
+# that are optional:
+#
+#   docker compose up                       -> mongodb + backend-api + frontend
+#                                              (a working UI, artifact chain,
+#                                              baselines, runs; no broker)
+#   docker compose --profile stream up      -> adds redpanda + topic creation +
+#                                              dynamic-config-manager,
+#                                              mf4-extractor, tm-evaluator,
+#                                              mongo-writer (MF4 ingest, events)
+#   docker compose --profile tools up       -> adds Redpanda Console (topic UI)
+#   docker compose --profile lakehouse up   -> adds test-vectors-sink, which
+#                                              CANNOT work locally; see the note
+#                                              on that service.
+#
+# No core service depends_on a profiled service, because Compose starts a
+# profiled service when something outside its profile depends on it - which would
+# defeat the layering. The broker address is handed to backend-api unconditionally
+# instead: with no broker running, the two endpoints that publish (POST
+# /uploads/traces and POST /test-runs/{id}/evaluate) answer 503 naming the cause,
+# and every other endpoint is unaffected.
+#
+# Nothing here contains a real secret. MONGO_PASSWORD is the same throwaway value
+# quix.yaml uses for the dev environment; there is no Quix SDK token, no blob
+# credential and no lakehouse token in this stack, and the services are wired to
+# the local broker through Quix__Broker__Address, which QuixStreams reads instead
+# of Quix__Sdk__Token (quixstreams/platforms/quix/env.py:13, app.py:258).
+
+name: tm-local
+
+x-mongo-env: &mongo-env
+  MONGO_HOST: mongodb:27017
+  MONGO_USER: ${MONGO_USER:-admin}
+  MONGO_PASSWORD: ${MONGO_PASSWORD:-mongo_password}
+  MONGO_DB_NAME: ${MONGO_DB_NAME:-testmanager}
+
+x-broker-env: &broker-env
+  # QuixStreams' documented environment variable for a non-Quix broker. The four
+  # stream services also honour KAFKA_BOOTSTRAP_SERVERS explicitly
+  # (e.g. mf4-extractor/main.py:270); backend-api and dynamic-config-manager
+  # construct Application() with no broker_address at all
+  # (backend-api/topics.py:67, dynamic-config-manager/main.py:42), so this
+  # variable is the only thing that points them at Redpanda.
+  Quix__Broker__Address: redpanda:9092
+
+x-blob-local: &blob-local
+  # The blob seam's local backend. backend-api and mf4-extractor mount the same
+  # named volume at the same path, which is what lets the extractor read an
+  # object the API wrote - the one thing a local root cannot do across two Quix
+  # deployments (mf4-extractor/blob_seam.py module docstring).
+  TM_BLOB_BACKEND: local
+  TM_BLOB_LOCAL_ROOT: /app/blobstore
+
+x-topic-names: &topic-names
+  trace_ingest_requests: trace-ingest-requests
+  trace_ingest_completed: trace-ingest-completed
+  evaluation_requests: evaluation-requests
+  test_results: test-results
+  run_summaries: run-summaries
+  report_completed: report-completed
+  config_events: config-events
+
+services:
+  # ---------------------------------------------------------------- core -----
+  mongodb:
+    build:
+      context: ./mongodb
+      dockerfile: dockerfile
+    image: tm-local/mongodb
+    container_name: tm-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-mongo_password}
+      # init.sh refuses any dbpath outside /app/state and fails fast if the mount
+      # is missing, so the volume below is not optional (mongodb/init.sh, the
+      # STATE_MOUNT check).
+      MONGO_DBPATH: /app/state/mongodb-v2
+    volumes:
+      - mongo_state:/app/state
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet --username "$$MONGO_INITDB_ROOT_USERNAME"
+          --password "$$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin
+          --eval "db.adminCommand({ping:1}).ok" | grep -q 1
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      # First start runs the official entry point's initdb (creates the root
+      # user, restarts mongod); that is comfortably inside 60 s on a laptop.
+      start_period: 60s
+    restart: unless-stopped
+
+  backend-api:
+    build:
+      context: ./backend-api
+      dockerfile: dockerfile
+    image: tm-local/backend-api
+    container_name: tm-backend-api
+    environment:
+      <<: [*mongo-env, *broker-env, *blob-local, *topic-names]
+      TM_MAX_UPLOAD_BYTES: "536870912"
+      TM_FRONTEND_BASE_URL: http://localhost:${FRONTEND_PORT:-8501}
+      # Lakehouse Query API: deliberately empty. There is no local Iceberg
+      # catalog and no local Query API, so /health reports lakehouse_query
+      # unavailable with the reason, which is the honest state.
+      Quix__Lakehouse__Query__Url: "${QUIX_LAKEHOUSE_QUERY_URL:-}"
+      Quix__Lakehouse__Query__AuthToken: "${QUIX_LAKEHOUSE_QUERY_TOKEN:-}"
+      LOGLEVEL: ${LOGLEVEL:-INFO}
+    volumes:
+      - blobstore:/app/blobstore
+    ports:
+      - "${BACKEND_PORT:-8000}:80"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      # python:3.12-slim has no curl; urllib is in the image by definition.
+      test:
+        - CMD-SHELL
+        - >-
+          python -c "import urllib.request,sys;
+          sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:80/health',timeout=5).status==200
+          else 1)"
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: dockerfile
+    image: tm-local/frontend
+    container_name: tm-frontend
+    environment:
+      BACKEND_API_URL: http://backend-api:80
+    ports:
+      - "${FRONTEND_PORT:-8501}:80"
+    depends_on:
+      backend-api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          python -c "import urllib.request,sys;
+          sys.exit(0 if
+          urllib.request.urlopen('http://127.0.0.1:80/_stcore/health',timeout=5).status==200
+          else 1)"
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  # -------------------------------------------------------------- stream -----
+  # Redpanda rather than Kafka + KRaft: one container, one process, no cluster-id
+  # bootstrap step, and rpk in the same image for topic creation and the health
+  # check. It speaks the Kafka protocol that librdkafka (and therefore
+  # QuixStreams) expects, which is the only property this stack needs from a
+  # broker. "--mode dev-container" is Redpanda's own single-node development
+  # preset (small memory footprint, topic auto-creation on).
+  redpanda:
+    image: docker.redpanda-data.com/redpandadata/redpanda:${REDPANDA_VERSION:-v24.2.7}
+    container_name: tm-redpanda
+    profiles: ["stream", "tools", "lakehouse"]
+    command:
+      - redpanda
+      - start
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+      # Containers reach the broker as redpanda:9092; host tools (rpk, a Python
+      # client on the laptop) reach it as localhost:19092. Advertised listeners
+      # have to say exactly that or a client connects once and then fails on the
+      # address the broker hands back.
+      - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:19092
+      - --rpc-addr=redpanda:33145
+      - --advertise-rpc-addr=redpanda:33145
+      - --mode=dev-container
+      - --smp=1
+      - --default-log-level=info
+    ports:
+      - "${REDPANDA_EXTERNAL_PORT:-19092}:19092"
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true'"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+  # One-shot: create the topics quix.yaml declares, with its partition counts and
+  # retentions, before any service starts. Topic auto-creation is on in
+  # dev-container mode, but it would give every topic one partition and default
+  # retention, and the partition count is part of the design (vector topics are
+  # keyed by trace_key so per-trace ordering survives 4 partitions).
+  redpanda-init:
+    image: docker.redpanda-data.com/redpandadata/redpanda:${REDPANDA_VERSION:-v24.2.7}
+    container_name: tm-redpanda-init
+    profiles: ["stream", "tools", "lakehouse"]
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    # Each create is tolerated if the topic already exists, so re-running
+    # "compose up" is not an error. Retention is in minutes in quix.yaml.
+    command:
+      - |
+        set -u
+        B="redpanda:9092"
+        create() {
+          rpk topic create "$$1" --brokers "$$B" -p "$$2" -c "retention.ms=$$3" \
+            || echo "topic $$1: already present or not created, continuing"
+        }
+        create config-updates                1 86400000     # legacy, 1440 min
+        create test-data-uploads             2 86400000     # legacy, 1440 min
+        create config-events                 1 2592000000   # 30 d
+        create trace-ingest-requests         2 2592000000
+        create trace-ingest-completed        2 2592000000
+        create test-vectors-pt-can-100hz     4 604800000    # 7 d
+        create test-vectors-radar-obj-50hz   4 604800000
+        create test-vectors-hmi-10hz         2 604800000
+        create test-vectors-sim-ref-100hz    4 604800000
+        create evaluation-requests           1 2592000000
+        create test-results                  2 2592000000
+        create run-summaries                 1 2592000000
+        create report-completed              1 2592000000
+        # Not in quix.yaml, but backend-api/settings.py:topic_names() can name
+        # them (report_requests, unit_test_requests). Created here so a publish
+        # never lands on an auto-created 1-partition topic nobody declared.
+        create report-requests               1 2592000000
+        create unit-test-requests            1 2592000000
+        echo "--- topics ---"
+        rpk topic list --brokers "$$B"
+    restart: "no"
+
+  dynamic-config-manager:
+    build:
+      context: ./dynamic-config-manager
+      dockerfile: dockerfile
+    image: tm-local/dynamic-config-manager
+    container_name: tm-dynamic-config-manager
+    profiles: ["stream"]
+    environment:
+      <<: *broker-env
+      output: config-events
+      BACKEND_API_URL: http://backend-api:80
+      LOGLEVEL: ${LOGLEVEL:-INFO}
+    ports:
+      - "${DCM_PORT:-8002}:80"
+    depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
+      backend-api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          python -c "import urllib.request,sys;
+          sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:80/health',timeout=5).status==200
+          else 1)"
+      interval: 15s
+      timeout: 10s
+      retries: 6
+      start_period: 20s
+    restart: unless-stopped
+
+  mf4-extractor:
+    build:
+      context: ./mf4-extractor
+      dockerfile: dockerfile
+    image: tm-local/mf4-extractor
+    container_name: tm-mf4-extractor
+    profiles: ["stream"]
+    environment:
+      <<: [*broker-env, *blob-local]
+      input: trace-ingest-requests
+      output_pt_can: test-vectors-pt-can-100hz
+      output_radar_obj: test-vectors-radar-obj-50hz
+      output_hmi: test-vectors-hmi-10hz
+      output_sim_ref: test-vectors-sim-ref-100hz
+      output_completed: trace-ingest-completed
+      CONSUMER_GROUP: mf4-extractor
+      AUTO_OFFSET_RESET: earliest
+      COMMIT_EVERY: "1"
+      COMMIT_INTERVAL: "5"
+      LOGLEVEL: ${LOGLEVEL:-INFO}
+    volumes:
+      # Same volume, same mount path as backend-api: this is the blob hand-off.
+      - blobstore:/app/blobstore
+      # QuixStreams state, default state_dir "state" relative to WORKDIR /app
+      # (mf4-extractor/main.py:275). On a volume so a restart resumes.
+      - extractor_state:/app/state
+    depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  tm-evaluator:
+    build:
+      context: ./tm-evaluator
+      dockerfile: dockerfile
+    image: tm-local/tm-evaluator
+    container_name: tm-evaluator
+    profiles: ["stream"]
+    environment:
+      <<: *broker-env
+      input_evaluation_requests: evaluation-requests
+      input_trace_completed: trace-ingest-completed
+      BACKEND_API_URL: http://backend-api:80
+      CONSUMER_GROUP: tm-evaluator
+      AUTO_OFFSET_RESET: earliest
+      COMMIT_EVERY: "1"
+      COMMIT_INTERVAL: "5"
+      # Empty on purpose. The evaluator reads test vectors only through the
+      # Lakehouse Query API (tm-evaluator/lake_client.py:158 via
+      # evaluate_case.py:109) and there is no local catalog or Query API, so
+      # every criterion that needs samples reports reason_code
+      # "lake_query_failed" with the cause. See docs/LOCAL_DEVELOPMENT.md.
+      Quix__Lakehouse__Query__Url: "${QUIX_LAKEHOUSE_QUERY_URL:-}"
+      Quix__Lakehouse__Query__AuthToken: "${QUIX_LAKEHOUSE_QUERY_TOKEN:-}"
+      LOGLEVEL: ${LOGLEVEL:-INFO}
+    volumes:
+      - evaluator_state:/app/state
+    depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
+      backend-api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mongo-writer:
+    build:
+      context: ./mongo-writer
+      dockerfile: dockerfile
+    image: tm-local/mongo-writer
+    container_name: tm-mongo-writer
+    profiles: ["stream"]
+    environment:
+      <<: [*mongo-env, *broker-env]
+      input_test_results: test-results
+      input_run_summaries: run-summaries
+      input_trace_completed: trace-ingest-completed
+      input_config_events: config-events
+      input_report_completed: report-completed
+      CONSUMER_GROUP: mongo-writer
+      AUTO_OFFSET_RESET: earliest
+      BATCH_SIZE: "200"
+      COMMIT_INTERVAL: "10"
+      LOGLEVEL: ${LOGLEVEL:-INFO}
+    depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # --------------------------------------------------------------- tools -----
+  redpanda-console:
+    image: docker.redpanda-data.com/redpandadata/console:${REDPANDA_CONSOLE_VERSION:-v2.7.2}
+    container_name: tm-redpanda-console
+    profiles: ["tools"]
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+    ports:
+      - "${CONSOLE_PORT:-8080}:8080"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ----------------------------------------------------------- lakehouse -----
+  # THIS SERVICE CANNOT WORK LOCALLY. It is here so the stack is honest about
+  # the gap rather than quietly missing a component.
+  #
+  # test-vectors-sink writes through QuixTSDataLakeSink, which needs two things
+  # this machine does not have: Quix__BlobStorage__Connection__Json (object
+  # storage credentials, read by quixportal inside the sink) and
+  # Quix__Lakehouse__Catalog__Url (an Iceberg REST catalog) -
+  # test-vectors-sink/main.py:88-113. There is no local Iceberg catalog, and
+  # standing up MinIO plus a REST catalog would not reproduce the Quix sink's
+  # bucket layout or its Hive-partition validation, so it would be a different
+  # system wearing the same name.
+  #
+  # Started with this profile it will log the connect failure from
+  # on_client_connect_failure and exit; restart is "no" so it does not crash-loop.
+  # Enable it only when you have supplied real cloud credentials in .env.local.
+  test-vectors-sink:
+    build:
+      context: ./test-vectors-sink
+      dockerfile: dockerfile
+    image: tm-local/test-vectors-sink
+    container_name: tm-test-vectors-sink
+    profiles: ["lakehouse"]
+    environment:
+      <<: *broker-env
+      input_pt_can: test-vectors-pt-can-100hz
+      input_radar_obj: test-vectors-radar-obj-50hz
+      input_hmi: test-vectors-hmi-10hz
+      input_sim_ref: test-vectors-sim-ref-100hz
+      CONSUMER_GROUP: test-vectors-sink
+      AUTO_OFFSET_RESET: earliest
+      BATCH_SIZE: "1000"
+      COMMIT_INTERVAL: "30"
+      AUTO_DISCOVER: "true"
+      CATALOG_NAMESPACE: default
+      MAX_WRITE_WORKERS: "10"
+      Quix__Workspace__Id: "${QUIX_WORKSPACE_ID:-}"
+      Quix__BlobStorage__Connection__Json: "${QUIX_BLOBSTORAGE_CONNECTION_JSON:-}"
+      Quix__Lakehouse__Catalog__Url: "${QUIX_LAKEHOUSE_CATALOG_URL:-}"
+      Quix__Lakehouse__Catalog__AuthToken: "${QUIX_LAKEHOUSE_CATALOG_TOKEN:-}"
+      LOGLEVEL: ${LOGLEVEL:-INFO}
+    depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
+    restart: "no"
+
+volumes:
+  mongo_state:
+  blobstore:
+  extractor_state:
+  evaluator_state:
+  redpanda_data:

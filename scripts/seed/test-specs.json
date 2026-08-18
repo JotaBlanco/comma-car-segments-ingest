@@ -1,0 +1,208 @@
+[
+  {
+    "schema_version": "1.0.0",
+    "tc_id": "ACC-SYS-TC-001",
+    "mnemonic": "TC-PRF-020-01",
+    "title": "Automatic deceleration limit under a braking lead vehicle",
+    "objective": "Show that while ACC is in Active-Cruise or Active-Follow the automatic deceleration of the subject vehicle stays within the 2 s moving-average limit of 3,5 m/s^2 stated by ACC-SYS-PRF-020, when a lead vehicle brakes at 3 m/s^2.",
+    "covers_req_ids": ["ACC-SYS-PRF-020"],
+    "priority": "high",
+    "verification_method": "Test",
+    "technique": "SIL",
+    "test_environment": "acc_stim plant simulation, device acc-plant-sim-01",
+    "entry_criteria": "A plant MF4 for scenario lead_brake_3mps2 is ingested and vectorised.",
+    "exit_criteria": "Every criterion of this case has a verdict.",
+    "regression_flag": true,
+    "stimulus": {
+      "scenario_ref": "lead_brake_3mps2",
+      "variant_id": "v100",
+      "notes": "Data/lead_brake_3mps2/lead_brake_3mps2__v100__f8aeb2756729.mf4"
+    },
+    "preconditions": {
+      "prose": "ACC main switch on and ACC engaged (ACC_Status in Active-Cruise or Active-Follow). The engagement window is expressed as a state mask on the criterion rather than as a gate, so a trace that never engages produces no samples and the criterion says so.",
+      "gates": []
+    },
+    "steps": [
+      {
+        "step_no": 1,
+        "action": "Drive the subject vehicle at the set speed with ACC engaged and a lead vehicle ahead.",
+        "expected": "ACC_Status reports Active-Cruise or Active-Follow."
+      },
+      {
+        "step_no": 2,
+        "action": "Brake the lead vehicle at 3 m/s^2 until the closing manoeuvre is resolved.",
+        "expected": "The subject vehicle decelerates without exceeding the deceleration limit."
+      }
+    ],
+    "pass_criteria_logic": "all",
+    "pass_criteria": [
+      {
+        "criterion_id": "C1",
+        "description": "2 s moving average of longitudinal acceleration never below -3,5 m/s^2 while engaged.",
+        "signal": "VehAccel_mps2",
+        "channel_group": "PT_CAN_100Hz",
+        "unit": "m/s^2",
+        "window": {
+          "type": "state_mask",
+          "signal": "ACC_Status",
+          "in": [2, 3],
+          "settle_s": 0.5,
+          "min_duration_s": 2.0
+        },
+        "reduce": {"op": "moving_average", "window_s": 2},
+        "rule": {"op": "ge", "value": -3.5, "quantifier": "all"},
+        "min_samples": 200,
+        "on_missing_signal": "error",
+        "requirement_ref": "ACC-SYS-PRF-020"
+      }
+    ],
+    "data_requirements": {
+      "trace_required": true,
+      "min_traces": 1,
+      "required_signals": ["VehAccel_mps2", "ACC_Status"],
+      "required_channel_groups": ["PT_CAN_100Hz", "ACC_HMI_10Hz"]
+    },
+    "impl_ref": null,
+    "notes": "Demo seed case authored for the local stack. The threshold and the 2 s averaging window are quoted from ACC-SYS-PRF-020; the signal names come from the plant channel table in acc_stim/mf4/signals.py.",
+    "status": "Approved",
+    "revision": "1.0",
+    "last_change": "2026-08-18T00:00:00Z"
+  },
+  {
+    "schema_version": "1.0.0",
+    "tc_id": "ACC-SYS-TC-002",
+    "mnemonic": "TC-PRF-022-01",
+    "title": "Automatic acceleration limit on set-speed approach",
+    "objective": "Show that while ACC is in Active-Cruise or Active-Follow the automatic acceleration of the subject vehicle never exceeds the 2,0 m/s^2 limit stated by ACC-SYS-PRF-022, while the vehicle accelerates to the selected set speed.",
+    "covers_req_ids": ["ACC-SYS-PRF-022"],
+    "priority": "medium",
+    "verification_method": "Test",
+    "technique": "SIL",
+    "test_environment": "acc_stim plant simulation, device acc-plant-sim-01",
+    "entry_criteria": "A plant MF4 for scenario cruise_set_speed is ingested and vectorised.",
+    "exit_criteria": "Every criterion of this case has a verdict.",
+    "regression_flag": true,
+    "stimulus": {
+      "scenario_ref": "cruise_set_speed",
+      "variant_id": "v100",
+      "notes": "Data/cruise_set_speed/cruise_set_speed__v100__9a10ca54c894.mf4"
+    },
+    "preconditions": {
+      "prose": "ACC engaged with no in-lane target closer than the selected clearance, so the controller is speed-limited rather than gap-limited.",
+      "gates": []
+    },
+    "steps": [
+      {
+        "step_no": 1,
+        "action": "Engage ACC at a speed below the selected set speed on a clear lane.",
+        "expected": "ACC_Status reports Active-Cruise."
+      },
+      {
+        "step_no": 2,
+        "action": "Let the system accelerate to the set speed.",
+        "expected": "Longitudinal acceleration stays within the acceleration limit."
+      }
+    ],
+    "pass_criteria_logic": "all",
+    "pass_criteria": [
+      {
+        "criterion_id": "C1",
+        "description": "Peak longitudinal acceleration at most 2,0 m/s^2 while engaged.",
+        "signal": "VehAccel_mps2",
+        "channel_group": "PT_CAN_100Hz",
+        "unit": "m/s^2",
+        "window": {
+          "type": "state_mask",
+          "signal": "ACC_Status",
+          "in": [2, 3],
+          "settle_s": 0.5
+        },
+        "reduce": {"op": "max"},
+        "rule": {"op": "le", "value": 2.0},
+        "min_samples": 100,
+        "on_missing_signal": "error",
+        "requirement_ref": "ACC-SYS-PRF-022"
+      }
+    ],
+    "data_requirements": {
+      "trace_required": true,
+      "min_traces": 1,
+      "required_signals": ["VehAccel_mps2", "ACC_Status"],
+      "required_channel_groups": ["PT_CAN_100Hz", "ACC_HMI_10Hz"]
+    },
+    "impl_ref": null,
+    "notes": "Demo seed case authored for the local stack. The 2,0 m/s^2 bound is quoted from ACC-SYS-PRF-022.",
+    "status": "Approved",
+    "revision": "1.0",
+    "last_change": "2026-08-18T00:00:00Z"
+  },
+  {
+    "schema_version": "1.0.0",
+    "tc_id": "ACC-SYS-TC-003",
+    "mnemonic": "TC-PRF-003-01",
+    "title": "Minimum steady-state clearance floor while following",
+    "objective": "Show that while ACC is in Active-Follow or Active-Hold under steady-state conditions the clearance to the selected target never falls below the 2,5 m floor of ACC-SYS-PRF-003. This case asserts the fixed floor only; the time-gap product term of the requirement needs a derived signal and is not covered here.",
+    "covers_req_ids": ["ACC-SYS-PRF-003"],
+    "priority": "high",
+    "verification_method": "Test",
+    "technique": "SIL",
+    "test_environment": "acc_stim plant simulation, device acc-plant-sim-01",
+    "entry_criteria": "A plant MF4 for scenario follow_steady_timegap is ingested and vectorised.",
+    "exit_criteria": "Every criterion of this case has a verdict.",
+    "regression_flag": false,
+    "stimulus": {
+      "scenario_ref": "follow_steady_timegap",
+      "variant_id": "tau08",
+      "notes": "Data/follow_steady_timegap/follow_steady_timegap__tau08__80c3cb927293.mf4"
+    },
+    "preconditions": {
+      "prose": "A single in-lane lead vehicle at constant speed, ACC following it with the shortest selectable time gap.",
+      "gates": []
+    },
+    "steps": [
+      {
+        "step_no": 1,
+        "action": "Follow a lead vehicle at constant speed with ACC engaged and the shortest time gap selected.",
+        "expected": "ACC_Status reports Active-Follow."
+      },
+      {
+        "step_no": 2,
+        "action": "Hold the steady-state following condition for the duration of the trace.",
+        "expected": "Clearance to the selected target stays above the floor."
+      }
+    ],
+    "pass_criteria_logic": "all",
+    "pass_criteria": [
+      {
+        "criterion_id": "C1",
+        "description": "Minimum clearance to the selected target at least 2,5 m while following or holding.",
+        "signal": "Trgt_Dist_m",
+        "channel_group": "RADAR_OBJ_50Hz",
+        "unit": "m",
+        "window": {
+          "type": "state_mask",
+          "signal": "ACC_Status",
+          "in": [3, 4],
+          "settle_s": 2.0,
+          "min_duration_s": 5.0
+        },
+        "reduce": {"op": "min"},
+        "rule": {"op": "ge", "value": 2.5},
+        "min_samples": 100,
+        "on_missing_signal": "error",
+        "requirement_ref": "ACC-SYS-PRF-003"
+      }
+    ],
+    "data_requirements": {
+      "trace_required": true,
+      "min_traces": 1,
+      "required_signals": ["Trgt_Dist_m", "ACC_Status"],
+      "required_channel_groups": ["RADAR_OBJ_50Hz", "ACC_HMI_10Hz"]
+    },
+    "impl_ref": null,
+    "notes": "Demo seed case authored for the local stack. The 2,5 m floor is quoted from ACC-SYS-PRF-003; the product term (selected time gap times subject speed) is deliberately out of scope.",
+    "status": "Approved",
+    "revision": "1.0",
+    "last_change": "2026-08-18T00:00:00Z"
+  }
+]
