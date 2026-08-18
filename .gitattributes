@@ -22,3 +22,8 @@ Dockerfile text eol=lf
 
 # Cap'n Proto schemas are compiled at runtime by pycapnp.
 *.capnp text eol=lf
+
+# The requirements acceptance fixtures are compared byte for byte by the
+# ReqIF/JSON convergence test (spec 1.1.2). An EOL rewrite on checkout would
+# change the flattened text and every canonical_sha256 derived from it.
+backend-api/tests/fixtures/** -text

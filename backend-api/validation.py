@@ -19,6 +19,7 @@ Steps 3 and 4 live here. Step 5 lives in ``canonical``; step 6 in
 
 from dataclasses import dataclass
 
+import error_envelope
 import ids
 import schema_registry
 from settings import (
@@ -60,12 +61,20 @@ class UploadRejected(Exception):
         )
 
     def as_dict(self) -> dict:
-        return {
-            "detail": "upload rejected",
-            "stage": self.stage,
-            "problem_count": len(self.problems),
-            "problems": [problem.as_dict() for problem in self.problems],
-        }
+        """The single error envelope (``error_envelope``), not a third shape.
+
+        ``problems`` keeps its key name and its element shape - the frontend and
+        the round-1 verification both read it - but the body now leads with the
+        same ``error``/``message`` pair as every other error this API returns.
+        """
+        return error_envelope.envelope(
+            422,
+            f"upload rejected at stage {self.stage!r}: {len(self.problems)} problem(s)",
+            error="upload_rejected",
+            problems=[problem.as_dict() for problem in self.problems],
+            stage=self.stage,
+            problem_count=len(self.problems),
+        )
 
 
 def validate_items(set_name: str, items: list[dict]) -> list[Problem]:

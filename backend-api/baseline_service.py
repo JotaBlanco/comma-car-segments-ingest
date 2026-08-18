@@ -15,6 +15,7 @@ import logging
 import artifact_store
 import canonical
 import criteria_static
+import error_envelope
 import ids
 import mongo_schema
 import schema_registry
@@ -48,11 +49,16 @@ class BaselineRejected(Exception):
         super().__init__(f"baseline rejected: {errors} error finding(s)")
 
     def as_dict(self) -> dict:
-        return {
-            "detail": "baseline rejected",
-            "error_count": sum(1 for f in self.findings if f["severity"] == "error"),
-            "findings": self.findings,
-        }
+        """The single error envelope. ``findings`` keeps its own shape - it carries
+        ``severity``, which ``problems`` does not, so it is not folded into it."""
+        error_count = sum(1 for finding in self.findings if finding["severity"] == "error")
+        return error_envelope.envelope(
+            422,
+            f"baseline rejected: {error_count} error finding(s)",
+            error="baseline_rejected",
+            error_count=error_count,
+            findings=self.findings,
+        )
 
 
 def check_integrity(

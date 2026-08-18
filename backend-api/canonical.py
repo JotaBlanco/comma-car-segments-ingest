@@ -25,6 +25,25 @@ import unicodedata
 _WS_RUN = re.compile(r"[^\S\n]+")
 _MEASURAND_RE = re.compile(r"^(?P<name>.+?)\s*\[(?P<unit>[^\]]*)\]$")
 
+# N6 for ``system_states``: the frozen state-machine ordinal, not authoring
+# order (spec 1.1.1, the AD-SYSTEM-STATES row). The ReqIF path reads that order
+# from the ``ENUM-VALUE`` ``KEY`` attributes; the JSON path has no KEY table, so
+# the order is pinned here and applied to both paths - otherwise the same
+# requirement uploaded as JSON with the states listed in authoring order hashes
+# differently from the ReqIF export of itself, and the convergence proof of spec
+# 1.1.2 fails on five of the 37 real requirements. Identical to the ``enum``
+# order in ``schemas/requirement-1.0.0.schema.json`` and to ``DT-ENUM-STATE`` in
+# the exporter's frozen ordinal table. Append only; never renumber.
+SYSTEM_STATE_ORDER = (
+    "Off",
+    "Standby",
+    "Active-Cruise",
+    "Active-Follow",
+    "Active-Hold",
+    "Driver-Override",
+    "Degraded-Fault",
+)
+
 
 def canonical_bytes(obj) -> bytes:
     """JCS-style canonical bytes. Rejects NaN/Inf rather than emitting them."""
@@ -77,6 +96,19 @@ def normalise_text(text: str) -> str:
     # Trim each line, then drop leading/trailing whitespace overall.
     text = "\n".join(line.strip() for line in text.split("\n"))
     return text.strip()
+
+
+def order_system_states(states) -> list[str]:
+    """N6 for ``system_states``: frozen ordinal order, unknown values last.
+
+    An unrecognised state is kept (after the known ones, alphabetically) rather
+    than dropped: normalisation runs *before* schema validation, so the value has
+    to survive long enough for the validator to name it in the rejection.
+    """
+    index = {state: position for position, state in enumerate(SYSTEM_STATE_ORDER)}
+    return sorted(
+        states or [], key=lambda state: (index.get(state, len(index)), str(state))
+    )
 
 
 def split_ordered(raw: str, separator: str = "; ") -> list[str]:
@@ -134,7 +166,7 @@ def normalise_requirement(doc: dict) -> dict:
 
     # N6: order is by rule, not by authoring.
     out["source"] = [normalise_text(s) for s in out.get("source") or []]
-    out["system_states"] = list(out.get("system_states") or [])
+    out["system_states"] = order_system_states(out.get("system_states"))
     for field in ("figure_refs", "related_reqs", "verified_by"):
         out[field] = sorted({normalise_text(v) for v in out.get(field) or [] if str(v).strip()})
 

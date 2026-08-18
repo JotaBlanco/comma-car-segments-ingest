@@ -36,7 +36,7 @@
       }
     },
     "status": { "enum": ["Draft", "Reviewed", "Approved", "Rejected", "Obsolete"] },
-    "revision": { "type": "string", "pattern": "^[0-9]+\.[0-9]+$" },
+    "revision": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+$" },
     "figure_refs": { "type": "array", "uniqueItems": true,
       "items": { "type": "string", "pattern": "^F[1-6]$" } },
     "related_reqs": { "type": "array", "uniqueItems": true,

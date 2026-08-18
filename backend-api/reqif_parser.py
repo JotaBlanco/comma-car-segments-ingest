@@ -8,9 +8,12 @@ the canonical schema stays closed (``additionalProperties: false``), which is
 what makes door validation meaningful, and byte-identity between the ReqIF path
 and the JSON path stays provable.
 
-Normalisation rules N1-N6 are implemented here and in ``canonical``; both upload
-paths run the same N2-N6 code, and only N1 (XHTML flattening) is exclusive to
-this module.
+Normalisation rules N1-N6 are implemented in ``xhtml_text`` (N1), here and in
+``canonical``; both upload paths run the same N2-N6 code, and only N1 (XHTML
+flattening) is exclusive to the ReqIF path. N1 is applied as **amended** - a
+constrained XHTML subset rather than ``<xhtml:br/>`` alone - because the spec's
+literal rule cannot parse the acceptance fixture the spec names; see
+``xhtml_text`` and departure 13 of the architecture doc.
 """
 
 import io
@@ -20,7 +23,9 @@ from xml.etree import ElementTree
 
 import canonical
 import ids
+import xhtml_text
 from validation import Problem, UploadRejected
+from xhtml_text import local_name as _local
 
 REQIF_SCHEMA_VERSION = "1.0.0"
 
@@ -51,11 +56,6 @@ LIST_FIELDS = ("system_states", "source", "measurand", "figure_refs", "related_r
                "verified_by")
 
 
-def _local(tag: str) -> str:
-    """Local name of a namespaced tag."""
-    return tag.rsplit("}", 1)[-1] if "}" in tag else tag
-
-
 def _children(node, name: str):
     return [child for child in node if _local(child.tag) == name]
 
@@ -80,48 +80,26 @@ class _Reject(Exception):
 
 
 def _xhtml_to_text(value_node, entity_id: str, field: str) -> str:
-    """N1: flatten ``THE-VALUE`` to text; only ``<xhtml:br/>`` is permitted."""
-    the_value = _first(value_node, "THE-VALUE")
-    if the_value is None:
-        return ""
-    elements = list(the_value)
-    if not elements:
-        return canonical.normalise_text(the_value.text or "")
-    divs = [child for child in elements if _local(child.tag) == "div"]
-    if len(divs) != 1 or len(elements) != 1:
+    """Amended N1 + N2-N4: flatten the accepted XHTML subset, then normalise.
+
+    The subset and the flattening live in ``xhtml_text``; the rejection is
+    turned into the ``xhtml_shape`` problem here so the reason code and the
+    JSON pointer stay owned by the parser. N2-N4 run through
+    ``canonical.normalise_text``, the same function the JSON upload path uses -
+    which is what keeps the two paths convergent.
+    """
+    try:
+        flattened = xhtml_text.flatten_the_value(_first(value_node, "THE-VALUE"))
+    except xhtml_text.XhtmlSubsetError as exc:
         raise _Reject(
             Problem(
                 code="xhtml_shape",
-                message=(
-                    f"{field}: THE-VALUE must contain exactly one xhtml:div, found "
-                    f"{[_local(e.tag) for e in elements]}"
-                ),
+                message=f"{field}: {exc}",
                 entity_id=entity_id,
                 pointer=f"/{field}",
             )
-        )
-    parts: list[str] = []
-    div = divs[0]
-    if div.text:
-        parts.append(div.text)
-    for child in div:
-        local = _local(child.tag)
-        if local != "br":
-            raise _Reject(
-                Problem(
-                    code="xhtml_shape",
-                    message=(
-                        f"{field}: the only permitted nested XHTML element is <xhtml:br/>, "
-                        f"found <{local}>"
-                    ),
-                    entity_id=entity_id,
-                    pointer=f"/{field}",
-                )
-            )
-        parts.append("\n")
-        if child.tail:
-            parts.append(child.tail)
-    return canonical.normalise_text("".join(parts))
+        ) from exc
+    return canonical.normalise_text(flattened)
 
 
 def _collect_enum_values(root) -> dict[str, dict]:

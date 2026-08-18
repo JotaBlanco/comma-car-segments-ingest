@@ -18,6 +18,14 @@ def list_traces(
     tc_id: str | None = Query(None),
     test_run_id: str | None = Query(None),
     ingest_status: str | None = Query(None),
+    publish_state: str | None = Query(
+        None,
+        description=(
+            "pending | published | failed. 'failed' lists traces whose bytes and registry "
+            "row committed but whose extraction request never reached the broker; "
+            "re-uploading the identical file republishes it."
+        ),
+    ),
     config_hash12: str | None = Query(None),
     limit: int = Query(500, ge=1, le=5000),
     db=Depends(deps.get_db),
@@ -28,6 +36,8 @@ def list_traces(
         query["device_id"] = device_id
     if ingest_status:
         query["ingest_status"] = ingest_status
+    if publish_state:
+        query["publish_state"] = publish_state
     if config_hash12:
         query["mf4.config_hash12"] = config_hash12
     if tc_id or test_run_id:

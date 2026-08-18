@@ -6,7 +6,24 @@ keeps the trace reusable across runs without re-uploading it.
 
 The trace key is content-addressed, so re-uploading identical bytes is idempotent
 and cannot duplicate lake rows - the property that matters most here, because
-uploads arrive from several places at different times.
+uploads arrive from several places at different times. It is also what makes the
+publish step recoverable: see ``publish_state`` below.
+
+**Two writes and a publish, and what happens when the publish fails.** Steps 4-6
+of spec 4.2 commit a blob object, a blob metadata document and a Mongo registry
+row, and only then produce the extraction request. A broker outage at step 6 used
+to surface as a bare 500 while all three writes had already committed, so the
+caller could not tell whether the upload had landed and the only way to find out
+was to upload again. The registry row therefore carries an explicit
+
+    publish_state = pending | published | failed
+
+and a failed publish answers ``503 event_bus_unavailable`` naming the trace key
+and exactly what was persisted. Re-uploading the identical file reconciles: the
+content-addressed key finds the existing row and re-publishes rather than
+duplicating anything. ``ingest_status`` is deliberately *not* used to carry this -
+its value set is fixed by spec 0.6 and consumed downstream, and overloading it
+would make an un-published trace look like a failed extraction.
 
 Evaluation is not triggered by this path. Ever (D8).
 """
@@ -15,9 +32,11 @@ import hashlib
 import logging
 
 import artifact_store
+import error_envelope
 import ids
 import mongo_schema
 import paths
+import topics
 from settings import EXTRACTOR_VERSION
 from validation import Problem, UploadRejected
 
@@ -26,9 +45,55 @@ logger = logging.getLogger(__name__)
 MDF_MAGIC = b"MDF     "
 RAW_CAN_MARKERS = (b"CAN_DataFrame", b"CAN_ErrorFrame", b"CAN_RemoteFrame")
 
+PUBLISH_PENDING = "pending"
+PUBLISH_DONE = "published"
+PUBLISH_FAILED = "failed"
+
 
 class TraceConflictError(Exception):
     """A trace key collision with different content (spec 4.3)."""
+
+
+class TraceNotPublishedError(Exception):
+    """The trace is stored and registered; the extraction request was not published.
+
+    Carries what committed and what did not, because the whole point is that the
+    caller can tell the difference. ``error_handlers`` renders it as a 503.
+    """
+
+    def __init__(self, trace_key: str, created: bool, document: dict, reason: str) -> None:
+        self.trace_key = trace_key
+        self.created = created
+        self.blob_path = document.get("blob_path")
+        self.meta_path = document.get("meta_path")
+        self.reason = reason
+        super().__init__(reason)
+
+    def as_dict(self) -> dict:
+        return error_envelope.envelope(
+            503,
+            (
+                f"trace {self.trace_key} is stored and registered, but the extraction "
+                f"request could not be published: {self.reason}"
+            ),
+            error="event_bus_unavailable",
+            trace_key=self.trace_key,
+            created=self.created,
+            published=False,
+            persisted={
+                "blob_object": self.blob_path,
+                "blob_meta": self.meta_path,
+                "mongo_traces_row": True,
+                "publish_state": PUBLISH_FAILED,
+                "lake_rows": False,
+            },
+            hint=(
+                "nothing is lost and nothing is duplicated by retrying: the trace key is "
+                "content-addressed, so re-uploading the identical file finds this row and "
+                "re-publishes the extraction request. Un-published traces are listable with "
+                "GET /traces?publish_state=failed."
+            ),
+        )
 
 
 def sniff_mf4(path: str) -> dict:
@@ -134,10 +199,22 @@ def ingest_trace(
             )
         if test_run_id and tc_ids:
             _link(db, test_run_id, tc_ids, trace_key, uploaded_by)
-        logger.info("Idempotent re-upload of %s", trace_key)
+        if existing.get("publish_state") != PUBLISH_DONE:
+            # Reconciliation, and the reason the retry story works: the previous
+            # upload's writes committed but its extraction request never reached
+            # the broker. Re-publishing is safe because the extractor keys its
+            # State on trace_key and drops a request it has already handled, so a
+            # duplicate request is a no-op rather than duplicated lake rows.
+            # Rows without publish_state are pre-reconciliation records and are
+            # treated as un-published for the same reason.
+            logger.info("Re-upload of %s reconciles an un-published trace", trace_key)
+            _publish_ingest_request(db, bus, existing, created=False)
+        else:
+            logger.info("Idempotent re-upload of %s", trace_key)
         return {
             "trace_key": trace_key,
             "created": False,
+            "published": True,
             "trace": mongo_schema.serialize(existing),
         }
 
@@ -152,7 +229,14 @@ def ingest_trace(
                     code="unknown_device_version",
                     message=(
                         f"device version {device_id}/{sw_version}/{hw_version} is not "
-                        "registered; register it before uploading traces for it"
+                        f"registered, and trace upload requires it: device_versions is the "
+                        f"registry of record for the (device_id, sw_version, hw_version) "
+                        f"triple that every verdict's provenance is quoted against, so a "
+                        f"trace cannot be admitted for a triple nobody declared. Register "
+                        f'it first: POST /devices {{"device_id": "{device_id}", ...}} (skip '
+                        f"if the device already exists), then POST /devices/{device_id}"
+                        f'/versions {{"sw_version": "{sw_version}", "hw_version": '
+                        f'"{hw_version}"}}, then re-upload this file.'
                     ),
                     entity_id=device_id,
                 )
@@ -192,30 +276,90 @@ def ingest_trace(
     document = dict(meta)
     document["meta_path"] = paths.trace_meta(device_id, trace_key)
     document["lake_rows"] = {}
+    # Written before the publish is attempted, so a broker failure leaves a row
+    # that says so instead of an invisible object in blob.
+    document["publish_state"] = PUBLISH_PENDING
+    document["publish_attempts"] = 0
+    document["publish_error"] = None
     db[mongo_schema.TRACES].insert_one(dict(document))
 
-    bus.publish(
-        "trace_ingest_requests",
-        trace_key,
-        {
-            "trace_key": trace_key,
-            "device_id": device_id,
-            "sw_version": sw_version,
-            "hw_version": hw_version,
-            "blob_path": blob_path,
-            "meta_path": document["meta_path"],
-            "content_sha256": content_sha256,
-            "size_bytes": size_bytes,
-            "uploaded_utc": uploaded_utc,
-            "expected_extractor_version": EXTRACTOR_VERSION,
-        },
-    )
+    _publish_ingest_request(db, bus, document, created=True)
 
     if test_run_id and tc_ids:
         _link(db, test_run_id, tc_ids, trace_key, uploaded_by)
 
     logger.info("Stored %s (%d bytes) and requested extraction", trace_key, size_bytes)
-    return {"trace_key": trace_key, "created": True, "trace": mongo_schema.serialize(document)}
+    return {
+        "trace_key": trace_key,
+        "created": True,
+        "published": True,
+        "trace": mongo_schema.serialize(document),
+    }
+
+
+def _ingest_request(document: dict) -> dict:
+    """The one metadata message of spec 4.2 step 6, built from the registry row.
+
+    Built from named keys rather than by copying the document, so a field added to
+    the registry row can never leak onto the topic by accident.
+    """
+    device_id = document["device_id"]
+    trace_key = document["trace_key"]
+    return {
+        "trace_key": trace_key,
+        "device_id": device_id,
+        "sw_version": document.get("sw_version", ""),
+        "hw_version": document.get("hw_version", ""),
+        "blob_path": document.get("blob_path") or paths.trace_object(device_id, trace_key),
+        "meta_path": document.get("meta_path") or paths.trace_meta(device_id, trace_key),
+        "content_sha256": document["content_sha256"],
+        "size_bytes": document["size_bytes"],
+        "uploaded_utc": document["uploaded_utc"],
+        "expected_extractor_version": EXTRACTOR_VERSION,
+    }
+
+
+def _publish_ingest_request(db, bus, document: dict, created: bool) -> None:
+    """Publish the extraction request and record the outcome on the registry row.
+
+    Raises :class:`TraceNotPublishedError` on failure, having first marked the row
+    ``publish_state = "failed"`` with the reason. ``document`` is updated in place
+    so the caller's response body cannot claim a state the database contradicts.
+    """
+    trace_key = document["trace_key"]
+    attempted_utc = ids.utc_now_iso()
+    try:
+        bus.publish("trace_ingest_requests", trace_key, _ingest_request(document))
+    except topics.EventBusUnavailableError as exc:
+        document["publish_state"] = PUBLISH_FAILED
+        document["publish_error"] = str(exc)
+        db[mongo_schema.TRACES].update_one(
+            {"trace_key": trace_key},
+            {
+                "$set": {
+                    "publish_state": PUBLISH_FAILED,
+                    "publish_error": str(exc),
+                    "publish_attempted_utc": attempted_utc,
+                },
+                "$inc": {"publish_attempts": 1},
+            },
+        )
+        logger.error("Trace %s is stored but not published: %s", trace_key, exc)
+        raise TraceNotPublishedError(trace_key, created, document, str(exc)) from exc
+
+    document["publish_state"] = PUBLISH_DONE
+    document["publish_error"] = None
+    db[mongo_schema.TRACES].update_one(
+        {"trace_key": trace_key},
+        {
+            "$set": {
+                "publish_state": PUBLISH_DONE,
+                "publish_error": None,
+                "published_utc": attempted_utc,
+            },
+            "$inc": {"publish_attempts": 1},
+        },
+    )
 
 
 def _link(db, test_run_id: str, tc_ids: list[str], trace_key: str, attached_by: str) -> None:
