@@ -1,4 +1,9 @@
-streamlit>=1.35.0
+# Floors, not hard pins, following the convention of the other applications in
+# this repo. The Streamlit floor is not cosmetic: st.navigation / st.Page(url_path=)
+# (1.36), dataframe row selection via on_select (1.35) and st.query_params (1.30)
+# are all load-bearing here, and 1.40 is the first release that carries all three
+# plus the material icon shorthand used in the sidebar.
+streamlit>=1.40.0
 requests>=2.31.0
 python-dotenv>=1.0.0
 pandas>=2.0.0
