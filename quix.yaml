@@ -15,7 +15,7 @@ deployments:
         cpu: 200
         memory: 800
     state:
-      enabled: true
+      enabled: false
       size: 1
     network:
       serviceName: mongodb
