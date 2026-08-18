@@ -57,6 +57,8 @@ class BlobBackend(Protocol):
 
     def size(self, path: str) -> int: ...
 
+    def rm_tree(self, path: str) -> None: ...
+
 
 class QuixBlobBackend:
     """``quixportal.get_filesystem()`` - the real thing."""
@@ -90,6 +92,12 @@ class QuixBlobBackend:
 
     def size(self, path: str) -> int:
         return int(self._fs.size(path))
+
+    def rm_tree(self, path: str) -> None:
+        try:
+            self._fs.rm(path, recursive=True)
+        except FileNotFoundError:
+            pass
 
 
 class LocalBlobBackend:
@@ -143,6 +151,13 @@ class LocalBlobBackend:
     def size(self, path: str) -> int:
         return self._resolve(path).stat().st_size
 
+    def rm_tree(self, path: str) -> None:
+        target = self._resolve(path)
+        if target.is_dir():
+            shutil.rmtree(target, ignore_errors=True)
+        elif target.exists():
+            target.unlink()
+
 
 class NullBlobBackend:
     """No blob storage configured. Every call fails loudly, naming the cause."""
@@ -171,6 +186,9 @@ class NullBlobBackend:
         self._fail()
 
     def size(self, path: str) -> int:
+        self._fail()
+
+    def rm_tree(self, path: str) -> None:
         self._fail()
 
 

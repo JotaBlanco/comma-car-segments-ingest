@@ -97,11 +97,15 @@ def render(report: dict, plots: dict[str, str], frontend_base: str = "") -> str:
     parts: list[str] = [
         "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">",
         '<meta name="viewport" content="width=device-width,initial-scale=1">',
-        f"<title>Test report {_escape(report['test_run_id'])} "
-        f"v{report['run_version']} {_escape(report['revision'])}</title>",
+        (
+            f"<title>Test report {_escape(report['test_run_id'])} "
+            f"v{report['run_version']} {_escape(report['revision'])}</title>"
+        ),
         f"<style>{STYLE}</style></head><body><main>",
-        f"<h1>Test report - {_escape(report['test_run_id'])} "
-        f"v{report['run_version']} {_escape(report['revision'])}</h1>",
+        (
+            f"<h1>Test report - {_escape(report['test_run_id'])} "
+            f"v{report['run_version']} {_escape(report['revision'])}</h1>"
+        ),
     ]
 
     if header.get("provenance_override"):
@@ -137,8 +141,10 @@ def _header_block(report: dict, header: dict) -> str:
         ("Baseline", header["baseline_id"]),
         (
             "Parameter set",
-            f"{header.get('config_id') or 'none'}@v{header.get('config_version')} "
-            f"({header.get('config_hash12') or 'no hash'})",
+            (
+                f"{header.get('config_id') or 'none'}@v{header.get('config_version')} "
+                f"({header.get('config_hash12') or 'no hash'})"
+            ),
         ),
         ("Run", f"{report['test_run_id']} v{report['run_version']} {report['revision']}"),
         ("Generated", report["generated_utc"]),

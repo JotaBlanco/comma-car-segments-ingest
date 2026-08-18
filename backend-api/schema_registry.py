@@ -12,7 +12,7 @@ over a re-serialised object.
 
 import hashlib
 import json
-from functools import lru_cache
+from functools import cache, lru_cache
 from pathlib import Path
 
 from jsonschema import Draft202012Validator
@@ -68,17 +68,17 @@ def _path(name: str) -> Path:
         ) from exc
 
 
-@lru_cache(maxsize=None)
+@cache
 def raw_bytes(name: str) -> bytes:
     return _path(name).read_bytes()
 
 
-@lru_cache(maxsize=None)
+@cache
 def schema_sha256(name: str) -> str:
     return hashlib.sha256(raw_bytes(name)).hexdigest()
 
 
-@lru_cache(maxsize=None)
+@cache
 def schema(name: str) -> dict:
     """The parsed schema document, or ``SchemaLoadError`` naming the file."""
     path = _path(name)
@@ -112,7 +112,7 @@ def load_errors() -> list[str]:
     for name in schema_names():
         try:
             validator(name)
-        except Exception as exc:  # a valid JSON document that is not a valid schema
+        except Exception as exc:  # noqa: BLE001 - a valid JSON doc need not be a valid schema
             errors.append(f"{name}.schema.json does not compile as draft 2020-12: {exc}")
     return errors
 
@@ -156,7 +156,7 @@ def _registry() -> Registry:
     return Registry().with_resources(resources)
 
 
-@lru_cache(maxsize=None)
+@cache
 def validator(name: str) -> Draft202012Validator:
     return Draft202012Validator(
         schema(name),

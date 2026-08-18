@@ -75,18 +75,22 @@ def criterion_plot(
     plot_y0, plot_y1 = HEIGHT - PAD_BOTTOM, PAD_TOP
 
     parts = [
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {WIDTH} {HEIGHT}" '
-        f'width="100%" role="img" aria-label="{_escape(title)}">',
-        "<style>"
-        ".axis{stroke:currentColor;stroke-width:1;opacity:.45}"
-        ".grid{stroke:currentColor;stroke-width:.5;opacity:.15}"
-        ".trace{fill:none;stroke:currentColor;stroke-width:1.4}"
-        ".bound{stroke:#c0392b;stroke-width:1.2;stroke-dasharray:5 3}"
-        ".band{fill:#c0392b;opacity:.12}"
-        ".win{fill:currentColor;opacity:.06}"
-        ".lbl{font:11px sans-serif;fill:currentColor;opacity:.8}"
-        ".ttl{font:12px sans-serif;fill:currentColor}"
-        "</style>",
+        (
+            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {WIDTH} {HEIGHT}" '
+            f'width="100%" role="img" aria-label="{_escape(title)}">'
+        ),
+        (
+            "<style>"
+            ".axis{stroke:currentColor;stroke-width:1;opacity:.45}"
+            ".grid{stroke:currentColor;stroke-width:.5;opacity:.15}"
+            ".trace{fill:none;stroke:currentColor;stroke-width:1.4}"
+            ".bound{stroke:#c0392b;stroke-width:1.2;stroke-dasharray:5 3}"
+            ".band{fill:#c0392b;opacity:.12}"
+            ".win{fill:currentColor;opacity:.06}"
+            ".lbl{font:11px sans-serif;fill:currentColor;opacity:.8}"
+            ".ttl{font:12px sans-serif;fill:currentColor}"
+            "</style>"
+        ),
         f'<text class="ttl" x="{PAD_LEFT}" y="14">{_escape(title)}</text>',
     ]
 

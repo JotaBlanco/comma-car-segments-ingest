@@ -1,0 +1,99 @@
+# Ruff configuration for this repository.
+#
+# Why this file exists: rounds 1 and 2 of backend verification linted with two
+# different rule sets and got two different answers (0 findings, then 148). There
+# was no ruff config anywhere in the repo, so "ruff check" meant whatever the
+# installed ruff's built-in default happened to be that month - and that default
+# has moved (it no longer enables E402, which is why eleven deliberate
+# `# noqa: E402` comments became RUF100 "unused noqa" violations between rounds).
+# From here on the gate is what this file says, not what a version default says.
+#
+# Scope of the gate (the six backend/stream applications):
+#
+#   ruff check backend-api dynamic-config-manager mf4-extractor \
+#              test-vectors-sink tm-evaluator mongo-writer
+#
+# `frontend/`, `lakehouse-sink/` and `mongo-backup-manager/` are covered by this
+# config but have never been audited against it; they are informational until a
+# round takes them on.
+#
+# The formatter is NOT part of the gate. `ruff format` would rewrite thousands of
+# lines that no bug report has ever complained about; `line-length` below is here
+# because import sorting uses it, and because it states the convention the code
+# already follows.
+#
+# Pin the tool as well as the rules: `requirements-lint.txt`.
+
+target-version = "py312"          # every dockerfile is python:3.12-slim
+line-length = 100
+
+# Every application is built from its own folder by Quix, so its modules are
+# top-level (`import deps`, not `import backend_api.deps`). Without these roots
+# ruff cannot tell a first-party module from a PyPI package, puts `import deps`
+# in the third-party block, and reports I001 on 27 correctly-grouped files.
+src = [
+    "backend-api",
+    "dynamic-config-manager",
+    "frontend",
+    "lakehouse-sink",
+    "mf4-extractor",
+    "mongo-backup-manager",
+    "mongo-writer",
+    "test-vectors-sink",
+    "tm-evaluator",
+]
+
+extend-exclude = [".tmp", "dev-planning"]
+
+[lint]
+# Explicit and complete: no rule is enabled by inheritance from a version
+# default. Each entry is here because it earns its place, and every rule listed
+# is one this codebase is clean against.
+select = [
+    "E4",       # imports: placement (E402 - the load_dotenv-before-imports noqas)
+    "E7",       # statement-level errors: bare except, `== None`, ambiguous names
+    "E9",       # syntax / IO errors
+    "F",        # pyflakes: undefined names, unused imports and variables
+    "I",        # import sorting and grouping (needs the `src` roots above)
+    "B008",     # function call in a default argument - exempted for FastAPI below
+    "BLE",      # blind `except Exception` unless it is justified with a noqa
+    "ISC004",   # implicit string concatenation inside a collection = missing comma
+    "UP033",    # functools.lru_cache(maxsize=None) -> functools.cache
+    "SIM115",   # file opened without a context manager
+    "RET501",   # explicit `return None` when None is the only possible return
+    "PLR1711",  # useless `return` at the end of a function
+    "RUF100",   # a noqa for a rule that is not enabled is itself a finding
+]
+
+# Deliberately NOT selected, and the reason, so the next round does not have to
+# rediscover it:
+#
+# * E501 (line length) - four lines in the repo exceed 100 characters:
+#   `backend-api/report_service.py:188` (105), `backend-api/validation.py:211` (101)
+#   and two in `mongo-backup-manager/`, which no round has audited. `line-length`
+#   above is still the convention every other line follows; enable E501 in a round
+#   that can also fix those four.
+# * RUF046 (redundant int() cast) - two genuine hits, `mf4-extractor/rows.py:113`
+#   and `tm-evaluator/reduce_ops.py:91`. Both are in stream services that this
+#   round's brief puts out of scope; enable the rule with the two-character fix.
+# * The rest of B / SIM / RET / RUF / UP / PL - each family contains rules this
+#   codebase has never been measured against. Widening the gate is a task with a
+#   verification pass attached, not a config edit.
+
+[lint.flake8-bugbear]
+# FastAPI's whole dependency-injection idiom is a call in a default argument:
+# `db=Depends(deps.get_db)`, `q: str = Query(None)`, `file: UploadFile = File(...)`.
+# 57 of round 2's 148 findings were this, all of them correct FastAPI code. The
+# framework exemption belongs in the config, not in 57 noqa comments - and B008
+# stays enabled, so an actual mutable default still gets caught.
+extend-immutable-calls = [
+    "fastapi.Body",
+    "fastapi.Cookie",
+    "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Header",
+    "fastapi.Path",
+    "fastapi.Query",
+    "fastapi.Security",
+]

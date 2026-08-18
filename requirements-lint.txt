@@ -1,0 +1,10 @@
+# The lint gate's pinned tool. `ruff.toml` pins the rules; this pins the ruff that
+# reads them, because a ruff upgrade can change what "ruff check" means even with
+# an explicit `select` (new rules join existing families, fix behaviour changes).
+#
+#   python -m pip install -r requirements-lint.txt
+#   python -m ruff check backend-api dynamic-config-manager mf4-extractor \
+#                        test-vectors-sink tm-evaluator mongo-writer
+#
+# 0.16.3 is the version round 2 of verification measured the codebase against.
+ruff==0.16.3

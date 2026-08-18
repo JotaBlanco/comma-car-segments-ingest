@@ -327,12 +327,19 @@ def parse_reqif(xml_bytes: bytes) -> tuple[list[dict], dict, list[str]]:
         mapped["schema_version"] = REQIF_SCHEMA_VERSION
 
         items.append(canonical.normalise_requirement(mapped))
+        # ReqIF puts SPEC-OBJECT-TYPE-REF inside <TYPE> in some exports and directly
+        # under the SPEC-OBJECT in others, so both are tried. The test is explicit
+        # (``is not None`` plus ``len``) rather than ``or``: an Element's truth value
+        # is its child count, which Python has deprecated and will remove, and the
+        # two are not the same question - an empty <TYPE> carries no ref, so the
+        # SPEC-OBJECT is still the place to look.
+        type_node = _first(spec_object, "TYPE")
+        type_holder = type_node if type_node is not None and len(type_node) else spec_object
         passthrough[req_id] = {
             "spec_object_identifier": identifier,
             "long_name": spec_object.get("LONG-NAME"),
             "last_change": spec_object.get("LAST-CHANGE"),
-            "spec_type": _ref_text(_first(spec_object, "TYPE") or spec_object,
-                                   "SPEC-OBJECT-TYPE-REF"),
+            "spec_type": _ref_text(type_holder, "SPEC-OBJECT-TYPE-REF"),
             "hierarchy_path": hierarchy.get(identifier, []),
             "spec_relations": relations.get(identifier, []),
             "unmapped_attributes": unmapped,

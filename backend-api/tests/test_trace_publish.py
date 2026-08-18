@@ -25,7 +25,6 @@ class _Collection:
 
     def update_one(self, query, update, upsert=False):
         self.updates.append((query, update))
-        return None
 
 
 class _Db(dict):

@@ -376,8 +376,10 @@ def generate(db, bus, test_run_id: str, run_version: int | None = None,
         ) != canonical.canonical_bytes(previous_body):
             report["reproducible"] = False
             report["diff_summary"] = [
-                "inputs_digest is unchanged but the rendered report body differs; "
-                "the generator is not deterministic for this run and this is a defect"
+                (
+                    "inputs_digest is unchanged but the rendered report body differs; "
+                    "the generator is not deterministic for this run and this is a defect"
+                )
             ]
         elif not report["reproducible"]:
             report["diff_summary"] = _diff_summary(previous_body, report)

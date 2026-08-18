@@ -19,7 +19,7 @@ import logging
 
 from pymongo import ASCENDING, DESCENDING, IndexModel
 from pymongo.database import Database
-from pymongo.errors import PyMongoError
+from pymongo.errors import ConnectionFailure, PyMongoError
 
 logger = logging.getLogger(__name__)
 
@@ -132,16 +132,38 @@ INDEXES: dict[str, list[IndexModel]] = {
 
 
 def ensure_indexes(db: Database) -> dict[str, list[str]]:
-    """Create every index. Idempotent; logs and continues on a single failure.
+    """Create every index. Idempotent. **Aborts on the first transport failure.**
 
-    A failure here must not stop the service from booting - an unreachable Mongo
-    at start-up is a transient condition, and the API's honest behaviour is to
-    fail the affected request, not to refuse to start.
+    Two failure modes, deliberately handled differently, because the first
+    version treated them alike and that cost 37 s:
+
+    * a ``ConnectionFailure`` (which is what ``ServerSelectionTimeoutError``,
+      ``AutoReconnect`` and ``NetworkTimeout`` all are) means *the server*, not
+      this collection, is the problem - so every remaining collection would pay
+      the same ``serverSelectionTimeoutMS`` for the same answer. Eleven
+      collections turned one 3 s budget into 37 s. It is re-raised immediately,
+      so the whole attempt costs one timeout;
+    * any other ``PyMongoError`` - an index-options conflict on one collection,
+      say - is genuinely collection-local, is logged, and the loop continues, so
+      one legacy conflict cannot cost the other ten collections their indexes.
+
+    A failure here must not stop the service from booting; the caller
+    (``deps.ensure_indexes_once``) decides that, and this function never runs on
+    a request path.
     """
     created: dict[str, list[str]] = {}
     for collection_name, models in INDEXES.items():
         try:
             created[collection_name] = db[collection_name].create_indexes(models)
+        except ConnectionFailure:
+            logger.warning(
+                "Index creation aborted at %s (%d of %d collections done): MongoDB is "
+                "unreachable, so the remaining collections would only pay the same timeout",
+                collection_name,
+                len(created),
+                len(INDEXES),
+            )
+            raise
         except PyMongoError as exc:
             logger.warning("Could not create indexes on %s: %s", collection_name, exc)
             created[collection_name] = []

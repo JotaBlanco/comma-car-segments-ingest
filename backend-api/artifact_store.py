@@ -8,6 +8,9 @@ Invariants this module enforces, and nothing else in the system re-implements:
   ``test-manager/.staging/<uuid>/`` and then copied into place with
   ``manifest.json`` **last** - the manifest's presence is the commit marker, so
   a crash mid-write leaves an invisible folder rather than a half-version;
+* the staged copy is **deleted once the manifest is in place**, and only then: a
+  successful commit leaves no duplicate bytes behind, and a failed one leaves a
+  recoverable staging directory (``_discard_staging``);
 * nothing is edited in place and deletion is not exposed.
 
 Every method goes through the blob seam, so the same code runs against the Quix
@@ -85,7 +88,35 @@ def commit_version(set_name: str, files: list[ArtifactFile], manifest_doc: dict)
         backend.copy(staged_path, final_path)
     backend.copy(staged[-1][0], staged[-1][1])
     logger.info("Committed %s %s (%d files)", set_name, version, len(staged))
+    _discard_staging(token)
     return version
+
+
+def _discard_staging(token: str) -> None:
+    """Remove a staged token directory. Only ever called after a successful commit.
+
+    Staging used to be write-only: every upload left a full second copy of every
+    file it had just committed under ``test-manager/.staging/<token>/`` with no
+    expiry and no reclaim path, so each artifact set permanently cost twice its
+    bytes on a store nobody sweeps.
+
+    A *failed* commit deliberately leaves its staging directory in place. The
+    staged bytes are then the only complete record of what was being written when
+    the copy died, the destination version stays invisible to every reader because
+    its ``manifest.json`` never appeared, and a token directory is addressed by a
+    uuid, so nothing can collide with it later. Cleaning up on failure as well
+    would be tidier and would destroy the evidence; recovery is manual and rare,
+    the leak on the success path was neither.
+
+    A cleanup failure is logged, never raised: the version is committed by the time
+    this runs, and turning a successful commit into a 500 over a leftover
+    directory would be a lie about what happened.
+    """
+    staging = paths.staging_dir(token)
+    try:
+        blob_storage.require().rm_tree(staging)
+    except Exception as exc:  # noqa: BLE001 - a stale staged copy must not fail a commit
+        logger.warning("Committed, but could not remove staging directory %s: %s", staging, exc)
 
 
 def read_manifest(set_name: str, version: str) -> dict:

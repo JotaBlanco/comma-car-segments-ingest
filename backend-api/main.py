@@ -4,6 +4,7 @@ load_dotenv()  # reads .env if present; does not override env vars already set b
 
 import logging  # noqa: E402
 import os  # noqa: E402
+from contextlib import asynccontextmanager  # noqa: E402
 
 from fastapi import FastAPI  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
@@ -30,7 +31,30 @@ from routers import (  # noqa: E402
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Start-up work that must not be done on a request path.
+
+    Index creation lives here. It used to happen inside ``deps.get_db`` on the
+    first Mongo-backed request of the process, which meant that with Mongo down
+    that request paid the server-selection timeout once per collection - eleven
+    collections, ~37 s - before answering the 503 it was always going to answer.
+    ``deps.start_index_reconciler`` does the same work in a daemon thread that
+    retries while Mongo is unreachable, so:
+
+    * no request ever pays for index creation;
+    * a Mongo outage at start-up cannot delay or fail the boot (the whole point of
+      building every dependency lazily), and indexes still appear once Mongo is
+      back, without a redeploy.
+    """
+    deps.start_index_reconciler()
+    yield
+    deps.stop_index_reconciler()
+
+
 api = FastAPI(
+    lifespan=lifespan,
     title="V-Model Test Manager API",
     version="1.0.0",
     description=(

@@ -138,7 +138,10 @@ def upload_trace(
     """Stream an MF4 to blob and publish one metadata message. Never evaluates."""
     deps.require_blob()
     limit = settings.max_upload_bytes()
-    staged = tempfile.NamedTemporaryFile(delete=False, suffix=".mf4")
+    # Not a context manager on purpose: the handle is closed and the file unlinked
+    # in the try/finally below, and the *path* has to outlive the handle because
+    # trace_service streams the closed file into blob.
+    staged = tempfile.NamedTemporaryFile(delete=False, suffix=".mf4")  # noqa: SIM115
     total = 0
     try:
         while True:

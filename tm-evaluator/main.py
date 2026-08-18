@@ -104,7 +104,7 @@ def evaluate_run(value: dict) -> dict:
                 expected_config_hash12=expected_hash,
                 allow_provenance_mismatch=allow_mismatch,
             )
-        except Exception as exc:  # noqa: BLE001 - one bad case must not stop the run
+        except Exception as exc:  # one bad case must not stop the run; logged below
             logger.exception("Evaluation of %s raised", tc_id)
             outcome = {
                 "tc_id": tc_id,

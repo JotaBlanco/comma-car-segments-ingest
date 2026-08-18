@@ -8,16 +8,29 @@ honestly instead of crashing at import or silently succeeding.
 
 **Why there is no ``require_mongo()`` to match ``require_blob()``.** Every
 Mongo-backed route already takes ``db=Depends(get_db)``, and a FastAPI dependency
-runs before the route body - so ``get_db`` *is* the guard, and a second one would
-only be a place for the two to disagree. What ``get_db`` could not do is catch an
-outage that starts *after* the first successful request, because by then it
-returns the cached handle without touching the server; that case is covered by the
-``PyMongoError`` handler in ``error_handlers``, so a query that dies mid-flight is
-also a named 503 rather than a 500. One client, bounded timeouts (``db.py``), two
-places where the failure becomes an HTTP status.
+runs before the route body - so ``get_db`` *is* the configuration guard, and a
+second one would only be a place for the two to disagree. What ``get_db`` cannot
+do is detect an *outage*: it hands out a cached handle without touching the
+server, by design (see below). Reachability is therefore the route query's own
+business, and the ``PyMongoError`` handler in ``error_handlers`` turns whatever it
+hits - a stopped server, an outage that starts mid-request - into the same named
+503 rather than a 500. One client, bounded timeouts (``db.py``), one place where a
+missing variable becomes a 503 and one place where an outage does.
+
+**Nothing on a request path may pay a Mongo timeout more than once.** ``get_db``
+used to create the schema's indexes on the first Mongo-backed request of the
+process; with Mongo down that loop paid ``serverSelectionTimeoutMS`` once per
+collection and the first request took ~37 s - worse than the 30 s default the
+pinned timeouts exist to prevent. Index creation now lives in
+``ensure_indexes_once``, called from a background reconciler that the application
+lifespan starts (``main.py``), never from a dependency. ``get_db`` does no I/O at
+all: a *reachability* failure surfaces from the route's own query, bounded by one
+server-selection timeout, as the same named 503.
 """
 
 import logging
+import os
+import threading
 
 from fastapi import HTTPException
 from pymongo import MongoClient
@@ -35,29 +48,61 @@ logger = logging.getLogger(__name__)
 MONGO_UNAVAILABLE = "mongo_unavailable"
 MONGO_NOT_CONFIGURED = "mongo_not_configured"
 
+# How often the background reconciler retries index creation while Mongo is down.
+# It never runs on a request path, so this interval costs a sleeping daemon thread
+# and nothing else.
+INDEX_RETRY_INTERVAL_S = float(os.environ.get("TM_INDEX_RETRY_INTERVAL_S", "30"))
+
 _client: MongoClient | None = None
 _db: Database | None = None
 _indexes_done = False
+_indexes_lock = threading.Lock()
+# Re-entrant: ``database()`` holds it while calling ``get_client()``.
+_client_lock = threading.RLock()
+_reconciler_stop = threading.Event()
+_reconciler: threading.Thread | None = None
 
 
 def get_client() -> MongoClient:
-    """The one client for this process. Constructing it does no I/O."""
+    """The one client for this process. Constructing it does no I/O.
+
+    Locked because the index reconciler runs in a thread of its own: two threads
+    racing here would build two clients, each with its own connection pool, and
+    silently leak one.
+    """
     global _client
     if _client is None:
-        _client = db_module.get_client()
+        with _client_lock:
+            if _client is None:
+                _client = db_module.get_client()
     return _client
 
 
+def database() -> Database:
+    """The cached database handle. No I/O: ``client[name]`` is a lookup.
+
+    Raises ``KeyError`` when a connection variable is missing. Used by ``get_db``
+    and by the index reconciler, which must not have an ``HTTPException`` thrown
+    at it.
+    """
+    global _db
+    if _db is None:
+        with _client_lock:
+            if _db is None:
+                _db = db_module.get_db(get_client())
+    return _db
+
+
 def get_db() -> Database:
-    """The Mongo database handle. Raises 503 when Mongo cannot be reached."""
-    global _db, _indexes_done
+    """The Mongo database handle. Raises 503 when Mongo is not configured.
+
+    Deliberately free of I/O and of index creation: constructing the client and
+    looking up the database are both lazy, so this dependency costs nothing and an
+    outage is paid for exactly once, by the route's own query, which
+    ``error_handlers`` turns into the same ``mongo_unavailable`` 503.
+    """
     try:
-        if _db is None:
-            _db = db_module.get_db(get_client())
-        if not _indexes_done:
-            mongo_schema.ensure_indexes(_db)
-            _indexes_done = True
-        return _db
+        return database()
     except KeyError as exc:
         raise HTTPException(
             status_code=503,
@@ -111,6 +156,110 @@ def mongo_status() -> dict:
     return status
 
 
+def ensure_indexes_once() -> bool:
+    """Create the schema's indexes at most once per process. Never raises.
+
+    Returns ``True`` when the indexes are in place - because this call created
+    them or because an earlier one did - and ``False`` when the attempt was
+    skipped or failed, which is the reconciler's cue to try again later.
+
+    Two bugs are fixed here, both from one root:
+
+    * **the attempt is bounded as a whole.** One ``mongo_status()`` ping decides
+      reachability, and ``mongo_schema.ensure_indexes`` re-raises the first
+      transport failure, so an unreachable Mongo costs one server-selection
+      timeout rather than one per collection;
+    * **the flag latches only on success.** It used to be set whether or not the
+      indexes had been created, so a process that started while Mongo was down
+      never created them at all, even after Mongo came back.
+
+    The lock is what stops a thundering herd: concurrent callers do not each open
+    their own ping-plus-eleven-``createIndexes`` conversation with the server.
+    """
+    global _indexes_done
+    if _indexes_done:
+        return True
+    with _indexes_lock:
+        if _indexes_done:  # another caller won the race while we waited
+            return True
+        status = mongo_status()
+        if not status["available"]:
+            logger.warning(
+                "Skipping index creation: MongoDB is not reachable (%s). Will retry.",
+                status["reason"],
+            )
+            return False
+        try:
+            mongo_schema.ensure_indexes(database())
+        except KeyError as exc:
+            logger.warning("Skipping index creation: environment variable %s is missing", exc)
+            return False
+        except PyMongoError as exc:
+            logger.warning("Index creation failed and will be retried: %s", exc)
+            return False
+        _indexes_done = True
+        logger.info("MongoDB indexes ensured")
+        return True
+
+
+def _reconcile_indexes(interval_s: float) -> None:
+    """Retry ``ensure_indexes_once`` until it succeeds. Never on a request path."""
+    attempt = 0
+    while not _reconciler_stop.is_set():
+        attempt += 1
+        try:
+            done = ensure_indexes_once()
+        except Exception:
+            # ``ensure_indexes_once`` is written never to raise. If it ever does,
+            # this thread has to say so: a daemon thread that dies silently would
+            # leave the process running without indexes and without a reason.
+            logger.exception("Index reconciler hit an unexpected error")
+            done = False
+        if done:
+            return
+        if attempt == 1 or attempt % 10 == 0:
+            logger.warning(
+                "MongoDB indexes still not created after %d attempt(s); retrying every %.0fs",
+                attempt,
+                interval_s,
+            )
+        if _reconciler_stop.wait(interval_s):
+            return
+
+
+def start_index_reconciler(interval_s: float | None = None) -> threading.Thread | None:
+    """Start the background index creator. Returns the thread, or ``None``.
+
+    Called from the application lifespan, so indexes are created at start-up
+    rather than by whichever request happens to be first - and in a *thread*, so a
+    Mongo outage at start-up can neither delay nor prevent the process from
+    booting. That property is load-bearing: every one of these applications must
+    import and start with no environment variables set at all.
+    """
+    global _reconciler
+    if _indexes_done:
+        return None
+    interval = INDEX_RETRY_INTERVAL_S if interval_s is None else interval_s
+    _reconciler_stop.clear()
+    _reconciler = threading.Thread(
+        target=_reconcile_indexes,
+        args=(interval,),
+        name="mongo-index-reconciler",
+        daemon=True,
+    )
+    _reconciler.start()
+    return _reconciler
+
+
+def stop_index_reconciler(timeout_s: float = 2.0) -> None:
+    """Ask the reconciler to stop and wait briefly. Safe when none is running."""
+    global _reconciler
+    _reconciler_stop.set()
+    if _reconciler is not None:
+        _reconciler.join(timeout=timeout_s)
+        _reconciler = None
+
+
 def get_bus() -> topics.EventBus:
     return topics.get_bus()
 
@@ -145,8 +294,14 @@ def blob_error(exc: BlobUnavailableError) -> HTTPException:
 
 
 def reset() -> None:
-    """Drop cached handles (used when configuration changes under test)."""
+    """Drop cached handles (used when configuration changes under test).
+
+    Stops the reconciler first: a thread still holding the old client would
+    otherwise latch ``_indexes_done`` against a database the caller has just
+    reconfigured.
+    """
     global _client, _db, _indexes_done
+    stop_index_reconciler()
     if _client is not None:
         _client.close()
     _client = None

@@ -55,7 +55,7 @@ def open_mdf(fileobj):
         raise UnreadableMf4(f"asammdf is not installed: {exc}") from exc
     try:
         return MDF(fileobj)
-    except Exception as exc:  # noqa: BLE001 - asammdf raises a wide family
+    except Exception as exc:  # asammdf raises a wide family; re-raised as UnreadableMf4
         raise UnreadableMf4(f"asammdf could not open the object: {exc}") from exc
 
 
