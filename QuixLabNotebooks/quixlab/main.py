@@ -47,7 +47,7 @@ def can_signals_v13_3():
     ORDER BY t_abs_ms""")
 
 
-@canvas.ai(position=(1914, -2998), size=(1262, 797), code_height=200)
+@canvas.ai(position=(2053, -3051), size=(1262, 797), code_height=200)
 def ai_2(can_signals_v13_3):
     """Can you plot GPS Lat and Long over time"""
     # ql-ai: generated from prompt 7d3453bde4dd5588
