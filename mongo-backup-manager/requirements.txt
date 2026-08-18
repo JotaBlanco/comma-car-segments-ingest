@@ -1,0 +1,4 @@
+quixstreams>=3.24.0
+pymongo>=4.11
+python-dotenv>=1.0.0
+quixportal[s3]>=0.1.0

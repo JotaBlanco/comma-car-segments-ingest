@@ -1,0 +1,11 @@
+name: dynamic-config-manager
+language: python
+variables:
+  - name: output
+    inputType: OutputTopic
+    description: Topic to publish new configuration events to
+    defaultValue: config-updates
+    required: true
+dockerfile: dockerfile
+runEntryPoint: main.py
+defaultFile: main.py

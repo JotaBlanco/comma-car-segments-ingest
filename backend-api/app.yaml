@@ -1,0 +1,21 @@
+name: backend-api
+language: python
+variables:
+  - name: config_input
+    inputType: InputTopic
+    description: Topic to consume configuration update events from
+    defaultValue: config-updates
+    required: true
+  - name: uploads_output
+    inputType: OutputTopic
+    description: Topic to publish incoming test data uploads to
+    defaultValue: test-data-uploads
+    required: true
+  - name: MONGO_URI
+    inputType: FreeText
+    description: MongoDB connection URI for the testmanager database
+    defaultValue: "mongodb://admin:mongo_password@mongodb:27017/testmanager?authSource=admin"
+    required: true
+dockerfile: dockerfile
+runEntryPoint: main.py
+defaultFile: main.py

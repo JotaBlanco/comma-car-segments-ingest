@@ -1,0 +1,11 @@
+name: frontend
+language: python
+variables:
+  - name: BACKEND_API_URL
+    inputType: FreeText
+    description: Base URL of the backend-api service
+    defaultValue: "http://backend-api:80"
+    required: false
+dockerfile: dockerfile
+runEntryPoint: main.py
+defaultFile: main.py
