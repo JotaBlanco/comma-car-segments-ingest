@@ -14,9 +14,6 @@ deployments:
       limits:
         cpu: 200
         memory: 800
-    state:
-      enabled: false
-      size: 1
     network:
       serviceName: mongodb
       ports:
