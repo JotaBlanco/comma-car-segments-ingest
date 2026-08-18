@@ -68,14 +68,18 @@ def select_row(
     if frame.empty:
         return None
     marker = f"{key}__last_click"
+    # Streamlit >= 1.5x rejects height=None: it must be a positive int, "stretch"
+    # or "content". Omit the kwarg entirely rather than passing None, so the
+    # default sizing applies and the call stays valid on older versions too.
+    size: dict[str, object] = {"height": height} if height is not None else {}
     event = st.dataframe(
         frame,
         key=key,
         use_container_width=True,
         hide_index=True,
-        height=height,
         on_select="rerun",
         selection_mode="single-row",
+        **size,
     )
     rows = list(getattr(event.selection, "rows", []) or [])
     if not rows:
