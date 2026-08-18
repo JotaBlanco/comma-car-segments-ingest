@@ -47,5 +47,10 @@ def can_signals_v13_3():
     ORDER BY t_abs_ms""")
 
 
+@canvas.cell(position=(1914, -2998), size=(919, 685), code_height=200, viz={'type': 'line', 'x': 'ts_ms', 'y': 'segment'})
+def cell_1(can_signals_v13_3):
+    return can_signals_v13_3
+
+
 if __name__ == "__main__":
     canvas.serve()
