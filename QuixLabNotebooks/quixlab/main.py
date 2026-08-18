@@ -75,7 +75,7 @@ def can_signals_v13_4():
     """)
 
 
-@canvas.ai(position=(1921, -3904), size=(560, 420), code_height=200)
+@canvas.ai(position=(2033, -3891), size=(690, 666), code_height=200)
 def ai_3(can_signals_v13_4):
     """Plot channel powertrain_hs_can1 over time."""
 
