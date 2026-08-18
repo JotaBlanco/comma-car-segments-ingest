@@ -4,7 +4,10 @@ from datetime import datetime
 
 os.environ.setdefault("config_input", "config-updates")
 os.environ.setdefault("uploads_output", "test-data-uploads")
-os.environ.setdefault("MONGO_URI", "mongodb://localhost:27017/testmanager")
+os.environ.setdefault("MONGO_HOST", "localhost:27017")
+os.environ.setdefault("MONGO_USER", "admin")
+os.environ.setdefault("MONGO_PASSWORD", "test-password")
+os.environ.setdefault("MONGO_DB_NAME", "testmanager")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from main import publish_upload_event

@@ -5,6 +5,7 @@ import logging
 import os
 import time
 from datetime import datetime, timezone
+from urllib.parse import quote_plus
 
 from pymongo import MongoClient
 
@@ -14,7 +15,20 @@ from backup import export_collection_to_json
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-MONGO_DB_NAME = "testmanager"
+
+def build_mongo_uri() -> str:
+    """Assemble the MongoDB connection URI from discrete env vars.
+
+    Using separate host/user/password/db vars (rather than a single
+    pre-built URI) lets MONGO_PASSWORD be sourced from a Quix project
+    secret and keeps special characters in credentials safe via
+    urllib.parse.quote_plus.
+    """
+    mongo_host = os.environ["MONGO_HOST"]
+    mongo_user = quote_plus(os.environ["MONGO_USER"])
+    mongo_password = quote_plus(os.environ["MONGO_PASSWORD"])
+    mongo_db_name = os.environ["MONGO_DB_NAME"]
+    return f"mongodb://{mongo_user}:{mongo_password}@{mongo_host}/{mongo_db_name}?authSource=admin"
 
 
 def run_backup_cycle(db) -> None:
@@ -34,8 +48,8 @@ def run_backup_cycle(db) -> None:
 
 
 def main() -> None:
-    mongo_client = MongoClient(os.environ.get("MONGO_URI", "mongodb://admin:mongo_password@mongodb:27017/testmanager?authSource=admin"))
-    db = mongo_client[MONGO_DB_NAME]
+    mongo_client = MongoClient(build_mongo_uri())
+    db = mongo_client[os.environ["MONGO_DB_NAME"]]
 
     interval_hours = float(os.environ.get("BACKUP_INTERVAL_HOURS", "24"))
     interval_seconds = interval_hours * 3600

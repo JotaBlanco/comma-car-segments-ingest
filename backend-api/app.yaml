@@ -11,10 +11,26 @@ variables:
     description: Topic to publish incoming test data uploads to
     defaultValue: test-data-uploads
     required: true
-  - name: MONGO_URI
+  - name: MONGO_HOST
     inputType: FreeText
-    description: MongoDB connection URI for the testmanager database
-    defaultValue: "mongodb://admin:mongo_password@mongodb:27017/testmanager?authSource=admin"
+    description: MongoDB host:port
+    defaultValue: "mongodb:27017"
+    required: true
+  - name: MONGO_USER
+    inputType: FreeText
+    description: MongoDB root username
+    defaultValue: "admin"
+    required: true
+  - name: MONGO_PASSWORD
+    inputType: ProjectVariable
+    description: MongoDB root password (project secret)
+    defaultValue: mongo_password
+    secret: true
+    required: true
+  - name: MONGO_DB_NAME
+    inputType: FreeText
+    description: MongoDB database name
+    defaultValue: "testmanager"
     required: true
 dockerfile: dockerfile
 runEntryPoint: main.py
