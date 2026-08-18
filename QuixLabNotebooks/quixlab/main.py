@@ -65,5 +65,15 @@ def ai_2(can_signals_v13_3):
     ql.viz(wide, type="line", x="ts", y=["GPSLatitude", "GPSLongitude"])
 
 
+@canvas.dataset(position=(1707, -3613), size=(560, 420), code_height=200)
+def can_signals_v13_4():
+    return ql.sql("""SELECT *
+    FROM can_signals_v13
+    WHERE platform = 'CHEVROLET_VOLT'
+      AND device = '180ea5df0f0b4db9'
+      AND route = '00000000--7b23a7654b'
+    """)
+
+
 if __name__ == "__main__":
     canvas.serve()
