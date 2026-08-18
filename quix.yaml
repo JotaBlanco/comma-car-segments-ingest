@@ -20,3 +20,6 @@ deployments:
         - port: 27017
           targetPort: 27017
 
+# This section describes the Topics of the data pipeline
+topics:
+  - name: config-updates
