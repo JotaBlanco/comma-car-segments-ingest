@@ -65,7 +65,7 @@ def ai_2(can_signals_v13_3):
     ql.viz(wide, type="line", x="ts", y=["GPSLatitude", "GPSLongitude"])
 
 
-@canvas.dataset(position=(1707, -3613), size=(560, 420), code_height=200)
+@canvas.dataset(position=(997, -3904), size=(864, 686), code_height=200)
 def can_signals_v13_4():
     return ql.sql("""SELECT *
     FROM can_signals_v13
