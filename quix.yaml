@@ -4,25 +4,6 @@
 metadata:
   version: 2.0
 
-# This section describes the Deployments of the data pipeline
-deployments:
-  - name: MF4 replay
-    application: mf4-replay
-    version: latest
-    deploymentType: Service
-    resources:
-      limits:
-        cpu: 1000
-        memory: 2000
-    variables:
-      - name: CONSUMER_GROUP
-        value: mf4-replay-v7
-      - name: MAX_FILES
-        value: 0
-      - name: MAX_ENVELOPES_PER_FILE
-        value: 0
-    blobStorage:
-      bind: true
 
 # This section describes the Topics of the data pipeline
 topics:
