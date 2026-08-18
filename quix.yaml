@@ -48,8 +48,6 @@ deployments:
       serviceName: backend-api
       ports:
         - port: 80
-    blobStorage:
-      bind: true
   - name: Lakehouse Sink - Test Data
     application: lakehouse-sink
     version: latest
