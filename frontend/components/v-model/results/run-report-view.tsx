@@ -139,7 +139,12 @@ function RunHeader({
           <Badge variant={RUN_STATUS_VARIANT[status] ?? "outline"}>
             {RUN_STATUS_LABEL[status] ?? status}
           </Badge>
-          <Badge variant="outline">{run.origin}</Badge>
+          {/* `origin` says how the run was created, not where it got to. Next to a
+              Completed badge a "planned" chip reads as a contradictory second status,
+              so it only shows while the run has not finished. */}
+          {status === "planned" || status === "running" ? (
+            <Badge variant="outline">{run.origin}</Badge>
+          ) : null}
           {run.baseline_id ? (
             <Badge variant="secondary">baseline {run.baseline_id}</Badge>
           ) : null}

@@ -88,9 +88,13 @@ function RunRow({ run }: { run: RunSummaryPlus }) {
             >
               {RUN_STATUS_LABEL[status] ?? status}
             </Badge>
-            <Badge variant="outline" className="w-fit text-[10px]">
-              {run.origin}
-            </Badge>
+            {/* See run-report-view: `origin` is how the run was created, not where it
+                got to, so it stops showing once the run reaches a terminal state. */}
+            {status === "planned" || status === "running" ? (
+              <Badge variant="outline" className="w-fit text-[10px]">
+                {run.origin}
+              </Badge>
+            ) : null}
           </div>
         </div>
       </TableCell>

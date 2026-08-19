@@ -210,14 +210,24 @@ export function computeCoverageStats(
     const familyCovered = inFamily.filter(
       (req) => listLength(req.covering_tc_ids) > 0
     ).length
+    const familyVerified = inFamily.filter(
+      (req) => listLength(req.verified_by) > 0
+    ).length
 
+    // The ring reads verified, not covered. A family whose test cases exist but have
+    // never run would otherwise show the same green as one that passed, which reads as
+    // progress that has not happened - only the performance cases have been executed.
+    // Coverage stays visible as the muted remainder so the distinction is on screen.
     return {
       id: family,
       label: family,
-      percent: percentOf(familyCovered, inFamily.length),
-      caption: `${familyCovered} / ${inFamily.length} covered`,
-      hint: REQ_SEGMENT_CHAPTERS[family] ?? family,
-      segments: [{ value: familyCovered, tone: "success" }],
+      percent: percentOf(familyVerified, inFamily.length),
+      caption: `${familyVerified} / ${inFamily.length} verified`,
+      hint: `${familyCovered} covered · ${REQ_SEGMENT_CHAPTERS[family] ?? family}`,
+      segments: [
+        { value: familyVerified, tone: "success" },
+        { value: Math.max(familyCovered - familyVerified, 0), tone: "muted" },
+      ],
       total: inFamily.length,
     }
   })
