@@ -69,7 +69,7 @@ def ai_2(can_signals_v13_3):
 def can_signals_v13_4(selection):
     return ql.sql(f"""SELECT *
     FROM can_signals_v13
-    WHERE platform = '{selec}'
+    WHERE platform = '{selection.platform}'
       AND device = '180ea5df0f0b4db9'
       AND route = '00000000--7b23a7654b'
     """)
