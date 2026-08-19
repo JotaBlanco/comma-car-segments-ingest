@@ -350,7 +350,7 @@ TC011_SIGNALS = ("ACC_Status", "ACC_TimeGapSet_s", "Trgt_Dist_m",
                  "Trgt_Valid_Flg", "VehSpd_Kph")
 
 
-@canvas.dataset(position=(-658, -664), size=(530, 435), code_height=149)
+@canvas.dataset(position=(-658, -664), size=(549, 437), code_height=149)
 def signals_tc011():
     return ql.sql("""
         SELECT * FROM mf4_signals_v4
