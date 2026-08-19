@@ -58,11 +58,23 @@ def show(exc: ApiError, doing: str) -> None:
         return
 
     if exc.problems:
-        st.error(f"**Rejected at the door, so nothing was stored: {exc.message}**")
-        st.caption(
-            "The upload is atomic - one bad item rejects the whole file and no "
-            "partial version is minted. Fix every problem below and upload again."
-        )
+        # ``problems[]`` now arrives on any 422 in the single error envelope, not only
+        # from an upload: ``error_handlers._request_invalid`` puts one entry per
+        # rejected field there, pointer included. So the atomic-upload sentence is
+        # keyed on the upload code rather than on the mere presence of problems -
+        # "no partial version is minted" is nonsense for a rejected registry write.
+        if exc.code == "upload_rejected":
+            st.error(f"**Rejected at the door, so nothing was stored: {exc.message}**")
+            st.caption(
+                "The upload is atomic - one bad item rejects the whole file and no "
+                "partial version is minted. Fix every problem below and upload again."
+            )
+        else:
+            st.error(f"**Could not {doing}: {exc.message}**")
+            st.caption(
+                "The request was rejected field by field and nothing was written. "
+                "Fix every problem below and send it again."
+            )
         st.dataframe(
             [
                 {

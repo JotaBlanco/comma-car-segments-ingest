@@ -390,6 +390,71 @@ def get_device(device_id: str) -> dict:
     return _call("GET", f"/devices/{device_id}")
 
 
+def create_device(
+    device_id: str, name: str, kind: str = "plant-sim", description: str = ""
+) -> dict:
+    """Register a device. ``kind`` is one of plant-sim / hil / vehicle / bench.
+
+    Answers ``409`` when ``device_id`` already exists and ``422`` when it does not
+    match the path-safe pattern. A device carries no version of its own:
+    ``create_device_version`` is the second write, and a run needs both.
+    """
+    return _call(
+        "POST",
+        "/devices",
+        json={
+            "device_id": device_id,
+            "name": name,
+            "kind": kind,
+            "description": description,
+        },
+        timeout=WRITE_TIMEOUT,
+    )
+
+
+def create_device_version(
+    device_id: str,
+    sw_version: str,
+    hw_version: str,
+    plant_spec_ref: str = "",
+    tool_name: str = "",
+    tool_version: str = "",
+    asammdf_version: str = "",
+    dbc_id: str | None = None,
+    config_id: str | None = None,
+    config_version: int | None = None,
+    make_current: bool = True,
+) -> dict:
+    """Register one immutable ``(sw_version, hw_version)`` pair of a device.
+
+    These are exactly the fields ``DeviceVersionCreate`` declares. That model sets
+    ``extra="forbid"``, so anything else - ``notes`` above all - is a ``422`` and not
+    an ignored key, which is why this function takes no ``notes``.
+
+    ``make_current`` only touches the *device* document's ``current_sw_version`` /
+    ``current_hw_version``. Nothing in this frontend reads those two fields: the run
+    form lists the ``versions`` array of ``GET /devices/{id}``, so an unset current
+    version cannot hide a registered pair.
+    """
+    return _call(
+        "POST",
+        f"/devices/{device_id}/versions",
+        json={
+            "sw_version": sw_version,
+            "hw_version": hw_version,
+            "plant_spec_ref": plant_spec_ref,
+            "tool_name": tool_name,
+            "tool_version": tool_version,
+            "asammdf_version": asammdf_version,
+            "dbc_id": dbc_id,
+            "config_id": config_id,
+            "config_version": config_version,
+            "make_current": make_current,
+        },
+        timeout=WRITE_TIMEOUT,
+    )
+
+
 def list_parameter_sets(config_id: str | None = None) -> dict:
     return _call("GET", "/parameter-sets", params=_params(config_id=config_id))
 
@@ -400,6 +465,41 @@ def get_parameter_set(config_id: str, config_version: int) -> dict:
 
 def diff_parameter_sets(config_id: str, config_version: int, other_version: int) -> dict:
     return _call("GET", f"/parameter-sets/{config_id}/{config_version}/diff/{other_version}")
+
+
+def create_parameter_set(
+    config_id: str,
+    config_version: int,
+    target_key: str = "",
+    category: str = "plant-config",
+    params: dict | None = None,
+    content_url: str | None = None,
+    notes: str = "",
+) -> dict:
+    """Register one immutable ``(config_id, config_version)`` a run can pin.
+
+    ``config_id`` must match ``^CFG-[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`` and
+    ``config_version`` must be an integer ``>= 1``; both are checked in
+    ``ui/registry_forms.py`` before the call, so the operator gets a sentence instead
+    of a ``422``. The backend canonicalises ``params`` and derives ``sha256sum``,
+    ``canonical_sha256`` and ``config_hash12`` from it - the same rule the plant uses
+    for the hash it embeds in every MF4, which is what makes the provenance check at
+    evaluation time possible.
+    """
+    return _call(
+        "POST",
+        "/parameter-sets",
+        json={
+            "config_id": config_id,
+            "config_version": config_version,
+            "target_key": target_key,
+            "category": category,
+            "params": params or {},
+            "content_url": content_url,
+            "notes": notes,
+        },
+        timeout=WRITE_TIMEOUT,
+    )
 
 
 # ------------------------------------------------------------------------ traces

@@ -8,14 +8,35 @@ The four selections are: parameter configuration, device (which forces a device
 *version*), and a test scope that is either by requirement/chapter or by individual
 test cases. The scope is sent as-is; the **backend** expands it into
 ``scope.planned_tc_ids``, which is what a later ``Submit`` freezes.
+
+Each selector also carries the *registration* form for the records it selects
+(``ui/registry_forms.py``), because this page is where a missing device, device
+version or parameter set is felt: the empty-registry branches below used to name the
+``POST`` route and stop, which left ``Create draft run`` disabled with no way forward
+inside the app. A freshly registered record is adopted by its selector through
+``registry_forms.preselect``, which writes the selectbox's widget key *before* the
+widget is built - the ordering rule ``ui/state.py`` documents.
 """
 
 import streamlit as st
 
 import api_client
-from ui import errors, render, state
+from ui import errors, registry_forms, render, state
 
 CHAPTERS = ("Functional-HMI", "Performance", "Safety-Fault-Handling")
+
+
+def _label_of(labels: dict[str, dict], **fields: object) -> str | None:
+    """The label whose record matches every ``field=value`` pair, compared as text.
+
+    Used to adopt a just-registered record: matching on the record's fields rather
+    than on a rebuilt label string means the option labels can change format without
+    silently breaking the adoption.
+    """
+    for label, entry in labels.items():
+        if all(str(entry.get(key)) == str(value) for key, value in fields.items()):
+            return label
+    return None
 
 
 def device_block(key_prefix: str) -> tuple[str | None, str | None, str | None]:
@@ -26,17 +47,25 @@ def device_block(key_prefix: str) -> tuple[str | None, str | None, str | None]:
     devices = [str(item["device_id"]) for item in payload.get("items") or []]
     if not devices:
         st.warning(
-            "No device is registered. Register one through `POST /devices` and a "
-            "version through `POST /devices/{device_id}/versions` before creating a run.",
+            "No device is registered, and a run must pin one. Open **Register a "
+            "device** below: it needs an id and a name, then one "
+            "`(sw_version, hw_version)` pair in the form that appears next.",
             icon=":material/devices:",
         )
+        registry_forms.device_form(key_prefix)
         return None, None, None
-    preselect = state.device()
+    device_key = f"{key_prefix}_device"
+    registry_forms.preselect(device_key, registry_forms.take_device(), devices)
+    if device_key not in st.session_state:
+        # The sidebar's device seeds this selector on first render only. Seeding the
+        # widget key rather than passing ``index=`` keeps one mechanism for "point the
+        # selectbox at a record": Streamlit warns when a widget is given both a
+        # default and a session-state value, and the session value wins regardless.
+        registry_forms.preselect(device_key, state.device(), devices)
     device_id = st.selectbox(
         "Device",
         devices,
-        index=devices.index(preselect) if preselect in devices else 0,
-        key=f"{key_prefix}_device",
+        key=device_key,
         help="Identifies the version of the dummy plant. Uploader-asserted (spec 5.5).",
     )
     detail, ok = errors.guarded(
@@ -48,16 +77,28 @@ def device_block(key_prefix: str) -> tuple[str | None, str | None, str | None]:
     if not versions:
         st.warning(
             f"`{device_id}` has no registered `(sw_version, hw_version)` pair, and a "
-            "run must pin one. Register a device version first.",
+            f"run must pin one. Open **Register a version of {device_id}** below; "
+            "`sw_version` and `hw_version` are the only required fields.",
             icon=":material/warning:",
         )
+        registry_forms.device_form(key_prefix)
+        registry_forms.device_version_form(key_prefix, device_id)
         return device_id, None, None
     labels = {
         f"sw {entry.get('sw_version')} / hw {entry.get('hw_version')}": entry
         for entry in versions
     }
+    fresh = registry_forms.take_device_version()
+    if fresh and fresh[0] == device_id:
+        registry_forms.preselect(
+            f"{key_prefix}_device_version",
+            _label_of(labels, sw_version=fresh[1], hw_version=fresh[2]),
+            list(labels),
+        )
     chosen = st.selectbox("Device version", list(labels), key=f"{key_prefix}_device_version")
     entry = labels[chosen]
+    registry_forms.device_form(key_prefix)
+    registry_forms.device_version_form(key_prefix, device_id)
     return device_id, str(entry.get("sw_version")), str(entry.get("hw_version"))
 
 
@@ -71,16 +112,25 @@ def parameter_block(key_prefix: str) -> tuple[str | None, int | None]:
     items = payload.get("items") or []
     if not items:
         st.info(
-            "No parameter set is registered yet. A run may be created without one, "
-            "but then no provenance check against the MF4 `config_hash12` is possible.",
+            "No parameter set is registered yet. A run may be created without one, but "
+            "then no provenance check against the MF4 `config_hash12` is possible - open "
+            "**Register a parameter set** below to pin one.",
             icon=":material/tune:",
         )
+        registry_forms.parameter_set_form(key_prefix)
         return None, None
     labels = {
         f"{item.get('config_id')}@v{item.get('config_version')} · "
         f"{str(item.get('canonical_sha256') or '')[:12]} · {item.get('created_at')}": item
         for item in items
     }
+    fresh = registry_forms.take_parameter_set()
+    if fresh:
+        registry_forms.preselect(
+            f"{key_prefix}_config",
+            _label_of(labels, config_id=fresh[0], config_version=fresh[1]),
+            list(labels),
+        )
     chosen = st.selectbox("Parameter configuration", list(labels), key=f"{key_prefix}_config")
     selected = labels[chosen]
     config_id = str(selected.get("config_id"))
@@ -109,6 +159,7 @@ def parameter_block(key_prefix: str) -> tuple[str | None, int | None]:
                 "identical parameters",
             )
     render.json_expander("Parameter set as stored", selected)
+    registry_forms.parameter_set_form(key_prefix)
     return config_id, config_version
 
 
@@ -177,6 +228,9 @@ def scope_block(baseline: str) -> dict | None:
 
 def create_form(baseline: str | None) -> None:
     """Steps 1-3 of spec 1.4, then create the draft whose plan Submit will freeze."""
+    # Printed before the baseline gate: a registration that ended in ``st.rerun``
+    # must confirm itself even if the gate then blocks creation for another reason.
+    registry_forms.show_flash()
     if not errors.baseline_required(baseline):
         st.caption("A run must reference exactly one baseline, so creation is blocked.")
         return

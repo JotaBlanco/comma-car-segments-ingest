@@ -1,9 +1,17 @@
-# Floors, not hard pins, following the convention of the other applications in
-# this repo. The Streamlit floor is not cosmetic: st.navigation / st.Page(url_path=)
-# (1.36), dataframe row selection via on_select (1.35) and st.query_params (1.30)
-# are all load-bearing here, and 1.40 is the first release that carries all three
-# plus the material icon shorthand used in the sidebar.
-streamlit>=1.40.0
-requests>=2.31.0
-python-dotenv>=1.0.0
-pandas>=2.0.0
+# Ranges, not bare floors. The floor states what the app needs; the ceiling is what
+# keeps a fresh install reproducible.
+#
+# The Streamlit floor is not cosmetic: st.navigation / st.Page(url_path=) (1.36),
+# dataframe row selection via on_select (1.35) and st.query_params (1.30) are all
+# load-bearing here, and 1.40 was the first release carrying all three plus the
+# material icon shorthand used in the sidebar.
+#
+# The ceiling exists because `streamlit>=1.40.0` alone resolved to 1.61.1, which
+# tightened st.dataframe(height=...) to reject None and broke a page that had been
+# passing None since 1.40 (fixed in ui/render.py:71 by omitting the kwarg). An
+# unbounded floor lets the next minor release break the demo instead. 1.61.1 is the
+# version this frontend is verified against, so that is the floor and 1.62 is the wall.
+streamlit>=1.61.1,<1.62
+requests>=2.31.0,<3
+python-dotenv>=1.0.0,<2
+pandas>=2.0.0,<3

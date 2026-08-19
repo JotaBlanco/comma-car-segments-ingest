@@ -20,8 +20,10 @@ implementations, the signal catalogue and MF4 traces; publishes baselines; rende
 the requirement register with per-requirement coverage and, when a run is selected,
 its verdict; renders each test case's description, preconditions, steps and
 `pass_criteria` as a readable table; previews and fetches implementation code;
-creates a run (parameter set, device version, scope, many-to-many trace
-attachment), watches ingest readiness and triggers evaluation; and shows the run's
+registers a device, a device
+version and a parameter set when the registry is missing one (section 9); creates a run
+(parameter set, device version, scope, many-to-many trace attachment), watches ingest
+readiness and triggers evaluation; and shows the run's
 metrics, per-case and per-requirement verdicts, plots and generated report. Every
 call goes through one module, `api_client.py`; no page imports `requests`, no page
 joins two entities, and no page renders an empty table when the real answer is "the
@@ -221,6 +223,8 @@ page 4 "Create a run"
   GET /parameter-sets           -> config_id@vN + canonical_sha256[:12] + created_at
   GET /parameter-sets/{id}/{v}/diff/{other}   -> parameter diff
   GET /devices, GET /devices/{id}             -> device + forced (sw, hw) pair
+  POST /devices, POST /devices/{id}/versions, POST /parameter-sets
+                                              -> register a missing record (section 9)
   GET /requirements | GET /test-cases         -> scope options (+ uncovered-in-scope warning)
   POST /test-runs                             -> draft, backend expands planned_tc_ids
   POST /test-runs/{id}/submit                 -> plan FROZEN (metric denominator)
@@ -252,15 +256,16 @@ page 5
 
 | File | Lines | Concern |
 |---|---|---|
-| `frontend/api_client.py` | 749 | **The only HTTP seam.** Every endpoint, one flattened `ApiError`, blob-503 detection |
+| `frontend/api_client.py` | 849 | **The only HTTP seam.** Every endpoint, one flattened `ApiError`, blob-503 detection |
 | `frontend/ui/state.py` | 187 | Selection state: adopt/publish query params, pending queue, `read_context` |
 | `frontend/ui/nav.py` | 111 | The five `PageSpec`s (incl. `url_path`), `go`, `link_button`, `chip_links` |
-| `frontend/ui/errors.py` | 186 | Cause-first error rendering, blob banner, `guarded`, `baseline_required` |
+| `frontend/ui/errors.py` | 198 | Cause-first error rendering, blob banner, `guarded`, `baseline_required` |
 | `frontend/ui/sidebar.py` | 290 | Version selector, forced baseline, badge, baseline publishing |
 | `frontend/ui/criteria.py` | 333 | `pass_criteria` and result-block rendering; the formatters of section 2.5 |
 | `frontend/ui/render.py` | 115 | `select_row` (new-click guard), tables, key/value blocks, `percent` |
 | `frontend/ui/graph.py` | 62 | `/graph` nodes+edges -> DOT -> `st.graphviz_chart` |
-| `frontend/ui/run_create.py` | 235 | Page 4's create-run form (device, parameter set, scope) |
+| `frontend/ui/run_create.py` | 289 | Page 4's create-run form (device, parameter set, scope) |
+| `frontend/ui/registry_forms.py` | 459 | Page 4's registration forms: device, device version, parameter set (section 9) |
 | `frontend/ui/result_metrics.py` | 146 | Page 5's metric cards and per-requirement verdict table |
 | `frontend/views/requirements.py` | 321 | Page 1 |
 | `frontend/views/test_specification.py` | 335 | Page 2 |
@@ -282,7 +287,7 @@ without making anything easier to read while breaking the "single seam" property
 |---|---|
 | `frontend/main.py` | Rewritten: 86 lines of four generic CRUD tabs -> a 32-line `st.navigation` shell |
 | `frontend/api_client.py` | Rewritten: `list_items` / `create_item` / `build_evaluate_params` / `evaluate` all called routes that no longer exist (`GET /evaluate`, generic `POST /requirements`) |
-| `frontend/requirements.txt` | Streamlit floor raised to `>=1.40.0` (see below) |
+| `frontend/requirements.txt` | Streamlit floor raised to `>=1.40.0`, then bounded to `>=1.61.1,<1.62` (see below) |
 | `frontend/tests/test_api_client.py` | **Deleted.** It tested `build_evaluate_params`, which no longer exists; leaving it would have been a guaranteed import error. Tester owns the replacement tests |
 
 `frontend/dockerfile`, `frontend/app.yaml` and `frontend/.env.example` are unchanged
@@ -295,13 +300,23 @@ and `BACKEND_API_URL` still defaults to `http://backend-api:80`, matching
 and nothing else about the deployment changed. Section 6 lists the one variable that
 *is* missing, on the Backend API deployment, which is out of this dispatch's scope.
 
-### Dependency floors
+### Dependency ranges
 
-`streamlit>=1.40.0` is load-bearing: `st.query_params` (1.30), dataframe row
-selection through `on_select` (1.35), `st.navigation` / `st.Page(url_path=...)`
-(1.36) and the `:material/...` icon shorthand are all used. `requests`,
-`python-dotenv` and `pandas` keep their previous floors. Floors rather than pins
-follow the convention of every other application in this repo.
+`streamlit>=1.61.1,<1.62`. The **floor** is load-bearing for what the code calls:
+`st.query_params` (1.30), dataframe row selection through `on_select` (1.35),
+`st.navigation` / `st.Page(url_path=...)` (1.36) and the `:material/...` icon
+shorthand. The **ceiling** is load-bearing for reproducibility, and it was bought with
+a live defect: the original bare floor `>=1.40.0` resolved to 1.61.1, which tightened
+`st.dataframe(height=...)` to reject `None`, and `render.select_row` had been passing
+`None` since 1.40. The fix in `ui/render.py:71-74` is to omit the kwarg entirely
+rather than pass `None`; the range is what stops the next minor release from doing the
+same thing to a different kwarg mid-demo. 1.61.1 is the version this frontend is
+verified against.
+
+`requests>=2.31.0,<3`, `python-dotenv>=1.0.0,<2`, `pandas>=2.0.0,<3` keep their floors
+and gain major-version ceilings for the same reason. **Never pass a version-sensitive
+sizing kwarg as `None`** - `height`, `width` - and prefer the plainest widget call that
+works over one that depends on a recently added parameter.
 
 ---
 
@@ -383,7 +398,7 @@ touched from this dispatch: `backend-api/` is out of its scope.
 | 1 Requirements | `views/requirements.py` | `POST /uploads/requirements`, `POST /uploads/requirements/convergence-check`, `GET /artifact-sets/requirements/diff`, `GET /requirements`, `GET /requirements/{req_id}`, `GET /artifact-sets/requirements/versions/{v}/figures/{f}`, `GET /graph/requirement/{id}` | Test Specification (per covering `tc_id`), Test Result (per-requirement verdict), Requirements (`related_reqs`) |
 | 2 Test Specification | `views/test_specification.py` | `POST /uploads/test-specs`, `POST /uploads/signal-catalog`, `GET /test-cases`, `GET /test-cases/{tc_id}`, `GET /graph/test_case/{id}` | Requirements (per covered `req_id`), Test Implementation, Test Run, Test Result |
 | 3 Test Implementation | `views/test_implementation.py` | `POST /uploads/test-impl`, `GET /test-cases`, `GET /test-impl/{tc_id}`, `GET /test-impl/{tc_id}/preview`, `GET /test-impl/{tc_id}/code` | Test Specification, Test Run |
-| 4 Test Run | `views/test_run.py` + `ui/run_create.py` | `GET /devices`, `GET /devices/{id}`, `GET /parameter-sets`, `GET /parameter-sets/{id}/{v}/diff/{other}`, `GET /requirements`, `GET /test-cases`, `POST /test-runs`, `GET /test-runs`, `GET /test-runs/{id}`, `POST /test-runs/{id}/submit`, `POST`/`GET /test-runs/{id}/attachments`, `GET /test-runs/{id}/readiness`, `POST /test-runs/{id}/evaluate`, `GET /traces`, `POST /uploads/traces` | Test Result, Test Specification, Test Implementation |
+| 4 Test Run | `views/test_run.py` + `ui/run_create.py` + `ui/registry_forms.py` | `GET /devices`, `POST /devices`, `GET /devices/{id}`, `POST /devices/{id}/versions`, `POST /parameter-sets`, `GET /parameter-sets`, `GET /parameter-sets/{id}/{v}/diff/{other}`, `GET /requirements`, `GET /test-cases`, `POST /test-runs`, `GET /test-runs`, `GET /test-runs/{id}`, `POST /test-runs/{id}/submit`, `POST`/`GET /test-runs/{id}/attachments`, `GET /test-runs/{id}/readiness`, `POST /test-runs/{id}/evaluate`, `GET /traces`, `POST /uploads/traces` | Test Result, Test Specification, Test Implementation |
 | 5 Test Result | `views/test_result.py` + `ui/result_metrics.py` | `GET /test-runs/{id}`, `GET /metrics/{run}/{v}`, `GET /results`, `GET /requirement-verdicts/{run}/{v}`, `GET /reports/{run}/{v}`, `.../report.json`, `.../report.html`, `.../plots/{f}`, `POST /test-runs/{id}/report`, `POST /test-runs/{id}/manual-verdict`, `GET /parameter-sets/{id}/{v}`, `GET /traces` | Requirements, Test Specification, Test Implementation |
 | Sidebar (all pages) | `ui/sidebar.py` | `GET /health`, `GET /baselines`, `GET /devices`, `GET /parameter-sets`, `GET /test-runs`, `GET /test-runs/{id}`, `GET /artifact-sets`, `POST /baselines/dry-run`, `POST /baselines` | drives every page |
 
@@ -411,7 +426,10 @@ touched from this dispatch: `backend-api/` is out of its scope.
 | `/test-impl/{tc_id}/preview` | GET | 3 |
 | `/test-impl/{tc_id}/code` | GET | 3 |
 | `/devices`, `/devices/{id}` | GET | sidebar, 4 |
+| `/devices` | POST | 4 (registration form, section 9) |
+| `/devices/{id}/versions` | POST | 4 (registration form, section 9) |
 | `/parameter-sets` | GET | sidebar, 4 |
+| `/parameter-sets` | POST | 4 (registration form, section 9) |
 | `/parameter-sets/{id}/{v}` | GET | 5 |
 | `/parameter-sets/{id}/{v}/diff/{other}` | GET | 4 |
 | `/traces` | GET | 4, 5 |
@@ -449,7 +467,16 @@ touched from this dispatch: `backend-api/` is out of its scope.
   `baseline`, `req_id` or `tc_id` silently breaks every link in every stored report.
 * **Never write a selection key after its widget exists.** Use `state.request` from
   anywhere; direct `state.set_value` is only safe for non-widget keys (`req_id`,
-  `tc_id`) or before the sidebar builds its widgets.
+  `tc_id`) or before the sidebar builds its widgets. The same rule holds for *page*
+  widget keys: `registry_forms` queues the identity of a record it just wrote and
+  `run_create` applies it at the top of the next run, before the selectbox exists
+  (section 9.3).
+* **A message written immediately before `st.rerun` is never seen.** The rerun throws
+  away everything the run has drawn. Stash it (`registry_forms._flash`) and print it on
+  the next run.
+* **Do not read `current_sw_version` / `current_hw_version`.** They are `null` on the
+  deployed stack even after `make_current: true` (section 9.6). Device versions come
+  from the `versions` array of `GET /devices/{id}`.
 * **Do not adopt query parameters unconditionally.** The `_PUBLISHED` comparison is
   what stops a stale URL from reverting a fresh selectbox change on the next rerun.
 * **Do not let a page call `requests`.** `api_client` is the seam; the error
@@ -461,3 +488,179 @@ touched from this dispatch: `backend-api/` is out of its scope.
   both exist.
 * **An empty table is never an acceptable answer to a 503.** Route every failure
   through `errors.show` / `errors.guarded` so the cause is printed.
+
+---
+
+## 9. Registering a device, a device version and a parameter set
+
+### 9.1 The defect this closes
+
+`ui/run_create.py` used to answer an empty registry with instructions the app could
+not carry out:
+
+> No device is registered. Register one through `POST /devices` and a version through
+> `POST /devices/{device_id}/versions` before creating a run.
+
+`api_client` had `list_devices` and `get_device` and **no POST at all** for devices,
+device versions or parameter sets, so `Create draft run` stayed disabled and the only
+way forward was curl. Found by driving the running app, not by a test - the create tab
+gated on preconditions it gave the operator no means to satisfy.
+
+### 9.2 Where the forms live, and why there
+
+In `ui/registry_forms.py`, rendered as `st.expander`s **inside the two selector
+blocks** of `ui/run_create.py`:
+
+| Form | Rendered by | Position |
+|---|---|---|
+| Register a parameter set | `parameter_block` | after the parameter selector, and in its empty branch |
+| Register a device | `device_block` | after the device selector, and in its empty branch |
+| Register a version of `<device_id>` | `device_block` | after the device-version selector, for the selected device only |
+
+Three reasons for that placement rather than a sixth page or a sidebar section:
+
+* **The blockage is felt here.** The message that used to name a curl command is
+  replaced by a pointer to the expander two lines below it, so the fix is where the
+  problem is announced.
+* **It is the page's existing idiom.** Page 1 uploads requirements from an expander,
+  the sidebar publishes a baseline from an expander. A write that feeds a selector
+  sits next to that selector; no new pattern was invented.
+* **The version form needs a device.** It is rendered only for the device the selector
+  currently holds, so `POST /devices/{device_id}/versions` cannot be aimed at a device
+  the operator is not looking at.
+
+The forms sit behind `errors.baseline_required`, like the rest of the create tab. That
+is a real constraint - no baseline selected means no registration either - but it is
+not a dead end: the sidebar publishes a baseline and is visible on every page.
+
+### 9.3 How a new record reaches the selector (Streamlit's rerun model)
+
+Nothing on the registry read path is cached - `errors.backend_health` is the only
+`st.cache_data` in the frontend - so a rerun re-issues `GET /devices` and
+`GET /parameter-sets` and the new record is simply *in* the options. Being present is
+not enough; it must be *selected*, and these selectors are keyed widgets whose session
+value beats any `index=`. So:
+
+```
+POST /devices  201
+   -> registry_forms._queue("device", "acc-plant-sim-02")   # non-widget session key
+   -> registry_forms._flash("Registered device ...")        # survives the rerun
+   -> st.rerun()                                            # discards this run's output
+next run
+   sidebar   -> state.apply_pending()                       # unrelated selection keys
+   page 4    -> registry_forms.show_flash()                 # prints the confirmation
+             -> device_block: GET /devices (fresh, uncached)
+             -> registry_forms.preselect("run_new_device", take_device(), devices)
+                # writes the selectbox's own widget key BEFORE the widget is built
+             -> st.selectbox("Device", devices, key="run_new_device")   # shows it
+```
+
+Two rules are being obeyed, both already documented for the sidebar in `ui/state.py`:
+
+* **A widget-bound session key may only be written before its widget exists.** The
+  write happens inside the expander, i.e. *after* the selectbox above it was built, so
+  the identity is queued and applied at the top of the next run instead. `preselect`
+  ignores a value that is absent from the fresh options, so a record that disappeared
+  between runs cannot raise.
+* **`st.rerun` discards everything already drawn.** A success message written before
+  the rerun is never seen - which the baseline publisher demonstrates. Hence `_flash` /
+  `show_flash`, and `show_flash` runs *before* the baseline gate so a confirmation is
+  printed even when creation is blocked for an unrelated reason.
+
+Adoption resolves the record's **fields**, not a rebuilt label string
+(`run_create._label_of`): the device-version and parameter-set options are formatted
+labels, and matching on `sw_version` / `hw_version` / `config_id` / `config_version`
+means the label format can change without silently breaking adoption. The queued
+device-version identity carries its `device_id`, so a pair registered for one device is
+never adopted by another. The sidebar's global device and parameter-set **filters are
+deliberately left alone** - registering a device is not a request to narrow the run list
+to it.
+
+One related change in the same block: the device selectbox no longer takes
+`index=devices.index(...)`. It seeds its widget key from `state.device()` on first
+render instead, so "point this selectbox at a record" has exactly one mechanism, and a
+session-state write can never collide with a widget default (Streamlit warns when it
+sees both, and the session value wins regardless).
+
+### 9.4 Validation before sending, and errors that state the cause
+
+`device_id`, `config_id` and `params` are checked client-side, so the operator gets a
+sentence under the field instead of a `422` from the server:
+
+| Field | Check | Message |
+|---|---|---|
+| `device_id` | `^[a-z0-9][a-z0-9._-]{2,31}$` | names the rule and says it has to stay path-safe |
+| `config_id` | `^CFG-[A-Za-z0-9][A-Za-z0-9._-]{0,63}$` | names the rule, gives `CFG-BASE` as an example |
+| `config_version` | `st.number_input(min_value=1, step=1)` | unreachable by construction |
+| `params` | `json.loads`, then "is it an object" | the parser's own line and column, or the type it got |
+| `sw_version` / `hw_version` | non-empty, at most 64 characters | required-field sentence |
+| `config_id` on a version | the `CFG-` pattern when non-empty | says it could never match a registered set |
+
+Every write button is `disabled` while a blocker stands, and **every blocker prints its
+reason** next to the button - a disabled control with no explanation is the defect this
+section exists to fix. The patterns are mirrored from `backend-api/ids.py:16,21` and the
+kind enum from `api_models.py:27`; the duplication is deliberate, the alternative being a
+round trip to discover a typo. The backend stays the authority - these checks only decide
+whether a request is worth sending.
+
+Failures render through `errors.show`, so nothing is ever a bare status code:
+
+* **409** (`device x already exists`, `parameter set CFG-X@v1 already exists`) - the
+  backend's own sentence, verbatim.
+* **422** - `message` plus one table row per entry in `problems[]`, the `pointer` naming
+  the field. `errors.show`'s problems branch was **generalised** for this: the single
+  error envelope now carries `problems[]` on every 422, so the atomic-upload wording
+  ("no partial version is minted") is keyed on `error == "upload_rejected"` and a
+  rejected registry write gets neutral wording instead.
+* **503 / unreachable / timeout** - unchanged. The registry is Mongo-backed, so it keeps
+  working while blob storage is down.
+
+### 9.5 What the request bodies may contain
+
+Every request model sets `extra="forbid"` (`backend-api/api_models.py:20`), so a field
+the model does not declare is a `422`, not an ignored key. `DeviceVersionCreate` has **no
+`notes` field**, so `api_client.create_device_version` takes no `notes` argument and the
+version form offers no such box; `ParameterSetCreate` *does* have `notes`, and the
+parameter-set form offers it. The asymmetry is intentional and load-bearing.
+
+### 9.6 `make_current` does not populate `current_sw_version` on the live stack
+
+Registering a version with `make_current: true` answered `201` and the device's
+`current_sw_version` / `current_hw_version` stayed `null`. The source at
+`backend-api/routers/registry.py:97-106` *does* perform that `$set`, and
+`DeviceVersionCreate.make_current` defaults to `True`, so the backend running on `:8080`
+is most likely built from an older image than the working tree - a redeploy, not a code
+change. **Not fixed here: `backend-api/` is out of this dispatch's scope.**
+
+It does not affect this frontend, and that is by design rather than by luck:
+`device_block` lists the `versions` array of `GET /devices/{id}`, so an unset current
+version cannot hide a registered pair, and **no page reads `current_sw_version` or
+`current_hw_version` at all**. Do not start reading them: the field is not maintained on
+the deployed stack. `api_client.create_device_version` carries the same warning.
+
+### 9.7 These forms are a stopgap; ingest should derive the records
+
+Every MF4 carries `device_id`, `tool_version`, `asammdf_version` and `config_hash12` in
+its header metadata, its sidecar and `manifest.csv`. Trace ingest could therefore
+auto-register the device, the device version and the parameter set, marked
+`source: derived-from-trace` (the parameter-set document already carries `source: "api"`,
+so the field exists), and reject only a genuine contradiction between a run's claimed
+`device_id` and its attached trace's. When that lands, these fields stop needing a human:
+
+| Form field | Derivable from | Still manual |
+|---|---|---|
+| `device_id` | MF4 header, sidecar, `manifest.csv` | no |
+| `sw_version` / `hw_version` | MF4 header; already asserted per upload by `POST /uploads/traces` | no |
+| `tool_name` / `tool_version` | MF4 header | no |
+| `asammdf_version` | MF4 writer stamp | no |
+| `config_id` / `config_version` / `params` | `config_hash12` matched against the registry | only when the hash is unknown to the registry |
+| `config_hash12` | derived from `params` by the backend already | no - never entered by hand |
+| `name`, `description`, `kind` | nothing in the MF4 | **yes**, human labels |
+| `plant_spec_ref`, `dbc_id`, `notes`, `content_url` | nothing in the MF4 | **yes**, provenance a human asserts |
+| `make_current` | nothing | **yes**, and it should be dropped rather than derived |
+
+The residue is exactly the human-asserted half of spec 5.5, open question Q2: what the
+trace can prove, ingest should derive; what only a person knows keeps a form. At that
+point `registry_forms.device_version_form` becomes a rarely used override rather than a
+step on the demo path, and the empty-registry branches in `run_create` should become
+unreachable in practice.
