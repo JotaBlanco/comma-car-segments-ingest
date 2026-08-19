@@ -70,18 +70,17 @@ def can_signals_v13_4(selection):
     return ql.sql(f"""SELECT *
     FROM can_signals_v13
     WHERE platform = '{selection.platform}'
-      AND device = '180ea5df0f0b4db9'
-      AND route = '00000000--7b23a7654b'
-    LIMIT 100000
+      AND device = '{selection.device}'
+      AND route = '{selection.route}'
     """)
 
 
 @canvas.ai(position=(2033, -3891), size=(690, 666), code_height=200)
 def ai_3(can_signals_v13_4):
-    """Plot channel powertrain_hs_can1 over time."""
+    """Plot channel Eng over time."""
 
 
-@canvas.cell(position=(23, -3838), size=(682, 518), code_height=200)
+@canvas.cell(position=(23, -3838), size=(682, 518), code_height=0)
 def selection():
 
     platforms = ql.partition_values('can_signals_v13', 'platform')  # metadata only, no data scan
