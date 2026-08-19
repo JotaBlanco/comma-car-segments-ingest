@@ -93,6 +93,10 @@ deployments:
         - port: 80
           targetPort: 8080
     variables:
+      - name: QUIXLAB_URL
+        inputType: FreeText
+        description: QuixLab public URL framed by the Test Implementation page
+        value: https://quixlab-testrigorg-commacarsegmentsingest-t-b5554eca.testrig-depl.dev.quix.io
       - name: MONGO_PASSWORD
         variableKey: mongo_password
       - name: CONFIG_API_URL

@@ -33,7 +33,7 @@ variables:
   - name: ANALYTICS_URL
     inputType: FreeText
     multiline: false
-    defaultValue: https://marimo-analysis-quixers-advancedanalyticsnew-new.az-france-0.app.quix.io
+    defaultValue: ""
     required: true
 dockerfile: dockerfile
 runEntryPoint: main.py
