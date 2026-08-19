@@ -114,5 +114,15 @@ def selection():
     return platform, device, route
 
 
+@canvas.ai(position=(2108, -4554), size=(890, 648), code_height=200)
+def ai_1(can_signals_v13_4):
+    """Filter EngineRPM"""
+    # ql-ai: generated from prompt 432b06fadfab8d6c
+    import pandas as pd
+
+    result = can_signals_v13_4[can_signals_v13_4["signal"] == "EngineRPM"].copy()
+    result
+
+
 if __name__ == "__main__":
     canvas.serve()
