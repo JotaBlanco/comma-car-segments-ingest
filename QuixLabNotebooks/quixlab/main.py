@@ -97,57 +97,39 @@ def ai_1():
     **A:** platform, device, and route
     """
     # ql-ai: generated from prompt 2afe1da9a2168f6e
-    def _escape(value):
-        return str(value).replace("'", "''")
+    import pandas as pd
 
-    # 1. Platform options (top-level filter)
-    platforms_df = ql.sql("SELECT DISTINCT platform FROM can_signals_v13 ORDER BY platform LIMIT 1000")
-    platform_options = platforms_df["platform"].dropna().tolist()
+    table = "can_signals_v13"
 
-    platform_dd = ql.ui.dropdown(
-        options=platform_options,
-        value=(platform_options[0] if platform_options else None),
-        label="Platform",
+    # This is a "what values exist" / catalog question (populating dropdown options), so read
+    # partition metadata directly instead of running a SQL query against the lakehouse query
+    # service. The previous attempt failed with a ConnectionError because it queried
+    # lh-query-* over SQL for distinct values - partition_info reads the catalog instead and
+    # doesn't depend on that query service being reachable.
+    partitions = ql.partition_info(table)
+    if not isinstance(partitions, pd.DataFrame):
+        partitions = pd.DataFrame(partitions)
+
+    # --- Dropdown 1: Platform ---
+    platforms = sorted(partitions["platform"].dropna().unique().tolist())
+    platform_dd = ql.ui.dropdown(options=platforms, value=(platforms[0] if platforms else None), label="Platform")
+    selected_platform = platform_dd.value if hasattr(platform_dd, "value") else platform_dd
+
+    # --- Dropdown 2: Device (filtered by selected platform) ---
+    device_options = sorted(
+        partitions.loc[partitions["platform"] == selected_platform, "device"].dropna().unique().tolist()
     )
-    selected_platform = platform_dd.value
+    device_dd = ql.ui.dropdown(options=device_options, value=(device_options[0] if device_options else None), label="Device")
+    selected_device = device_dd.value if hasattr(device_dd, "value") else device_dd
 
-    # 2. Device options, filtered by selected platform
-    if selected_platform:
-        device_query = (
-            "SELECT DISTINCT device FROM can_signals_v13 "
-            f"WHERE platform = '{_escape(selected_platform)}' "
-            "ORDER BY device LIMIT 1000"
-        )
-    else:
-        device_query = "SELECT DISTINCT device FROM can_signals_v13 ORDER BY device LIMIT 1000"
-
-    devices_df = ql.sql(device_query)
-    device_options = devices_df["device"].dropna().tolist()
-
-    device_dd = ql.ui.dropdown(
-        options=device_options,
-        value=(device_options[0] if device_options else None),
-        label="Device",
+    # --- Dropdown 3: Route (filtered by selected platform AND device) ---
+    route_options = sorted(
+        partitions.loc[
+            (partitions["platform"] == selected_platform) & (partitions["device"] == selected_device),
+            "route",
+        ].dropna().unique().tolist()
     )
-    selected_device = device_dd.value
-
-    # 3. Route options, filtered by selected platform AND device
-    where_clauses = []
-    if selected_platform:
-        where_clauses.append(f"platform = '{_escape(selected_platform)}'")
-    if selected_device:
-        where_clauses.append(f"device = '{_escape(selected_device)}'")
-    where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
-
-    route_query = f"SELECT DISTINCT route FROM can_signals_v13 {where_sql} ORDER BY route LIMIT 1000"
-    routes_df = ql.sql(route_query)
-    route_options = routes_df["route"].dropna().tolist()
-
-    route_dd = ql.ui.dropdown(
-        options=route_options,
-        value=(route_options[0] if route_options else None),
-        label="Route",
-    )
+    route_dd = ql.ui.dropdown(options=route_options, value=(route_options[0] if route_options else None), label="Route")
 
     ql.ui.row([platform_dd, device_dd, route_dd])
 
