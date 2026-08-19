@@ -80,7 +80,7 @@ def ai_3(can_signals_v13_4):
     """Plot channel powertrain_hs_can1 over time."""
 
 
-@canvas.ai(position=(200, -3843), size=(560, 420), code_height=200)
+@canvas.ai(position=(200, -3843), size=(581, 538), code_height=200)
 def ai_1():
     """Create a form with 3 dropdowns that cascade.
 
@@ -96,6 +96,60 @@ def ai_1():
     **Q:** What are the exact column names for platform, device, and route in that table?
     **A:** platform, device, and route
     """
+    # ql-ai: generated from prompt 2afe1da9a2168f6e
+    def _escape(value):
+        return str(value).replace("'", "''")
+
+    # 1. Platform options (top-level filter)
+    platforms_df = ql.sql("SELECT DISTINCT platform FROM can_signals_v13 ORDER BY platform LIMIT 1000")
+    platform_options = platforms_df["platform"].dropna().tolist()
+
+    platform_dd = ql.ui.dropdown(
+        options=platform_options,
+        value=(platform_options[0] if platform_options else None),
+        label="Platform",
+    )
+    selected_platform = platform_dd.value
+
+    # 2. Device options, filtered by selected platform
+    if selected_platform:
+        device_query = (
+            "SELECT DISTINCT device FROM can_signals_v13 "
+            f"WHERE platform = '{_escape(selected_platform)}' "
+            "ORDER BY device LIMIT 1000"
+        )
+    else:
+        device_query = "SELECT DISTINCT device FROM can_signals_v13 ORDER BY device LIMIT 1000"
+
+    devices_df = ql.sql(device_query)
+    device_options = devices_df["device"].dropna().tolist()
+
+    device_dd = ql.ui.dropdown(
+        options=device_options,
+        value=(device_options[0] if device_options else None),
+        label="Device",
+    )
+    selected_device = device_dd.value
+
+    # 3. Route options, filtered by selected platform AND device
+    where_clauses = []
+    if selected_platform:
+        where_clauses.append(f"platform = '{_escape(selected_platform)}'")
+    if selected_device:
+        where_clauses.append(f"device = '{_escape(selected_device)}'")
+    where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+    route_query = f"SELECT DISTINCT route FROM can_signals_v13 {where_sql} ORDER BY route LIMIT 1000"
+    routes_df = ql.sql(route_query)
+    route_options = routes_df["route"].dropna().tolist()
+
+    route_dd = ql.ui.dropdown(
+        options=route_options,
+        value=(route_options[0] if route_options else None),
+        label="Route",
+    )
+
+    ql.ui.row([platform_dd, device_dd, route_dd])
 
 
 if __name__ == "__main__":
