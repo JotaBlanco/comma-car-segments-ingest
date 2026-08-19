@@ -45,6 +45,17 @@ export function TestSpecDetail({
   const dataRequirements = spec.data_requirements
   const coveredIds = spec.covers_req_ids ?? []
 
+  const stimulus = (spec.stimulus ?? {}) as Record<string, unknown>
+  const scenario = (
+    [
+      ["Scenario", stimulus.scenario_ref],
+      ["Config", stimulus.config_ref],
+      ["Notes", stimulus.notes],
+    ] as const
+  )
+    .filter(([, v]) => typeof v === "string" && v.length > 0)
+    .map(([label, value]) => ({ label, value: value as string }))
+
   return (
     <article className="mx-auto max-w-4xl space-y-6 p-6">
       {/* 1. Header */}
@@ -109,6 +120,37 @@ export function TestSpecDetail({
           ]}
         />
       </DetailSection>
+
+      {/* 4b. How to reach the state the criteria are evaluated in */}
+      {(spec.steps?.length ?? 0) > 0 && (
+        <DetailSection title="Test steps">
+          <ol className="space-y-3">
+            {(spec.steps ?? []).map((step, i) => (
+              <li key={step.step_no ?? i} className="flex gap-3">
+                <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted font-mono text-xs">
+                  {step.step_no ?? i + 1}
+                </span>
+                <div className="space-y-1">
+                  {step.action && <p className="text-sm leading-snug">{step.action}</p>}
+                  {step.expected && (
+                    <p className="text-sm leading-snug text-muted-foreground">
+                      <span className="font-medium">Expected: </span>
+                      {step.expected}
+                    </p>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </DetailSection>
+      )}
+
+      {/* 4c. The scenario the steps are executed against */}
+      {scenario.length > 0 && (
+        <DetailSection title="Scenario">
+          <DefinitionGrid rows={scenario} />
+        </DetailSection>
+      )}
 
       {/* 5. Pass criteria as data */}
       <DetailSection title="Pass criteria">

@@ -133,6 +133,13 @@ export interface TestSpecDataRequirements {
   trace_required: boolean
 }
 
+/** One numbered step of a test procedure: what to do, and what to observe. */
+export interface TestSpecStep {
+  step_no?: number
+  action?: string
+  expected?: string
+}
+
 export interface TestSpec {
   /** "{tc_id}@{artifact_version}", e.g. "ACC-SYS-TC-001@v0001" */
   key: string
@@ -153,7 +160,7 @@ export interface TestSpec {
   pass_criteria_logic: string
   data_requirements: TestSpecDataRequirements
   preconditions?: Record<string, unknown> | null
-  steps?: Record<string, unknown>[] | null
+  steps?: TestSpecStep[] | null
   stimulus?: Record<string, unknown> | null
   technique: string
   priority: string

@@ -3,7 +3,6 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
-  Home,
   FileText,
   ClipboardList,
   Code2,
@@ -44,10 +43,6 @@ interface NavSection {
  * `/tests` is re-scoped into the Test Run stage - there is no second run surface.
  */
 const navSections: NavSection[] = [
-  {
-    label: null,
-    items: [{ href: "/", icon: Home, label: "Home" }],
-  },
   {
     label: "V-Model",
     items: [
