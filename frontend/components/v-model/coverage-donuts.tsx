@@ -79,6 +79,8 @@ export interface DonutStat {
   caption: string
   /** Optional longer text for the `title` tooltip. */
   hint?: string
+  /** Second caption line, rendered under the caption. */
+  subCaption?: string
   segments: DonutSegment[]
   /** Denominator the segments are drawn against. */
   total: number
@@ -223,11 +225,18 @@ export function computeCoverageStats(
       label: family,
       percent: percentOf(familyVerified, inFamily.length),
       caption: `${familyVerified} / ${inFamily.length} verified`,
+      // `hint` is only a title= tooltip, so anything that has to be readable without a
+      // mouse belongs in `subCaption`, which renders.
+      subCaption:
+        familyCovered > familyVerified
+          ? `${familyCovered - familyVerified} covered, not run`
+          : undefined,
       hint: `${familyCovered} covered · ${REQ_SEGMENT_CHAPTERS[family] ?? family}`,
-      segments: [
-        { value: familyVerified, tone: "success" },
-        { value: Math.max(familyCovered - familyVerified, 0), tone: "muted" },
-      ],
+      // Only the verified share is drawn. Adding a second arc for covered-but-not-run
+      // put 25% of PRF's ring in colour under a 17% label, and a quarter of FUN's ring
+      // in colour under 0% - the centre number describes the green alone, so nothing
+      // else may take arc. The covered count is carried by subCaption instead.
+      segments: [{ value: familyVerified, tone: "success" }],
       total: inFamily.length,
     }
   })
@@ -427,6 +436,9 @@ function DonutTile({ stat, size }: { stat: DonutStat; size: "lg" | "sm" }) {
           {stat.label}
         </p>
         <p className="text-xs text-muted-foreground">{stat.caption}</p>
+        {stat.subCaption ? (
+          <p className="text-[11px] text-muted-foreground/80">{stat.subCaption}</p>
+        ) : null}
       </div>
     </div>
   )
