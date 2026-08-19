@@ -158,25 +158,6 @@ deployments:
         description: The root password to initialize MongoDB with; must match the MONGO_PASSWORD secret
       - name: MONGO_DBPATH
         description: WiredTiger data directory. Local disk (EPHEMERAL) because the Quix state mount on this cluster is network-backed and WiredTiger fails on it with EPERM. Only move this under /app/state if that mount becomes block storage.
-  - name: Dynamic Configuration Manager
-    group: Aux services
-    application: DynamicConfiguration
-    version: latest
-    deploymentType: Managed
-    resources:
-      limits:
-        cpu: 200
-        memory: 500
-    network:
-      serviceName: config-api-svc
-    configuration:
-      topic: config-updates
-      mongoHost: mongodb
-      mongoPort: 27017
-      mongoUser: admin
-      mongoPasswordSecret: mongo_password
-      mongoDatabase: quix
-      mongoCollection: configuration-api
   - name: MongoDB Backup Manager
     group: Aux services
     application: mongodb-backup-manager
