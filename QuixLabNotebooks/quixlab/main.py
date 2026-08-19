@@ -139,6 +139,7 @@ def selection():
 @canvas.cell(position=(527, -4183), size=(926, 735), code_height=531)
 def cell_2():
 
+
     # Pull the full platform / device / route partition combinations from the
     # catalog (fast metadata read, no data scan).
     platforms = ql.partition_info("can_signals_v13", "platform")
