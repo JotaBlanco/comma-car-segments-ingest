@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { AlertTriangle, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -15,48 +15,45 @@ import {
 import { useToast } from "@/lib/hooks/use-toast"
 import { useVmRunsApi } from "@/lib/hooks/use-api"
 import { useVmTestSpecs } from "@/lib/hooks/use-vm-test-specs"
-import {
-  MF4_UPLOAD_UNCONFIGURED_MESSAGE,
-  resolveMf4UploadBase,
-  uploadMf4Direct,
-} from "@/lib/mf4/upload-client"
 import type { RunSummary, TestSpec } from "@/types/vmodel"
-import { TcUploadRow, type TcUploadState } from "./tc-upload-row"
 
 interface AddTestRunDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** Called with the created run so the caller can navigate or refetch. */
+  /** Called with the created run so the caller can select it or refetch. */
   onCreated?: (run: RunSummary) => void
 }
 
 /**
  * Add Test Run.
  *
- * The dialog contains exactly two things, and deliberately nothing else:
+ * The dialog contains exactly one thing: which test cases to run.
  *
- *   1. a multi-select of test cases from `GET /api/v1/vmodel/test-specs`
- *   2. one MF4 upload control per selected test case
+ * It used to contain a second thing - an MF4 upload control per selected test case -
+ * and that is deliberately gone. The measurement data a test case is evaluated
+ * against is produced by QuixLab, not hand-attached here, and `POST /vmodel/runs`
+ * already treats `upload_id` as optional. Keeping the control meant every run
+ * dragged an upload service dependency, a progress state machine and a failure mode
+ * behind it to reach the same result as ticking a box. Uploading a measurement is a
+ * separate job and belongs on its own surface, not in the way of planning a run.
  *
- * No campaign, environment, operator, dates or sensors. `POST /api/v1/vmodel/runs`
- * needs none of them (see backend/api/routes/vm_runs.py create_run, which documents
- * why it is not routed through `POST /tests`), and a field the run does not use is a
- * field that invents data.
+ * Still absent, for the same reason as before: campaign, environment, operator, dates
+ * and sensors. The run does not use them, and a field the run does not use is a field
+ * that invents data. The label is derived server-side from the run id and the number
+ * of planned cases, so it can never disagree with the run.
  *
- * The label is left to the backend, which derives it from the run id and the number of
- * planned cases - one less box to fill in, and it can never disagree with the run.
- *
- * The form body lives in `AddTestRunForm` so that Radix only mounts it - and only then
+ * The form body lives in `AddTestRunForm` so Radix only mounts it - and only then
  * fetches the test specification register - when the dialog is actually opened.
  */
 export function AddTestRunDialog({ open, onOpenChange, onCreated }: AddTestRunDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-hidden sm:max-w-2xl">
+      <DialogContent className="max-h-[85vh] overflow-hidden sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Add Test Run</DialogTitle>
           <DialogDescription>
-            Pick the test cases to run and attach the MF4 measurement for each.
+            Pick the test cases to run. Measurement data comes from QuixLab - nothing to
+            upload here.
           </DialogDescription>
         </DialogHeader>
         <AddTestRunForm onOpenChange={onOpenChange} onCreated={onCreated} />
@@ -74,25 +71,7 @@ function AddTestRunForm({
   const { toast } = useToast()
 
   const [selected, setSelected] = useState<string[]>([])
-  const [uploads, setUploads] = useState<Record<string, TcUploadState>>({})
-  const [mf4Base, setMf4Base] = useState<string | null>(null)
-  const [baseResolved, setBaseResolved] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-
-  // The upload service is a separate deployment; its URL comes from an environment
-  // variable, resolved once when the dialog opens.
-  useEffect(() => {
-    let cancelled = false
-    resolveMf4UploadBase().then((base) => {
-      if (!cancelled) {
-        setMf4Base(base)
-        setBaseResolved(true)
-      }
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   // One row per test case id. The register returns every artifact version, so keep the
   // newest version of each id - a test case must never appear twice in the picker.
@@ -107,104 +86,32 @@ function AddTestRunForm({
     return [...newest.values()].sort((a, b) => a.tc_id.localeCompare(b.tc_id))
   }, [testSpecs])
 
-  const titleFor = useCallback(
-    (tcId: string) => options.find((spec) => spec.tc_id === tcId)?.title ?? "",
-    [options]
-  )
-
   const toggle = useCallback((tcId: string) => {
     setSelected((prev) =>
       prev.includes(tcId) ? prev.filter((id) => id !== tcId) : [...prev, tcId]
     )
-    // Deselecting drops the attachment too: an upload with no selected case would be
-    // silently excluded from the payload, which is worse than losing the file handle.
-    setUploads((prev) => {
-      if (!(tcId in prev)) return prev
-      const next = { ...prev }
-      delete next[tcId]
-      return next
-    })
   }, [])
 
-  const handleFile = useCallback(
-    async (tcId: string, file: File) => {
-      if (!mf4Base) return
+  const allSelected = options.length > 0 && selected.length === options.length
 
-      setUploads((prev) => ({
-        ...prev,
-        [tcId]: { filename: file.name, sizeBytes: file.size, progress: 0 },
-      }))
-
-      try {
-        const result = await uploadMf4Direct(mf4Base, file, (percent) => {
-          setUploads((prev) => {
-            const current = prev[tcId]
-            if (!current) return prev
-            return { ...prev, [tcId]: { ...current, progress: percent } }
-          })
-        })
-
-        setUploads((prev) => ({
-          ...prev,
-          [tcId]: {
-            filename: result.filename || file.name,
-            sizeBytes: result.size_bytes ?? file.size,
-            progress: 100,
-            uploadId: result.upload_id,
-            blobPath: result.blob_path ?? null,
-          },
-        }))
-      } catch (uploadError) {
-        const message =
-          uploadError instanceof Error ? uploadError.message : "Upload failed"
-        setUploads((prev) => ({
-          ...prev,
-          [tcId]: { filename: file.name, sizeBytes: file.size, progress: 0, error: message },
-        }))
-        toast({
-          title: `Upload failed for ${tcId}`,
-          description: message,
-          variant: "destructive",
-        })
-      }
-    },
-    [mf4Base, toast]
-  )
-
-  const clearUpload = useCallback((tcId: string) => {
-    setUploads((prev) => {
-      const next = { ...prev }
-      delete next[tcId]
-      return next
-    })
-  }, [])
-
-  const readyCount = selected.filter((tcId) => uploads[tcId]?.uploadId).length
-  // Selecting test cases is enough to create a run. An MF4 is optional here and can be
-  // attached later; requiring one blocked planning a run before the measurement exists.
-  const canSubmit = selected.length > 0 && !submitting
+  const toggleAll = useCallback(() => {
+    setSelected((prev) => (prev.length === options.length ? [] : options.map((s) => s.tc_id)))
+  }, [options])
 
   const handleSubmit = useCallback(async () => {
     setSubmitting(true)
     try {
       // Exactly the shape POST /vmodel/runs expects. planned_tc_ids is derived
-      // server-side from this list, so it is never sent twice.
+      // server-side from this list, so it is never sent twice. `upload_id` is left
+      // null: a run is planned from its test cases, and the measurement is whatever
+      // QuixLab produced for them.
       const run = await vmRunsApi.create({
-        tc_uploads: selected.map((tcId) => {
-          const upload = uploads[tcId]
-          return {
-            tc_id: tcId,
-            upload_id: upload?.uploadId ?? null,
-            filename: upload?.filename ?? null,
-            blob_path: upload?.blobPath ?? null,
-            size_bytes: upload?.sizeBytes ?? null,
-          }
-        }),
+        tc_uploads: selected.map((tcId) => ({ tc_id: tcId, upload_id: null })),
       })
 
       toast({
         title: `Test run ${run.run_id} created`,
-        description: `${run.planned_tc_ids.length} test case(s) planned. Execution is not wired yet.`,
+        description: `${run.planned_tc_ids.length} test case(s) planned. Hit Run to start it.`,
       })
       onOpenChange(false)
       onCreated?.(run)
@@ -218,91 +125,61 @@ function AddTestRunForm({
     } finally {
       setSubmitting(false)
     }
-  }, [onCreated, onOpenChange, selected, toast, uploads, vmRunsApi])
-
-  const uploadDisabled = baseResolved && !mf4Base
+  }, [onCreated, onOpenChange, selected, toast, vmRunsApi])
 
   return (
     <>
-      <div className="max-h-[55vh] space-y-6 overflow-y-auto pr-1">
-        {/* Thing 1 of 2 - the test case multi-select */}
-        <section className="space-y-2">
-          <h3 className="text-sm font-medium">
-            Test cases
-            {selected.length > 0 && (
-              <span className="ml-2 text-xs font-normal text-muted-foreground">
-                {selected.length} selected
-              </span>
-            )}
-          </h3>
-
-          {loading ? (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              Loading test specifications&hellip;
-            </p>
-          ) : error ? (
-            <p className="flex items-start gap-2 text-sm text-destructive">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-              {error.message}
-            </p>
-          ) : options.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              The test specification register is empty. Seed it, then reopen this dialog.
-            </p>
-          ) : (
-            <div className="max-h-56 space-y-1 overflow-y-auto rounded-md border p-2">
-              {options.map((spec) => (
-                <label
-                  key={spec.tc_id}
-                  className="flex cursor-pointer items-start gap-3 rounded px-2 py-1.5 hover:bg-foreground/5"
-                >
-                  <Checkbox
-                    className="mt-0.5"
-                    checked={selected.includes(spec.tc_id)}
-                    onCheckedChange={() => toggle(spec.tc_id)}
-                  />
-                  <span className="min-w-0">
-                    <span className="block font-mono text-sm">{spec.tc_id}</span>
-                    <span className="block text-xs text-muted-foreground">{spec.title}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium">Test cases</h3>
+          {options.length > 0 && (
+            <Button type="button" variant="ghost" size="sm" onClick={toggleAll}>
+              {allSelected ? "Clear all" : "Select all"}
+            </Button>
           )}
-        </section>
+        </div>
 
-        {/* Thing 2 of 2 - one MF4 upload control per selected test case */}
-        <section className="space-y-2">
-          <h3 className="text-sm font-medium">Measurement file per test case</h3>
-          {selected.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Select a test case above to attach its MF4.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {selected.map((tcId) => (
-                <TcUploadRow
-                  key={tcId}
-                  tcId={tcId}
-                  title={titleFor(tcId)}
-                  state={uploads[tcId]}
-                  disabled={uploadDisabled}
-                  disabledReason={MF4_UPLOAD_UNCONFIGURED_MESSAGE}
-                  onFileSelected={(file) => handleFile(tcId, file)}
-                  onClear={() => clearUpload(tcId)}
+        {loading ? (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            Loading test specifications&hellip;
+          </p>
+        ) : error ? (
+          <p className="flex items-start gap-2 text-sm text-destructive">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            {error.message}
+          </p>
+        ) : options.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            The test specification register is empty. Seed it, then reopen this dialog.
+          </p>
+        ) : (
+          <div className="max-h-[45vh] space-y-1 overflow-y-auto rounded-md border p-2">
+            {options.map((spec) => (
+              <label
+                key={spec.tc_id}
+                className="flex cursor-pointer items-start gap-3 rounded px-2 py-1.5 hover:bg-foreground/5"
+              >
+                <Checkbox
+                  className="mt-0.5"
+                  checked={selected.includes(spec.tc_id)}
+                  onCheckedChange={() => toggle(spec.tc_id)}
                 />
-              ))}
-            </div>
-          )}
-        </section>
+                <span className="min-w-0">
+                  <span className="block font-mono text-sm">{spec.tc_id}</span>
+                  <span className="block text-xs text-muted-foreground">{spec.title}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
       </div>
 
       <DialogFooter className="items-center gap-2 sm:justify-between">
         <p className="text-xs text-muted-foreground">
           {selected.length === 0
             ? "Nothing selected yet."
-            : `${selected.length} test case${selected.length === 1 ? "" : "s"} selected · ${readyCount} with an MF4 (optional).`}
+            : `${selected.length} of ${options.length} test cases selected.`}
         </p>
         <div className="flex gap-2">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -310,7 +187,7 @@ function AddTestRunForm({
           </Button>
           <Button
             type="button"
-            disabled={!canSubmit}
+            disabled={selected.length === 0 || submitting}
             loading={submitting}
             onClick={handleSubmit}
           >

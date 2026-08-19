@@ -231,19 +231,71 @@ export interface TcUpload {
   attached_utc?: string | null
 }
 
+/**
+ * Execution state of a run. Mirrors `VModelRunStatus` in backend/api/models.py.
+ *
+ * Distinct from `TestStatus` (the Phase 2 bench lifecycle): this tracks execution of
+ * the planned test cases. `completed` says execution finished, not that it passed -
+ * that is what `success_rate` is for.
+ */
+export type VModelRunStatus = "planned" | "running" | "completed" | "error"
+
 export interface RunSummary {
   run_id: string
   baseline_id: string | null
   label: string | null
   scenario: string | null
   origin: RunOrigin
+  /** Effective state: stored value wins, a run with verdicts reads `completed`. */
+  status: VModelRunStatus
   trace_keys: string[]
   planned_tc_ids: string[]
   tc_uploads: TcUpload[]
   created_utc: string | null
+  started_utc: string | null
   evaluated_utc: string | null
-  /** Verdict counts, absent keys meaning zero. Empty `{}` on an un-evaluated run. */
+  /** Verdict counts per result document, i.e. per (test case, trace). */
   counts: Partial<Record<VerdictStatus, number>>
+  /** Verdict counts per *planned test case*; sums to `planned_tc_ids.length`. */
+  tc_counts: Partial<Record<VerdictStatus, number>>
+  /**
+   * PASS as a percentage of evaluated planned cases, one decimal. `null` - never 0 -
+   * when nothing has been evaluated, so "not run yet" never renders as "all failed".
+   */
+  success_rate: number | null
+}
+
+/** One planned test case of a run, with its verdict and the requirements it covers. */
+export interface RunTestCaseSummary {
+  tc_id: string
+  title: string
+  status: VerdictStatus
+  req_ids: string[]
+  result_count: number
+  trace_keys: string[]
+  /** Verbatim from the verdict; populated even on PASS, so render it in full. */
+  reason: string
+  evaluated_utc: string | null
+}
+
+/** Requirement coverage this run contributes, against its pinned baseline. */
+export interface RunRequirementCoverage {
+  baseline_id: string | null
+  requirements_total: number
+  covered: number
+  passed: number
+  failed: number
+  inconclusive: number
+  not_run: number
+  coverage_pct: number
+  covered_req_ids: string[]
+}
+
+/** `GET /vmodel/runs/{run_id}/summary` - the whole per-run summary in one call. */
+export interface RunDetailSummary {
+  run: RunSummary
+  test_cases: RunTestCaseSummary[]
+  coverage: RunRequirementCoverage
 }
 
 /**

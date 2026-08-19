@@ -13,7 +13,14 @@
 
 import { apiGet, apiPost } from "./client"
 import { VMODEL_API_BASE } from "../vmodel/constants"
-import type { RunCreate, RunQuery, RunSummary, Trace } from "@/types/vmodel"
+import type {
+  RunCreate,
+  RunDetailSummary,
+  RunQuery,
+  RunSummary,
+  Trace,
+  VModelRunStatus,
+} from "@/types/vmodel"
 import type { PaginatedResponse } from "@/types/pagination"
 
 export const vmRunsApi = {
@@ -67,8 +74,45 @@ export const vmRunsApi = {
   },
 
   /**
-   * Create a run from the selected test cases and the MF4 uploaded for each.
-   * Returns the stored run, already carrying its server-allocated `run_id`.
+   * The per-run summary: every planned test case with its verdict, the requirement
+   * coverage the run contributes and the success rate. Valid on a run with no
+   * verdicts - every case comes back NOT_RUN.
+   */
+  summary: (
+    runId: string,
+    token?: string | null,
+    refreshToken?: () => Promise<string | null>
+  ) => {
+    return apiGet<RunDetailSummary>(
+      `${VMODEL_API_BASE}/runs/${encodeURIComponent(runId)}/summary`,
+      undefined,
+      token,
+      refreshToken
+    )
+  },
+
+  /**
+   * Move a run through its execution states. `running` is what the Run action posts;
+   * `completed` / `error` are posted by the execution step when it lands. An illegal
+   * transition is a 409 with the allowed set in the message.
+   */
+  setStatus: (
+    runId: string,
+    status: VModelRunStatus,
+    token?: string | null,
+    refreshToken?: () => Promise<string | null>
+  ) => {
+    return apiPost<RunSummary>(
+      `${VMODEL_API_BASE}/runs/${encodeURIComponent(runId)}/status`,
+      { status },
+      token,
+      refreshToken
+    )
+  },
+
+  /**
+   * Create a run from the selected test cases. Returns the stored run, already
+   * carrying its server-allocated `run_id` and its `planned` status.
    */
   create: (
     payload: RunCreate,

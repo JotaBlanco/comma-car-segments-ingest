@@ -15,17 +15,24 @@ is the first row on the Test Results page.
 """
 
 import re
-from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 from pymongo.database import Database
 
 from ..auth import read_permission, update_permission
-from ..models import PaginatedResponse, Test, TestStatus, VModelRun
+from ..models import PaginatedResponse, Test, TestStatus, VModelRun, VModelRunStatus
 from ..models_vmodel_chain import RunCreate, RunOrigin, RunSummary, Trace
 from ..mongo import get_mongo
 from ..utils import now
+from ..vm_run_summary import (
+    RunDetailSummary,
+    RunStatusUpdate,
+    VerdictRollup,
+    build_run_detail,
+    summary_verdicts,
+    verdict_rollup,
+)
 
 router = APIRouter()
 
@@ -35,46 +42,17 @@ RUN_ID_PREFIX = "TR-"
 RUN_ID_PATTERN = re.compile(r"^TR-(\d+)$")
 
 
-def _verdict_rollup(
-    mongo: Database[dict[str, Any]],
-) -> tuple[dict[str, dict[str, int]], dict[str, datetime]]:
-    """Per-run verdict counts and evaluation time, in one aggregation over ``vm_results``.
-
-    Returns ``(counts, evaluated)`` where counts is ``run_id -> {PASS: n, FAIL: n, ...}`` and
-    evaluated is ``run_id -> latest evaluated_utc``. Both are read-time rollups: results are
-    appended per trace, so neither is stored on the run.
-    """
-    counts: dict[str, dict[str, int]] = {}
-    evaluated: dict[str, datetime] = {}
-    pipeline = [
-        {
-            "$group": {
-                "_id": {"run_id": "$run_id", "status": "$status"},
-                "n": {"$sum": 1},
-                "last": {"$max": "$evaluated_utc"},
-            }
-        }
-    ]
-    for row in mongo.vm_results.aggregate(pipeline):
-        run_id = str(row["_id"]["run_id"])
-        counts.setdefault(run_id, {})[str(row["_id"]["status"])] = int(row["n"])
-        last = row.get("last")
-        if isinstance(last, datetime) and (run_id not in evaluated or last > evaluated[run_id]):
-            evaluated[run_id] = last
-    return counts, evaluated
-
-
 def _stored_run_summaries(
     mongo: Database[dict[str, Any]],
-    counts: dict[str, dict[str, int]],
-    evaluated: dict[str, datetime],
+    rollup: VerdictRollup,
     run_id: str | None = None,
 ) -> list[RunSummary]:
     """Summaries for runs stored as ``tests`` documents with a ``vmodel`` sub-document.
 
-    These are the runs the Add Test Run dialog creates. They carry their planned test cases
-    and their per-test-case MF4 attachments; ``counts`` stays empty until something evaluates
-    them, which is what makes an un-run run legible in the list rather than looking broken.
+    These are the runs the Add Test Run dialog creates. They carry their planned test cases,
+    their execution status and their optional MF4 attachments; the verdict counts stay empty
+    until something evaluates them, which is what makes a not-yet-run run legible in the list
+    rather than looking broken.
     """
     query: dict[str, Any] = {"vmodel": {"$ne": None}}
     if run_id:
@@ -84,6 +62,8 @@ def _stored_run_summaries(
     for doc in mongo.tests.find(query):
         vmodel = doc.get("vmodel") or {}
         key = str(doc["_id"])
+        planned_tc_ids = list(vmodel.get("planned_tc_ids") or [])
+        verdicts = summary_verdicts(rollup, key, planned_tc_ids, vmodel.get("status"))
         summaries.append(
             RunSummary(
                 run_id=key,
@@ -92,11 +72,15 @@ def _stored_run_summaries(
                 scenario=vmodel.get("selector"),
                 origin=RunOrigin.PLANNED,
                 trace_keys=list(vmodel.get("trace_keys") or []),
-                planned_tc_ids=list(vmodel.get("planned_tc_ids") or []),
+                planned_tc_ids=planned_tc_ids,
                 tc_uploads=list(vmodel.get("tc_uploads") or []),
                 created_utc=vmodel.get("created_utc") or doc.get("created_at"),
-                evaluated_utc=vmodel.get("evaluated_utc") or evaluated.get(key),
-                counts=counts.get(key, {}),
+                started_utc=vmodel.get("started_utc"),
+                evaluated_utc=vmodel.get("evaluated_utc") or rollup.evaluated.get(key),
+                status=verdicts.status,
+                counts=verdicts.counts,
+                tc_counts=verdicts.tc_counts,
+                success_rate=verdicts.success_rate,
             )
         )
     return summaries
@@ -104,13 +88,13 @@ def _stored_run_summaries(
 
 def _run_summaries(mongo: Database[dict[str, Any]], run_id: str | None = None) -> list[RunSummary]:
     """Every run, stored and derived, newest first."""
-    counts, evaluated = _verdict_rollup(mongo)
-    stored = _stored_run_summaries(mongo, counts, evaluated, run_id)
-    derived = _derived_run_summaries(mongo, counts, evaluated, run_id)
+    rollup = verdict_rollup(mongo)
+    stored = _stored_run_summaries(mongo, rollup, run_id)
+    derived = _derived_run_summaries(mongo, rollup, run_id)
     stored_ids = {summary.run_id for summary in stored}
 
     # A stored run wins over a derived one of the same id: the document is authoritative
-    # about its planned cases and its uploads, the join only knows trace keys.
+    # about its planned cases, its status and its uploads, the join only knows trace keys.
     merged = stored + [summary for summary in derived if summary.run_id not in stored_ids]
     return sorted(merged, key=_run_sort_key, reverse=True)
 
@@ -125,8 +109,7 @@ def _run_sort_key(summary: RunSummary) -> tuple[int, str]:
 
 def _derived_run_summaries(
     mongo: Database[dict[str, Any]],
-    counts: dict[str, dict[str, int]],
-    evaluated: dict[str, datetime],
+    rollup: VerdictRollup,
     run_id: str | None = None,
 ) -> list[RunSummary]:
     """Build run summaries from the run/trace join plus the aggregated verdict counts."""
@@ -148,6 +131,7 @@ def _derived_run_summaries(
     for key in sorted(grouped):
         trace_keys = sorted(grouped[key])
         scenario = next((scenarios.get(trace) for trace in trace_keys if scenarios.get(trace)), None)
+        verdicts = summary_verdicts(rollup, key, planned_tc_ids, None)
         summaries.append(
             RunSummary(
                 run_id=key,
@@ -157,8 +141,13 @@ def _derived_run_summaries(
                 origin=RunOrigin.SEEDED,
                 trace_keys=trace_keys,
                 planned_tc_ids=planned_tc_ids,
-                evaluated_utc=evaluated.get(key),
-                counts=counts.get(key, {}),
+                evaluated_utc=rollup.evaluated.get(key),
+                # A seeded run has no document, so it has no stored status: its verdicts are
+                # the only evidence, and they make it 'completed'.
+                status=verdicts.status,
+                counts=verdicts.counts,
+                tc_counts=verdicts.tc_counts,
+                success_rate=verdicts.success_rate,
             )
         )
     return summaries
@@ -250,6 +239,9 @@ def create_run(
 
     vmodel = VModelRun(
         baseline_id=str(baseline["_id"]),
+        # Creation never implies execution: the run starts 'planned' and only the Run action
+        # (POST /runs/{run_id}/status) moves it on.
+        status=VModelRunStatus.PLANNED,
         label=label,
         # "manual" records how the case list was chosen: picked in the dialog, not expanded
         # from a chapter selector. planned_tc_ids is therefore already the frozen list.
@@ -293,6 +285,109 @@ def get_run(
     if not summaries:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
     return summaries[0]
+
+
+#: Which execution states a run may move to from the one it is in. A run is re-runnable, so
+#: both terminal states go back to ``running``; nothing may skip ``running`` to reach a
+#: terminal state, because that would claim an execution that never happened.
+ALLOWED_TRANSITIONS: dict[VModelRunStatus, set[VModelRunStatus]] = {
+    VModelRunStatus.PLANNED: {VModelRunStatus.RUNNING},
+    VModelRunStatus.RUNNING: {VModelRunStatus.COMPLETED, VModelRunStatus.ERROR},
+    VModelRunStatus.COMPLETED: {VModelRunStatus.RUNNING},
+    VModelRunStatus.ERROR: {VModelRunStatus.RUNNING},
+}
+
+#: Phase 2 ``TestStatus`` equivalent of each execution state. The run *is* a ``tests``
+#: document, so leaving its lifecycle field on ``draft`` while the run executes would make the
+#: legacy tests table contradict the run list.
+TEST_STATUS_FOR: dict[VModelRunStatus, TestStatus] = {
+    VModelRunStatus.PLANNED: TestStatus.DRAFT,
+    VModelRunStatus.RUNNING: TestStatus.IN_PROGRESS,
+    VModelRunStatus.COMPLETED: TestStatus.FINISHED,
+    VModelRunStatus.ERROR: TestStatus.FINISHED,
+}
+
+
+@router.post("/runs/{run_id}/status", response_model=RunSummary)
+def set_run_status(
+    run_id: str,
+    payload: RunStatusUpdate = Body(...),
+    mongo: Database[dict[str, Any]] = Depends(get_mongo),
+    _: None = Depends(update_permission),
+) -> RunSummary:
+    """Move a run through its execution states. This is the whole of the Run action.
+
+    The Run button posts ``running`` here and nothing else happens: no QuixLab job is
+    submitted, no Python is executed, no verdict is written. When the execution step lands it
+    posts ``completed`` or ``error`` back to this same endpoint, which is why the transition
+    map allows exactly those two from ``running`` and refuses to skip it.
+
+    Only *stored* runs can change status. A seeded run has no document - it exists only as the
+    ``run_id`` side of the ``vm_run_traces`` join - so there is nothing to move, and saying so
+    with a 409 is more useful than inventing a document to hold the state.
+    """
+    doc = mongo.tests.find_one({"_id": run_id})
+    if doc is None:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
+    if not doc.get("vmodel"):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Test '{run_id}' is not a V-model run: it carries no vmodel sub-document and "
+                "has no test cases to execute."
+            ),
+        )
+
+    summaries = _run_summaries(mongo, run_id)
+    current = summaries[0].status if summaries else VModelRunStatus.PLANNED
+    target = payload.status
+    reachable = ALLOWED_TRANSITIONS.get(current, set())
+    if target not in reachable:
+        allowed = ", ".join(sorted(status.value for status in reachable))
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Run '{run_id}' is '{current.value}' and cannot move to '{target.value}'. "
+                f"Allowed from here: {allowed or 'nothing'}."
+            ),
+        )
+
+    stamped = now()
+    updates: dict[str, Any] = {
+        "vmodel.status": target.value,
+        "status": TEST_STATUS_FOR[target].value,
+        "updated_at": stamped,
+    }
+    if target is VModelRunStatus.RUNNING:
+        updates["vmodel.started_utc"] = stamped
+        updates["start"] = stamped
+    else:
+        # A terminal state means execution is over, whichever way it went.
+        updates["vmodel.evaluated_utc"] = stamped
+        updates["end"] = stamped
+    mongo.tests.update_one({"_id": run_id}, {"$set": updates})
+
+    return _run_summaries(mongo, run_id)[0]
+
+
+@router.get("/runs/{run_id}/summary", response_model=RunDetailSummary)
+def get_run_summary(
+    run_id: str,
+    mongo: Database[dict[str, Any]] = Depends(get_mongo),
+    _: None = Depends(read_permission),
+) -> RunDetailSummary:
+    """Everything a finished run has to answer, in one call.
+
+    Per planned test case: its verdict (NOT_RUN when it has none), the requirements it
+    verifies and the reason text of the verdict that decided it. Plus the requirement coverage
+    the run contributes against its pinned baseline, and the success rate over evaluated
+    cases. A run with no verdicts is a valid, fully-rendered response - every case NOT_RUN and
+    ``success_rate`` null - not a 404.
+    """
+    summaries = _run_summaries(mongo, run_id)
+    if not summaries:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
+    return build_run_detail(mongo, summaries[0])
 
 
 @router.get(

@@ -14,7 +14,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
-from .models import PaginationParams, TcUpload
+from .models import PaginationParams, TcUpload, VModelRunStatus
 from .utils import now
 
 
@@ -329,15 +329,39 @@ class RunSummary(BaseModel):
     label: str | None = None
     scenario: str | None = None
     origin: RunOrigin = RunOrigin.SEEDED
+    status: VModelRunStatus = Field(
+        VModelRunStatus.PLANNED,
+        description=(
+            "Effective execution state. The stored value wins; a run with verdicts but no "
+            "stored state reads 'completed', which is how seeded runs report."
+        ),
+    )
     trace_keys: list[str] = Field(default_factory=list)
     planned_tc_ids: list[str] = Field(default_factory=list)
     tc_uploads: list[TcUpload] = Field(
         default_factory=list, description="Empty on a seeded run; one entry per uploaded MF4"
     )
     created_utc: datetime | None = None
+    started_utc: datetime | None = None
     evaluated_utc: datetime | None = None
     counts: dict[str, int] = Field(
-        default_factory=dict, description="Verdict counts: PASS / FAIL / INCONCLUSIVE / NOT_RUN"
+        default_factory=dict,
+        description="Verdict counts per result document, i.e. per (test case, trace)",
+    )
+    tc_counts: dict[str, int] = Field(
+        default_factory=dict,
+        description=(
+            "Verdict counts per *planned test case*, worst verdict wins across its traces. "
+            "Sums to len(planned_tc_ids); a case with no verdict counts as NOT_RUN."
+        ),
+    )
+    success_rate: float | None = Field(
+        None,
+        description=(
+            "PASS / (PASS + FAIL + INCONCLUSIVE) over planned test cases, 0-100, one decimal. "
+            "None - never 0.0 - when nothing has been evaluated, so 'not run yet' cannot be "
+            "misread as 'everything failed'."
+        ),
     )
 
 

@@ -126,6 +126,25 @@ class TcUpload(BaseModel):
     attached_utc: datetime = Field(default_factory=now)
 
 
+class VModelRunStatus(str, Enum):
+    """Execution state of a V-model Test Run.
+
+    Distinct from ``TestStatus``, which is the Phase 2 bench-test lifecycle: this one tracks
+    *execution of the planned test cases*, not preparation of a bench. The two are kept in
+    step by ``POST /vmodel/runs/{run_id}/status`` (running -> ``in_progress``, completed and
+    error -> ``finished``) so the legacy tests table never contradicts the run list.
+
+    ``PLANNED`` is the only state a run can be created in - execution is never implied by
+    creation. ``COMPLETED`` means execution finished and verdicts are readable; it says
+    nothing about whether they passed, which is what the success rate is for.
+    """
+
+    PLANNED = "planned"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    ERROR = "error"
+
+
 class VModelRun(BaseModel):
     """V-model evaluation metadata on a Test. ``None`` on every Phase 2 bench test.
 
@@ -137,6 +156,10 @@ class VModelRun(BaseModel):
 
     baseline_id: str = Field(..., description="Write-once pin. A differing re-pin is a 409.")
     run_version: int = 1
+    status: VModelRunStatus = Field(
+        VModelRunStatus.PLANNED,
+        description="Execution state. Only 'planned' is reachable at creation time.",
+    )
     label: str | None = Field(None, description="Human label shown in the run lists")
     selector: str | None = Field(None, description="e.g. 'all' or 'chapter:Performance'")
     planned_tc_ids: list[str] = Field(
@@ -148,6 +171,9 @@ class VModelRun(BaseModel):
     )
     trace_keys: list[str] = Field(default_factory=list, description="Mirrors vm_run_traces")
     created_utc: datetime = Field(default_factory=now)
+    started_utc: datetime | None = Field(
+        None, description="Set when the run moves to 'running'; cleared by nothing"
+    )
     evaluated_utc: datetime | None = None
     sw_version: str | None = None
     hw_version: str | None = None
