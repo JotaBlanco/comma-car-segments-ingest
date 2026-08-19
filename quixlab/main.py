@@ -550,7 +550,7 @@ def acc_sys_ti_016(signals_tc016):
 #  Roll-up -- one row per criterion, traceable tc_id -> impl_id -> requirement.
 # =============================================================================
 
-@canvas.cell(position=(1494, -187), size=(827, 504), code_height=200)
+@canvas.cell(position=(1494, -231), size=(827, 504), code_height=200)
 def verdict_summary(acc_sys_ti_011, acc_sys_ti_014, acc_sys_ti_016):
     import pandas as pd
 
