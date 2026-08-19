@@ -80,8 +80,8 @@ def ai_3(can_signals_v13_4):
     """Plot channel powertrain_hs_can1 over time."""
 
 
-@canvas.cell(position=(527, -4183), size=(926, 735), code_height=531)
-def cell_2():
+@canvas.cell(position=(195, -3927), size=(410, 337), code_height=0)
+def selection():
 
     platforms = ql.partition_values('can_signals_v13', 'platform')  # metadata only, no data scan
     platform = ql.ui.dropdown(
@@ -96,10 +96,12 @@ def cell_2():
     )
 
     routes = ql.partition_values('can_signals_v13', 'route', where={"platform": platform.value, "device": device.value}) 
-    device = ql.ui.dropdown(
+    route = ql.ui.dropdown(
         options=routes,
-        label="Device",
+        label="Route",
     )
+
+    return platform, device, route
 
 
 if __name__ == "__main__":
