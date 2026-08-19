@@ -390,15 +390,19 @@ def delete_test(
     if not (test := mongo.tests.find_one({"_id": test_id})):
         raise HTTPException(status_code=404, detail="Test not found")
 
-    # Delete configuration from Config API
-    response = config_api.delete(f"/api/v1/configurations/{test['config_id']}")
-    try:
-        response.raise_for_status()
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(
-            status_code=424,
-            detail=f"Failed to delete configuration: {e.response.status_code} {e.response.text}",
-        )
+    # Delete configuration from Config API. A V-model run created through
+    # POST /vmodel/runs deliberately bypasses the Configuration Service, so it has no
+    # config_id and there is nothing to purge - previously that raised 424 and made such
+    # a run undeletable.
+    if config_id := test.get("config_id"):
+        response = config_api.delete(f"/api/v1/configurations/{config_id}")
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(
+                status_code=424,
+                detail=f"Failed to delete configuration: {e.response.status_code} {e.response.text}",
+            )
 
     # Delete all files from blob storage
     files = test.get("files", {})
