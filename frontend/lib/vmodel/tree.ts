@@ -41,6 +41,12 @@ export interface BuildTreeOptions<T extends TreeItem> {
    * alphabetically after the listed values.
    */
   levelOrder?: Record<string, readonly string[]>
+  /**
+   * Leaf ordering inside a group. Omit it and leaves sort by their label, which
+   * is right for an id-per-row register; the Test Run tree passes a comparator
+   * because a run register reads newest-first.
+   */
+  leafCompare?: (a: T, b: T) => number
 }
 
 const MISSING_GROUP = "(none)"
@@ -100,23 +106,28 @@ export function buildTree<T extends TreeItem>(
 
   function build(levelIndex: number, pathId: string, scoped: T[], depth: number): TreeNode[] {
     if (levelIndex >= options.levels.length) {
-      return scoped
-        .map<TreeNode>((item) => {
-          const label = options.leafLabel(item)
-          return {
-            id: `${pathId}/${options.leafId(item)}`,
-            labelKey: label.key,
-            labelValue: label.value,
-            meta: options.leafMeta(item),
-            depth,
-            isLeaf: true,
-            children: [],
-            itemId: options.leafId(item),
-          }
-        })
-        .sort((a, b) =>
-          `${a.labelKey}${a.labelValue}`.localeCompare(`${b.labelKey}${b.labelValue}`)
-        )
+      const ordered = options.leafCompare
+        ? [...scoped].sort(options.leafCompare)
+        : scoped
+      const leaves = ordered.map<TreeNode>((item) => {
+        const label = options.leafLabel(item)
+        return {
+          id: `${pathId}/${options.leafId(item)}`,
+          labelKey: label.key,
+          labelValue: label.value,
+          meta: options.leafMeta(item),
+          depth,
+          isLeaf: true,
+          children: [],
+          itemId: options.leafId(item),
+        }
+      })
+      // A caller-supplied comparator has already decided the order.
+      return options.leafCompare
+        ? leaves
+        : leaves.sort((a, b) =>
+            `${a.labelKey}${a.labelValue}`.localeCompare(`${b.labelKey}${b.labelValue}`)
+          )
     }
 
     const field = options.levels[levelIndex]

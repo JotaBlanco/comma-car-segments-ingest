@@ -16,6 +16,13 @@ interface ItemTreeProps {
   onSelectItem: (itemId: string) => void
   /** True when a filter is pruning the tree; drives default expansion. */
   filterActive: boolean
+  /**
+   * Open the group levels on first render even with no filter active. Off by
+   * default, because a register of 111 requirements needs its chapters closed;
+   * the Test Run tree turns it on because its three status groups would
+   * otherwise hide every run behind a click.
+   */
+  expandGroups?: boolean
   /** Rendered instead of the tree when there is nothing to show. */
   emptyMessage?: string
 }
@@ -33,18 +40,19 @@ export function ItemTree({
   selectedItemId,
   onSelectItem,
   filterActive,
+  expandGroups = false,
   emptyMessage = "No items match the current filter.",
 }: ItemTreeProps) {
   const [expanded, setExpanded] = useState<Set<string>>(() =>
-    defaultExpandedIds(root, filterActive)
+    defaultExpandedIds(root, filterActive || expandGroups)
   )
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Re-seed expansion when the filter is toggled on or off, not on every keystroke.
   useEffect(() => {
-    setExpanded(defaultExpandedIds(root, filterActive))
+    setExpanded(defaultExpandedIds(root, filterActive || expandGroups))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterActive])
+  }, [filterActive, expandGroups])
 
   // Expand the path to the deep-linked / selected leaf and scroll it into view.
   useEffect(() => {
