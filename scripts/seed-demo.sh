@@ -39,6 +39,19 @@ fi
 
 BASE="${BACKEND_BASE_URL:-http://localhost:${BACKEND_PORT:-8000}}"
 ACC="${ACC_PROJECT_DIR:-C:/repos/acc_project}"
+
+# curl here is the Windows binary, so it cannot open an MSYS path like /c/repos/x.
+# $SCRIPT_DIR comes from `pwd`, which yields exactly that under Git Bash, while
+# $ACC is already a drive-letter path. Normalise anything we hand to curl.
+winpath() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -m "$1"
+  else
+    printf '%s
+' "$1" | sed -E 's|^/([a-zA-Z])/|:/|'
+  fi
+}
+
 PY="${PYTHON:-python}"
 UPLOADER="${SEED_UPLOADER:-seed-demo}"
 
@@ -162,7 +175,7 @@ fi
 step "4. Upload the signal catalogue (65 channels from the plant table)"
 require_file "$SEED_DIR/signal-catalog.json"
 call uploads_signal_catalog -X POST "$BASE/uploads/signal-catalog" \
-  -F "file=@$SEED_DIR/signal-catalog.json;type=application/json" \
+  -F "file=@$(winpath "$SEED_DIR/signal-catalog.json");type=application/json" \
   -F "uploaded_by=$UPLOADER" \
   -F "notes=generated from acc_stim/mf4/signals.py"
 [ "$HTTP_CODE" = "200" ] || fail_out "signal catalogue upload failed"
@@ -172,7 +185,7 @@ ok "signal_catalog $CATALOG_VERSION"
 step "5. Upload the test specifications (3 cases over real requirements)"
 require_file "$SEED_DIR/test-specs.json"
 call uploads_test_specs -X POST "$BASE/uploads/test-specs" \
-  -F "file=@$SEED_DIR/test-specs.json;type=application/json" \
+  -F "file=@$(winpath "$SEED_DIR/test-specs.json");type=application/json" \
   -F "uploaded_by=$UPLOADER" \
   -F "notes=demo seed cases for PRF-020, PRF-022, PRF-003"
 [ "$HTTP_CODE" = "200" ] || fail_out "test-specs upload failed"
@@ -182,7 +195,7 @@ ok "test_specs $SPECS_VERSION"
 step "6. Upload one test implementation (inert: the runner is deferred)"
 require_file "$SEED_DIR/acc_sys_tc_001.py"
 call uploads_test_impl -X POST "$BASE/uploads/test-impl" \
-  -F "file=@$SEED_DIR/acc_sys_tc_001.py;type=text/x-python" \
+  -F "file=@$(winpath "$SEED_DIR/acc_sys_tc_001.py");type=text/x-python" \
   -F "tc_id=ACC-SYS-TC-001" \
   -F "entrypoint=acc_sys_tc_001.py" \
   -F "language=python" \

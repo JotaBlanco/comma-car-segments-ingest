@@ -176,7 +176,7 @@ services:
   # broker. "--mode dev-container" is Redpanda's own single-node development
   # preset (small memory footprint, topic auto-creation on).
   redpanda:
-    image: docker.redpanda-data.com/redpandadata/redpanda:${REDPANDA_VERSION:-v24.2.7}
+    image: ${REDPANDA_IMAGE:-redpandadata/redpanda}:${REDPANDA_VERSION:-v24.2.7}
     container_name: tm-redpanda
     profiles: ["stream", "tools", "lakehouse"]
     command:
@@ -211,7 +211,7 @@ services:
   # retention, and the partition count is part of the design (vector topics are
   # keyed by trace_key so per-trace ordering survives 4 partitions).
   redpanda-init:
-    image: docker.redpanda-data.com/redpandadata/redpanda:${REDPANDA_VERSION:-v24.2.7}
+    image: ${REDPANDA_IMAGE:-redpandadata/redpanda}:${REDPANDA_VERSION:-v24.2.7}
     container_name: tm-redpanda-init
     profiles: ["stream", "tools", "lakehouse"]
     depends_on:
