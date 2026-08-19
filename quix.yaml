@@ -137,7 +137,7 @@ deployments:
       urlPrefix: quixlab
     state:
       enabled: true
-      size: 1
+      size: 20
     network:
       ports:
         - port: 80
