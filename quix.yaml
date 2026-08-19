@@ -45,39 +45,6 @@ deployments:
         inputType: FreeText
     blobStorage:
       bind: true
-  - name: Quix Lakehouse Sink
-    application: quix-lakehouse-sink
-    version: latest
-    deploymentType: Service
-    resources:
-      limits:
-        cpu: 1000
-        memory: 3000
-      replicas: 8
-    variables:
-      - name: TABLE_NAME
-        inputType: FreeText
-        value: can_signals_v13
-      - name: HIVE_COLUMNS
-        inputType: FreeText
-        value: platform,device,route,~channel_name,~sender_node,~frame_name,~signal
-      - name: TIMESTAMP_COLUMN
-        inputType: FreeText
-        value: t_abs_ms
-      - name: SORT_COLUMN
-        inputType: FreeText
-        value: t_abs_ms
-      - name: BATCH_SIZE
-        inputType: FreeText
-        value: 2000
-      - name: CONSUMER_GROUP
-        inputType: FreeText
-        value: s3_direct_sink_v2.0
-      - name: MAX_WRITE_WORKERS
-        inputType: FreeText
-        value: 1
-    blobStorage:
-      bind: true
 
 # This section describes the Topics of the data pipeline
 topics:
