@@ -5,13 +5,21 @@ Variant of quix-datalake-timeseries-sink for the MF4 pipeline.
 mf4-decoder produces per-channel batched Kafka messages with the shape:
 
     {
-        "file_name":  "sample.mf4",            # scalar
-        "upload_id":  "sample-7a9622106da0",   # scalar, unique per file
-        "channel":    "VOLTAGE",               # scalar
-        "unit":       "V",                     # scalar
-        "ts_ms":      [t0, t1, ..., tN],       # array
-        "value":      [v0, v1, ..., vN],       # array, float | None
-        "value_text": [s0, s1, ..., sN],       # array, str | None
+        "file_name":     "sample.mf4",            # scalar
+        "upload_id":     "sample-7a9622106da0",   # scalar, unique per file
+        "platform":      "HYUNDAI_IONIQ",         # scalar, from the MF4 header
+        "device":        "44b354b55dffb795",      # scalar, from the MF4 header
+        "route":         "0000000e--053ec37492",  # scalar, from the MF4 header
+        "segment":       "20",                    # scalar, from the MF4 header
+        "dcm_config_id": "d8295d4af7b43ce...",    # scalar, from the MF4 header
+        "channel":       "ACCMode",               # scalar, the signal name
+        "unit":          "V",                     # scalar
+        "channel_name":  "powertrain_hs_can1",    # scalar, the CAN bus name
+        "frame_name":    "SCC12",                 # scalar, from the embedded DBC
+        "sender_node":   "SCC",                   # scalar, from the embedded DBC
+        "ts_ms":         [t0, t1, ..., tN],       # array
+        "value":         [v0, v1, ..., vN],       # array, float | None
+        "value_text":    [s0, s1, ..., sN],       # array, str | None
     }
 
 ``value`` and ``value_text`` are a per-channel split, not a per-sample one: a
@@ -20,14 +28,31 @@ string/bytes channel (including CAN signals resolved through a DBC ``VAL_``
 value table, which decode to ``'D'``, ``'P'``, ``'R'``, ...) does the reverse.
 Both keys are always present. Before the split every sample shared one
 ``value`` column, so a single parquet file holding both kinds made PyArrow
-infer ``double`` from the leading rows and then raise on the first string -
-which is exactly what happens now that the table partitions on ``upload_id``
-(one file per upload) instead of on ``channel`` (one file per signal).
+infer ``double`` from the leading rows and then raise on the first string.
+
+**Naming trap**: ``channel`` is the *signal* name (``ACCMode``) and
+``channel_name`` is the *CAN bus* name (``powertrain_hs_can1``). They are not
+variants of each other. The pair mirrors the reference ``can_signals_v13``
+table, where ``channel_name`` is likewise the bus and ``signal`` is the signal;
+our column kept the older name ``channel`` for the signal so existing queries
+against this pipeline keep working.
 
 ``upload_id`` is the pipeline-wide unique key minted by mf4-to-blob
 (``metadata.make_upload_id``: ``<safe_filename_stem>-<sha256(filename+time)[:12]>``).
 It is repeated onto every expanded row so the Iceberg table carries a
 queryable per-upload key that can later be joined to Test Manager records.
+
+The provenance scalars (``platform``, ``device``, ``route``, ``segment``,
+``dcm_config_id``) come from the ``<common_properties>`` block of the MF4's own
+HD comment; ``channel_name`` / ``frame_name`` / ``sender_node`` come from the
+DBC embedded in the same file. Every one of them is the literal string
+``"unknown"`` when unavailable - **never null**. Two independent failure modes
+make that mandatory: PyArrow infers a null-typed column from an all-``None``
+batch and fails the parquet write, and the pinned sink groups partitions with
+pandas' default ``dropna=True``, which makes rows with a null partition value
+vanish silently. ``.get(..., "unknown")`` below repeats the guarantee for
+messages produced by an older decoder that ``AUTO_OFFSET_RESET=earliest``
+replays.
 
 The Kafka message key is the channel name (matches the in-payload
 ``channel`` scalar). Multi-group channels emit qualified keys
@@ -96,9 +121,19 @@ def _positive_int(env_var: str, default: str) -> int:
 # mode for a data-shape problem in a single row.
 _coerced_rows = 0
 
-# Log the first coercion, then one line per this many, so a systematically
-# mis-typed channel is visible without flooding the log at 1000 rows/batch.
-_COERCE_LOG_EVERY = 1000
+# Channels already warned about in the current flush window. Coercion is a
+# per-channel property (a channel is either systematically mis-typed or it is
+# not), so one line per channel per flush says everything a rate-limited
+# every-Nth-row line said, at a tiny fraction of the volume: the previous
+# "every 1000 rows" rule reached 31k+ lines on a single file. The set is
+# cleared by _FlushScopedWarningSink.write() so a channel that stays broken
+# still reports once per flush rather than once per process lifetime.
+_coerce_warned_channels: set[str] = set()
+
+# Value used for any provenance/enrichment scalar an older message lacks. Must
+# match the decoder's provenance.UNKNOWN: these columns are Hive partition keys
+# and must never be null. See the module docstring.
+UNKNOWN = "unknown"
 
 
 def _coerce_value(raw):
@@ -134,28 +169,40 @@ def _coerce_value(raw):
 def _expand_columnar(value):
     """Expand a per-channel batched message into N per-row dicts.
 
-    Scalars (file_name, upload_id, channel, unit) are repeated; arrays
-    (ts_ms, value, value_text) are indexed.
+    Scalars (file_name, upload_id, the provenance block, channel, unit and the
+    DBC-derived block) are repeated; arrays (ts_ms, value, value_text) are
+    indexed.
 
     Every yielded row carries *both* ``value`` and ``value_text``, one of them
     ``None``. A row that omitted a key would make the column set vary between
     rows of the same parquet file, which is the same class of unstable-schema
     bug as the mixed-type ``value`` column this split fixes.
 
-    ``upload_id`` and ``value_text`` are read defensively with ``.get()``:
-    messages produced by an older decoder are already on the topic and
-    ``AUTO_OFFSET_RESET=earliest`` replays them. They have no ``value_text``
-    key at all, so it defaults to an all-null column and those rows write
-    cleanly without a topic purge. A ``value_text`` array of the wrong length
-    is discarded for the same reason - a malformed message must not raise.
+    Everything except ``ts_ms``/``value``/``channel``/``unit``/``file_name`` is
+    read defensively with ``.get()``: messages produced by an older decoder are
+    already on the topic and ``AUTO_OFFSET_RESET=earliest`` replays them. They
+    carry no provenance keys at all, so those default to ``"unknown"`` and the
+    rows write cleanly - and, critically, still land in a real Hive partition
+    instead of being dropped by ``groupby(dropna=True)``. ``value_text``
+    defaults to an all-null column for the same reason; an array of the wrong
+    length is discarded rather than raising, because a malformed message must
+    not stall the checkpoint.
     """
     global _coerced_rows
 
     n = len(value["ts_ms"])
     file_name = value["file_name"]
-    upload_id = value.get("upload_id")
+    upload_id = value.get("upload_id") or UNKNOWN
+    platform = value.get("platform") or UNKNOWN
+    device = value.get("device") or UNKNOWN
+    route = value.get("route") or UNKNOWN
+    segment = value.get("segment") or UNKNOWN
+    dcm_config_id = value.get("dcm_config_id") or UNKNOWN
     channel = value["channel"]
     unit = value["unit"]
+    channel_name = value.get("channel_name") or UNKNOWN
+    frame_name = value.get("frame_name") or UNKNOWN
+    sender_node = value.get("sender_node") or UNKNOWN
     ts_arr = value["ts_ms"]
     val_arr = value["value"]
 
@@ -174,31 +221,87 @@ def _expand_columnar(value):
             # fallback for rows that have nowhere else to put the value.
             if text is None:
                 text = coerced_text
-            if _coerced_rows == 1 or _coerced_rows % _COERCE_LOG_EVERY == 0:
+            if channel not in _coerce_warned_channels:
+                _coerce_warned_channels.add(channel)
                 logger.warning(
-                    "Coerced %d non-numeric 'value' sample(s) to null so far; "
-                    "latest channel=%s value=%r -> value_text=%r",
-                    _coerced_rows,
+                    "Coercing non-numeric 'value' samples to null on channel=%s "
+                    "(first this flush; example %r -> value_text=%r); "
+                    "%d row(s) coerced since start",
                     channel,
                     raw,
                     coerced_text,
+                    _coerced_rows,
                 )
 
         yield {
-            "file_name":  file_name,
-            "upload_id":  upload_id,
-            "channel":    channel,
-            "unit":       unit,
-            "ts_ms":      ts_arr[i],
-            "value":      num,
-            "value_text": None if text is None else str(text),
+            "file_name":     file_name,
+            "upload_id":     upload_id,
+            "platform":      platform,
+            "device":        device,
+            "route":         route,
+            "segment":       segment,
+            "dcm_config_id": dcm_config_id,
+            "channel":       channel,
+            "unit":          unit,
+            "channel_name":  channel_name,
+            "frame_name":    frame_name,
+            "sender_node":   sender_node,
+            "ts_ms":         ts_arr[i],
+            "value":         num,
+            "value_text":    None if text is None else str(text),
         }
 
 
-def parse_hive_columns(columns_str: str) -> list:
+# Marks a *virtual* partition in the reference `can_signals_v13` configuration:
+# a column recorded for query pruning without creating a directory level.
+VIRTUAL_PARTITION_PREFIX = "~"
+
+# Whether the installed QuixTSDataLakeSink understands VIRTUAL_PARTITION_PREFIX.
+#
+# It does NOT, on the version this app pins
+# (quixstreams[quixdatalake] @ git+...@quixlakesink-fix-v3). Verified by reading
+# that exact ref: `hive_columns` is copied verbatim into `partition_columns`,
+# handed straight to `df.groupby(partition_columns)` and interpolated into the
+# path as f"{col}={val}". There is no strip, no startswith("~"), and the string
+# "virtual" does not occur in the file. Passing "~channel" through would
+# therefore either raise KeyError in groupby (no such column exists) or, worse,
+# write a literal `~channel=...` directory - so it is filtered out here instead.
+#
+# Flip this to True only after confirming the newly pinned build actually
+# implements virtual partitions.
+VIRTUAL_PARTITIONS_SUPPORTED = False
+
+
+def parse_hive_columns(columns_str: str) -> tuple[list, list]:
+    """Split a HIVE_COLUMNS string into (physical, virtual) partition columns.
+
+    ``"platform,device,route,~channel"`` -> ``(["platform", "device", "route"],
+    ["channel"])``.
+
+    Only the physical list is given to the sink. Virtual columns are stripped of
+    their prefix and returned separately so the caller can say out loud that
+    they are being ignored; they remain ordinary queryable columns in the
+    parquet data, which is exactly what a virtual partition degrades to when the
+    writer cannot record it. The one outcome that must never happen is a literal
+    ``~``-prefixed directory in blob storage, since no reader in the stack maps
+    that back to anything.
+    """
     if not columns_str or columns_str.strip() == "":
-        return []
-    return [col.strip() for col in columns_str.split(",") if col.strip()]
+        return [], []
+
+    physical, virtual = [], []
+    for raw in columns_str.split(","):
+        col = raw.strip()
+        if not col:
+            continue
+        if col.startswith(VIRTUAL_PARTITION_PREFIX):
+            name = col[len(VIRTUAL_PARTITION_PREFIX):].strip()
+            if name:
+                virtual.append(name)
+        else:
+            physical.append(col)
+
+    return physical, virtual
 
 
 # Initialize Quix Streams Application. `broker_address` is read from
@@ -213,7 +316,24 @@ app = Application(
 )
 
 # Parse configuration
-hive_columns = parse_hive_columns(os.getenv("HIVE_COLUMNS", ""))
+raw_hive_columns = os.getenv("HIVE_COLUMNS", "")
+hive_columns, virtual_hive_columns = parse_hive_columns(raw_hive_columns)
+if virtual_hive_columns:
+    if VIRTUAL_PARTITIONS_SUPPORTED:
+        # Hand the sink the original, prefix-intact spelling: the build that
+        # implements virtual partitions is the build that parses the prefix.
+        hive_columns = [c.strip() for c in raw_hive_columns.split(",") if c.strip()]
+    else:
+        logger.warning(
+            "HIVE_COLUMNS requests virtual partition(s) %s, but the installed "
+            "QuixTSDataLakeSink does not implement the '%s' prefix. They are "
+            "being written as ordinary (unpartitioned) columns; only %s "
+            "partition the table on disk. Queries filtering on the virtual "
+            "columns still work, they just scan more files.",
+            virtual_hive_columns,
+            VIRTUAL_PARTITION_PREFIX,
+            hive_columns,
+        )
 auto_discover = os.getenv("AUTO_DISCOVER", "true").lower() == "true"
 table_name = os.getenv("TABLE_NAME") or os.environ["input"]
 if not _TABLE_NAME_PATTERN.match(table_name):
@@ -256,7 +376,28 @@ if sort_column:
 # the workspace, with CATALOG_URL kept as a legacy fallback. The auth token is
 # injected *only* under the Quix name - it routes through the secrets-bag path
 # the platform uses for the Catalog's own credentials - so it has no fallback.
-blob_sink = QuixTSDataLakeSink(
+class _FlushScopedWarningSink(QuixTSDataLakeSink):
+    """QuixTSDataLakeSink that scopes the coercion warnings to one flush.
+
+    ``_expand_columnar`` warns the first time it coerces a value on a given
+    channel and then stays quiet for that channel. Without a reset that would
+    be once per process lifetime, which hides a channel that starts
+    misbehaving later; with a reset on every flush it is once per channel per
+    written batch. ``BatchingSink.write`` is the flush boundary, so the reset
+    lives here rather than on a timer.
+
+    The reset is in a ``finally`` so a failed write - the case where the log is
+    most worth reading - still re-arms the warnings for the retry.
+    """
+
+    def write(self, batch):
+        try:
+            return super().write(batch)
+        finally:
+            _coerce_warned_channels.clear()
+
+
+blob_sink = _FlushScopedWarningSink(
     s3_prefix=TIMESERIES_PREFIX,
     table_name=table_name,
     workspace_id=workspace_id,
@@ -292,6 +433,10 @@ logger.info("Starting MF4 DataLake Sink")
 logger.info(f"  Input topic: {os.environ['input']}")
 logger.info(f"  Storage path: {storage_path}/{table_name}")
 logger.info(f"  Partitioning: {hive_columns if hive_columns else 'none'}")
+logger.info(
+    f"  Virtual (unsupported, plain columns): "
+    f"{virtual_hive_columns if virtual_hive_columns else 'none'}"
+)
 
 if __name__ == "__main__":
     app.run()

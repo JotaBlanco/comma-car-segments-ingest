@@ -12,6 +12,16 @@ from asammdf import MDF
 from quixportal.storage import get_filesystem
 from quixstreams import Application
 
+from provenance import (
+    UNKNOWN,
+    UNKNOWN_FRAME,
+    build_group_bus_names,
+    build_provenance,
+    build_signal_frame_map,
+    parse_bus_channels,
+    parse_header_properties,
+)
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("mf4-decoder")
 
@@ -136,17 +146,44 @@ def _is_numeric_dtype(dtype) -> bool:
     )
 
 
-def _produce_batch(file_name, upload_id, channel, unit, ts_buf, val_buf, text_buf):
+def _record_base(file_scalars, channel, unit, channel_name, frame_name, sender_node):
+    """Every scalar one channel's batches repeat, as a single flat dict.
+
+    ``file_scalars`` is the per-file half (``file_name``, ``upload_id`` and the
+    header provenance); the rest is the per-channel identity. Insertion order
+    here is the JSON wire order and therefore the sink's column order, so
+    provenance stays first and the value arrays are appended last by
+    ``_produce_batch``.
+
+    Every value is a non-empty string by construction - see
+    ``provenance.UNKNOWN``. Nothing in this dict may be ``None``: these fields
+    become Hive partition keys downstream, and the pinned sink drops rows whose
+    partition value is null.
+    """
+    base = dict(file_scalars)
+    base["channel"] = channel
+    base["unit"] = unit
+    base["channel_name"] = channel_name
+    base["frame_name"] = frame_name
+    base["sender_node"] = sender_node
+    return base
+
+
+def _produce_batch(record_base, ts_buf, val_buf, text_buf):
     """Serialize a per-channel scalar+array payload as one Kafka message and produce it.
+
+    ``record_base`` carries every scalar the batch repeats (see
+    ``_record_base``). Threading it as one dict instead of a dozen positional
+    arguments is deliberate: it makes the two emit paths - the vectorized
+    numeric one and the object/bytes fallback - structurally incapable of
+    drifting apart, because both hand the *same* object through. Adding a
+    column to one path and forgetting the other is exactly how ``upload_id``
+    could have been silently dropped for string channels.
 
     The Kafka key is the emitted ``channel`` name (matches the ``channel``
     field in the payload). For multi-group channels this is the qualified
     form (``"<name>#g<group_idx>"``) on second-and-later occurrences so each
     distinct stream gets its own key.
-
-    ``upload_id`` is the pipeline-wide unique key minted by mf4-to-blob and
-    carried on the ``id`` field of the ``mf4_metadata`` message. It is
-    repeated on every batch so the sink can write it onto every lake row.
 
     ``value`` and ``value_text`` are *both* always present and always the same
     length as ``ts_ms``. One of the two is an all-``None`` list, chosen per
@@ -155,15 +192,12 @@ def _produce_batch(file_name, upload_id, channel, unit, ts_buf, val_buf, text_bu
     prevent - so callers pass an explicit ``[None] * len(ts_buf)`` rather than
     dropping the unused column.
     """
-    payload = {
-        "file_name":  file_name,
-        "upload_id":  upload_id,
-        "channel":    channel,
-        "unit":       unit,
-        "ts_ms":      ts_buf,
-        "value":      val_buf,
-        "value_text": text_buf,
-    }
+    payload = dict(record_base)
+    payload["ts_ms"] = ts_buf
+    payload["value"] = val_buf
+    payload["value_text"] = text_buf
+
+    channel = record_base["channel"]
     try:
         msg = output_topic.serialize(key=channel, value=payload)
         producer.produce(
@@ -174,13 +208,12 @@ def _produce_batch(file_name, upload_id, channel, unit, ts_buf, val_buf, text_bu
     except Exception as e:
         logger.error(
             "Produce failed for batch (%s/%s, %d records): %s",
-            file_name, channel, len(ts_buf), e,
+            record_base.get("file_name"), channel, len(ts_buf), e,
         )
 
 
 def _emit_channel(
-    filename, upload_id, emit_channel, unit, timestamps, samples,
-    start_ms, total_msgs, total_samples,
+    record_base, timestamps, samples, start_ms, total_msgs, total_samples,
 ):
     """Emit one channel's samples as BATCH_RECORDS-sized Kafka messages.
 
@@ -195,6 +228,11 @@ def _emit_channel(
     the samples' dtype: the numeric fast path fills ``value`` (float) and nulls
     ``value_text``, the object/bytes path fills ``value_text`` (str) and nulls
     ``value``. Both paths emit both keys.
+
+    ``record_base`` is passed through untouched by both paths, so every scalar
+    column (``upload_id``, ``platform``, ``device``, ``route``, ``segment``,
+    ``dcm_config_id``, ``channel_name``, ``frame_name``, ``sender_node``)
+    reaches numeric and string channels alike.
 
     Returns updated (total_msgs, total_samples).
     """
@@ -229,7 +267,7 @@ def _emit_channel(
         for offset in range(0, n, BATCH_RECORDS):
             end = min(offset + BATCH_RECORDS, n)
             _produce_batch(
-                filename, upload_id, emit_channel, unit,
+                record_base,
                 ts_list[offset:end], val_list[offset:end],
                 [None] * (end - offset),
             )
@@ -264,8 +302,7 @@ def _emit_channel(
 
             if len(ts_buf) >= BATCH_RECORDS:
                 _produce_batch(
-                    filename, upload_id, emit_channel, unit,
-                    ts_buf, [None] * len(ts_buf), text_buf,
+                    record_base, ts_buf, [None] * len(ts_buf), text_buf,
                 )
                 ts_buf, text_buf = [], []
                 total_msgs += 1
@@ -274,8 +311,7 @@ def _emit_channel(
 
     if ts_buf:
         _produce_batch(
-            filename, upload_id, emit_channel, unit,
-            ts_buf, [None] * len(ts_buf), text_buf,
+            record_base, ts_buf, [None] * len(ts_buf), text_buf,
         )
         total_msgs += 1
 
@@ -398,13 +434,20 @@ def _extract_dbc_files(mdf, attachment_indices, target_dir):
 def _decode_can_bus_logging(mdf, target_dir):
     """Decode raw CAN frames into named signals using the file's own DBC.
 
-    Returns the decoded ``MDF`` - one channel group per CAN message, one channel
-    per signal - or ``None`` when no usable database is available. ``None`` is
-    not an error: the caller drops the raw frame channels and logs the drop.
+    Returns ``(decoded_mdf, dbc_paths)``. ``decoded_mdf`` is one channel group
+    per CAN message with one channel per signal, or ``None`` when no usable
+    database is available - which is not an error: the caller drops the raw
+    frame channels and logs the drop.
+
+    ``dbc_paths`` is returned alongside because the same on-disk databases are
+    read a second time, by ``provenance.build_signal_frame_map``, to recover the
+    frame and transmitting ECU of each signal. Those two facts live only in the
+    DBC - the MF4 header has no trace of them - and re-extracting the
+    attachment just to read them again would be wasted work.
     """
     if DBC_SOURCE == "none":
         logger.warning("DBC_SOURCE=none - CAN bus logging will not be decoded")
-        return None
+        return None, []
     if DBC_SOURCE != "embedded":
         logger.warning("Unknown DBC_SOURCE=%r - treating it as 'embedded'", DBC_SOURCE)
 
@@ -415,28 +458,29 @@ def _decode_can_bus_logging(mdf, target_dir):
             "(%d attachment(s) present) - no signals can be decoded",
             len(getattr(mdf, "attachments", None) or ()),
         )
-        return None
+        return None, []
 
     dbc_paths = _extract_dbc_files(mdf, attachment_indices, target_dir)
     if not dbc_paths:
         logger.warning("No embedded CAN database could be extracted - nothing to decode")
-        return None
+        return None, []
 
     # Bus channel 0 means "applies to any bus channel". The embedded database is
     # by definition the one that describes this file's buses, so there is no
     # per-channel mapping to guess at.
     database_files = {"CAN": [(str(path), 0) for path in dbc_paths]}
     try:
-        return mdf.extract_bus_logging(database_files=database_files)
+        return mdf.extract_bus_logging(database_files=database_files), dbc_paths
     except Exception:
         logger.exception(
             "extract_bus_logging failed with %d embedded database(s)", len(dbc_paths)
         )
-        return None
+        return None, dbc_paths
 
 
 def _emit_signals(
-    signals, filename, upload_id, start_ms, seen_names, total_msgs, total_samples,
+    signals, file_scalars, start_ms, seen_names, total_msgs, total_samples,
+    signal_frame_map=None, bus_names=None,
 ):
     """Emit an iterable of asammdf ``Signal`` objects.
 
@@ -447,12 +491,20 @@ def _emit_signals(
     stream gets a distinct Kafka key. ``seen_names`` is shared across every call
     made for one file, so decoded and raw streams cannot collide.
 
-    ``upload_id`` is passed straight through to ``_emit_channel``, which puts it
-    on every batch of both the numeric and the object/bytes emit path. So is
-    the ``value`` / ``value_text`` split: ``_emit_channel`` routes each signal
-    to one of the two columns from its dtype, so signals decoded from a DBC
-    ``VAL_`` value table (which come back as strings) never share a column with
-    numeric signals.
+    ``file_scalars`` (``file_name``, ``upload_id`` and the header provenance) is
+    merged with the per-channel identity into one ``record_base`` that
+    ``_emit_channel`` puts on every batch of both the numeric and the
+    object/bytes emit path. So is the ``value`` / ``value_text`` split:
+    ``_emit_channel`` routes each signal to one of the two columns from its
+    dtype, so signals decoded from a DBC ``VAL_`` value table (which come back
+    as strings) never share a column with numeric signals.
+
+    ``signal_frame_map`` and ``bus_names`` are supplied only for the decoded-CAN
+    pass. The lookup is by the signal's **bare** name, never by the emitted
+    channel name, because the latter may carry a ``#g<idx>`` disambiguation
+    suffix that no DBC knows about. Ordinary (non bus-logging) channels pass
+    neither and fall back to ``UNKNOWN`` for all three DBC-derived columns -
+    they have no CAN frame, no transmitting ECU and no bus.
 
     Returns (total_msgs, total_samples, channels_emitted).
     """
@@ -479,8 +531,21 @@ def _emit_signals(
         if not isinstance(unit, str):
             unit = str(unit)
 
+        # Bare name, not emit_channel: a "#g<idx>"-qualified name is our own
+        # invention and would never match a DBC entry.
+        frame_name, sender_node = (
+            signal_frame_map.get(name, UNKNOWN_FRAME)
+            if signal_frame_map
+            else UNKNOWN_FRAME
+        )
+        channel_name = bus_names.get(group_idx, UNKNOWN) if bus_names else UNKNOWN
+
+        record_base = _record_base(
+            file_scalars, emit_channel, unit, channel_name, frame_name, sender_node,
+        )
+
         total_msgs, total_samples = _emit_channel(
-            filename, upload_id, emit_channel, unit, sig.timestamps, samples,
+            record_base, sig.timestamps, samples,
             start_ms, total_msgs, total_samples,
         )
         emitted += 1
@@ -540,6 +605,39 @@ def process(metadata: dict):
         t_phase = time.monotonic()
         mdf = MDF(tmp_path)
         start_ms = int(mdf.header.start_time.timestamp() * 1000)
+
+        # Provenance comes out of the file's own HD comment, not out of the
+        # upload metadata: an MF4 written by rlog-to-mf4 already states which
+        # platform / device / route / segment it came from and which DBC
+        # revision (dcm.config_id) is authoritative for decoding it. Files
+        # uploaded straight from a browser have none of these keys and get the
+        # literal "unknown" for each - never None, because these are Hive
+        # partition keys downstream.
+        header_properties = parse_header_properties(mdf)
+        provenance_fields = build_provenance(header_properties)
+        bus_channels = parse_bus_channels(header_properties)
+
+        # upload_id is defaulted the same way for the same reason. It stopped
+        # being the sole Hive partition when the table moved to
+        # platform/device/route, but an all-null column still makes PyArrow
+        # infer a null type and fail the parquet write.
+        file_scalars = {
+            "file_name": filename,
+            "upload_id": upload_id or UNKNOWN,
+            **provenance_fields,
+        }
+
+        logger.info(
+            "Provenance for %s: platform=%s device=%s route=%s segment=%s "
+            "dcm_config_id=%s bus_channels=%s",
+            filename,
+            provenance_fields["platform"],
+            provenance_fields["device"],
+            provenance_fields["route"],
+            provenance_fields["segment"],
+            provenance_fields["dcm_config_id"],
+            bus_channels or "none",
+        )
         mdf_open_ms = int((time.monotonic() - t_phase) * 1000)
 
         # --- Phase: CAN bus-logging detection + embedded-DBC decode -----
@@ -551,6 +649,10 @@ def process(metadata: dict):
         bus_groups = _find_can_bus_logging_groups(mdf)
         raw_bus_channels = 0
         raw_bus_frames = 0
+        # signal name -> (frame_name, sender_node), and decoded group index ->
+        # bus name. Empty for ordinary MF4s, which have neither.
+        signal_frame_map: dict[str, tuple[str, str]] = {}
+        bus_names: dict[int, str] = {}
 
         if bus_groups:
             raw_bus_channels, raw_bus_frames = _bus_group_totals(mdf, bus_groups)
@@ -560,7 +662,14 @@ def process(metadata: dict):
                 filename, len(bus_groups), raw_bus_channels, raw_bus_frames,
             )
             dbc_dir = pathlib.Path(tempfile.mkdtemp(prefix="mf4-dbc-"))
-            decoded = _decode_can_bus_logging(mdf, dbc_dir)
+            decoded, dbc_paths = _decode_can_bus_logging(mdf, dbc_dir)
+
+            if decoded is not None:
+                # Second read of the same on-disk DBCs: asammdf uses them to
+                # decode samples, canmatrix to tell us which frame each signal
+                # belongs to and which ECU transmits it.
+                signal_frame_map = build_signal_frame_map(dbc_paths)
+                bus_names = build_group_bus_names(decoded, bus_channels)
 
         dbc_ms = int((time.monotonic() - t_phase) * 1000)
 
@@ -585,8 +694,10 @@ def process(metadata: dict):
             # already rides on every batch as ts_ms.
             total_msgs, total_samples, decoded_signals = _emit_signals(
                 decoded.iter_channels(skip_master=True),
-                filename, upload_id, start_ms, seen_names,
+                file_scalars, start_ms, seen_names,
                 total_msgs, total_samples,
+                signal_frame_map=signal_frame_map,
+                bus_names=bus_names,
             )
             logger.info(
                 "Decoded %d CAN signal(s) across %d message group(s) "
@@ -616,7 +727,7 @@ def process(metadata: dict):
                 for sig in mdf.iter_channels(skip_master=True)
                 if getattr(sig, "group_index", -1) not in bus_groups
             ),
-            filename, upload_id, start_ms, seen_names,
+            file_scalars, start_ms, seen_names,
             total_msgs, total_samples,
         )
 
@@ -651,8 +762,14 @@ def process(metadata: dict):
             if not isinstance(unit, str):
                 unit = str(unit)
 
+            # Masters belong to ordinary groups only (bus-logging groups are
+            # skipped above), so they have no CAN bus, frame or sender.
+            record_base = _record_base(
+                file_scalars, emit_channel, unit, UNKNOWN, UNKNOWN, UNKNOWN,
+            )
+
             total_msgs, total_samples = _emit_channel(
-                filename, upload_id, emit_channel, unit, master_sig.timestamps, samples,
+                record_base, master_sig.timestamps, samples,
                 start_ms, total_msgs, total_samples,
             )
         decode_ms = int((time.monotonic() - t_phase) * 1000)

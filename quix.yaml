@@ -55,9 +55,25 @@ deployments:
         memory: 2000
     variables:
       - name: TABLE_NAME
-        value: mdf_file_test_v1
+        value: mf4_signals_v2
       - name: CONSUMER_GROUP
-        value: mdf_file_test_lake_v1.1
+        value: mf4_signals_v2_lake_v1
+      - name: HIVE_COLUMNS
+        inputType: FreeText
+        description: Physical Hive partition columns
+        value: platform,device,route
+      - name: BATCH_SIZE
+        inputType: FreeText
+        description: Input messages per checkpoint
+        value: 2000
+      - name: TIMESTAMP_COLUMN
+        inputType: FreeText
+        description: Column used to derive time partitions
+        value: ts_ms
+      - name: AUTO_OFFSET_RESET
+        inputType: FreeText
+        description: Where to start consuming if no offset exists
+        value: earliest
     blobStorage:
       bind: true
   - name: Test Manager - Backend
@@ -92,7 +108,7 @@ deployments:
         description: Query Builder UI used for the Measurements link. Optional - the endpoint returns 501 when unset.
       - name: DATA_LAKE_V2_TOPIC_NAME
         description: Lakehouse table queried for test measurements. Points at the table this environment's MF4 DataLake Sink writes. Optional - the endpoint returns 501 when unset.
-        value: mdf_file_test_v1
+        value: mf4_signals_v2
       - name: ANALYTICS_URL
         description: Marimo notebook UI used for the Analytics link. Optional - the endpoint returns 501 when unset.
     blobStorage:

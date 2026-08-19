@@ -9,13 +9,19 @@ variables:
   - name: TABLE_NAME
     inputType: FreeText
     multiline: false
-    description: Iceberg table name; defaults to topic name if unset
-    defaultValue: mdf_file_test
+    description: Iceberg table name; defaults to topic name if unset. A new name is required whenever HIVE_COLUMNS changes - the sink validates the partition spec of an existing table at setup() and refuses a mismatch.
+    defaultValue: mf4_signals_v2
   - name: HIVE_COLUMNS
     inputType: FreeText
     multiline: false
-    description: Comma-separated list of columns for Hive partitioning. Include year/month/day/hour to extract from TIMESTAMP_COLUMN.
-    defaultValue: upload_id
+    description: >-
+      Comma-separated columns for Hive partitioning. Include year/month/day/hour
+      to extract them from TIMESTAMP_COLUMN. A leading '~' marks a virtual
+      partition (recorded for pruning, no directory level) as used by
+      can_signals_v13 - the pinned QuixStreams build does NOT implement it, so
+      '~' columns are logged and demoted to ordinary columns rather than
+      becoming literal '~name=' directories.
+    defaultValue: platform,device,route
   - name: TIMESTAMP_COLUMN
     inputType: FreeText
     description: Column containing timestamp values to extract year/month/day/hour from
@@ -31,7 +37,7 @@ variables:
   - name: BATCH_SIZE
     inputType: FreeText
     description: Number of messages to batch before writing to storage
-    defaultValue: 1000
+    defaultValue: 2000
   - name: COMMIT_INTERVAL
     inputType: FreeText
     description: Kafka commit interval in seconds
@@ -46,8 +52,8 @@ variables:
     defaultValue: json
   - name: CONSUMER_GROUP
     inputType: FreeText
-    description: Kafka consumer group name
-    defaultValue: mdf_file_test_lake_v2
+    description: Kafka consumer group name. Must change together with TABLE_NAME so AUTO_OFFSET_RESET=earliest replays the topic into the new table.
+    defaultValue: mf4_signals_v2_lake_v1
   - name: AUTO_OFFSET_RESET
     inputType: Options
     description: Where to start consuming if no offset exists
@@ -58,8 +64,8 @@ variables:
     defaultValue: INFO
   - name: SORT_COLUMN
     inputType: FreeText
-    description: Optional column to sort rows by inside each written Parquet file. Ignored if the installed QuixStreams does not support it.
-    defaultValue: ""
+    description: Optional column to sort rows by inside each written Parquet file. Ignored (with a warning) if the installed QuixStreams does not support it - the pinned quixlakesink-fix-v3 build does not.
+    defaultValue: ts_ms
   - name: MAX_WRITE_WORKERS
     inputType: FreeText
     description: How many files can be written in parallel to storage at once (based on partitioning + batch size)
