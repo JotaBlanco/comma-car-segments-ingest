@@ -550,26 +550,43 @@ def acc_sys_ti_016(signals_tc016):
 #  Roll-up -- one row per criterion, traceable tc_id -> impl_id -> requirement.
 # =============================================================================
 
-@canvas.cell(position=(1494, -187), size=(624, 387), code_height=200)
+@canvas.cell(position=(1494, -187), size=(827, 504), code_height=200)
 def verdict_summary(acc_sys_ti_011, acc_sys_ti_014, acc_sys_ti_016):
+    import pandas as pd
+
+    results = (acc_sys_ti_011, acc_sys_ti_014, acc_sys_ti_016)
+
     rows = []
-    for result in (acc_sys_ti_011, acc_sys_ti_014, acc_sys_ti_016):
-        for criterion in result["criteria"]:
-            rows.append(dict(
-                tc_id=result["tc_id"],
-                impl_id=result["impl_id"],
-                requirement_id=result["requirement_id"],
-                criterion_id=criterion["criterion_id"],
-                signal=criterion["signal"],
-                rule=criterion["rule"],
-                measured=round(criterion["measured"], 4),
-                bound=criterion["bound"],
-                unit=criterion["unit"],
-                margin=round(criterion["margin"], 4),
-                n_samples=criterion["n_samples"],
-                criterion_verdict=criterion["verdict"],
-                test_case_verdict=result["verdict"],
-            ))
+    for result in results:
+        tc_id = result.get("tc_id")
+        test_case_verdict = result.get("verdict")
+        # criterion-level fields follow the "C<n>_verdict" / "C<n>_<metric>" convention
+        # used by acc_sys_ti_014 / acc_sys_ti_016; older cells (acc_sys_ti_011) don't
+        # expose a per-criterion verdict, so those fall back to a single summary row.
+        criterion_ids = sorted({
+            key[: -len("_verdict")] for key in result
+            if key.endswith("_verdict") and key != "verdict"
+        })
+        if criterion_ids:
+            for cid in criterion_ids:
+                row = dict(
+                    tc_id=tc_id,
+                    criterion_id=cid,
+                    criterion_verdict=result.get(f"{cid}_verdict"),
+                    test_case_verdict=test_case_verdict,
+                )
+                for key, value in result.items():
+                    if key.startswith(cid + "_") and not key.endswith("_verdict"):
+                        row[key[len(cid) + 1:]] = value
+                rows.append(row)
+        else:
+            row = dict(tc_id=tc_id, criterion_id=None, criterion_verdict=None,
+                        test_case_verdict=test_case_verdict)
+            for key, value in result.items():
+                if key not in ("tc_id", "verdict"):
+                    row[key] = value
+            rows.append(row)
+
     return pd.DataFrame(rows)
 
 
