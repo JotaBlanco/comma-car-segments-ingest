@@ -60,7 +60,7 @@ deployments:
       - name: TABLE_NAME
         inputType: FreeText
         description: New table - a partition-spec change is rejected on an existing one. mf4_signals_v2 is left untouched.
-        value: mf4_signals_v3
+        value: mf4_signals_v4
       - name: HIVE_COLUMNS
         inputType: FreeText
         description: "platform/device/route are physical key=value dirs; ~ columns are virtual (catalog-indexed, no dirs). Mirrors can_signals_v13."
@@ -80,7 +80,7 @@ deployments:
       - name: CONSUMER_GROUP
         inputType: FreeText
         description: Must change with TABLE_NAME so AUTO_OFFSET_RESET=earliest replays mf4-to-msg into the new table.
-        value: mf4_signals_v3_lake_v1
+        value: mf4_signals_v4_lake_v1
       - name: AUTO_OFFSET_RESET
         inputType: FreeText
         description: Where to start consuming if no offset exists
@@ -119,7 +119,7 @@ deployments:
         description: Query Builder UI used for the Measurements link. Optional - the endpoint returns 501 when unset.
       - name: DATA_LAKE_V2_TOPIC_NAME
         description: Lakehouse table queried for test measurements. Points at the table this environment's MF4 DataLake Sink writes. Optional - the endpoint returns 501 when unset.
-        value: mf4_signals_v3
+        value: mf4_signals_v4
       - name: ANALYTICS_URL
         description: Marimo notebook UI used for the Analytics link. Optional - the endpoint returns 501 when unset.
     blobStorage:
