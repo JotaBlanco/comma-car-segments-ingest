@@ -76,17 +76,18 @@ def can_signals_v13_4(selection):
     """)
 
 
-@canvas.ai(position=(2033, -3891), size=(690, 666), code_height=200, viz={'type': 'table', 'x': 'timestamp', 'y': ['EngineRPM']})
+@canvas.ai(position=(2033, -3891), size=(690, 666), code_height=200, viz={'type': 'line', 'x': 'timestamp', 'y': ['EngineRPM']})
 def ai_3(can_signals_v13_4):
-    """Plot signal EngineRPM over time."""
-    # ql-ai: generated from prompt 50dd940da2feff25
+    """Plot signal EngineRPM over time. Filter values where RPM is 0"""
+    # ql-ai: generated from prompt 1568dec216fe88ca
     import pandas as pd
 
-    df = can_signals_v13_4[can_signals_v13_4["signal"] == "EngineRPM"].copy()
-    df["timestamp"] = pd.to_datetime(df["t_abs_ms"], unit="ms")
-    df = df[["timestamp", "value"]].sort_values("timestamp").rename(columns={"value": "EngineRPM"})
+    df = can_signals_v13_4[can_signals_v13_4['signal'] == 'EngineRPM'].copy()
+    df = df[df['value'] != 0]
+    df['timestamp'] = pd.to_datetime(df['ts_ms'], unit='ms')
+    df = df.sort_values('timestamp')[['timestamp', 'value']].rename(columns={'value': 'EngineRPM'})
 
-    ql.viz(df, type="waveform", x="timestamp", y=["EngineRPM"])
+    ql.viz(df, type='line', x='timestamp', y=['EngineRPM'])
 
 
 @canvas.cell(position=(23, -3838), size=(682, 518), code_height=0)
