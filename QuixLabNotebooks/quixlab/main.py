@@ -80,7 +80,7 @@ def ai_3(can_signals_v13_4):
     """Plot channel powertrain_hs_can1 over time."""
 
 
-@canvas.ai(position=(200, -3843), size=(581, 538), code_height=200)
+@canvas.ai(position=(200, -3843), size=(577, 351), code_height=200)
 def ai_1():
     """Create a form with 3 dropdowns that cascade.
 
