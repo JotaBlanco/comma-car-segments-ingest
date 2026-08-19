@@ -10,8 +10,9 @@ import numpy as np
 import pandas as pd
 from asammdf import MDF
 from quixportal.storage import get_filesystem
-from quixstreams import Application
+from quixstreams import Application, State
 
+from idempotency import decode_identity, log_mode, mark_decoded, needs_decode
 from provenance import (
     UNKNOWN,
     UNKNOWN_FRAME,
@@ -64,7 +65,22 @@ def get_fs():
 
 
 
-app = Application(consumer_group="mf4-decoder-v3", auto_offset_reset="earliest")
+# consumer_group is a hard-coded constant on purpose. The decode-once State
+# store is backed by a changelog topic whose name embeds the group
+# (changelog__<group>--<topic>--<store>), so rotating the group abandons the
+# dedup state along with the offsets and the next run re-decodes every file
+# in mf4_metadata - which is how mf4_signals_v4 collected 5 copies of every
+# row. Keeping it out of app.yaml means the portal cannot rotate it.
+#
+# commit_every=1 checkpoints after each metadata message, i.e. after each
+# file, so the decoded marker becomes durable as soon as that file batches
+# are flushed rather than up to commit_interval later. That window is what
+# an OOM kill mid-decode used to exploit.
+app = Application(
+    consumer_group="mf4-decoder-v3",
+    auto_offset_reset="earliest",
+    commit_every=1,
+)
 input_topic = app.topic(os.environ["input"], value_deserializer="json")
 output_topic = app.topic(os.environ["output"], value_serializer="json")
 producer = app.get_producer()
@@ -559,7 +575,7 @@ def _emit_signals(
     return total_msgs, total_samples, emitted
 
 
-def process(metadata: dict):
+def process(metadata: dict, state: State):
     blob_path = metadata.get("blob_path")
     filename = metadata.get("filename")
     # Pipeline-wide unique key minted by mf4-to-blob (metadata.make_upload_id).
@@ -806,6 +822,17 @@ def process(metadata: dict):
                 elapsed_ms,
             )
 
+        # The file is decoded and every batch is flushed, so record the
+        # marker that turns a replay of this metadata message into a no-op
+        # instead of a second copy in the lake. Deliberately the last
+        # statement of the try: anything that raised above leaves the file
+        # unmarked and therefore retryable, so the marker is never more
+        # durable than the rows it vouches for. total_msgs == 0 is marked
+        # too - decoded-but-produced-nothing (no embedded DBC, no decodable
+        # channel) is a completed decode, and re-running it would download
+        # and decode the file again for the same empty result.
+        mark_decoded(state, metadata, samples=total_samples)
+
     except Exception:
         logger.exception(
             "Failed to process file %s (blob_path=%s)", filename, blob_path
@@ -822,5 +849,24 @@ def process(metadata: dict):
 
 
 sdf = app.dataframe(input_topic)
-sdf = sdf.update(process)
+
+# Re-key onto the file identity before the decode-once filter. QuixStreams
+# scopes State by the message key and mf4-to-blob keys mf4_metadata by
+# upload_id, so without this hop the store would answer the wrong question:
+# "have I seen this upload?" instead of "have I decoded these bytes?". The
+# same file uploaded twice would then occupy two stores and decode twice.
+# idempotency.py documents the identity chain and why sha256 beats upload_id.
+sdf = sdf.group_by(
+    decode_identity,
+    name="decode-identity",
+    key_serializer="string",
+    key_deserializer="string",
+)
+
+# Replayed metadata is dropped here, ahead of the blob download: a skip costs
+# one state read instead of a full re-decode and a duplicate copy in the lake.
+sdf = sdf.filter(needs_decode, stateful=True)
+sdf = sdf.update(process, stateful=True)
+
+log_mode()
 app.run()

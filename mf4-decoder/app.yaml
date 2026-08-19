@@ -32,6 +32,17 @@ variables:
       is not implemented. Bus-logging files that yield no decodable signals
       are dropped - raw frame fields are never written to the signals table.
     defaultValue: embedded
+  - name: FORCE_REDECODE
+    inputType: FreeText
+    description: >-
+      Escape hatch for the decode-once filter. "false" (the default) skips a
+      file that was already decoded, so a replayed mf4_metadata message is a
+      no-op instead of another full copy of that file in the lake. "true"
+      decodes every message again, duplicates included - use it only for a
+      deliberate re-decode and set it straight back. One file can be forced
+      on its own by putting force_redecode=true on its mf4_metadata message,
+      which needs no redeploy.
+    defaultValue: "false"
 dockerfile: dockerfile
 runEntryPoint: main.py
 defaultFile: main.py
