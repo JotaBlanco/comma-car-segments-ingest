@@ -59,7 +59,7 @@ class PassCriterion(BaseModel):
     rule: dict[str, Any] = Field(default_factory=dict)
     reduce: dict[str, Any] = Field(default_factory=dict)
     window: dict[str, Any] = Field(default_factory=dict)
-    tolerance: dict[str, Any] = Field(default_factory=dict)
+    tolerance: dict[str, Any] | None = Field(default_factory=dict)
     min_samples: int | None = None
     on_missing_signal: str | None = None
     resolved_signal: dict[str, Any] | None = Field(
