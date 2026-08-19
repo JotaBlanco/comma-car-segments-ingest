@@ -1,7 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { Bell, Search, User, X, ArrowLeft, LogOut } from "lucide-react"
+import { Bell, Search, User, X, ArrowLeft, LogOut, Moon, Sun } from "lucide-react"
+import { useTheme } from "next-themes"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { useQuixAuth } from "@/lib/contexts/quix-auth-context"
@@ -26,6 +27,7 @@ interface HeaderProps {
 export function Header({ backLink }: HeaderProps) {
   const [searchInput, setSearchInput] = useState("")
   const { userName, userEmail, isEmbedded, clearTokenAndPrompt } = useQuixAuth()
+  const { resolvedTheme, setTheme } = useTheme()
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center border-b bg-background px-6">
@@ -70,6 +72,21 @@ export function Header({ backLink }: HeaderProps) {
               Local Dev
             </div>
           )}
+
+          {/* Theme toggle - light mode existed only in Settings, so nobody found it. */}
+          <button
+            type="button"
+            aria-label="Toggle theme"
+            title={resolvedTheme === "dark" ? "Switch to light" : "Switch to dark"}
+            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+            className="rounded-lg p-2 hover:bg-accent"
+          >
+            {resolvedTheme === "dark" ? (
+              <Sun className="h-5 w-5" />
+            ) : (
+              <Moon className="h-5 w-5" />
+            )}
+          </button>
 
           {/* Notifications */}
           <button className="relative rounded-lg p-2 hover:bg-accent">
