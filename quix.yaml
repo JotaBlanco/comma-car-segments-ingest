@@ -93,23 +93,6 @@ deployments:
         description: Internal service name of the MongoDB deployment
         required: true
         value: mongodb
-      - name: INFLUXDB_USER
-        inputType: Secret
-        required: true
-        secretKey: INFLUXDB_USER
-      - name: INFLUXDB_PASSWORD
-        inputType: Secret
-        required: true
-        secretKey: INFLUXDB_PASSWORD
-      - name: INFLUXDB_HOST
-        inputType: FreeText
-        description: Internal service name of the InfluxDB v1 deployment
-        required: true
-        value: influxdb
-      - name: INFLUXDB_PORT
-        inputType: FreeText
-        required: true
-        value: 8086
       - name: CONFIG_API_URL
         inputType: FreeText
         description: Dynamic Configuration Manager base URL (its network.serviceName). Required - the backend fails to start without it.
@@ -197,7 +180,7 @@ deployments:
         inputType: FreeText
         description: The root username to initialize MongoDB with; must match the MONGO_USER secret
         required: true
-        value: test-manager
+        value: admin
       - name: MONGO_INITDB_ROOT_PASSWORD
         inputType: Secret
         description: The root password to initialize MongoDB with; must match the MONGO_PASSWORD secret
@@ -223,38 +206,10 @@ deployments:
       topic: config-updates
       mongoHost: mongodb
       mongoPort: 27017
-      mongoUser: test-manager
+      mongoUser: admin
       mongoPasswordSecret: MONGO_PASSWORD
       mongoDatabase: quix
       mongoCollection: configuration-api
-  - name: InfluxDB v1
-    group: Aux services
-    image: influxdb:1.11.8
-    deploymentType: Service
-    resources:
-      limits:
-        cpu: 200
-        memory: 500
-    publicAccess:
-      enabled: true
-      urlPrefix: influxdb
-    network:
-      serviceName: influxdb
-      ports:
-        - port: 8086
-          targetPort: 8086
-        - port: 80
-          targetPort: 8086
-    variables:
-      - name: INFLUXDB_ADMIN_USER
-        inputType: Secret
-        required: true
-        secretKey: INFLUXDB_USER
-      - name: INFLUXDB_ADMIN_PASSWORD
-        inputType: Secret
-        required: true
-        secretKey: INFLUXDB_PASSWORD
-
 # This section describes the Topics of the data pipeline
 topics:
   - name: mf4_metadata
