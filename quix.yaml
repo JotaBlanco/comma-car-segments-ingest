@@ -82,23 +82,6 @@ deployments:
         show: true
         label: Configurations
         icon: tune
-  - name: Blob explorer
-    application: blob-explorer
-    version: latest
-    deploymentType: Job
-    resources:
-      limits:
-        cpu: 200
-        memory: 500
-    variables:
-      - name: PREFIXES
-        inputType: FreeText
-        description: blob prefixes to inspect; the leading empty entry is the root
-      - name: DEVICES
-        inputType: FreeText
-        description: count rlog.zst per device, to see how far the mirror got
-    blobStorage:
-      bind: true
   - name: CAN lake sink 2
     application: can-lake-sink
     version: latest
