@@ -80,5 +80,10 @@ def ai_3(can_signals_v13_4):
     """Plot channel powertrain_hs_can1 over time."""
 
 
+@canvas.ai(position=(200, -3843), size=(560, 420), code_height=200)
+def ai_1():
+    """Create a """
+
+
 if __name__ == "__main__":
     canvas.serve()
