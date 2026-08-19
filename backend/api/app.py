@@ -46,11 +46,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("=" * 60)
         logger.info("🐳 STARTING IN LOCAL DEVELOPMENT MODE")
         logger.info("=" * 60)
-        logger.info("✓ Using local MongoDB and Config API")
+        logger.info("✓ Using local MongoDB, InfluxDB, and Config API")
         logger.info("✓ Using mock authentication (all requests allowed)")
         logger.info(f"✓ API authentication: {'DISABLED' if not settings.api_auth_active else 'ENABLED'}")
         logger.info(f"✓ Config API: {settings.config_api_url}")
-        logger.info(f"✓ InfluxDB logbook mirror: {'ENABLED' if settings.influx.enabled else 'DISABLED'}")
         logger.info("=" * 60)
     else:
         logger.info("=" * 60)
@@ -59,12 +58,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info(f"✓ Workspace ID: {settings.workspace_id}")
         logger.info(f"✓ API authentication: {'ENABLED' if settings.api_auth_active else 'DISABLED'}")
         logger.info(f"✓ Config API: {settings.config_api_url}")
-        logger.info(f"✓ InfluxDB logbook mirror: {'ENABLED' if settings.influx.enabled else 'DISABLED'}")
         logger.info("=" * 60)
 
     mongo.connect(settings.mongo)
-    # Optional write-only logbook mirror. Installs a no-op when INFLUXDB_USER /
-    # INFLUXDB_PASSWORD are unset or the server is unreachable; never raises.
     influx.connect(settings.influx)
 
     # Seed lookup tables if they're empty

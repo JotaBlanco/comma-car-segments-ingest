@@ -405,3 +405,29 @@ async def download_test_data(
     except httpx.HTTPError as e:
         logger.error(f"HTTP error querying Quix Lake API: {e}")
         raise HTTPException(status_code=500, detail=f"Query API error: {str(e)}")
+
+@router.get("/quixlab-url", response_model=ConfigManagerUrl)
+async def get_quixlab_url(
+    _auth: None = Depends(read_permission),
+) -> ConfigManagerUrl:
+    """
+    Get the QuixLab URL for the Test Implementation page.
+
+    Served from the backend rather than a NEXT_PUBLIC_* build arg because the
+    frontend image is built once and deployed with runtime variables: a
+    NEXT_PUBLIC value is inlined at build time and would be undefined here.
+
+    No token is appended. QuixLab is gated at the Quix ingress, which rejects
+    PATs and SDK tokens on every path and wants a portal session cookie instead,
+    so a token in the URL buys nothing and would only leak into history and
+    referrer headers.
+    """
+    settings = get_settings()
+
+    if not settings.quixlab_url:
+        raise HTTPException(
+            status_code=501,
+            detail="QuixLab not configured. Set QUIXLAB_URL environment variable.",
+        )
+
+    return ConfigManagerUrl(url=settings.quixlab_url)

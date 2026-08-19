@@ -110,6 +110,24 @@ export const integrationsApi = {
   },
 
   /**
+   * QuixLab URL for the Test Implementation page.
+   *
+   * Comes from the backend, not a NEXT_PUBLIC_* var: the frontend image is
+   * built once and deployed with runtime variables, so a NEXT_PUBLIC value
+   * would be inlined at build time and undefined at runtime.
+   */
+  getQuixlabUrl: (
+    token?: string | null,
+    refreshToken?: () => Promise<string | null>
+  ) =>
+    apiGet<{ url: string }>(
+      "/integrations/quixlab-url",
+      undefined,
+      token,
+      refreshToken
+    ),
+
+  /**
    * Get Analytics/Notebook URL
    * @param testId - Test ID for context
    * @param campaignId - Campaign ID for context
