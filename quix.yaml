@@ -178,6 +178,7 @@ deployments:
       mongoDatabase: quix
       mongoCollection: configuration-api
   - name: MongoDB Backup Manager
+    group: Aux services
     application: mongodb-backup-manager
     version: latest
     deploymentType: Service
