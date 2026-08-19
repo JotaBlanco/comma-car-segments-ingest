@@ -10,18 +10,19 @@ variables:
     inputType: FreeText
     multiline: false
     description: Iceberg table name; defaults to topic name if unset. A new name is required whenever HIVE_COLUMNS changes - the sink validates the partition spec of an existing table at setup() and refuses a mismatch.
-    defaultValue: mf4_signals_v2
+    defaultValue: mf4_signals_v3
   - name: HIVE_COLUMNS
     inputType: FreeText
     multiline: false
     description: >-
       Comma-separated columns for Hive partitioning. Include year/month/day/hour
-      to extract them from TIMESTAMP_COLUMN. A leading '~' marks a virtual
-      partition (recorded for pruning, no directory level) as used by
-      can_signals_v13 - the pinned QuixStreams build does NOT implement it, so
-      '~' columns are logged and demoted to ordinary columns rather than
-      becoming literal '~name=' directories.
-    defaultValue: platform,device,route
+      to extract them from TIMESTAMP_COLUMN. A leading '~' marks a VIRTUAL
+      partition: it appears in the partition tree and prunes queries via the
+      catalog index, but is not written as a key=value directory and does not
+      split files. Supported by the pinned QuixStreams commit
+      (c888997ab65303a5565cef84da687eb3d6f98790) and by nothing older. Mirrors
+      the reference can_signals_v13 table.
+    defaultValue: platform,device,route,~channel_name,~sender_node,~frame_name,~signal
   - name: TIMESTAMP_COLUMN
     inputType: FreeText
     description: Column containing timestamp values to extract year/month/day/hour from
@@ -36,8 +37,11 @@ variables:
     defaultValue: default
   - name: BATCH_SIZE
     inputType: FreeText
-    description: Number of messages to batch before writing to storage
-    defaultValue: 2000
+    description: >-
+      Input messages per checkpoint (commit_every). Each one fans out to ~1388
+      rows via apply(expand=True), so this is NOT a row count. 2000 OOM-killed
+      the pod at a 2000MB memory limit; keep it at 500 unless the limit rises.
+    defaultValue: 500
   - name: COMMIT_INTERVAL
     inputType: FreeText
     description: Kafka commit interval in seconds
@@ -53,7 +57,7 @@ variables:
   - name: CONSUMER_GROUP
     inputType: FreeText
     description: Kafka consumer group name. Must change together with TABLE_NAME so AUTO_OFFSET_RESET=earliest replays the topic into the new table.
-    defaultValue: mf4_signals_v2_lake_v1
+    defaultValue: mf4_signals_v3_lake_v1
   - name: AUTO_OFFSET_RESET
     inputType: Options
     description: Where to start consuming if no offset exists
@@ -64,7 +68,10 @@ variables:
     defaultValue: INFO
   - name: SORT_COLUMN
     inputType: FreeText
-    description: Optional column to sort rows by inside each written Parquet file. Ignored (with a warning) if the installed QuixStreams does not support it - the pinned quixlakesink-fix-v3 build does not.
+    description: >-
+      Column recorded on the table as properties.sort_column. Lakehouse
+      compaction rewrites files ordered by it so time-range / ORDER BY queries
+      can skip whole files. Leave empty to fall back to TIMESTAMP_COLUMN.
     defaultValue: ts_ms
   - name: MAX_WRITE_WORKERS
     inputType: FreeText

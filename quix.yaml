@@ -54,14 +54,37 @@ deployments:
         cpu: 1000
         memory: 2000
     variables:
+      # Every variable that must be applied by a sync has to be declared here:
+      # the portal strips definitions it considers default and keeps them
+      # server-side, so an omitted name is simply not updated.
       - name: TABLE_NAME
+        inputType: FreeText
+        description: New table - a partition-spec change is rejected on an existing one. mf4_signals_v2 is left untouched.
         value: mf4_signals_v3
       - name: HIVE_COLUMNS
-        value: platform,device,route,~channel_name,~sender_node,~frame_name,~channel
+        inputType: FreeText
+        description: "platform/device/route are physical key=value dirs; ~ columns are virtual (catalog-indexed, no dirs). Mirrors can_signals_v13."
+        value: platform,device,route,~channel_name,~sender_node,~frame_name,~signal
+      - name: TIMESTAMP_COLUMN
+        inputType: FreeText
+        description: Column used to derive time partitions
+        value: ts_ms
+      - name: SORT_COLUMN
+        inputType: FreeText
+        description: Recorded as properties.sort_column so compaction writes time-ordered, skippable files
+        value: ts_ms
       - name: BATCH_SIZE
+        inputType: FreeText
+        description: Input messages per checkpoint. Each fans out to ~1388 rows; 2000 OOM-killed the pod at this 2000MB limit. Do not raise.
         value: 500
       - name: CONSUMER_GROUP
-        value: mf4_signals_v1.2
+        inputType: FreeText
+        description: Must change with TABLE_NAME so AUTO_OFFSET_RESET=earliest replays mf4-to-msg into the new table.
+        value: mf4_signals_v3_lake_v1
+      - name: AUTO_OFFSET_RESET
+        inputType: FreeText
+        description: Where to start consuming if no offset exists
+        value: earliest
     blobStorage:
       bind: true
   - name: Test Manager - Backend
@@ -96,7 +119,7 @@ deployments:
         description: Query Builder UI used for the Measurements link. Optional - the endpoint returns 501 when unset.
       - name: DATA_LAKE_V2_TOPIC_NAME
         description: Lakehouse table queried for test measurements. Points at the table this environment's MF4 DataLake Sink writes. Optional - the endpoint returns 501 when unset.
-        value: mf4_signals_v2
+        value: mf4_signals_v3
       - name: ANALYTICS_URL
         description: Marimo notebook UI used for the Analytics link. Optional - the endpoint returns 501 when unset.
     blobStorage:

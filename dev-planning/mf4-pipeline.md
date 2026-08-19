@@ -138,16 +138,28 @@ variable name already used throughout the code.
   class of channel.
 * `mf4-decoder/main.py::_produce_batch` — writes `upload_id` into every batch.
 * `mf4-datalake-sink/main.py::_expand_columnar` — repeated onto every expanded
-  row alongside `file_name`, `channel`, `unit`.
+  row alongside `file_name`, `signal`, `unit`.
 
 ## Iceberg columns
 
-`file_name`, `upload_id`, `channel`, `unit`, `ts_ms`, `value`, `value_text`
-(plus the year/month/day/hour Hive partitions derived from
-`TIMESTAMP_COLUMN=ts_ms`).
+Table `mf4_signals_v3`:
+
+```
+file_name, upload_id, platform, device, route, segment, dcm_config_id,
+signal, unit, channel_name, frame_name, sender_node, ts_ms, value, value_text
+```
+
+`signal` is the signal name (`ACCMode`); `channel_name` is the CAN bus name
+(`powertrain_hs_can1`). They are not variants of each other — the pair now
+matches the reference `can_signals_v13` table exactly. The signal column was
+called `channel` up to and including `mf4_signals_v2`; the rename happened so
+the `~signal` virtual partition resolves. `mf4-datalake-sink` reads
+`value.get("signal") or value.get("channel")`, so the `mf4-to-msg` backlog
+written by the pre-v3 decoder still lands (a topic purge was not acceptable and
+`AUTO_OFFSET_RESET=earliest` replays it).
 
 `value` is always a float or null; `value_text` is always a string or null.
-The split is per **channel**, decided from the samples' numpy dtype in
+The split is per **signal**, decided from the samples' numpy dtype in
 `mf4-decoder/main.py::_is_numeric_dtype`, and every emitted record carries both
 keys with one of them null. Numeric signals fill `value`; string/bytes channels
 and CAN signals resolved through a DBC `VAL_` value table (which decode to
@@ -155,11 +167,53 @@ and CAN signals resolved through a DBC `VAL_` value table (which decode to
 PyArrow infer `double` from a file's leading rows and raise `ArrowInvalid` on
 the first string.
 
-`HIVE_COLUMNS` is `upload_id`. It was previously `channel`, which put exactly
-one signal in each parquet file and so hid the mixed-type `value` problem, but a
-608-signal file then flushed 657 files at a time. One partition per upload
-trades that for unbounded partition cardinality over time; `channel` remains a
-normal queryable column.
+### Partitioning
+
+```
+HIVE_COLUMNS = platform,device,route,~channel_name,~sender_node,~frame_name,~signal
+```
+
+Two kinds of entry, both parsed by `QuixTSDataLakeSink.__init__`, which is why
+`mf4-datalake-sink/main.py::parse_hive_columns` hands the string through with the
+prefixes intact rather than splitting it itself:
+
+* **Physical** (`platform`, `device`, `route`) — real `key=value/` directories.
+  They group the batch via `df.groupby(...)`, so they determine how many parquet
+  files a flush writes, and their values are dropped from the file payload
+  because the path carries them.
+* **Virtual** (`~`-prefixed: `channel_name`, `sender_node`, `frame_name`,
+  `signal`) — **no** directory level and **no** file split. The values stay in
+  the parquet data, and the sink records each file's distinct values into the
+  catalog's `file_virtual_values` index plus the co-occurring tuples into
+  `table_partition_combinations`. A `WHERE signal = 'ACCMode'` therefore prunes
+  files without a 608-way file explosion per flush.
+
+This mirrors `can_signals_v13`. Earlier revisions of this pipeline partitioned
+physically on `channel` (one signal per file → a 608-signal file flushed 657
+files at once) and then on `upload_id` (unbounded partition cardinality over
+time). Virtual partitions give the pruning of the former with the file count of
+the latter.
+
+Two safety notes from the sink's own source, both of which drove design choices
+here:
+
+* `_compute_virtual_values` marks a file `virtual_indexed` with a **single**
+  flag, not per column. If any virtual column is absent from a file, or exceeds
+  50,000 distinct values in it, the whole file is left un-indexed (safe: never
+  pruned, DuckDB row-filters instead). Nulls in a virtual column are dropped
+  from the index while the file still counts as indexed, so a null `signal`
+  would make that row unreachable through a `WHERE signal = ...`. This is why
+  every scalar defaults to the literal string `"unknown"` and why the
+  `sdf["signal"]` assignment falls back to the payload value when the Kafka key
+  is absent.
+* `_validate_partition_strategy` compares the configured tree against an
+  existing table's `partition_spec` and **raises** on a mismatch. A
+  `HIVE_COLUMNS` change therefore requires a new `TABLE_NAME` — hence
+  `mf4_signals_v3`, with `mf4_signals_v2` left in place.
+
+`SORT_COLUMN=ts_ms` is recorded as `properties.sort_column`, which lakehouse
+compaction uses to rewrite files in time order so range and `ORDER BY` queries
+can skip whole files.
 
 ## CAN bus-logging decode
 
@@ -280,17 +334,23 @@ step change in volume.
 * Decoding happens in `mf4-decoder`, not in the sink. The blob is already open
   in asammdf there and `extract_bus_logging` costs ~0.2 s; pushing 230k raw
   frames through Kafka to decode downstream would be far more traffic. The sink
-  stays a thin writer over already-decoded per-channel batches.
+  stays a thin writer over already-decoded per-signal batches.
 * `mf4-to-blob` keeps upload progress in process memory (`state.py`), so it is
   single-replica only. Scaling it past `replicas: 1` breaks `/progress/{id}`.
-* `mf4-datalake-sink/requirements.txt` pins QuixStreams to an unreleased branch
-  (`quixlakesink-fix-v3`). Kept deliberately; see the risk note in the handover.
+* `mf4-datalake-sink/requirements.txt` pins QuixStreams to an unreleased commit,
+  `c888997ab65303a5565cef84da687eb3d6f98790` — the first one that implements
+  virtual (`~`) hive partitions and `sort_column`. The previous pin
+  (`quixlakesink-fix-v3`) has neither: it copies `hive_columns` verbatim into
+  `df.groupby()` and into the `f"{col}={val}"` path segment, so a `~` entry
+  there produces a literal `~signal=...` directory no reader understands. Do not
+  relax this pin without re-reading
+  `quixstreams/sinks/core/quix_ts_datalake_sink.py` at the new ref.
 * The sink validates its config at boot: `_positive_int` rejects a non-positive
   `COMMIT_INTERVAL` / `BATCH_SIZE` / `MAX_WRITE_WORKERS`, and `TABLE_NAME` must
   match `^[a-zA-Z0-9][a-zA-Z0-9._-]*$`. Both fail the deployment immediately
-  rather than minutes into a run at the first catalog PUT. `SORT_COLUMN` is
-  forwarded to `QuixTSDataLakeSink` only if `inspect.signature` shows the
-  installed QuixStreams accepts the kwarg, so moving the pin cannot break boot.
+  rather than minutes into a run at the first catalog PUT. `SORT_COLUMN` is now
+  passed straight through as the `sort_column` kwarg — the old
+  `inspect.signature` probe existed only because the previous pin lacked it.
 * Catalog wiring: the URL is read from `Quix__Lakehouse__Catalog__Url` with
   `CATALOG_URL` as a legacy fallback; the auth token is read **only** from
   `Quix__Lakehouse__Catalog__AuthToken`, which is the sole name the platform

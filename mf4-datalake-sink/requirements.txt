@@ -1,6 +1,12 @@
-quixstreams[quixdatalake]  @ git+https://github.com/quixio/quix-streams.git@quixlakesink-fix-v3
+# Pinned to the commit that implements VIRTUAL hive partitions (a "~" prefix in
+# hive_columns) and the `sort_column` table property. Anything older - notably
+# the previous `quixlakesink-fix-v3` branch - silently lacks both: it copies
+# hive_columns verbatim into df.groupby() and would create literal "~signal="
+# directories. Do not relax this pin without re-checking
+# quixstreams/sinks/core/quix_ts_datalake_sink.py for "~" handling.
+quixstreams[quixdatalake]  @ git+https://github.com/quixio/quix-streams.git@c888997ab65303a5565cef84da687eb3d6f98790
 python-dotenv
 
 # Blob storage support via quixportal (AWS S3, Azure, GCP, MinIO)
 --extra-index-url https://pkgs.dev.azure.com/quix-analytics/53f7fe95-59fe-4307-b479-2473b96de6d1/_packaging/public/pypi/simple/
-quixportal[all]>=2.0.1
+quixportal[all]>=2.0.2
