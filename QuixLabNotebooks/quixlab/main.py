@@ -81,7 +81,7 @@ def ai_3(can_signals_v13_4):
     """Plot channel powertrain_hs_can1 over time."""
 
 
-@canvas.cell(position=(273, -3847), size=(410, 337), code_height=200)
+@canvas.cell(position=(23, -3838), size=(682, 518), code_height=200)
 def selection():
 
     platforms = ql.partition_values('can_signals_v13', 'platform')  # metadata only, no data scan
