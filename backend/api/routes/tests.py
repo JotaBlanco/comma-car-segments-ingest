@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import Any
 import re
 
+import logging
 import httpx
 from fastapi import APIRouter, Body, Depends, HTTPException
 from pymongo import ReturnDocument
@@ -24,6 +25,8 @@ from ..models import (
     PaginatedResponse,
 )
 from ..settings import Settings, get_settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -395,14 +398,12 @@ def delete_test(
     # config_id and there is nothing to purge - previously that raised 424 and made such
     # a run undeletable.
     if config_id := test.get("config_id"):
-        response = config_api.delete(f"/api/v1/configurations/{config_id}")
         try:
-            response.raise_for_status()
-        except httpx.HTTPStatusError as e:
-            raise HTTPException(
-                status_code=424,
-                detail=f"Failed to delete configuration: {e.response.status_code} {e.response.text}",
-            )
+            config_api.delete(f"/api/v1/configurations/{config_id}").raise_for_status()
+        except Exception as e:
+            # A stale or already-removed configuration must not make the test undeletable.
+            # The Configuration Service is a mirror; Mongo is the record of truth here.
+            logger.warning("Could not delete configuration %s: %s", config_id, e)
 
     # Delete all files from blob storage
     files = test.get("files", {})
