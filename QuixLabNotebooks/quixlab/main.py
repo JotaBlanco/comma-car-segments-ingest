@@ -66,10 +66,10 @@ def ai_2(can_signals_v13_3):
 
 
 @canvas.dataset(position=(997, -3904), size=(864, 686), code_height=200)
-def can_signals_v13_4():
-    return ql.sql("""SELECT *
+def can_signals_v13_4(selection):
+    return ql.sql(f"""SELECT *
     FROM can_signals_v13
-    WHERE platform = 'CHEVROLET_VOLT'
+    WHERE platform = '{selec}'
       AND device = '180ea5df0f0b4db9'
       AND route = '00000000--7b23a7654b'
     """)
@@ -80,7 +80,7 @@ def ai_3(can_signals_v13_4):
     """Plot channel powertrain_hs_can1 over time."""
 
 
-@canvas.cell(position=(195, -3927), size=(410, 337), code_height=0)
+@canvas.cell(position=(273, -3847), size=(410, 337), code_height=0)
 def selection():
 
     platforms = ql.partition_values('can_signals_v13', 'platform')  # metadata only, no data scan
