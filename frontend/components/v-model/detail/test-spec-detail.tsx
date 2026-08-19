@@ -1,5 +1,7 @@
 "use client"
 
+import Link from "next/link"
+
 import { Badge } from "@/components/ui/badge"
 import { DefinitionGrid, DetailSection } from "./detail-section"
 import { PassCriteriaTable } from "./pass-criteria-table"
@@ -110,6 +112,39 @@ export function TestSpecDetail({
       </DetailSection>
 
       {/* 4. When the case is valid */}
+      {/* The downstream edge of the V: which implementation verifies this case. */}
+      {spec.impl_ref && (
+        <DetailSection title="Test implementation">
+          <DefinitionGrid
+            rows={[
+              {
+                label: "Implementation",
+                value: <span className="font-mono text-sm">{spec.impl_ref}</span>,
+              },
+              {
+                label: "QuixLab cell",
+                value: (
+                  <span className="font-mono text-sm">
+                    {spec.impl_ref.toLowerCase().replace(/-/g, "_")}
+                  </span>
+                ),
+              },
+              {
+                label: "Open",
+                value: (
+                  <Link
+                    href="/test-implementations"
+                    className="text-sm text-primary underline-offset-4 hover:underline"
+                  >
+                    Test Implementation &rarr; QuixLab
+                  </Link>
+                ),
+              },
+            ]}
+          />
+        </DetailSection>
+      )}
+
       <DetailSection title="Criteria for a valid run">
         <DefinitionGrid
           rows={[

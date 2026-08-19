@@ -153,6 +153,22 @@ def seed_vmodel(mongo: Database[dict[str, Any]], reset: bool = False) -> dict[st
         "acc_project TestImpl (registry + module sources)",
         tc_by_req,
     )
+    # Back-link each spec to its implementation. The impls carry tc_id, so impl->spec
+    # already resolves; without this the reverse direction is null and a test case has no
+    # route to the implementation that verifies it.
+    linked = 0
+    for impl in mongo.vm_test_impls.find(
+        {"artifact_version": SEED_VERSION}, {"impl_id": 1, "tc_id": 1}
+    ):
+        tc_id = impl.get("tc_id")
+        if not tc_id:
+            continue
+        linked += mongo.vm_test_specs.update_many(
+            {"tc_id": tc_id, "artifact_version": SEED_VERSION},
+            {"$set": {"impl_ref": impl["impl_id"]}},
+        ).modified_count
+    logger.info("Linked %d test specs to their implementations", linked)
+
     signals_set = ingest_signals(
         mongo,
         load_fixture(SIGNALS_FIXTURE),
