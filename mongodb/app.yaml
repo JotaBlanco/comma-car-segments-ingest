@@ -1,0 +1,24 @@
+name: mongodb
+language: docker
+variables:
+  - name: MONGO_INITDB_ROOT_USERNAME
+    inputType: FreeText
+    description: The root username to initialize MongoDB with
+    defaultValue: admin
+    required: true
+  - name: MONGO_INITDB_ROOT_PASSWORD
+    inputType: Secret
+    description: The root password to initialize MongoDB with
+    defaultValue: mongo_password
+    required: true
+  - name: MONGO_DBPATH
+    inputType: FreeText
+    description: WiredTiger data directory. Defaults to local disk, which is EPHEMERAL,
+      because the Quix state mount on this cluster is network-backed and WiredTiger
+      fails on it with EPERM. Only point this under /app/state if that mount is
+      changed to block storage.
+    defaultValue: /data/db
+    required: false
+dockerfile: dockerfile
+defaultFile: dockerfile
+libraryItemId: mongodb

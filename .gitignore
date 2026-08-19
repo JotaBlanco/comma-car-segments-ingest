@@ -13,3 +13,11 @@ build/
 .pytest_cache/
 .ruff_cache/
 .env
+
+# Next.js build output (frontend/)
+.next/
+out/
+next-env.d.ts
+
+# scratch
+.tmp/

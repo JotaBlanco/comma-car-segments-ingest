@@ -1,0 +1,305 @@
+{
+  "schema_version": "1.0.0",
+  "set": "traces",
+  "version": "v0001",
+  "item_count": 37,
+  "created_by": "build_vmodel_fixtures.py over acc_project/Data",
+  "items": [
+    {
+      "trace_key": "TRC-cruise_set_speed__v070-2d821b681ced",
+      "run_id": "TR-0001",
+      "scenario": "cruise_set_speed",
+      "source_path": "Data/cruise_set_speed/cruise_set_speed__v070__2d821b681ced.mf4",
+      "content_sha256": "2e691efb9e4ca776b012c4df8f71ecfc55a38e85c0ca9b6eb74c6ad9c11966b0",
+      "size_bytes": 104888
+    },
+    {
+      "trace_key": "TRC-cruise_set_speed__v080-3d4a96612429",
+      "run_id": "TR-0002",
+      "scenario": "cruise_set_speed",
+      "source_path": "Data/cruise_set_speed/cruise_set_speed__v080__3d4a96612429.mf4",
+      "content_sha256": "f8aa1c3c062bd426aa71d764567f2b3dd77bcc9a137505c2c02aa6a8bea87ed9",
+      "size_bytes": 104912
+    },
+    {
+      "trace_key": "TRC-cruise_set_speed__v090-c4dbc770356d",
+      "run_id": "TR-0003",
+      "scenario": "cruise_set_speed",
+      "source_path": "Data/cruise_set_speed/cruise_set_speed__v090__c4dbc770356d.mf4",
+      "content_sha256": "80f35a2ac65c59d58d83c36978c3ccd69abae83461a42a568ab4c03d08df2f09",
+      "size_bytes": 106240
+    },
+    {
+      "trace_key": "TRC-cruise_set_speed__v100-9a10ca54c894",
+      "run_id": "TR-0004",
+      "scenario": "cruise_set_speed",
+      "source_path": "Data/cruise_set_speed/cruise_set_speed__v100__9a10ca54c894.mf4",
+      "content_sha256": "24181856a22da9c4394e0a1c908a777969cf6e76694d426ce5fdde7ca1a1712f",
+      "size_bytes": 103304
+    },
+    {
+      "trace_key": "TRC-cruise_set_speed__v110-6e4cb4353947",
+      "run_id": "TR-0005",
+      "scenario": "cruise_set_speed",
+      "source_path": "Data/cruise_set_speed/cruise_set_speed__v110__6e4cb4353947.mf4",
+      "content_sha256": "75021d671f8e2237aca7c45a65537465090a1c25b855507c0c82ccedc512a1e4",
+      "size_bytes": 106232
+    },
+    {
+      "trace_key": "TRC-cruise_set_speed__v120-b94d2b06712b",
+      "run_id": "TR-0006",
+      "scenario": "cruise_set_speed",
+      "source_path": "Data/cruise_set_speed/cruise_set_speed__v120__b94d2b06712b.mf4",
+      "content_sha256": "0a784286374605048ddc9756aa2561ca07705ca2e14e12fea21387edf900f3ee",
+      "size_bytes": 106192
+    },
+    {
+      "trace_key": "TRC-cruise_set_speed__v130-2933000b5b96",
+      "run_id": "TR-0007",
+      "scenario": "cruise_set_speed",
+      "source_path": "Data/cruise_set_speed/cruise_set_speed__v130__2933000b5b96.mf4",
+      "content_sha256": "6525953607acdd8748365691276b07cadf4442d09972f249e1f1f9fbd778f32c",
+      "size_bytes": 106032
+    },
+    {
+      "trace_key": "TRC-cruise_set_speed_max__base-122c536c8f4d",
+      "run_id": "TR-0008",
+      "scenario": "cruise_set_speed_max",
+      "source_path": "Data/cruise_set_speed_max/cruise_set_speed_max__base__122c536c8f4d.mf4",
+      "content_sha256": "dfa30a15c6515bae6e0b530f8a99d10dcce3926379be50bfbae69959d6f641ee",
+      "size_bytes": 167128
+    },
+    {
+      "trace_key": "TRC-curve_target_selection__r250-481b71e98b29",
+      "run_id": "TR-0009",
+      "scenario": "curve_target_selection",
+      "source_path": "Data/curve_target_selection/curve_target_selection__r250__481b71e98b29.mf4",
+      "content_sha256": "5a9d2d3ed8dc2eec075b8ef414949d9ae371bcbd1e0d2f34c0cdc34e562c2324",
+      "size_bytes": 188952
+    },
+    {
+      "trace_key": "TRC-curve_target_selection__r500-8b67e95b3ce9",
+      "run_id": "TR-0010",
+      "scenario": "curve_target_selection",
+      "source_path": "Data/curve_target_selection/curve_target_selection__r500__8b67e95b3ce9.mf4",
+      "content_sha256": "a153e5d8a3dd28397aa559a303a9498e4ec2b6d5170f874a4acce7220c59be31",
+      "size_bytes": 188200
+    },
+    {
+      "trace_key": "TRC-cut_in_ttc_0s__p120_70-8bc0a99cd615",
+      "run_id": "TR-0011",
+      "scenario": "cut_in_ttc_0s",
+      "source_path": "Data/cut_in_ttc_0s/cut_in_ttc_0s__p120_70__8bc0a99cd615.mf4",
+      "content_sha256": "219ebb8146a7fd4fd8991d76e1970ba69ad17c33b12fa5e50edeacce5f81a8e1",
+      "size_bytes": 90048
+    },
+    {
+      "trace_key": "TRC-cut_in_ttc_0s__p50_10-c7d9734278c6",
+      "run_id": "TR-0012",
+      "scenario": "cut_in_ttc_0s",
+      "source_path": "Data/cut_in_ttc_0s/cut_in_ttc_0s__p50_10__c7d9734278c6.mf4",
+      "content_sha256": "3cc93dd59cca904169884aa776f3dde4930e9c07263513c60ff5590d471a09af",
+      "size_bytes": 90424
+    },
+    {
+      "trace_key": "TRC-cut_in_ttc_1p5s__p120_70-ca5aa8354532",
+      "run_id": "TR-0013",
+      "scenario": "cut_in_ttc_1p5s",
+      "source_path": "Data/cut_in_ttc_1p5s/cut_in_ttc_1p5s__p120_70__ca5aa8354532.mf4",
+      "content_sha256": "b1935eecbf26d9abae985131e2aae217f6c7104d2a9a01adff7ff28de2d0867b",
+      "size_bytes": 97128
+    },
+    {
+      "trace_key": "TRC-cut_in_ttc_1p5s__p50_10-0ba111f36dff",
+      "run_id": "TR-0014",
+      "scenario": "cut_in_ttc_1p5s",
+      "source_path": "Data/cut_in_ttc_1p5s/cut_in_ttc_1p5s__p50_10__0ba111f36dff.mf4",
+      "content_sha256": "ac41e0ca17423c36063f653f5d75fc61e3f92a9e8c7e49075d43372893c18bd4",
+      "size_bytes": 158016
+    },
+    {
+      "trace_key": "TRC-cut_out_ttc_3s__p70_50-f659a4ac482a",
+      "run_id": "TR-0015",
+      "scenario": "cut_out_ttc_3s",
+      "source_path": "Data/cut_out_ttc_3s/cut_out_ttc_3s__p70_50__f659a4ac482a.mf4",
+      "content_sha256": "24b3e303b8d799ce28790c035e9676b29eccc3b971b6add80f11dadd9dbab485",
+      "size_bytes": 171264
+    },
+    {
+      "trace_key": "TRC-cut_out_ttc_3s__p90_70-bae256820083",
+      "run_id": "TR-0016",
+      "scenario": "cut_out_ttc_3s",
+      "source_path": "Data/cut_out_ttc_3s/cut_out_ttc_3s__p90_70__bae256820083.mf4",
+      "content_sha256": "427eafad238170e3d5529dff6f51a377082bf2958a3f3cbf69ca1a95d10cc2ef",
+      "size_bytes": 173464
+    },
+    {
+      "trace_key": "TRC-driver_override_accel__base-bd5996620547",
+      "run_id": "TR-0017",
+      "scenario": "driver_override_accel",
+      "source_path": "Data/driver_override_accel/driver_override_accel__base__bd5996620547.mf4",
+      "content_sha256": "b196025c6cad73c613603f733d8f1bb5ef10ec1bdff8536d501071776f3e130c",
+      "size_bytes": 175824
+    },
+    {
+      "trace_key": "TRC-driver_override_brake__base-1825a7ce973a",
+      "run_id": "TR-0018",
+      "scenario": "driver_override_brake",
+      "source_path": "Data/driver_override_brake/driver_override_brake__base__1825a7ce973a.mf4",
+      "content_sha256": "3a52869e1f80480dc7ae658cb729b9c163d11d324c42b8ae519a77957c4281b3",
+      "size_bytes": 163680
+    },
+    {
+      "trace_key": "TRC-fault_sensor_dropout__base-e42b91e34fb7",
+      "run_id": "TR-0019",
+      "scenario": "fault_sensor_dropout",
+      "source_path": "Data/fault_sensor_dropout/fault_sensor_dropout__base__e42b91e34fb7.mf4",
+      "content_sha256": "c2e7af34ee3e158ed31805e7859ffd9f8f60db23f02ab621755f9911a5f6be8c",
+      "size_bytes": 153784
+    },
+    {
+      "trace_key": "TRC-follow_steady_timegap__tau08-80c3cb927293",
+      "run_id": "TR-0020",
+      "scenario": "follow_steady_timegap",
+      "source_path": "Data/follow_steady_timegap/follow_steady_timegap__tau08__80c3cb927293.mf4",
+      "content_sha256": "0af4ccbf03c8025950d55ad11eb90643c88e184fc95cbac1b5a8939a8f0f3dcb",
+      "size_bytes": 185376
+    },
+    {
+      "trace_key": "TRC-follow_steady_timegap__tau12-85fb03043d50",
+      "run_id": "TR-0021",
+      "scenario": "follow_steady_timegap",
+      "source_path": "Data/follow_steady_timegap/follow_steady_timegap__tau12__85fb03043d50.mf4",
+      "content_sha256": "1c7058cd60d629b734bfe0b27c246aa756aae44de4740d64cbbf04acb474ad3b",
+      "size_bytes": 184120
+    },
+    {
+      "trace_key": "TRC-follow_steady_timegap__tau18-09d8ff905c4c",
+      "run_id": "TR-0022",
+      "scenario": "follow_steady_timegap",
+      "source_path": "Data/follow_steady_timegap/follow_steady_timegap__tau18__09d8ff905c4c.mf4",
+      "content_sha256": "a33d66cd4386fcfff1ac0bc28f045e38c431f377c64f875118305fcacab67abb",
+      "size_bytes": 180464
+    },
+    {
+      "trace_key": "TRC-follow_steady_timegap__tau22-9f506b6e6abd",
+      "run_id": "TR-0023",
+      "scenario": "follow_steady_timegap",
+      "source_path": "Data/follow_steady_timegap/follow_steady_timegap__tau22__9f506b6e6abd.mf4",
+      "content_sha256": "49a134df334e60524b6bbf5805b9a6a3ff33519cd3e7a13eaae118b13882a3ba",
+      "size_bytes": 181008
+    },
+    {
+      "trace_key": "TRC-lead_brake_3mps2__v070-6bdda271acc6",
+      "run_id": "TR-0024",
+      "scenario": "lead_brake_3mps2",
+      "source_path": "Data/lead_brake_3mps2/lead_brake_3mps2__v070__6bdda271acc6.mf4",
+      "content_sha256": "9d1bcdd5c3fc69e58578e8b06ff82b619544e70fbd9f0115f225310d990a706a",
+      "size_bytes": 155400
+    },
+    {
+      "trace_key": "TRC-lead_brake_3mps2__v100-f8aeb2756729",
+      "run_id": "TR-0025",
+      "scenario": "lead_brake_3mps2",
+      "source_path": "Data/lead_brake_3mps2/lead_brake_3mps2__v100__f8aeb2756729.mf4",
+      "content_sha256": "a13a48fb598f46cd0436a9b49f31d962899c0d276088a325a84450e18bd0f6e4",
+      "size_bytes": 191520
+    },
+    {
+      "trace_key": "TRC-lead_brake_ccrb_4mps2__v070-ae4e611d5068",
+      "run_id": "TR-0026",
+      "scenario": "lead_brake_ccrb_4mps2",
+      "source_path": "Data/lead_brake_ccrb_4mps2/lead_brake_ccrb_4mps2__v070__ae4e611d5068.mf4",
+      "content_sha256": "d2605ef7876a4ed591333108e0a267cc6b4bc1c9402b0d8e943b7d155ed9e2ba",
+      "size_bytes": 149800
+    },
+    {
+      "trace_key": "TRC-lead_brake_ccrb_4mps2__v100-945a9d55efcd",
+      "run_id": "TR-0027",
+      "scenario": "lead_brake_ccrb_4mps2",
+      "source_path": "Data/lead_brake_ccrb_4mps2/lead_brake_ccrb_4mps2__v100__945a9d55efcd.mf4",
+      "content_sha256": "58919973532525f1de9ab5877c64395fec18e2135a51a27481de4b480e0e9707",
+      "size_bytes": 162800
+    },
+    {
+      "trace_key": "TRC-lead_brake_ccrb_4mps2__v130-d3c693ca7316",
+      "run_id": "TR-0028",
+      "scenario": "lead_brake_ccrb_4mps2",
+      "source_path": "Data/lead_brake_ccrb_4mps2/lead_brake_ccrb_4mps2__v130__d3c693ca7316.mf4",
+      "content_sha256": "6ead550914acddabc2dcdcf003be7921f959e26e900889ed4c915b22ddcd68ac",
+      "size_bytes": 196104
+    },
+    {
+      "trace_key": "TRC-slow_moving_object_threshold__v1-b543668a5950",
+      "run_id": "TR-0029",
+      "scenario": "slow_moving_object_threshold",
+      "source_path": "Data/slow_moving_object_threshold/slow_moving_object_threshold__v10_lead0p8__b543668a5950.mf4",
+      "content_sha256": "74d65e2594e16301134478d4d76e665d2cc586573df1e15da694458e34766906",
+      "size_bytes": 174056
+    },
+    {
+      "trace_key": "TRC-slow_moving_object_threshold__v1-241332dbad5c",
+      "run_id": "TR-0030",
+      "scenario": "slow_moving_object_threshold",
+      "source_path": "Data/slow_moving_object_threshold/slow_moving_object_threshold__v10_lead1p2__241332dbad5c.mf4",
+      "content_sha256": "c2b64cf02bf9c13bc930093ca88900cb039987a50dc28f6f48ed571cd730127d",
+      "size_bytes": 179848
+    },
+    {
+      "trace_key": "TRC-slow_moving_object_threshold__v3-ab225b819d1a",
+      "run_id": "TR-0031",
+      "scenario": "slow_moving_object_threshold",
+      "source_path": "Data/slow_moving_object_threshold/slow_moving_object_threshold__v30_lead2p7__ab225b819d1a.mf4",
+      "content_sha256": "2faadbfe54debca31a0a60eebb3fe937fbfcd1e718978815d01f6d38efc96c2c",
+      "size_bytes": 187064
+    },
+    {
+      "trace_key": "TRC-slow_moving_object_threshold__v3-e53f532bcc23",
+      "run_id": "TR-0032",
+      "scenario": "slow_moving_object_threshold",
+      "source_path": "Data/slow_moving_object_threshold/slow_moving_object_threshold__v30_lead3p3__e53f532bcc23.mf4",
+      "content_sha256": "bd921248c16b742a8bf2cab684d7ce6a64032c7201d7f324a0f5b6e8cb629670",
+      "size_bytes": 187904
+    },
+    {
+      "trace_key": "TRC-stop_and_go_hold_resume__dwell3s-c93a75c98d2b",
+      "run_id": "TR-0033",
+      "scenario": "stop_and_go_hold_resume",
+      "source_path": "Data/stop_and_go_hold_resume/stop_and_go_hold_resume__dwell3s__c93a75c98d2b.mf4",
+      "content_sha256": "1dd31cf9bef4a4c523162286a323d933fdb58c38cecf5ecd7f7a0fcc814d412a",
+      "size_bytes": 104016
+    },
+    {
+      "trace_key": "TRC-stop_and_go_hold_resume__dwell8s-5703474a9755",
+      "run_id": "TR-0034",
+      "scenario": "stop_and_go_hold_resume",
+      "source_path": "Data/stop_and_go_hold_resume/stop_and_go_hold_resume__dwell8s__5703474a9755.mf4",
+      "content_sha256": "53b3d11137fc94a1f17d9cee4393f83c4187165e4e6ecc3c1762ace91068ca76",
+      "size_bytes": 102448
+    },
+    {
+      "trace_key": "TRC-stop_behind_stopping_vehicle__ba-6cee2fa323e8",
+      "run_id": "TR-0035",
+      "scenario": "stop_behind_stopping_vehicle",
+      "source_path": "Data/stop_behind_stopping_vehicle/stop_behind_stopping_vehicle__base__6cee2fa323e8.mf4",
+      "content_sha256": "923eb5a0957e155b90e2b3c59e05fc9679144885478e0169f812c28da679e00d",
+      "size_bytes": 126984
+    },
+    {
+      "trace_key": "TRC-target_discrimination__sep18-e896f69483a8",
+      "run_id": "TR-0036",
+      "scenario": "target_discrimination",
+      "source_path": "Data/target_discrimination/target_discrimination__sep18__e896f69483a8.mf4",
+      "content_sha256": "4ae01ecc120b52ad1a28979b6d2b8565aea1b0bd94bdac0c37f347850dace880",
+      "size_bytes": 201272
+    },
+    {
+      "trace_key": "TRC-target_discrimination__sep35-08e23ab1804c",
+      "run_id": "TR-0037",
+      "scenario": "target_discrimination",
+      "source_path": "Data/target_discrimination/target_discrimination__sep35__08e23ab1804c.mf4",
+      "content_sha256": "2100775225b0fc67081f03096b957b0d7a6faf271a4105db172fa9c1313ddcd8",
+      "size_bytes": 201360
+    }
+  ]
+}
