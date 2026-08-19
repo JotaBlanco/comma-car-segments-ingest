@@ -84,33 +84,21 @@ deployments:
     publicAccess:
       enabled: true
       urlPrefix: backend-api
+    state:
+      enabled: true
+      size: 1
     network:
       serviceName: test-manager-backend
       ports:
         - port: 80
           targetPort: 8080
     variables:
-      - name: QUIXLAB_URL
-        inputType: FreeText
-        description: QuixLab public URL framed by the Test Implementation page
-        value: https://quixlab-testrigorg-commacarsegmentsingest-t-b5554eca.testrig-depl.dev.quix.io
-      - name: MONGO_USER
-        description: MongoDB username; must match MONGO_INITDB_ROOT_USERNAME on the MongoDB deployment
       - name: MONGO_PASSWORD
-        description: MongoDB password; must match MONGO_INITDB_ROOT_PASSWORD on the MongoDB deployment
         variableKey: mongo_password
-      - name: MONGO_HOST
-        description: Internal service name of the MongoDB deployment
       - name: CONFIG_API_URL
-        description: Dynamic Configuration Manager base URL (its network.serviceName). Required - the backend fails to start without it.
         value: http://config-api-svc
-      - name: MEASUREMENTS_URL
-        description: Query Builder UI used for the Measurements link. Optional - the endpoint returns 501 when unset.
       - name: DATA_LAKE_V2_TOPIC_NAME
-        description: Lakehouse table queried for test measurements. Points at the table this environment's MF4 DataLake Sink writes. Optional - the endpoint returns 501 when unset.
         value: mf4_signals_v4
-      - name: ANALYTICS_URL
-        description: Marimo notebook UI used for the Analytics link. Optional - the endpoint returns 501 when unset.
     blobStorage:
       bind: true
   - name: Test Manager - Frontend
