@@ -3,7 +3,7 @@ from typing import Any, Generic, TypeVar
 from enum import Enum
 from math import ceil
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from .utils import now
 
@@ -11,21 +11,28 @@ from .utils import now
 # Generic type for paginated responses
 T = TypeVar("T")
 
+# Largest page a list endpoint will serve. Kept as a hard ceiling rather than a discrete
+# allow-list: a range is expressible as a Pydantic constraint, so FastAPI rejects an
+# out-of-range value itself with a 422 instead of the model raising mid-dependency and
+# Starlette turning that into a 500 (which is what `?page_size=1` used to do).
+MAX_PAGE_SIZE = 200
+
 
 class PaginationParams(BaseModel):
-    """Pagination parameters for list endpoints."""
+    """Pagination parameters for list endpoints.
+
+    ``page_size`` is any value in 1..MAX_PAGE_SIZE. The former allow-list
+    ``[10, 20, 50, 100, 200]`` is a superset of nothing a UI needs and rejected legitimate
+    requests such as ``page_size=1``; every previously-allowed value is still valid.
+    """
 
     page: int = Field(default=1, ge=1, description="Page number (1-indexed)")
-    page_size: int = Field(default=20, description="Number of items per page")
-
-    @field_validator("page_size")
-    @classmethod
-    def validate_page_size(cls, v: int) -> int:
-        """Validate that page_size is one of the allowed values."""
-        allowed_sizes = [10, 20, 50, 100, 200]
-        if v not in allowed_sizes:
-            raise ValueError(f"page_size must be one of {allowed_sizes}")
-        return v
+    page_size: int = Field(
+        default=20,
+        ge=1,
+        le=MAX_PAGE_SIZE,
+        description=f"Number of items per page (1-{MAX_PAGE_SIZE})",
+    )
 
 
 class PaginatedResponse(BaseModel, Generic[T]):
@@ -96,6 +103,29 @@ class LinkCreate(BaseModel):
     label: str
 
 
+class TcUpload(BaseModel):
+    """One measurement file attached to one planned test case of a V-model run.
+
+    ``upload_id`` is the id the mf4-to-blob service returns from ``POST /upload/direct`` -
+    the handle on the record it wrote to the lakehouse. It is captured synchronously from
+    that response, so nothing here consumes a Kafka topic to learn it.
+    """
+
+    tc_id: str = Field(..., description="Test case the file was uploaded for, e.g. ACC-SYS-TC-011")
+    upload_id: str | None = Field(
+        None,
+        description=(
+            "mf4-to-blob upload id == lakehouse record id. Optional: a run may be planned "
+            "from test cases alone and have its measurement attached later."
+        ),
+    )
+    filename: str | None = None
+    blob_path: str | None = None
+    size_bytes: int | None = None
+    sha256: str | None = None
+    attached_utc: datetime = Field(default_factory=now)
+
+
 class VModelRun(BaseModel):
     """V-model evaluation metadata on a Test. ``None`` on every Phase 2 bench test.
 
@@ -107,11 +137,17 @@ class VModelRun(BaseModel):
 
     baseline_id: str = Field(..., description="Write-once pin. A differing re-pin is a 409.")
     run_version: int = 1
+    label: str | None = Field(None, description="Human label shown in the run lists")
     selector: str | None = Field(None, description="e.g. 'all' or 'chapter:Performance'")
     planned_tc_ids: list[str] = Field(
         default_factory=list, description="Server-side expansion of selector, frozen at pin time"
     )
+    tc_uploads: list[TcUpload] = Field(
+        default_factory=list,
+        description="Per-test-case MF4 attachments; the lakehouse handle for each planned case",
+    )
     trace_keys: list[str] = Field(default_factory=list, description="Mirrors vm_run_traces")
+    created_utc: datetime = Field(default_factory=now)
     evaluated_utc: datetime | None = None
     sw_version: str | None = None
     hw_version: str | None = None
@@ -123,7 +159,12 @@ class Test(BaseModel):
 
     test_id: str = Field(..., alias="_id")
     campaign_id: str
-    devices: list[DeviceReference]  # Array of Device references with versions (required, at least one)
+    # Array of Device references with versions. A Phase 2 bench test must carry at least one -
+    # that invariant is enforced where tests are *created* (TestCreate.devices is required and
+    # POST /tests rejects an empty list). It is deliberately not enforced here, because a
+    # V-model Test Run is created from test cases and measurement files alone: it has no
+    # Device Under Test at plan time, only a `vmodel` sub-document. See VModelRun.
+    devices: list[DeviceReference] = Field(default_factory=list)
     environment_id: str  # Test environment identifier
     environment_version: str | None = None  # UUID of environment journal entry, set when test starts
     operator: str

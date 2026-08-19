@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 
 from . import mongo, influx
 from .routes.admin import router as admin_router
@@ -161,6 +162,40 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 
+#: Query models are named ``*Query`` by convention; ``PaginationParams`` is their shared base.
+QUERY_MODEL_TITLES = {"PaginationParams"}
+
+
+async def query_validation_exception_handler(request: Request, exc: ValidationError) -> JSONResponse:
+    """Turn a failed *query model* into a 422 instead of letting it become a 500.
+
+    FastAPI validates loose path/query parameters itself and raises RequestValidationError,
+    but a Pydantic model used as ``Depends()`` is *constructed* inside the dependency call,
+    so a failure there escapes as a bare ``pydantic.ValidationError`` and Starlette reports
+    it as a 500. ``GET /api/v1/vmodel/results?page_size=1`` did exactly that, which let a
+    list UI crash the API with a legal-looking URL.
+
+    Only query models are translated. A ValidationError raised while building a *response*
+    document is a genuine server bug and is re-raised so it keeps its 500 - masking those as
+    client errors would hide real data corruption.
+    """
+    if not (exc.title.endswith("Query") or exc.title in QUERY_MODEL_TITLES):
+        raise exc
+
+    errors = [
+        {
+            "loc": [str(part) for part in error.get("loc", ())],
+            "msg": str(error.get("msg", "")),
+            "type": str(error.get("type", "")),
+        }
+        for error in exc.errors()
+    ]
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": format_validation_error(errors), "errors": errors},
+    )
+
+
 def create_app() -> FastAPI:
     application = FastAPI(
         title="Test Manager API",
@@ -170,6 +205,7 @@ def create_app() -> FastAPI:
 
     # Register custom exception handler for validation errors
     application.add_exception_handler(RequestValidationError, validation_exception_handler)
+    application.add_exception_handler(ValidationError, query_validation_exception_handler)
 
     application.include_router(tests_router, tags=["tests"], prefix="/api/v1")
     application.include_router(devices_router, tags=["devices"], prefix="/api/v1")

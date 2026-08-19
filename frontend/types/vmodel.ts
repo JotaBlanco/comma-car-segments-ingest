@@ -192,3 +192,137 @@ export type TestSpecQuery = {
   page?: number
   page_size?: number
 }
+
+/* ------------------------------------------------------------------ *
+ * Test runs, traces and results - the right-hand side of the V.
+ * Mirrors backend/api/models_vmodel_chain.py (RunSummary, RunCreate, Trace,
+ * TestResult) and backend/api/models.py (TcUpload). Verified against the live
+ * responses of GET /api/v1/vmodel/runs, /runs/{id}/traces and /results.
+ * ------------------------------------------------------------------ */
+
+/** Verdict of one check against one trace. Exactly the backend enum. */
+export type VerdictStatus = "PASS" | "FAIL" | "INCONCLUSIVE" | "NOT_RUN"
+
+/** Verdict order used for count summaries and for column order in tables. */
+export const VERDICT_ORDER: VerdictStatus[] = ["PASS", "FAIL", "INCONCLUSIVE", "NOT_RUN"]
+
+/**
+ * Where a run came from. `seeded` runs are derived from the run/trace join written
+ * by the fixture ingest; `planned` runs are stored `tests` documents created by the
+ * Add Test Run dialog. A planned run legitimately has no traces and no verdicts.
+ */
+export type RunOrigin = "seeded" | "planned"
+
+/**
+ * One measurement file attached to one planned test case.
+ *
+ * `upload_id` is the handle the MF4 upload service returns from
+ * `POST /upload/direct`; the other fields are echoed back by the backend and are
+ * `null` when the client did not send them.
+ */
+export interface TcUpload {
+  tc_id: string
+  upload_id: string
+  filename?: string | null
+  blob_path?: string | null
+  size_bytes?: number | null
+  sha256?: string | null
+  attached_utc?: string | null
+}
+
+export interface RunSummary {
+  run_id: string
+  baseline_id: string | null
+  label: string | null
+  scenario: string | null
+  origin: RunOrigin
+  trace_keys: string[]
+  planned_tc_ids: string[]
+  tc_uploads: TcUpload[]
+  created_utc: string | null
+  evaluated_utc: string | null
+  /** Verdict counts, absent keys meaning zero. Empty `{}` on an un-evaluated run. */
+  counts: Partial<Record<VerdictStatus, number>>
+}
+
+/**
+ * The whole Add Test Run payload. `planned_tc_ids` is derived server-side from
+ * `tc_uploads`, and nothing about campaigns, devices, environments, operators,
+ * dates or sensors is sent - the dialog does not collect any of it.
+ */
+export interface RunCreate {
+  tc_uploads: Array<Pick<TcUpload, "tc_id" | "upload_id"> & Partial<TcUpload>>
+  label?: string
+  baseline_id?: string
+}
+
+/** An MF4 measurement file as catalogued by the backend. Not parsed in this phase. */
+export interface Trace {
+  trace_key: string
+  scenario: string | null
+  source_path: string | null
+  blob_path: string | null
+  content_sha256: string
+  size_bytes: number
+  uploaded_utc: string | null
+  device_id: string | null
+  sw_version: string | null
+  hw_version: string | null
+  mdf_version: string | null
+  ingest_status: string
+}
+
+/** Per-criterion breakdown of a verdict, when the check reports one. */
+export interface ResultCriterion {
+  criterion_id: string
+  actual: number | null
+  bound: number | null
+  unit: string | null
+  tolerance: number | null
+  verdict: string | null
+}
+
+/** One verdict for one (run, test case, trace). */
+export interface TestResult {
+  result_id: string
+  run_id: string
+  tc_id: string
+  impl_id: string | null
+  trace_key: string | null
+  req_ids: string[]
+  verification_tag: string
+  title: string
+  status: VerdictStatus
+  measured: number | null
+  bound: number | null
+  comparison: string | null
+  margin: number | null
+  tolerance: number
+  unit: string
+  window: string
+  scope: string
+  samples_in_scope: number
+  signals: string[]
+  /** Populated even on PASS - render it in full, never truncate to a glyph. */
+  reason: string
+  notes: string[]
+  criteria: ResultCriterion[]
+  baseline_id: string | null
+  evaluated_utc: string | null
+}
+
+export type RunQuery = {
+  page?: number
+  page_size?: number
+}
+
+export type ResultQuery = {
+  run_id?: string
+  tc_id?: string
+  req_id?: string
+  status?: VerdictStatus
+  trace_key?: string
+  baseline?: string
+  page?: number
+  page_size?: number
+}

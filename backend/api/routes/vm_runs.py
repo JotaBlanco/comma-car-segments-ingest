@@ -1,39 +1,136 @@
-"""V-model test run and trace endpoints (read-only in this phase).
+"""V-model test run and trace endpoints.
 
-A *run* is one evaluation of the pinned test implementations over one trace. Runs are not a
-collection: they are the ``run_id`` side of the ``vm_run_traces`` join, with verdict counts
-aggregated from ``vm_results``. Materialising them as ``tests`` documents is what the
-optional ``Test.vmodel`` sub-document is for, and that write path is deliberately not part
-of this phase - the seed must not change what ``GET /api/v1/tests`` returns.
+A run reaches this list one of two ways, and ``RunSummary.origin`` says which:
+
+* **seeded** - *derived*. The fixture ingest writes no run document at all; a seeded run
+  exists only as the ``run_id`` side of the ``vm_run_traces`` join, with verdict counts
+  aggregated from ``vm_results``. This is why a newly created run could not appear in the
+  list until the union below existed.
+* **planned** - *stored*. ``POST /runs`` writes a ``tests`` document carrying a ``vmodel``
+  sub-document, which is the entity the domain model designates for a Test Run. It has no
+  traces and no verdicts until the execution step (owned by Tomas / QuixLab) runs.
+
+``GET /runs`` returns the union, newest first, so a run created from the Add Test Run dialog
+is the first row on the Test Results page.
 """
 
+import re
+from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from pymongo.database import Database
 
-from ..auth import read_permission
-from ..models import PaginatedResponse
-from ..models_vmodel_chain import RunSummary, Trace
+from ..auth import read_permission, update_permission
+from ..models import PaginatedResponse, Test, TestStatus, VModelRun
+from ..models_vmodel_chain import RunCreate, RunOrigin, RunSummary, Trace
 from ..mongo import get_mongo
+from ..utils import now
 
 router = APIRouter()
 
+#: Run ids are ``TR-`` plus a zero-padded counter, shared by seeded and created runs so the
+#: two families cannot collide.
+RUN_ID_PREFIX = "TR-"
+RUN_ID_PATTERN = re.compile(r"^TR-(\d+)$")
 
-def _verdict_counts(mongo: Database[dict[str, Any]]) -> dict[str, dict[str, int]]:
-    """run_id -> {PASS: n, FAIL: n, ...}, in one aggregation rather than one query per run."""
+
+def _verdict_rollup(
+    mongo: Database[dict[str, Any]],
+) -> tuple[dict[str, dict[str, int]], dict[str, datetime]]:
+    """Per-run verdict counts and evaluation time, in one aggregation over ``vm_results``.
+
+    Returns ``(counts, evaluated)`` where counts is ``run_id -> {PASS: n, FAIL: n, ...}`` and
+    evaluated is ``run_id -> latest evaluated_utc``. Both are read-time rollups: results are
+    appended per trace, so neither is stored on the run.
+    """
     counts: dict[str, dict[str, int]] = {}
-    pipeline = [{"$group": {"_id": {"run_id": "$run_id", "status": "$status"}, "n": {"$sum": 1}}}]
+    evaluated: dict[str, datetime] = {}
+    pipeline = [
+        {
+            "$group": {
+                "_id": {"run_id": "$run_id", "status": "$status"},
+                "n": {"$sum": 1},
+                "last": {"$max": "$evaluated_utc"},
+            }
+        }
+    ]
     for row in mongo.vm_results.aggregate(pipeline):
         run_id = str(row["_id"]["run_id"])
         counts.setdefault(run_id, {})[str(row["_id"]["status"])] = int(row["n"])
-    return counts
+        last = row.get("last")
+        if isinstance(last, datetime) and (run_id not in evaluated or last > evaluated[run_id]):
+            evaluated[run_id] = last
+    return counts, evaluated
+
+
+def _stored_run_summaries(
+    mongo: Database[dict[str, Any]],
+    counts: dict[str, dict[str, int]],
+    evaluated: dict[str, datetime],
+    run_id: str | None = None,
+) -> list[RunSummary]:
+    """Summaries for runs stored as ``tests`` documents with a ``vmodel`` sub-document.
+
+    These are the runs the Add Test Run dialog creates. They carry their planned test cases
+    and their per-test-case MF4 attachments; ``counts`` stays empty until something evaluates
+    them, which is what makes an un-run run legible in the list rather than looking broken.
+    """
+    query: dict[str, Any] = {"vmodel": {"$ne": None}}
+    if run_id:
+        query["_id"] = run_id
+
+    summaries = []
+    for doc in mongo.tests.find(query):
+        vmodel = doc.get("vmodel") or {}
+        key = str(doc["_id"])
+        summaries.append(
+            RunSummary(
+                run_id=key,
+                baseline_id=vmodel.get("baseline_id"),
+                label=vmodel.get("label") or key,
+                scenario=vmodel.get("selector"),
+                origin=RunOrigin.PLANNED,
+                trace_keys=list(vmodel.get("trace_keys") or []),
+                planned_tc_ids=list(vmodel.get("planned_tc_ids") or []),
+                tc_uploads=list(vmodel.get("tc_uploads") or []),
+                created_utc=vmodel.get("created_utc") or doc.get("created_at"),
+                evaluated_utc=vmodel.get("evaluated_utc") or evaluated.get(key),
+                counts=counts.get(key, {}),
+            )
+        )
+    return summaries
 
 
 def _run_summaries(mongo: Database[dict[str, Any]], run_id: str | None = None) -> list[RunSummary]:
+    """Every run, stored and derived, newest first."""
+    counts, evaluated = _verdict_rollup(mongo)
+    stored = _stored_run_summaries(mongo, counts, evaluated, run_id)
+    derived = _derived_run_summaries(mongo, counts, evaluated, run_id)
+    stored_ids = {summary.run_id for summary in stored}
+
+    # A stored run wins over a derived one of the same id: the document is authoritative
+    # about its planned cases and its uploads, the join only knows trace keys.
+    merged = stored + [summary for summary in derived if summary.run_id not in stored_ids]
+    return sorted(merged, key=_run_sort_key, reverse=True)
+
+
+def _run_sort_key(summary: RunSummary) -> tuple[int, str]:
+    """Newest first: created runs (which have a timestamp) ahead of seeded ones, then by id.
+
+    Run ids are zero-padded, so a plain string sort orders TR-0038 after TR-0009 correctly.
+    """
+    return (1 if summary.created_utc else 0, summary.run_id)
+
+
+def _derived_run_summaries(
+    mongo: Database[dict[str, Any]],
+    counts: dict[str, dict[str, int]],
+    evaluated: dict[str, datetime],
+    run_id: str | None = None,
+) -> list[RunSummary]:
     """Build run summaries from the run/trace join plus the aggregated verdict counts."""
     match: dict[str, Any] = {"run_id": run_id} if run_id else {}
-    counts = _verdict_counts(mongo)
     scenarios = {
         str(trace["_id"]): trace.get("scenario")
         for trace in mongo.vm_traces.find({}, {"scenario": 1})
@@ -57,8 +154,10 @@ def _run_summaries(mongo: Database[dict[str, Any]], run_id: str | None = None) -
                 baseline_id=str(baseline["_id"]) if baseline else None,
                 label=f"{scenario} · {key}" if scenario else key,
                 scenario=scenario,
+                origin=RunOrigin.SEEDED,
                 trace_keys=trace_keys,
                 planned_tc_ids=planned_tc_ids,
+                evaluated_utc=evaluated.get(key),
                 counts=counts.get(key, {}),
             )
         )
@@ -81,6 +180,106 @@ def list_runs(
         page=page,
         page_size=page_size,
     )
+
+
+def _next_run_id(mongo: Database[dict[str, Any]]) -> str:
+    """The next free ``TR-nnnn``, counting seeded and stored runs together.
+
+    Seeded runs live only in ``vm_run_traces``, created runs only in ``tests``, so both have
+    to be scanned or a created run would reuse a seeded id and silently merge with it.
+    """
+    highest = 0
+    seen = list(mongo.vm_run_traces.distinct("run_id"))
+    seen += [str(doc["_id"]) for doc in mongo.tests.find({"vmodel": {"$ne": None}}, {"_id": 1})]
+    for candidate in seen:
+        match = RUN_ID_PATTERN.match(str(candidate))
+        if match:
+            highest = max(highest, int(match.group(1)))
+    return f"{RUN_ID_PREFIX}{highest + 1:04d}"
+
+
+@router.post("/runs", response_model=RunSummary)
+def create_run(
+    payload: RunCreate = Body(...),
+    mongo: Database[dict[str, Any]] = Depends(get_mongo),
+    _: None = Depends(update_permission),
+) -> RunSummary:
+    """Create a Test Run from selected test cases and the MF4 uploaded for each.
+
+    The run is stored as a ``tests`` document with a ``vmodel`` sub-document - the entity the
+    domain model designates for a Test Run - so it appears in both ``GET /vmodel/runs`` and
+    ``GET /api/v1/tests?has_vmodel=true``. Deliberately *not* routed through ``POST /tests``:
+    that endpoint requires a campaign, an environment, an operator, a sensor map and at least
+    one existing Device, and calls the Configuration Service. None of those exist for a run
+    planned from test cases alone, and inventing them is exactly the placeholder noise this
+    dialog removes.
+
+    Execution is not triggered here. A created run has no traces and no verdicts until the
+    QuixLab execution step (see the frontend ``run-test-run-button``) is implemented.
+    """
+    known_tc_ids = set(mongo.vm_test_specs.distinct("tc_id"))
+    unknown = sorted({upload.tc_id for upload in payload.tc_uploads} - known_tc_ids)
+    if unknown:
+        raise HTTPException(
+            status_code=404, detail=f"Unknown test case ids: {', '.join(unknown)}"
+        )
+
+    baseline = (
+        mongo.vm_baselines.find_one({"_id": payload.baseline_id})
+        if payload.baseline_id
+        else mongo.vm_baselines.find_one({}, sort=[("_id", -1)])
+    )
+    if baseline is None:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "No baseline available to pin the run to. "
+                "Seed the V-model register first (POST /api/v1/vmodel/seed)."
+            ),
+        )
+
+    run_id = _next_run_id(mongo)
+    if mongo.tests.find_one({"_id": run_id}, {"_id": 1}):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Run id '{run_id}' is already taken; retry to get the next one",
+        )
+    created = now()
+    planned_tc_ids = sorted({upload.tc_id for upload in payload.tc_uploads})
+    label = payload.label or f"{len(planned_tc_ids)} test cases · {run_id}"
+
+    vmodel = VModelRun(
+        baseline_id=str(baseline["_id"]),
+        label=label,
+        # "manual" records how the case list was chosen: picked in the dialog, not expanded
+        # from a chapter selector. planned_tc_ids is therefore already the frozen list.
+        selector="manual",
+        planned_tc_ids=planned_tc_ids,
+        tc_uploads=payload.tc_uploads,
+        created_utc=created,
+    )
+    # A V-model run has no Device Under Test, no campaign, no environment and no sensor map at
+    # plan time. They are left empty rather than filled with invented values; Test tolerates
+    # that (see the comment on Test.devices), and no 422 is reachable from the dialog.
+    run = Test(
+        _id=run_id,
+        campaign_id="",
+        devices=[],
+        environment_id="",
+        operator="",
+        sensors={},
+        config_id="",
+        status=TestStatus.DRAFT,
+        created_at=created,
+        updated_at=created,
+        vmodel=vmodel,
+    )
+    mongo.tests.insert_one(run.model_dump(by_alias=True))
+
+    summaries = _run_summaries(mongo, run_id)
+    if not summaries:  # pragma: no cover - the document was just inserted
+        raise HTTPException(status_code=500, detail=f"Run '{run_id}' was not stored")
+    return summaries[0]
 
 
 @router.get("/runs/{run_id}", response_model=RunSummary)
@@ -106,9 +305,17 @@ def list_run_traces(
     mongo: Database[dict[str, Any]] = Depends(get_mongo),
     _: None = Depends(read_permission),
 ) -> list[Trace]:
-    """List the traces attached to a run. The join is many-to-many and append-only."""
+    """List the traces attached to a run. The join is many-to-many and append-only.
+
+    A run created from the dialog has MF4 files attached to its test cases but no catalogued
+    trace yet - decoding is a later pipeline stage. That is an empty list, not a 404: only an
+    unknown run id is a 404, so a detail view can tell "nothing decoded yet" from "no such
+    run".
+    """
     keys = [str(link["trace_key"]) for link in mongo.vm_run_traces.find({"run_id": run_id})]
     if not keys:
+        if mongo.tests.find_one({"_id": run_id, "vmodel": {"$ne": None}}, {"_id": 1}):
+            return []
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' has no attached traces")
     return [Trace(**doc) for doc in mongo.vm_traces.find({"_id": {"$in": keys}}).sort("_id", 1)]
 

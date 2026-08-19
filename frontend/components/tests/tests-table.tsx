@@ -21,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
+import { RunTestRunButton } from "@/components/v-model/run-test-run-button"
 import { TestStatusBadge } from "./test-status-badge"
 import type { Test } from "@/types/test"
 import { ArrowUpDown, Loader2, Download, BarChart3, LineChart } from "lucide-react"
@@ -194,8 +195,16 @@ export const TestsTable = memo(function TestsTable({ data, sorting, onSortingCha
         cell: ({ row }) => {
           const isDownloading = downloadingTestId === row.original.test_id
           const test = row.original
+          // Only V-model runs can be executed; a plain Test has no planned test cases.
+          const vmodel = (test as { vmodel?: { planned_tc_ids?: string[] } }).vmodel
           return (
             <div className="flex items-center">
+              {vmodel && (
+                <RunTestRunButton
+                  runId={test.test_id}
+                  plannedTcIds={vmodel.planned_tc_ids ?? []}
+                />
+              )}
               {/* Download CSV */}
               <Button
                 variant="ghost"

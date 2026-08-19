@@ -14,7 +14,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
-from .models import PaginationParams
+from .models import PaginationParams, TcUpload
 from .utils import now
 
 
@@ -303,20 +303,56 @@ class ResultQuery(PaginationParams):
     page_size: int = Field(default=200)
 
 
-class RunSummary(BaseModel):
-    """A V-model run as the Test Run stage lists it.
+class RunOrigin(str, Enum):
+    """Where a run in the list came from.
 
-    Sourced from a ``tests`` document that carries a ``vmodel`` sub-document; the counts are
-    aggregated from ``vm_results`` at read time because results are appended per trace.
+    ``seeded`` runs are *derived*: they exist only as the ``run_id`` side of the
+    ``vm_run_traces`` join written by the fixture ingest. ``planned`` runs are *stored*: a
+    ``tests`` document with a ``vmodel`` sub-document, created from the Add Test Run dialog.
+    Both are listed together, and the origin says which is which without guesswork.
+    """
+
+    SEEDED = "seeded"
+    PLANNED = "planned"
+
+
+class RunSummary(BaseModel):
+    """A V-model run as the Test Run and Test Results stages list it.
+
+    Sourced from a ``tests`` document that carries a ``vmodel`` sub-document, or derived from
+    the ``vm_run_traces`` join for the seeded fixtures; the counts are aggregated from
+    ``vm_results`` at read time because results are appended per trace.
     """
 
     run_id: str
     baseline_id: str | None = None
     label: str | None = None
     scenario: str | None = None
+    origin: RunOrigin = RunOrigin.SEEDED
     trace_keys: list[str] = Field(default_factory=list)
     planned_tc_ids: list[str] = Field(default_factory=list)
+    tc_uploads: list[TcUpload] = Field(
+        default_factory=list, description="Empty on a seeded run; one entry per uploaded MF4"
+    )
+    created_utc: datetime | None = None
     evaluated_utc: datetime | None = None
     counts: dict[str, int] = Field(
         default_factory=dict, description="Verdict counts: PASS / FAIL / INCONCLUSIVE / NOT_RUN"
+    )
+
+
+class RunCreate(BaseModel):
+    """Create a V-model Test Run from test cases and one measurement file each.
+
+    This is the whole payload of the Add Test Run dialog: nothing about campaigns, devices,
+    environments, operators, dates or sensors. ``planned_tc_ids`` is derived from
+    ``tc_uploads`` rather than sent twice, so the two can never disagree.
+    """
+
+    tc_uploads: list[TcUpload] = Field(
+        ..., min_length=1, description="One entry per selected test case, with its upload id"
+    )
+    label: str | None = Field(None, description="Optional label; derived from the run id if absent")
+    baseline_id: str | None = Field(
+        None, description="Baseline to pin; defaults to the newest baseline in the register"
     )

@@ -42,6 +42,8 @@ import { adminApi as adminApiRaw } from "../api/admin"
 import { integrationsApi as integrationsApiRaw } from "../api/integrations"
 import { vmRequirementsApi as vmRequirementsApiRaw } from "../api/vm-requirements"
 import { vmTestSpecsApi as vmTestSpecsApiRaw } from "../api/vm-test-specs"
+import { vmRunsApi as vmRunsApiRaw } from "../api/vm-runs"
+import { vmResultsApi as vmResultsApiRaw } from "../api/vm-results"
 
 /**
  * Generic helper to create an authenticated API client hook
@@ -190,3 +192,27 @@ export const useVmRequirementsApi = createAuthenticatedApi(vmRequirementsApiRaw)
  * ```
  */
 export const useVmTestSpecsApi = createAuthenticatedApi(vmTestSpecsApiRaw)
+
+/**
+ * Authenticated V-model Test Runs API Hook
+ *
+ * @example
+ * ```typescript
+ * const vmRunsApi = useVmRunsApi()
+ * const page = await vmRunsApi.list({ page_size: 200 })
+ * const run = await vmRunsApi.get("TR-0038")
+ * const created = await vmRunsApi.create({ tc_uploads: [{ tc_id, upload_id }] })
+ * ```
+ */
+export const useVmRunsApi = createAuthenticatedApi(vmRunsApiRaw)
+
+/**
+ * Authenticated V-model Results API Hook
+ *
+ * @example
+ * ```typescript
+ * const vmResultsApi = useVmResultsApi()
+ * const page = await vmResultsApi.list({ run_id: "TR-0037", page_size: 200 })
+ * ```
+ */
+export const useVmResultsApi = createAuthenticatedApi(vmResultsApiRaw)

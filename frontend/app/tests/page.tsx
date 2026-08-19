@@ -5,8 +5,9 @@ import { useSearchParams, useRouter } from "next/navigation"
 import nextDynamic from "next/dynamic"
 import { SortingState } from "@tanstack/react-table"
 import { MainLayout } from "@/components/layout/main-layout"
-import { NavigationButton } from "@/components/ui/navigation-button"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { AddTestRunDialog } from "@/components/v-model/add-test-run-dialog"
 
 // Lazy load TestsTable to reduce initial bundle size
 const TestsTable = nextDynamic(() => import("@/components/tests/tests-table").then((mod) => ({ default: mod.TestsTable })), {
@@ -34,6 +35,11 @@ function TestsPageContent() {
   })
 
   const [sorting, setSorting] = useState<SortingState>([{ id: "created_at", desc: true }])
+
+  // Add Test Run opens a dialog instead of navigating to /tests/add. The old
+  // multi-step Test form is still at /tests/add and still reachable from a test's
+  // detail page - it is simply no longer what this button does.
+  const [addRunOpen, setAddRunOpen] = useState(false)
 
   // Fetch tests with filters and pagination
   const {
@@ -83,11 +89,17 @@ function TestsPageContent() {
               Manage test executions and view results
             </p>
           </div>
-          <NavigationButton href="/tests/add">
+          <Button onClick={() => setAddRunOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            Add Test
-          </NavigationButton>
+            Add Test Run
+          </Button>
         </div>
+
+        <AddTestRunDialog
+          open={addRunOpen}
+          onOpenChange={setAddRunOpen}
+          onCreated={(run) => router.push(`/test-results/${run.run_id}`)}
+        />
 
         <div className="space-y-4">
           {/* Filters */}

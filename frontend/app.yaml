@@ -15,6 +15,11 @@ variables:
     inputType: FreeText
     description: Disable Next.js telemetry
     defaultValue: 1
+  - name: MF4_UPLOAD_URL
+    inputType: FreeText
+    description: MF4 upload service base URL, used by the Add Test Run dialog. Unset disables MF4 upload.
+    defaultValue: https://mf4import-testrigorg-commacarsegmentsingest-t-b5554eca.testrig-depl.dev.quix.io
+    required: false
   - name: MEASUREMENTS_URL
     inputType: FreeText
     multiline: false

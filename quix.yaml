@@ -112,6 +112,10 @@ deployments:
         - port: 80
           targetPort: 3000
     variables:
+      - name: MF4_UPLOAD_URL
+        inputType: FreeText
+        description: MF4 upload service; read at runtime via /api/mf4-upload-config
+        value: https://mf4import-testrigorg-commacarsegmentsingest-t-b5554eca.testrig-depl.dev.quix.io
       - name: MEASUREMENTS_URL
         description: Query Builder UI URL, mirrored from the backend for parity
     plugin:
