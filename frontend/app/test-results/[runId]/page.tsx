@@ -6,6 +6,8 @@ import { MainLayout } from "@/components/layout/main-layout"
 import { Button } from "@/components/ui/button"
 import { RunReportView } from "@/components/v-model/results/run-report-view"
 import { useRunReport } from "@/components/v-model/results/use-run-report"
+import { RunTestRunButton } from "@/components/v-model/run-test-run-button"
+import type { VModelRunStatus } from "@/types/vmodel"
 
 /**
  * Test Results detail - one run, its per-test-case verdicts and its success rate.
@@ -24,7 +26,8 @@ export default function TestRunResultPage() {
   const rawRunId = params.runId
   const runId = Array.isArray(rawRunId) ? rawRunId[0] : rawRunId || ""
 
-  const { run, traces, rows, metrics, loading, error, refetch } = useRunReport(runId)
+  const { run, traces, rows, metrics, series, loading, error, refetch } =
+    useRunReport(runId)
 
   return (
     <MainLayout backLink={{ href: "/test-results", label: "Back to Test Results" }}>
@@ -36,13 +39,25 @@ export default function TestRunResultPage() {
               <span className="font-mono text-lg text-muted-foreground">{runId}</span>
             </h1>
             <p className="text-sm text-muted-foreground">
-              Verdicts per test case for this run.
+              Verdict, criteria and signal plots for every test case in this run.
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={refetch} disabled={loading}>
-            <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Run and read the result on the same screen: executing from here refetches
+                the report, so the verdicts and the plots appear in place. */}
+            {run ? (
+              <RunTestRunButton
+                runId={runId}
+                status={(run.status as VModelRunStatus) ?? "planned"}
+                plannedTcIds={run.planned_tc_ids ?? []}
+                onStatusChange={refetch}
+              />
+            ) : null}
+            <Button variant="outline" size="sm" onClick={refetch} disabled={loading}>
+              <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         {loading ? (
@@ -65,7 +80,13 @@ export default function TestRunResultPage() {
             </p>
           </div>
         ) : (
-          <RunReportView run={run} traces={traces} rows={rows} metrics={metrics} />
+          <RunReportView
+            run={run}
+            traces={traces}
+            rows={rows}
+            metrics={metrics}
+            series={series}
+          />
         )}
       </div>
     </MainLayout>

@@ -49,6 +49,33 @@ def figure_references(figure_refs: list[str]) -> list[FigureReference]:
     return references
 
 
+def coverage_index(mongo: Database) -> tuple[dict[str, list[str]], set[str]]:
+    """Requirement id -> covering test case ids, plus the set of test cases that PASSED.
+
+    Built from ``covers_req_ids`` on the test specs, which is the authoritative link.
+    The baselines carry a ``req_links`` map, but it is keyed by test case id, so
+    looking it up by requirement id silently matched nothing and left every
+    requirement reading as uncovered.
+    """
+    covering: dict[str, list[str]] = {}
+    for spec in mongo.vm_test_specs.find({}, {"tc_id": 1, "covers_req_ids": 1}):
+        tc_id = str(spec.get("tc_id") or "")
+        if not tc_id:
+            continue
+        for req_id in spec.get("covers_req_ids") or []:
+            covering.setdefault(str(req_id), []).append(tc_id)
+
+    # A requirement is verified only where a covering test case actually PASSED.
+    # verification_tag is provenance - where the requirement text came from - and
+    # says nothing about testing, so it must never stand in for test evidence.
+    passed = {
+        str(r["tc_id"])
+        for r in mongo.vm_results.find({"status": "PASS"}, {"tc_id": 1})
+        if r.get("tc_id")
+    }
+    return covering, passed
+
+
 @router.get(
     "/requirements",
     response_model=PaginatedResponse[Requirement],
@@ -106,16 +133,16 @@ def list_requirements(
 
     # One pass over the baselines builds req_id -> covering test cases, so every listed
     # requirement carries its coverage and the client-side filter can key on it.
-    req_links: dict[str, list[str]] = {}
-    for baseline in mongo.vm_baselines.find({}, {"req_links": 1}):
-        for req, tcs in (baseline.get("req_links") or {}).items():
-            req_links.setdefault(str(req), []).extend(tcs)
+    req_links, passed_tcs = coverage_index(mongo)
 
     return PaginatedResponse.create(
         items=[
             Requirement(
-                **doc,
+                **{k: v for k, v in doc.items() if k != "verified_by"},
                 covering_tc_ids=sorted(set(req_links.get(str(doc.get("req_id")), []))),
+                verified_by=sorted(
+                    set(req_links.get(str(doc.get("req_id")), [])) & passed_tcs
+                ),
             )
             for doc in cursor
         ],
@@ -170,10 +197,11 @@ def get_requirement(
         raise HTTPException(status_code=404, detail=f"Requirement '{req_key}' not found")
 
     baseline_ids: list[str] = []
-    covering: list[str] = []
     for baseline in mongo.vm_baselines.find({"requirements_version": selected_version}):
         baseline_ids.append(str(baseline["_id"]))
-        covering.extend(baseline.get("req_links", {}).get(req_id, []))
+
+    covering_by_req, passed_tcs = coverage_index(mongo)
+    covering = covering_by_req.get(req_id, [])
 
     related: list[RelatedRequirement] = []
     for other_id in doc.get("related_reqs") or []:
@@ -188,10 +216,11 @@ def get_requirement(
         )
 
     return RequirementDetail(
-        **doc,
+        **{k: v for k, v in doc.items() if k != "verified_by"},
         figures=figure_references(list(doc.get("figure_refs") or [])),
         available_versions=versions,
         baseline_ids=sorted(baseline_ids),
         covering_tc_ids=sorted(set(covering)),
+        verified_by=sorted(set(covering) & passed_tcs),
         related=related,
     )

@@ -5,6 +5,7 @@ import { AlertTriangle, Loader2, RefreshCw } from "lucide-react"
 import { MainLayout } from "@/components/layout/main-layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { CoverageDonuts } from "@/components/v-model/coverage-donuts"
 import { RunListTable } from "@/components/v-model/results/run-list-table"
 import { useRunList } from "@/components/v-model/results/use-run-list"
 import { isUnevaluated } from "@/components/v-model/results/verdict"
@@ -19,6 +20,10 @@ import { isUnevaluated } from "@/components/v-model/results/verdict"
  * A run with no verdicts is shown as "not run yet" rather than as a zero score -
  * that is the normal state of a run created in the Add Test Run dialog, whose
  * measurement files have not been evaluated.
+ *
+ * Above the list, `CoverageDonuts` summarises the whole register - requirement
+ * coverage and verification, and how much of the test suite has run. It loads its
+ * own data and degrades on its own; it can never blank this page.
  */
 export default function TestResultsPage() {
   const { runs, loading, error, refetch } = useRunList()
@@ -66,6 +71,8 @@ export default function TestResultsPage() {
             </Button>
           </div>
         </div>
+
+        <CoverageDonuts />
 
         {loading ? (
           <div className="flex items-center gap-2 rounded-md border p-6 text-sm text-muted-foreground">

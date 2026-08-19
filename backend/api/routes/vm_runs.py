@@ -15,7 +15,6 @@ is the first row on the Test Results page.
 """
 
 import re
-from hashlib import sha256
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException
@@ -98,6 +97,13 @@ def _run_summaries(mongo: Database[dict[str, Any]], run_id: str | None = None) -
     # about its planned cases, its status and its uploads, the join only knows trace keys.
     merged = stored + [summary for summary in derived if summary.run_id not in stored_ids]
     return sorted(merged, key=_run_sort_key, reverse=True)
+
+
+#: Public name for the summary builder. The Run execution endpoint
+#: (``routes/vm_execute.py``) needs exactly the same union - stored runs and derived ones,
+#: with the same effective status - and reaching for the underscored name from another
+#: module would make that shared contract look accidental.
+run_summaries = _run_summaries
 
 
 def _run_sort_key(summary: RunSummary) -> tuple[int, str]:
@@ -309,23 +315,12 @@ TEST_STATUS_FOR: dict[VModelRunStatus, TestStatus] = {
 }
 
 
-@router.post("/runs/{run_id}/status", response_model=RunSummary)
-def set_run_status(
-    run_id: str,
-    payload: RunStatusUpdate = Body(...),
-    mongo: Database[dict[str, Any]] = Depends(get_mongo),
-    _: None = Depends(update_permission),
-) -> RunSummary:
-    """Move a run through its execution states. This is the whole of the Run action.
+def require_stored_run(mongo: Database[dict[str, Any]], run_id: str) -> dict[str, Any]:
+    """The ``tests`` document of a V-model run, or the 404/409 that explains its absence.
 
-    The Run button posts ``running`` here and nothing else happens: no QuixLab job is
-    submitted, no Python is executed, no verdict is written. When the execution step lands it
-    posts ``completed`` or ``error`` back to this same endpoint, which is why the transition
-    map allows exactly those two from ``running`` and refuses to skip it.
-
-    Only *stored* runs can change status. A seeded run has no document - it exists only as the
-    ``run_id`` side of the ``vm_run_traces`` join - so there is nothing to move, and saying so
-    with a 409 is more useful than inventing a document to hold the state.
+    Only *stored* runs have an execution state. A seeded run has no document - it exists
+    only as the ``run_id`` side of the ``vm_run_traces`` join - so there is nothing to move,
+    and saying so with a 409 is more useful than inventing a document to hold the state.
     """
     doc = mongo.tests.find_one({"_id": run_id})
     if doc is None:
@@ -338,10 +333,11 @@ def set_run_status(
                 "has no test cases to execute."
             ),
         )
+    return doc
 
-    summaries = _run_summaries(mongo, run_id)
-    current = summaries[0].status if summaries else VModelRunStatus.PLANNED
-    target = payload.status
+
+def assert_transition(run_id: str, current: VModelRunStatus, target: VModelRunStatus) -> None:
+    """Refuse any move the transition map does not allow, naming what would be allowed."""
     reachable = ALLOWED_TRANSITIONS.get(current, set())
     if target not in reachable:
         allowed = ", ".join(sorted(status.value for status in reachable))
@@ -353,6 +349,15 @@ def set_run_status(
             ),
         )
 
+
+def apply_run_status(
+    mongo: Database[dict[str, Any]], run_id: str, target: VModelRunStatus
+) -> RunSummary:
+    """Persist one execution-state transition. The only writer of ``vmodel.status``.
+
+    Both the status endpoint and the execute endpoint go through here, so the timestamps a
+    run carries cannot depend on which one moved it.
+    """
     stamped = now()
     updates: dict[str, Any] = {
         "vmodel.status": target.value,
@@ -367,139 +372,28 @@ def set_run_status(
         updates["vmodel.evaluated_utc"] = stamped
         updates["end"] = stamped
     mongo.tests.update_one({"_id": run_id}, {"$set": updates})
-
-    if target is VModelRunStatus.RUNNING:
-        _evaluate_run(mongo, run_id, doc)
-
     return _run_summaries(mongo, run_id)[0]
 
 
-#: Evaluation outcomes per test case, measured from the SKODA_OCTAVIA signal data in
-#: mf4_signals_v4 (routes 00011 / 00014 / 00016). Held here rather than recomputed on
-#: every run because execution itself is not wired to QuixLab yet - the numbers are real,
-#: the trigger is not.
-_EVALUATION: dict[str, dict[str, Any]] = {
-    "ACC-SYS-TC-011": {
-        "requirement_id": "ACC-SYS-PRF-001",
-        "title": "Time gap not less than 0,8 s in steady-state following control",
-        "status": "PASS",
-        "measured": 22.900,
-        "bound": 22.3333,
-        "comparison": ">=",
-        "unit": "m",
-        "window": "ACC_Status == 3, settled 2 s, >= 5 s of following control",
-        "samples_in_scope": 1201,
-        "scope": "steady-state following control behind a valid target",
-        "signals": ["VehSpd_Kph", "Trgt_Dist_m", "ACC_TimeGapSet_s", "Trgt_Valid_Flg"],
-        "margin": 0.5667,
-        "reason": (
-            "minimum target distance 22,900 m against the 22,3333 m floor implied by the "
-            "0,8 s time gap at 100,070 km/h; implied time gap 0,8238 s"
-        ),
-    },
-    "ACC-SYS-TC-014": {
-        "requirement_id": "ACC-SYS-PRF-020",
-        "title": "Automatic deceleration limited to a 2 s moving average of 3,5 m/s2",
-        "status": "FAIL",
-        "measured": -3.8240,
-        "bound": -3.5,
-        "comparison": ">=",
-        "unit": "m/s^2",
-        "window": "2 s trailing mean, ACC active, driver brake released",
-        "samples_in_scope": 3651,
-        "scope": "automatic deceleration under ACC control",
-        "signals": ["VehAccel_mps2", "BrkReq_mps2", "DrvBrkPedal_Pct"],
-        "margin": -0.3240,
-        "reason": (
-            "minimum 2 s trailing mean deceleration -3,8240 m/s2 exceeds the -3,5 m/s2 "
-            "bound by 0,324 m/s2; 442 of 3651 averaged samples violate the limit"
-        ),
-    },
-    "ACC-SYS-TC-016": {
-        "requirement_id": "ACC-SYS-PRF-041",
-        "title": "Set speed constrained to not more than 180 km/h",
-        "status": "PASS",
-        "measured": 180.000,
-        "bound": 180.0,
-        "comparison": "<=",
-        "unit": "km/h",
-        "window": "t in [6, 60] s, ACC in Active-Cruise",
-        "samples_in_scope": 541,
-        "scope": "driver-selected set speed while engaged",
-        "signals": ["ACC_SetSpd_Kph", "VehSpd_Kph"],
-        "margin": 0.0,
-        "reason": "maximum selected set speed 180,000 km/h, exactly at the 180 km/h ceiling",
-    },
-}
+@router.post("/runs/{run_id}/status", response_model=RunSummary)
+def set_run_status(
+    run_id: str,
+    payload: RunStatusUpdate = Body(...),
+    mongo: Database[dict[str, Any]] = Depends(get_mongo),
+    _: None = Depends(update_permission),
+) -> RunSummary:
+    """Move a run through its execution states without evaluating anything.
 
-
-def _evaluate_run(
-    mongo: Database[dict[str, Any]], run_id: str, doc: dict[str, Any]
-) -> None:
-    """Evaluate a run's test cases and record the verdicts, then complete it.
-
-    Execution is not wired to QuixLab; the verdicts come from _EVALUATION, which holds the
-    values measured from the signal data already in the lakehouse. Writes into vm_traces,
-    vm_run_traces and vm_results - the collections the summary and the report already read -
-    so nothing downstream needs to know evaluation happened here.
+    This endpoint moves state and does nothing else: no signals are read and no verdict is
+    written. It exists so an out-of-band executor can report ``completed`` / ``error`` back,
+    and so a stuck run can be corrected by hand. The Run button in the app uses
+    ``POST /runs/{run_id}/execute`` instead, which does the whole cycle.
     """
-    vmodel = doc.get("vmodel") or {}
-    planned = list(vmodel.get("planned_tc_ids") or [])
-    if not planned:
-        return
-
-    stamped = now()
-    mongo.vm_results.delete_many({"run_id": run_id})
-    mongo.vm_run_traces.delete_many({"run_id": run_id})
-
-    for tc_id in planned:
-        spec = _EVALUATION.get(tc_id)
-        trace_key = f"TRC-{run_id}-{tc_id}"
-        mongo.vm_traces.update_one(
-            {"_id": trace_key},
-            {"$set": {"_id": trace_key, "run_id": run_id, "tc_id": tc_id, "recorded_utc": stamped}},
-            upsert=True,
-        )
-        mongo.vm_run_traces.update_one(
-            {"_id": f"{run_id}::{trace_key}"},
-            {"$set": {"run_id": run_id, "trace_key": trace_key, "tc_id": tc_id}},
-            upsert=True,
-        )
-        if spec is None:
-            # A planned case with no evaluation stays honest rather than inventing a pass.
-            mongo.vm_results.insert_one({
-                "_id": f"{run_id}::{tc_id}",
-                "run_id": run_id, "test_case_id": tc_id, "tc_id": tc_id,
-                "status": "INCONCLUSIVE", "measured": None, "bound": None,
-                "reason": "no evaluation is defined for this test case",
-                "trace": trace_key, "evaluated_utc": stamped,
-                "title": tc_id, "verification_tag": "NOT-VERIFIED",
-                "result_sha256": sha256(f"{run_id}{tc_id}".encode()).hexdigest(),
-            })
-            continue
-        mongo.vm_results.insert_one({
-            "_id": f"{run_id}::{tc_id}",
-            "run_id": run_id,
-            "test_case_id": tc_id,
-            "tc_id": tc_id,
-            "trace": trace_key,
-            "evaluated_utc": stamped,
-            "verification_tag": "VERIFIED-PRIMARY",
-            "tolerance": 0.0,
-            "result_sha256": sha256(f"{run_id}{tc_id}".encode()).hexdigest(),
-            **spec,
-        })
-
-    mongo.tests.update_one(
-        {"_id": run_id},
-        {"$set": {
-            "vmodel.status": VModelRunStatus.COMPLETED.value,
-            "status": TEST_STATUS_FOR[VModelRunStatus.COMPLETED].value,
-            "vmodel.evaluated_utc": stamped,
-            "end": stamped,
-            "updated_at": stamped,
-        }},
-    )
+    require_stored_run(mongo, run_id)
+    summaries = _run_summaries(mongo, run_id)
+    current = summaries[0].status if summaries else VModelRunStatus.PLANNED
+    assert_transition(run_id, current, payload.status)
+    return apply_run_status(mongo, run_id, payload.status)
 
 
 @router.get("/runs/{run_id}/summary", response_model=RunDetailSummary)

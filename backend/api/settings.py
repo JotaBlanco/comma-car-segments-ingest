@@ -91,6 +91,16 @@ class Settings(BaseSettings):
     data_lake_v2_topic_name: str | None = Field(
         None, description="DataLake v2 Sink topic/table name for test measurements"
     )
+    lakehouse_query_url: str | None = Field(
+        None,
+        alias="Quix__Lakehouse__Query__Url",
+        description=(
+            "Lakehouse Query API base URL, injected by the platform. Test Run execution "
+            "reads decoded MF4 signals from it; when it is unset - local development, "
+            "where the platform injects nothing - evaluation falls back to the committed "
+            "signal fixture instead of failing."
+        ),
+    )
 
     # Nested settings
     mongo: MongoSettings = Field(default_factory=MongoSettings)  # type: ignore[arg-type]

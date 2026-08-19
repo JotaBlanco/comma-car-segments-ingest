@@ -4,8 +4,10 @@ import { useMemo, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import type { CaseSeries } from "@/types/vm-execution"
 import { VERDICT_ORDER, type Trace, type VerdictStatus } from "@/types/vmodel"
 import { CaseResultCard } from "./case-result-card"
+import { sourceLabel } from "./series"
 import {
   formatSuccessRate,
   formatUtc,
@@ -23,6 +25,8 @@ interface RunReportViewProps {
   traces: Trace[]
   rows: CaseRow[]
   metrics: RunMetrics
+  /** Plot data per test case id; empty until the run has been executed. */
+  series?: Map<string, CaseSeries>
 }
 
 /**
@@ -38,7 +42,13 @@ interface RunReportViewProps {
  *   no traces and no verdicts. There is no success rate at all in that state:
  *   the header says so and every planned case is a NOT_RUN row.
  */
-export function RunReportView({ run, traces, rows, metrics }: RunReportViewProps) {
+export function RunReportView({
+  run,
+  traces,
+  rows,
+  metrics,
+  series,
+}: RunReportViewProps) {
   const [filter, setFilter] = useState<VerdictStatus | null>(null)
 
   const visibleRows = useMemo(
@@ -47,10 +57,16 @@ export function RunReportView({ run, traces, rows, metrics }: RunReportViewProps
   )
 
   const hasVerdicts = metrics.evaluated > 0
+  // Every executed case records where its samples came from. They agree in practice, but
+  // the header states it rather than assuming it - a report that does not say what it was
+  // computed from is not evidence.
+  const sources = Array.from(
+    new Set(Array.from(series?.values() ?? [], (item) => item.source))
+  )
 
   return (
     <div className="space-y-6">
-      <RunHeader run={run} traces={traces} />
+      <RunHeader run={run} traces={traces} sources={sources} />
 
       {hasVerdicts ? (
         <MetricsPanel run={run} metrics={metrics} />
@@ -90,9 +106,9 @@ export function RunReportView({ run, traces, rows, metrics }: RunReportViewProps
             No test case has that verdict in this run.
           </p>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-4">
             {visibleRows.map((row) => (
-              <CaseResultCard key={row.tcId} row={row} />
+              <CaseResultCard key={row.tcId} row={row} series={series?.get(row.tcId)} />
             ))}
           </div>
         )}
@@ -101,7 +117,15 @@ export function RunReportView({ run, traces, rows, metrics }: RunReportViewProps
   )
 }
 
-function RunHeader({ run, traces }: { run: RunSummaryPlus; traces: Trace[] }) {
+function RunHeader({
+  run,
+  traces,
+  sources,
+}: {
+  run: RunSummaryPlus
+  traces: Trace[]
+  sources: string[]
+}) {
   const created = formatUtc(run.created_utc)
   const startedAt = formatUtc(run.started_utc)
   const evaluatedAt = formatUtc(run.evaluated_utc)
@@ -134,6 +158,10 @@ function RunHeader({ run, traces }: { run: RunSummaryPlus; traces: Trace[] }) {
           />
           <HeaderField label="Traces" value={String(traces.length)} />
           <HeaderField label="Uploads" value={String(run.tc_uploads?.length ?? 0)} />
+          <HeaderField
+            label="Signals read from"
+            value={sources.length > 0 ? sources.map(sourceLabel).join(", ") : "not evaluated"}
+          />
         </dl>
 
         {traces.length > 0 ? (

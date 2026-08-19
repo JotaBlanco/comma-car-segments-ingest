@@ -12,7 +12,7 @@ interface RunTestRunButtonProps {
   runId: string
   /** Current execution state; a run already running cannot be started again. */
   status: VModelRunStatus
-  /** Test case ids planned for this run; shown in the not-yet-wired message. */
+  /** Test case ids planned for this run; used only for the result message. */
   plannedTcIds?: string[]
   /** Called with the updated run so the caller can refresh its list or detail. */
   onStatusChange?: (run: RunSummary) => void
@@ -20,33 +20,19 @@ interface RunTestRunButtonProps {
 }
 
 /**
- * Starts a Test Run.
+ * Runs a Test Run.
  *
- * What this button *does* do, today: move the run to `running` via
- * `POST /api/v1/vmodel/runs/{run_id}/status`. That is a real, persisted state change -
- * the run list, the summary pane and the underlying `tests` document all reflect it
- * immediately, and the run stays `running` until something reports back.
+ * One call: `POST /api/v1/vmodel/runs/{run_id}/execute`. The backend moves the run to
+ * `running`, evaluates every planned test case that has an implementation in
+ * `api/vm_eval/catalog.py` against the decoded signals, writes the verdicts into
+ * `vm_results` (plus the measurement into `vm_traces` and the plots into
+ * `vm_result_series`), and moves the run to `completed`. There is no polling because there
+ * is no job queue: the evaluation is a partition-pruned scan plus a few hundred thousand
+ * float operations, and it returns inside the request.
  *
- * ============================================================================
- * TODO(tomas): wire this to QuixLab script execution.
- *
- * This is the ONLY seam left. Everything around it works: the run exists in Mongo as a
- * `tests` document with a `vmodel` sub-document, carries its planned test case ids, and
- * now carries an execution status with a validated transition map.
- *
- * To implement, add the QuixLab job submission after the status call below. The
- * implementation ids are derived from the test case ids: ACC-SYS-TC-011 ->
- * ACC-SYS-TI-011, with cells named `acc_sys_ti_011` (see
- * quixlab/notebooks/acc_performance_tests.py).
- *
- * When the job finishes, post the terminal state back to the same endpoint:
- * `vmRunsApi.setStatus(runId, "completed")` or `"error"`. The backend refuses any
- * transition that would skip `running`, so a run can never claim an execution that did
- * not happen.
- *
- * Deliberately not implemented here: no QuixLab client, no job submission, no polling.
- * Guessing that API would have to be unpicked later.
- * ============================================================================
+ * The button reports what actually happened rather than claiming success: how many cases
+ * passed and failed, and how many were skipped because no implementation covers them. A
+ * skipped case stays NOT_RUN in the report - it is never counted as a pass.
  */
 export function RunTestRunButton({
   runId,
@@ -57,55 +43,59 @@ export function RunTestRunButton({
 }: RunTestRunButtonProps) {
   const { toast } = useToast()
   const vmRunsApi = useVmRunsApi()
-  const [starting, setStarting] = useState(false)
+  const [running, setRunning] = useState(false)
 
-  const handleRun = async (e: React.MouseEvent) => {
+  const handleRun = async (event: React.MouseEvent) => {
     // The table row navigates/selects on click; without this the button would do that
     // instead of running.
-    e.stopPropagation()
-    e.preventDefault()
+    event.stopPropagation()
+    event.preventDefault()
 
-    setStarting(true)
+    setRunning(true)
     try {
-      const run = await vmRunsApi.setStatus(runId, "running")
-      onStatusChange?.(run)
-      // TODO(tomas): submit the QuixLab job for `plannedTcIds` here, and post
-      // "completed" / "error" back when it finishes.
+      const { report, summary } = await vmRunsApi.execute(runId)
+      onStatusChange?.(summary.run)
+
+      const passed = report.executed.filter((item) => item.status === "PASS").length
+      const failed = report.executed.filter((item) => item.status === "FAIL").length
+      const skipped = report.skipped.length
+      const parts = [`${passed} passed`, `${failed} failed`]
+      if (skipped > 0) parts.push(`${skipped} not implemented`)
+
       toast({
-        title: `${runId} is running`,
+        title: `${runId} completed`,
         description:
-          plannedTcIds.length > 0
-            ? `${plannedTcIds.length} test case${
-                plannedTcIds.length === 1 ? "" : "s"
-              } queued. QuixLab execution is not wired yet, so no verdicts will arrive.`
-            : `${runId} has no planned test cases, so there is nothing to execute.`,
+          report.executed.length > 0
+            ? `${parts.join(", ")}. Open the run to see the criteria and the signal plots.`
+            : `Nothing was evaluated: none of the ${plannedTcIds.length} planned test cases has an implementation.`,
+        variant: failed > 0 ? "destructive" : undefined,
       })
     } catch (error) {
       toast({
-        title: `Could not start ${runId}`,
+        title: `Could not run ${runId}`,
         description:
-          error instanceof Error ? error.message : "POST /vmodel/runs/{id}/status failed",
+          error instanceof Error ? error.message : "POST /vmodel/runs/{id}/execute failed",
         variant: "destructive",
       })
     } finally {
-      setStarting(false)
+      setRunning(false)
     }
   }
 
-  const running = status === "running"
+  const busy = running || status === "running"
 
   return (
     <Button
       type="button"
       variant="outline"
       size={size}
-      disabled={running || starting}
-      loading={starting}
+      disabled={busy}
+      loading={running}
       onClick={handleRun}
-      title={running ? "This run is already running" : undefined}
+      title={status === "running" ? "This run is already running" : undefined}
     >
-      {!starting && <Play className="mr-2 h-3.5 w-3.5" />}
-      {running ? "Running" : status === "planned" ? "Run" : "Run again"}
+      {!running && <Play className="mr-2 h-3.5 w-3.5" />}
+      {busy ? "Running" : status === "planned" ? "Run" : "Run again"}
     </Button>
   )
 }

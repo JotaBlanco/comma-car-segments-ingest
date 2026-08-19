@@ -192,10 +192,12 @@ def seed_vmodel(mongo: Database[dict[str, Any]], reset: bool = False) -> dict[st
         )
         logger.info("Ingested %d traces and %d verdicts", len(traces), result_count)
     else:
-        mongo.vm_traces.delete_many({})
-        mongo.vm_run_traces.delete_many({})
-        mongo.vm_results.delete_many({})
-        logger.info("Run seeding disabled; cleared traces, run-traces and verdicts")
+        # Deliberately does NOT clear vm_traces / vm_run_traces / vm_results. It used to,
+        # to sweep out the 37 seeded fixture runs - but seeding runs on every startup, so
+        # it also deleted the verdicts of real runs the user had executed. A backend
+        # restart silently emptied the report. The fixtures are long gone; nothing here
+        # may touch run output again.
+        logger.info("Run seeding disabled; leaving existing traces and verdicts untouched")
 
     req_links = compute_req_links(spec_docs)
     publish_baseline(

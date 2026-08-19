@@ -21,6 +21,7 @@ import type {
   Trace,
   VModelRunStatus,
 } from "@/types/vmodel"
+import type { CaseSeries, RunExecutionResponse } from "@/types/vm-execution"
 import type { PaginatedResponse } from "@/types/pagination"
 
 export const vmRunsApi = {
@@ -105,6 +106,47 @@ export const vmRunsApi = {
     return apiPost<RunSummary>(
       `${VMODEL_API_BASE}/runs/${encodeURIComponent(runId)}/status`,
       { status },
+      token,
+      refreshToken
+    )
+  },
+
+  /**
+   * Execute a run: the backend moves it to `running`, evaluates every planned
+   * test case that has an implementation, writes the verdicts into `vm_results`
+   * and moves it to `completed`. One call, no polling - the evaluation is a
+   * partition-pruned scan plus a few hundred thousand float operations.
+   *
+   * Returns what was executed *and* the refreshed summary, so a caller needs no
+   * second read to render the result. 409 when the run is already `running`.
+   */
+  execute: (
+    runId: string,
+    token?: string | null,
+    refreshToken?: () => Promise<string | null>
+  ) => {
+    return apiPost<RunExecutionResponse>(
+      `${VMODEL_API_BASE}/runs/${encodeURIComponent(runId)}/execute`,
+      {},
+      token,
+      refreshToken
+    )
+  },
+
+  /**
+   * The plot data for one run, one entry per charted test case. Separate from
+   * `summary()` on purpose: the verdicts are kilobytes and the series are
+   * hundreds of them. An empty array is the normal state of a run that has not
+   * been executed.
+   */
+  series: (
+    runId: string,
+    token?: string | null,
+    refreshToken?: () => Promise<string | null>
+  ) => {
+    return apiGet<CaseSeries[]>(
+      `${VMODEL_API_BASE}/runs/${encodeURIComponent(runId)}/series`,
+      undefined,
       token,
       refreshToken
     )

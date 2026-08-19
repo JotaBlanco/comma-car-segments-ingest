@@ -64,15 +64,6 @@ class Measurand(BaseModel):
 
 class Requirement(BaseModel):
     """One requirement at one artifact version.
-    covering_tc_ids: list[str] = Field(
-        default_factory=list,
-        description=(
-            "Test cases covering this requirement, from the baseline req_links index. "
-            "Present on the list response so the client-side filter can offer coverage "
-            "via its is_empty / is_not_empty operators."
-        ),
-    )
-
     Immutable after insert. The same ``req_id`` appears once per artifact version and the
     documents genuinely differ between versions, which is why ``key`` carries the version.
     """
@@ -94,9 +85,20 @@ class Requirement(BaseModel):
     revision: str
     figure_refs: list[str] = Field(default_factory=list)
     related_reqs: list[str] = Field(default_factory=list)
+    covering_tc_ids: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Test cases covering this requirement, derived from covers_req_ids on the test "
+            "specs. Present on the list response so the client-side filter can offer "
+            "coverage via its is_empty / is_not_empty operators."
+        ),
+    )
     verified_by: list[str] = Field(
         default_factory=list,
-        description="Empty in the source register until the test phase. NOT the coverage source.",
+        description=(
+            "Covering test cases that actually PASSED. A requirement with no covering test "
+            "can never be verified; verification_tag is provenance, not test evidence."
+        ),
     )
     last_change: datetime | None = Field(
         None,

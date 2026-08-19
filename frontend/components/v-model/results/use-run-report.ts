@@ -3,10 +3,11 @@
 /**
  * Hook for one run's result view.
  *
- * Three reads make the report, and they are deliberately independent:
+ * Four reads make the report, and they are deliberately independent:
  *   GET /vmodel/runs/{id}          the run itself - the only hard dependency
  *   GET /vmodel/runs/{id}/traces   the measurement files, `[]` on a planned run
  *   GET /vmodel/results?run_id=..  the verdicts, empty until the run is evaluated
+ *   GET /vmodel/runs/{id}/series   the plot data, `[]` until the run is executed
  *
  * Test specifications are pulled once as well, purely to give a title to a
  * planned test case that has no verdict yet - a verdict carries its own title,
@@ -24,7 +25,9 @@ import {
   useVmTestSpecsApi,
 } from "@/lib/hooks/use-api"
 import type { PaginatedResponse } from "@/types/pagination"
+import type { CaseSeries } from "@/types/vm-execution"
 import type { TestResult, TestSpec, Trace } from "@/types/vmodel"
+import { indexSeries } from "./series"
 import {
   buildCaseRows,
   computeMetrics,
@@ -42,6 +45,8 @@ export interface RunReport {
   results: TestResult[]
   rows: CaseRow[]
   metrics: RunMetrics
+  /** Plot data per test case id. Empty for a run that has not been executed. */
+  series: Map<string, CaseSeries>
   loading: boolean
   error: Error | null
   refetch: () => void
@@ -56,6 +61,7 @@ export function useRunReport(runId: string): RunReport {
   const [traces, setTraces] = useState<Trace[]>([])
   const [results, setResults] = useState<TestResult[]>([])
   const [specs, setSpecs] = useState<TestSpec[]>([])
+  const [seriesDocs, setSeriesDocs] = useState<CaseSeries[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [refetchTrigger, setRefetchTrigger] = useState(0)
@@ -99,24 +105,29 @@ export function useRunReport(runId: string): RunReport {
         if (cancelled) return
         setRun(runData)
 
-        const [traceData, resultData, specData] = await Promise.all([
+        const [traceData, resultData, specData, seriesData] = await Promise.all([
           vmRunsApi.traces(runId).catch(() => [] as Trace[]),
           fetchAllResults().catch(() => [] as TestResult[]),
           vmTestSpecsApi
             .list({ page: 1, page_size: MAX_PAGE_SIZE })
             .then((page: PaginatedResponse<TestSpec>) => page.items ?? [])
             .catch(() => [] as TestSpec[]),
+          // Tolerated like the rest: a run that has never been executed has no
+          // series, and the report then shows verdicts without charts.
+          vmRunsApi.series(runId).catch(() => [] as CaseSeries[]),
         ])
 
         if (cancelled) return
         setTraces(traceData ?? [])
         setResults(resultData)
         setSpecs(specData)
+        setSeriesDocs(seriesData ?? [])
       } catch (err) {
         if (!cancelled) {
           setRun(null)
           setTraces([])
           setResults([])
+          setSeriesDocs([])
           setError(
             err instanceof Error ? err : new Error(`Failed to load run ${runId}`)
           )
@@ -152,10 +163,12 @@ export function useRunReport(runId: string): RunReport {
 
   const metrics = useMemo(() => computeMetrics(rows), [rows])
 
+  const series = useMemo(() => indexSeries(seriesDocs), [seriesDocs])
+
   const refetch = useCallback(() => {
     setRefetchTrigger((prev) => prev + 1)
   }, [])
 
-  return { run, traces, results, rows, metrics, loading, error, refetch }
+  return { run, traces, results, rows, metrics, series, loading, error, refetch }
 }
 

@@ -20,6 +20,7 @@ from .routes.lookups import router as lookups_router
 from .routes.tests import router as tests_router
 from .routes.user import router as user_router
 from .routes.vm_baselines import router as vm_baselines_router
+from .routes.vm_execute import router as vm_execute_router
 from .routes.vm_requirements import router as vm_requirements_router
 from .routes.vm_results import router as vm_results_router
 from .routes.vm_runs import router as vm_runs_router
@@ -225,6 +226,7 @@ def create_app() -> FastAPI:
     application.include_router(vm_test_specs_router, tags=["vmodel"], prefix="/api/v1/vmodel")
     application.include_router(vm_test_impls_router, tags=["vmodel"], prefix="/api/v1/vmodel")
     application.include_router(vm_runs_router, tags=["vmodel"], prefix="/api/v1/vmodel")
+    application.include_router(vm_execute_router, tags=["vmodel"], prefix="/api/v1/vmodel")
     application.include_router(vm_results_router, tags=["vmodel"], prefix="/api/v1/vmodel")
     application.include_router(vm_seed_router, tags=["vmodel"], prefix="/api/v1/vmodel")
 
