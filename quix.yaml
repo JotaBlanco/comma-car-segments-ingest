@@ -87,7 +87,7 @@ deployments:
         inputType: Secret
         description: MongoDB password; must match MONGO_INITDB_ROOT_PASSWORD on the MongoDB deployment
         required: true
-        secretKey: MONGO_PASSWORD
+        secretKey: mongo_password
       - name: MONGO_HOST
         inputType: FreeText
         description: Internal service name of the MongoDB deployment
@@ -185,7 +185,7 @@ deployments:
         inputType: Secret
         description: The root password to initialize MongoDB with; must match the MONGO_PASSWORD secret
         required: true
-        secretKey: MONGO_PASSWORD
+        secretKey: mongo_password
       - name: MONGO_DBPATH
         inputType: FreeText
         description: WiredTiger data directory. Local disk (EPHEMERAL) because the Quix state mount on this cluster is network-backed and WiredTiger fails on it with EPERM. Only move this under /app/state if that mount becomes block storage.
@@ -207,7 +207,7 @@ deployments:
       mongoHost: mongodb
       mongoPort: 27017
       mongoUser: admin
-      mongoPasswordSecret: MONGO_PASSWORD
+      mongoPasswordSecret: mongo_password
       mongoDatabase: quix
       mongoCollection: configuration-api
 # This section describes the Topics of the data pipeline
