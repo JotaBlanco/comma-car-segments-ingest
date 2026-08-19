@@ -9,6 +9,7 @@ import { ItemTree } from "@/components/v-model/item-tree"
 import { RequirementDetail } from "@/components/v-model/detail/requirement-detail"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useVmRequirement, useVmRequirements } from "@/lib/hooks/use-vm-requirements"
+import { useVmTestSpecs } from "@/lib/hooks/use-vm-test-specs"
 import { VMODEL_CHAPTERS } from "@/lib/vmodel/constants"
 import {
   applyFilter,
@@ -19,6 +20,7 @@ import {
   EMPTY_FILTER,
   type FilterState,
 } from "@/lib/vmodel/filter"
+import { buildCoveringSpecIndex, coveringSpecsFor } from "@/lib/vmodel/test-specs"
 import { buildTree } from "@/lib/vmodel/tree"
 import type { Requirement } from "@/types/vmodel"
 
@@ -39,6 +41,15 @@ function RequirementsPageContent() {
   const searchParams = useSearchParams()
 
   const { requirements, loading, error } = useVmRequirements()
+
+  // Loaded only to answer "what verifies this requirement?". The reverse index is
+  // built client-side by inverting `covers_req_ids[]` across the 9 specs - there is
+  // no coverage endpoint behind this, and `verified_by[]` is deliberately not used.
+  const {
+    testSpecs,
+    loading: testSpecsLoading,
+    error: testSpecsError,
+  } = useVmTestSpecs()
 
   const selectedKey = searchParams.get("select")
   const encodedFilter = searchParams.get("f")
@@ -107,6 +118,12 @@ function RequirementsPageContent() {
   const summary = useMemo(
     () => filtered.find((item) => item.key === selectedKey) ?? null,
     [filtered, selectedKey]
+  )
+
+  const coveringSpecIndex = useMemo(() => buildCoveringSpecIndex(testSpecs), [testSpecs])
+  const coveringSpecs = useMemo(
+    () => coveringSpecsFor(coveringSpecIndex, summary?.req_id),
+    [coveringSpecIndex, summary]
   )
 
   // Only fetch enriched detail for a leaf that actually exists in the working set.
@@ -183,6 +200,9 @@ function RequirementsPageContent() {
           detail={detail}
           detailLoading={detailLoading}
           detailError={detailError}
+          coveringSpecs={coveringSpecs}
+          coveringSpecsLoading={testSpecsLoading}
+          coveringSpecsUnavailable={Boolean(testSpecsError)}
         />
       )}
     </ExplorerShell>

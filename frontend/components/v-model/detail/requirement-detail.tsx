@@ -5,12 +5,14 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ProvenanceBadge } from "../provenance-badge"
 import { StatusBadge } from "../status-badge"
+import { CoveringSpecsSection } from "./covering-specs-section"
 import { DefinitionGrid, DetailSection } from "./detail-section"
 import { VMODEL_API_BASE } from "@/lib/vmodel/constants"
 import type {
   FigureReference,
   Requirement,
   RequirementDetail as RequirementDetailData,
+  TestSpec,
 } from "@/types/vmodel"
 
 interface RequirementDetailProps {
@@ -20,6 +22,13 @@ interface RequirementDetailProps {
   detail: RequirementDetailData | null
   detailLoading: boolean
   detailError: Error | null
+  /**
+   * Reverse traceability: the test specs whose `covers_req_ids[]` names this
+   * requirement, resolved client-side from the loaded spec register.
+   */
+  coveringSpecs: TestSpec[]
+  coveringSpecsLoading: boolean
+  coveringSpecsUnavailable: boolean
 }
 
 /**
@@ -36,6 +45,9 @@ export function RequirementDetail({
   detail,
   detailLoading,
   detailError,
+  coveringSpecs,
+  coveringSpecsLoading,
+  coveringSpecsUnavailable,
 }: RequirementDetailProps) {
   if (!summary) {
     return (
@@ -180,6 +192,13 @@ export function RequirementDetail({
           </p>
         )}
       </DetailSection>
+
+      {/* 8. Reverse traceability - what verifies this requirement */}
+      <CoveringSpecsSection
+        specs={coveringSpecs}
+        loading={coveringSpecsLoading}
+        unavailable={coveringSpecsUnavailable}
+      />
 
       {/* Provenance of the record itself */}
       <DetailSection title="Record">

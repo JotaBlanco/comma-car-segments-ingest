@@ -41,6 +41,7 @@ import { filesApi as filesApiRaw } from "../api/files"
 import { adminApi as adminApiRaw } from "../api/admin"
 import { integrationsApi as integrationsApiRaw } from "../api/integrations"
 import { vmRequirementsApi as vmRequirementsApiRaw } from "../api/vm-requirements"
+import { vmTestSpecsApi as vmTestSpecsApiRaw } from "../api/vm-test-specs"
 
 /**
  * Generic helper to create an authenticated API client hook
@@ -178,3 +179,14 @@ export const useIntegrationsApi = createAuthenticatedApi(integrationsApiRaw)
  * ```
  */
 export const useVmRequirementsApi = createAuthenticatedApi(vmRequirementsApiRaw)
+
+/**
+ * Authenticated V-model Test Specifications API Hook
+ *
+ * @example
+ * ```typescript
+ * const vmTestSpecsApi = useVmTestSpecsApi()
+ * const page = await vmTestSpecsApi.list({ page_size: 200 })
+ * ```
+ */
+export const useVmTestSpecsApi = createAuthenticatedApi(vmTestSpecsApiRaw)

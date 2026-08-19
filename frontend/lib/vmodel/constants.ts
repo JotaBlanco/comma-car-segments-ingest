@@ -17,6 +17,19 @@ export const VMODEL_CHAPTERS = [
 ] as const
 
 /**
+ * Requirement-id discipline segment -> chapter. `ACC-SYS-PRF-020` -> `Performance`.
+ *
+ * A test case carries no chapter of its own, so the Test Specification tree
+ * derives one from `covers_req_ids[0]`. Verified 1:1 against all 37 requirements
+ * in the register: FUN -> Functional-HMI, PRF -> Performance, SAF -> Safety-Fault-Handling.
+ */
+export const REQ_SEGMENT_CHAPTERS: Record<string, string> = {
+  PRF: "Performance",
+  SAF: "Safety-Fault-Handling",
+  FUN: "Functional-HMI",
+}
+
+/**
  * The verification tag the brief calls the single most important qualifier on a
  * requirement in this register. Rendered amber wherever it appears.
  */
