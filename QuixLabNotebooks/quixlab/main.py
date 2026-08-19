@@ -90,6 +90,16 @@ def cell_2():
     )
 
     devices = ql.partition_values('can_signals_v13', 'device', where={"platform": platform.value}) 
+    device = ql.ui.dropdown(
+        options=devices,
+        label="Device",
+    )
+
+    routes = ql.partition_values('can_signals_v13', 'route', where={"platform": platform.value, "device": device.value}) 
+    device = ql.ui.dropdown(
+        options=routes,
+        label="Device",
+    )
 
 
 if __name__ == "__main__":
