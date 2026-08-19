@@ -81,12 +81,14 @@ def ai_3(can_signals_v13_4):
 
 
 @canvas.ai(position=(200, -3843), size=(577, 351), code_height=200)
-def ai_1():
+def selection():
     """Create a form with 3 dropdowns that cascade.
 
     1. Selected platform
     2. Selected device (filter list by selected platform)
     3. Selected route (filter list by both device and platform)
+
+    Return them as bag for reference
 
     ## Questions from the AI
 
@@ -96,53 +98,6 @@ def ai_1():
     **Q:** What are the exact column names for platform, device, and route in that table?
     **A:** platform, device, and route
     """
-    # ql-ai: generated from prompt 2afe1da9a2168f6e
-    import pandas as pd
-
-    # Pull the distinct platform / device / route combinations from the lake.
-    # Guard against unexpected column names so a schema mismatch doesn't blow up
-    # with a bare KeyError like the previous attempt.
-    options_df = ql.sql("""
-        SELECT DISTINCT platform, device, route
-        FROM can_signals_v13
-        LIMIT 5000
-    """)
-
-    for col in ("platform", "device", "route"):
-        if col not in options_df.columns:
-            options_df[col] = pd.Series(dtype="object")
-
-    options_df = options_df.dropna(subset=["platform", "device", "route"], how="all")
-
-    # --- Platform dropdown -----------------------------------------------------
-    platforms = sorted(options_df["platform"].dropna().unique().tolist())
-    platform_widget = ql.ui.dropdown(
-        options=platforms,
-        value=platforms[0] if platforms else None,
-        label="Platform",
-    )
-    selected_platform = platform_widget.value
-
-    # --- Device dropdown (filtered by selected platform) ------------------------
-    device_scope = options_df[options_df["platform"] == selected_platform] if selected_platform is not None else options_df.iloc[0:0]
-    devices = sorted(device_scope["device"].dropna().unique().tolist())
-    device_widget = ql.ui.dropdown(
-        options=devices,
-        value=devices[0] if devices else None,
-        label="Device",
-    )
-    selected_device = device_widget.value
-
-    # --- Route dropdown (filtered by selected platform + device) ----------------
-    route_scope = device_scope[device_scope["device"] == selected_device] if selected_device is not None else device_scope.iloc[0:0]
-    routes = sorted(route_scope["route"].dropna().unique().tolist())
-    route_widget = ql.ui.dropdown(
-        options=routes,
-        value=routes[0] if routes else None,
-        label="Route",
-    )
-
-    ql.ui.row([platform_widget, device_widget, route_widget])
 
 
 if __name__ == "__main__":
