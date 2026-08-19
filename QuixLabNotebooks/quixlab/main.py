@@ -141,7 +141,7 @@ def cell_2():
 
     # Pull the full platform / device / route partition combinations from the
     # catalog (fast metadata read, no data scan).
-    info = ql.partition_info("can_signals_v13", "platform")
+    platforms = ql.partition_info("can_signals_v13", "platform")
 
     # --- Platform dropdown -------------------------------------------------
     platforms = sorted(info["platform"].dropna().unique().tolist())
