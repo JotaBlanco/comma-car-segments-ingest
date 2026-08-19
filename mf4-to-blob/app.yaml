@@ -1,0 +1,36 @@
+name: MF4 to Blob
+language: python
+variables:
+  - name: output
+    inputType: OutputTopic
+    description: Kafka topic for MF4 metadata messages (one per uploaded file)
+    defaultValue: mf4_metadata
+    required: true
+  - name: blob_prefix
+    inputType: FreeText
+    description: Path prefix inside the blob container/bucket (trailing slash kept)
+    defaultValue: mf4-uploads/
+    required: false
+  - name: max_file_bytes
+    inputType: FreeText
+    description: Reject uploads larger than this many bytes (default 5 GB)
+    defaultValue: "5368709120"
+    required: false
+  - name: collision_policy
+    inputType: FreeText
+    description: One of suffix, overwrite, reject
+    defaultValue: suffix
+    required: false
+  - name: concurrency_hint
+    inputType: FreeText
+    description: UI-only hint for parallel browser uploads
+    defaultValue: "3"
+    required: false
+  - name: sas_ttl_seconds
+    inputType: FreeText
+    description: SAS URL lifetime in seconds (default 1800 = 30 min)
+    defaultValue: "1800"
+    required: false
+dockerfile: dockerfile
+runEntryPoint: main.py
+defaultFile: main.py

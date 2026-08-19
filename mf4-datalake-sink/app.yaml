@@ -1,0 +1,69 @@
+name: MF4 DataLake Sink
+language: python
+variables:
+  - name: input
+    inputType: InputTopic
+    description: Name of the Kafka input topic to consume from (per-channel batched MF4 messages)
+    defaultValue: mf4-to-msg
+    required: true
+  - name: TABLE_NAME
+    inputType: FreeText
+    multiline: false
+    description: Iceberg table name; defaults to topic name if unset
+    defaultValue: mdf_file_test
+  - name: HIVE_COLUMNS
+    inputType: FreeText
+    multiline: false
+    description: Comma-separated list of columns for Hive partitioning. Include year/month/day/hour to extract from TIMESTAMP_COLUMN.
+    defaultValue: channel
+  - name: TIMESTAMP_COLUMN
+    inputType: FreeText
+    description: Column containing timestamp values to extract year/month/day/hour from
+    defaultValue: ts_ms
+  - name: AUTO_DISCOVER
+    inputType: Options
+    description: Automatically register table in REST Catalog on first write
+    defaultValue: true
+  - name: CATALOG_NAMESPACE
+    inputType: FreeText
+    description: Catalog namespace for table registration
+    defaultValue: default
+  - name: BATCH_SIZE
+    inputType: FreeText
+    description: Number of messages to batch before writing to storage
+    defaultValue: 1000
+  - name: COMMIT_INTERVAL
+    inputType: FreeText
+    description: Kafka commit interval in seconds
+    defaultValue: 30
+  - name: KAFKA_KEY_DESERIALIZER
+    inputType: FreeText
+    description: The key deserializer to use
+    defaultValue: str
+  - name: KAFKA_VALUE_DESERIALIZER
+    inputType: FreeText
+    description: the value deserializer to use
+    defaultValue: json
+  - name: CONSUMER_GROUP
+    inputType: FreeText
+    description: Kafka consumer group name
+    defaultValue: mdf_file_test_lake_v1
+  - name: AUTO_OFFSET_RESET
+    inputType: Options
+    description: Where to start consuming if no offset exists
+    defaultValue: earliest
+  - name: LOGLEVEL
+    inputType: Options
+    description: Application logging level
+    defaultValue: INFO
+  - name: SORT_COLUMN
+    inputType: FreeText
+    description: Optional column to sort rows by inside each written Parquet file. Ignored if the installed QuixStreams does not support it.
+    defaultValue: ""
+  - name: MAX_WRITE_WORKERS
+    inputType: FreeText
+    description: How many files can be written in parallel to storage at once (based on partitioning + batch size)
+    defaultValue: 10
+dockerfile: dockerfile
+runEntryPoint: main.py
+defaultFile: main.py

@@ -4,16 +4,165 @@
 metadata:
   version: 2.0
 
+# This section describes the Deployments of the data pipeline
+deployments:
+  - name: MF4 Import
+    application: mf4-to-blob
+    version: latest
+    deploymentType: Service
+    resources:
+      cpu: 500
+      memory: 2000
+      replicas: 1
+    publicAccess:
+      enabled: true
+      urlPrefix: mf4import
+    variables:
+      - name: output
+        inputType: OutputTopic
+        description: Kafka topic for MF4 metadata messages (one per uploaded file)
+        required: true
+        value: mf4_metadata
+      - name: blob_prefix
+        inputType: FreeText
+        description: Path prefix inside the blob container/bucket (trailing slash kept)
+        value: mf4-uploads/
+      - name: max_file_bytes
+        inputType: FreeText
+        description: Reject uploads larger than this many bytes (default 5 GB)
+        value: 5368709120
+      - name: collision_policy
+        inputType: FreeText
+        description: One of suffix, overwrite, reject
+        value: suffix
+      - name: concurrency_hint
+        inputType: FreeText
+        description: UI-only hint for parallel browser uploads
+        value: 3
+      - name: sas_ttl_seconds
+        inputType: FreeText
+        description: SAS URL lifetime in seconds (default 1800 = 30 min)
+        value: 1800
+    plugin:
+      embeddedView:
+        enabled: true
+        hideHeader: true
+        default: true
+      sidebarItem:
+        show: true
+        label: MF4 Import
+        icon: upload_file
+        order: 0
+    blobStorage:
+      bind: true
+  - name: MF4 Decoder
+    application: mf4-decoder
+    version: latest
+    deploymentType: Service
+    resources:
+      cpu: 1000
+      memory: 2500
+      replicas: 1
+    desiredStatus: Running
+    variables:
+      - name: input
+        inputType: InputTopic
+        description: Topic carrying MF4 upload metadata
+        required: true
+        value: mf4_metadata
+      - name: output
+        inputType: OutputTopic
+        description: Topic to publish decoded per-timestamp messages
+        required: true
+        value: mf4-to-msg
+      - name: BATCH_RECORDS
+        inputType: FreeText
+        description: Records packed into one Kafka message (cluster size). Sink expands them back 1:1.
+        value: 5000
+      - name: FLUSH_EVERY
+        inputType: FreeText
+        description: librdkafka producer flush cadence in batches (not samples).
+        value: 1000
+      - name: FRAME_CHUNK
+        inputType: FreeText
+        description: MDF read-chunk size (samples per per-channel slice).
+        value: 1000
+      - name: DBC_SOURCE
+        inputType: FreeText
+        description: embedded = decode CAN bus-logging files with the DBC attached inside the MF4; none = do not decode.
+        value: embedded
+    blobStorage:
+      bind: true
+  - name: MF4 DataLake Sink
+    application: mf4-datalake-sink
+    version: latest
+    deploymentType: Service
+    resources:
+      cpu: 1000
+      memory: 2000
+      replicas: 1
+    variables:
+      - name: input
+        inputType: InputTopic
+        description: Name of the Kafka input topic to consume from (per-channel batched MF4 messages)
+        required: true
+        value: mf4-to-msg
+      - name: TABLE_NAME
+        inputType: FreeText
+        description: Iceberg table name; defaults to topic name if unset
+        value: mdf_file_test_ludvik
+      - name: HIVE_COLUMNS
+        inputType: FreeText
+        description: Comma-separated list of columns for Hive partitioning. Include year/month/day/hour to extract from TIMESTAMP_COLUMN.
+        value: channel
+      - name: TIMESTAMP_COLUMN
+        inputType: FreeText
+        description: Column containing timestamp values to extract year/month/day/hour from
+        value: ts_ms
+      - name: AUTO_DISCOVER
+        inputType: Options
+        description: Automatically register table in REST Catalog on first write
+        value: true
+      - name: CATALOG_NAMESPACE
+        inputType: FreeText
+        description: Catalog namespace for table registration
+        value: default
+      - name: BATCH_SIZE
+        inputType: FreeText
+        description: Number of messages to batch before writing to storage
+        value: 1000
+      - name: COMMIT_INTERVAL
+        inputType: FreeText
+        description: Kafka commit interval in seconds
+        value: 30
+      - name: KAFKA_KEY_DESERIALIZER
+        inputType: FreeText
+        description: The key deserializer to use
+        value: str
+      - name: KAFKA_VALUE_DESERIALIZER
+        inputType: FreeText
+        description: the value deserializer to use
+        value: json
+      - name: CONSUMER_GROUP
+        inputType: FreeText
+        description: Kafka consumer group name
+        value: mdf_file_test_lake_v1
+      - name: AUTO_OFFSET_RESET
+        inputType: Options
+        description: Where to start consuming if no offset exists
+        value: earliest
+      - name: LOGLEVEL
+        inputType: Options
+        description: Application logging level
+        value: INFO
+      - name: MAX_WRITE_WORKERS
+        inputType: FreeText
+        description: How many files can be written in parallel to storage at once (based on partitioning + batch size)
+        value: 10
+    blobStorage:
+      bind: true
 
 # This section describes the Topics of the data pipeline
 topics:
-  - name: config-updates
-  - name: mf4-metadata
-    dataTier: Bronze
-  - name: can-raw
-    dataTier: Bronze
-  - name: can-decoded
-    configuration:
-      partitions: 8
-      retentionInBytes: 5368709120
-    dataTier: Silver
+  - name: mf4_metadata
+  - name: mf4-to-msg

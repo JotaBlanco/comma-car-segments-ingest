@@ -1,0 +1,37 @@
+name: MF4 Decoder
+language: python
+variables:
+  - name: input
+    inputType: InputTopic
+    description: Topic carrying MF4 upload metadata
+    defaultValue: mf4_metadata
+    required: true
+  - name: output
+    inputType: OutputTopic
+    description: Topic to publish decoded per-timestamp messages
+    defaultValue: mf4-to-msg
+    required: true
+  - name: BATCH_RECORDS
+    inputType: FreeText
+    description: Records packed into one Kafka message (cluster size). Sink expands them back 1:1.
+    defaultValue: 100
+  - name: FLUSH_EVERY
+    inputType: FreeText
+    description: librdkafka producer flush cadence in batches (not samples).
+    defaultValue: 1000
+  - name: FRAME_CHUNK
+    inputType: FreeText
+    description: MDF read-chunk size (samples per per-channel slice).
+    defaultValue: 1000
+  - name: DBC_SOURCE
+    inputType: FreeText
+    description: >-
+      Where the CAN database comes from when the MF4 is a bus-logging file
+      (raw CAN_DataFrame.* frames). "embedded" decodes with the DBC attached
+      inside the MF4 itself; "none" disables decoding. External DBC fetching
+      is not implemented. Bus-logging files that yield no decodable signals
+      are dropped - raw frame fields are never written to the signals table.
+    defaultValue: embedded
+dockerfile: dockerfile
+runEntryPoint: main.py
+defaultFile: main.py

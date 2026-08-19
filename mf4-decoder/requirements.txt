@@ -1,0 +1,10 @@
+--extra-index-url https://pkgs.dev.azure.com/quix-analytics/53f7fe95-59fe-4307-b479-2473b96de6d1/_packaging/public/pypi/simple/
+quixstreams>=3.0
+asammdf
+# CAN bus-logging decode (MDF.extract_bus_logging) parses the embedded DBC
+# through canmatrix. canmatrix is already a hard install_requires of
+# asammdf and its DBC reader needs no extras (only arxml/xls do), but it is
+# pinned here explicitly so a future asammdf that drops the dependency
+# cannot silently break decoding at deploy time.
+canmatrix
+quixportal[all]==2.0.1
