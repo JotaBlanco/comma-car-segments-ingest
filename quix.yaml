@@ -79,40 +79,22 @@ deployments:
           targetPort: 8080
     variables:
       - name: MONGO_USER
-        inputType: Secret
         description: MongoDB username; must match MONGO_INITDB_ROOT_USERNAME on the MongoDB deployment
-        required: true
-        secretKey: MONGO_USER
       - name: MONGO_PASSWORD
-        inputType: Secret
         description: MongoDB password; must match MONGO_INITDB_ROOT_PASSWORD on the MongoDB deployment
-        required: true
-        secretKey: mongo_password
+        variableKey: mongo_password
       - name: MONGO_HOST
-        inputType: FreeText
         description: Internal service name of the MongoDB deployment
-        required: true
-        value: mongodb
       - name: CONFIG_API_URL
-        inputType: FreeText
         description: Dynamic Configuration Manager base URL (its network.serviceName). Required - the backend fails to start without it.
-        required: true
         value: http://config-api-svc
       - name: MEASUREMENTS_URL
-        inputType: FreeText
         description: Query Builder UI used for the Measurements link. Optional - the endpoint returns 501 when unset.
-        required: false
-        value: https://query-ui-quixers-testrigdemodatawarehouse-prod.az-france-0.app.quix.io/
       - name: DATA_LAKE_V2_TOPIC_NAME
-        inputType: FreeText
         description: Lakehouse table queried for test measurements. Points at the table this environment's MF4 DataLake Sink writes. Optional - the endpoint returns 501 when unset.
-        required: false
         value: mdf_file_test_v1
       - name: ANALYTICS_URL
-        inputType: FreeText
         description: Marimo notebook UI used for the Analytics link. Optional - the endpoint returns 501 when unset.
-        required: false
-        value: https://marimo-analysis-quixers-advancedanalyticsnew-new.az-france-0.app.quix.io
     blobStorage:
       bind: true
   - name: Test Manager - Frontend
@@ -133,25 +115,8 @@ deployments:
         - port: 80
           targetPort: 3000
     variables:
-      - name: API_URL
-        inputType: FreeText
-        description: Backend API URL for server-side requests (internal Kubernetes service name)
-        required: true
-        value: http://test-manager-backend
-      - name: NODE_ENV
-        inputType: FreeText
-        description: Node environment
-        required: true
-        value: production
-      - name: NEXT_TELEMETRY_DISABLED
-        inputType: FreeText
-        description: Disable Next.js telemetry
-        value: 1
       - name: MEASUREMENTS_URL
-        inputType: FreeText
         description: Query Builder UI URL, mirrored from the backend for parity
-        required: false
-        value: https://query-ui-quixers-testrigdemodatawarehouse-prod.az-france-0.app.quix.io/
     plugin:
       sidebarItem:
         show: true
@@ -177,20 +142,11 @@ deployments:
           targetPort: 27017
     variables:
       - name: MONGO_INITDB_ROOT_USERNAME
-        inputType: FreeText
         description: The root username to initialize MongoDB with; must match the MONGO_USER secret
-        required: true
-        value: admin
       - name: MONGO_INITDB_ROOT_PASSWORD
-        inputType: Secret
         description: The root password to initialize MongoDB with; must match the MONGO_PASSWORD secret
-        required: true
-        secretKey: mongo_password
       - name: MONGO_DBPATH
-        inputType: FreeText
         description: WiredTiger data directory. Local disk (EPHEMERAL) because the Quix state mount on this cluster is network-backed and WiredTiger fails on it with EPERM. Only move this under /app/state if that mount becomes block storage.
-        required: false
-        value: /data/db
   - name: Dynamic Configuration Manager
     group: Aux services
     application: DynamicConfiguration
@@ -210,6 +166,38 @@ deployments:
       mongoPasswordSecret: mongo_password
       mongoDatabase: quix
       mongoCollection: configuration-api
+  - name: MongoDB Backup Manager
+    application: mongodb-backup-manager
+    version: latest
+    deploymentType: Service
+    resources:
+      limits:
+        cpu: 500
+        memory: 1000
+    publicAccess:
+      enabled: true
+      urlPrefix: backup-manager
+    state:
+      enabled: true
+      size: 1
+    network:
+      serviceName: backup-manager
+      ports:
+        - port: 80
+          targetPort: 80
+    plugin:
+      embeddedView:
+        enabled: true
+        hideHeader: true
+        default: true
+      sidebarItem:
+        show: true
+        label: Backup Manager
+        icon: save
+        order: 0
+    blobStorage:
+      bind: true
+
 # This section describes the Topics of the data pipeline
 topics:
   - name: mf4_metadata
