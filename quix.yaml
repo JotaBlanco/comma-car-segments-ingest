@@ -131,7 +131,7 @@ deployments:
     resources:
       limits:
         cpu: 1000
-        memory: 5300
+        memory: 8000
     publicAccess:
       enabled: true
       urlPrefix: quixlab
