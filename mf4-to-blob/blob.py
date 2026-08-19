@@ -16,6 +16,8 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 _fs = None
+_provider: Optional[str] = None
+_provider_probed = False
 
 
 def get_fs():
@@ -26,6 +28,28 @@ def get_fs():
         _fs = get_filesystem()
         logger.info("Blob storage connected via quixportal.storage.get_filesystem()")
     return _fs
+
+
+def get_provider() -> Optional[str]:
+    """Return the configured provider name, e.g. ``Azure`` or ``S3Compatible``.
+
+    Read from the same auto-injected ``Quix__BlobStorage__Connection__Json``
+    that :func:`get_fs` uses — no extra deployment variables. Probed once and
+    cached (it cannot change without a restart); returns ``None`` if the
+    connection JSON is missing or unparseable, which callers treat as
+    "assume the provider-agnostic upload path".
+    """
+    global _provider, _provider_probed
+    if not _provider_probed:
+        _provider_probed = True
+        try:
+            from quixportal.storage.config import load_config_from_env
+            _provider = load_config_from_env().provider.value
+            logger.info("Blob storage provider detected: %s", _provider)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Could not detect blob storage provider: %s", e)
+            _provider = None
+    return _provider
 
 
 def open_writer(blob_path: str):

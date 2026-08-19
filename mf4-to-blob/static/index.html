@@ -139,7 +139,7 @@
 <body>
     <div class="container">
         <h1>MF4 to Blob</h1>
-        <p class="subtitle">Drag and drop one or more <code>.mf4</code> files. Each is uploaded directly to Azure Blob Storage and a metadata message is published.</p>
+        <p class="subtitle">Drag and drop one or more <code>.mf4</code> files. Each is uploaded to the workspace blob storage and a metadata message is published.</p>
 
         <div class="drop-zone" id="dropZone">
             <p>Drag and drop .mf4 files here, or click to browse</p>
@@ -153,14 +153,14 @@
     </div>
 
     <!--
-      Pinned exact version of @azure/storage-blob (12.31.0) served as ESM
-      via jsDelivr's `+esm` transform. The official package no longer
-      ships a UMD/script-tag bundle (Microsoft docs say "use a bundler"),
-      so an ESM import inside <script type="module"> is the cleanest
-      pinned-version path that avoids a build step.
+      @azure/storage-blob 12.31.0, pinned, served as ESM via jsDelivr's
+      `+esm` transform (the package ships no UMD bundle any more). Imported
+      *dynamically*, and only when /config reports upload_mode "sas": on an
+      S3/S3Compatible workspace the SAS path is never taken, so the CDN is
+      never contacted and a blocked CDN cannot break the page.
     -->
     <script type="module">
-    import { BlockBlobClient } from "https://cdn.jsdelivr.net/npm/@azure/storage-blob@12.31.0/+esm";
+    const AZURE_SDK_URL = "https://cdn.jsdelivr.net/npm/@azure/storage-blob@12.31.0/+esm";
 
     (function () {
         const dropZone = document.getElementById('dropZone');
@@ -174,10 +174,22 @@
         let inFlight = 0;
         let queue = [];
         let uploading = false;
+        // "direct" (server-side streaming upload) works on every blob backend;
+        // "sas" is Azure-only. The server decides from the injected connection
+        // JSON - we just obey /config, and default to direct if the call fails
+        // because that is the path with no provider requirement.
+        let uploadMode = 'direct';
 
-        fetch('/config').then(r => r.ok ? r.json() : null).then(cfg => {
-            if (cfg && cfg.concurrency_hint) concurrency = cfg.concurrency_hint;
-        }).catch(() => {});
+        const configReady = fetch('/config')
+            .then(r => (r.ok ? r.json() : null))
+            .then(cfg => {
+                if (!cfg) return;
+                if (cfg.concurrency_hint) concurrency = cfg.concurrency_hint;
+                if (cfg.upload_mode === 'sas' || cfg.upload_mode === 'direct') {
+                    uploadMode = cfg.upload_mode;
+                }
+            })
+            .catch(() => {});
 
         function fmtBytes(n) {
             if (n == null) return '';
@@ -343,6 +355,72 @@
             e.bytesSent = 0;
             render();
 
+            await configReady;
+            // The one branch that decides everything: Azure workspaces upload
+            // browser -> Azure via SAS; every other backend streams through the
+            // app with POST /upload/direct.
+            if (uploadMode === 'sas') {
+                return startSasUpload(e);
+            }
+            return startDirectUpload(e);
+        }
+
+        function startDirectUpload(e) {
+            // XHR, not fetch: fetch has no upload-progress event and the
+            // progress bar is the point of this page. The body is the File
+            // itself - no multipart envelope - so the server can pipe it
+            // straight into blob storage.
+            return new Promise(resolve => {
+                const xhr = new XMLHttpRequest();
+                const url = '/upload/direct?filename=' + encodeURIComponent(e.file.name) +
+                    '&size=' + e.file.size;
+                xhr.open('POST', url, true);
+                xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+
+                xhr.upload.onprogress = ev => {
+                    e.bytesSent = ev.loaded;
+                    e.percent = e.file.size
+                        ? Math.min(99, Math.round(ev.loaded / e.file.size * 100))
+                        : 0;
+                    render();
+                };
+                xhr.upload.onload = () => {
+                    // Bytes are away; the server is still flushing the last
+                    // block and producing the metadata message.
+                    e.status = 'finalizing';
+                    render();
+                };
+                xhr.onload = () => {
+                    let body = null;
+                    try { body = JSON.parse(xhr.responseText); } catch (parseErr) { body = null; }
+                    if (xhr.status >= 200 && xhr.status < 300 && body && body.status === 'done') {
+                        e.uploadId = body.upload_id;
+                        e.blobPath = body.blob_path;
+                        e.status = 'done';
+                        e.percent = 100;
+                        e.bytesSent = e.file.size;
+                    } else {
+                        e.status = 'error';
+                        e.error = `direct: HTTP ${xhr.status}` +
+                            (body && body.message ? ` ${body.message}` : '');
+                    }
+                    resolve();
+                };
+                xhr.onerror = () => {
+                    e.status = 'error';
+                    e.error = 'direct: network error';
+                    resolve();
+                };
+                xhr.onabort = () => {
+                    e.status = 'error';
+                    e.error = 'direct: aborted';
+                    resolve();
+                };
+                xhr.send(e.file);
+            });
+        }
+
+        async function startSasUpload(e) {
             // Step 1: ask server for a SAS URL.
             let sasResp;
             try {
@@ -369,6 +447,7 @@
 
             // Step 2: PUT directly to Azure via @azure/storage-blob.
             try {
+                const { BlockBlobClient } = await import(AZURE_SDK_URL);
                 const client = new BlockBlobClient(sasResp.sasUrl);
                 await client.uploadData(e.file, {
                     blockSize: 4 * 1024 * 1024,

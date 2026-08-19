@@ -43,6 +43,10 @@ deployments:
         inputType: FreeText
         description: SAS URL lifetime in seconds (default 1800 = 30 min)
         value: 1800
+      - name: upload_mode
+        inputType: FreeText
+        description: auto = sas on Azure, server-side direct upload on every other backend; sas or direct forces one path
+        value: auto
     plugin:
       embeddedView:
         enabled: true

@@ -12,9 +12,12 @@ plus two added features:
 
 ```
 browser
-  |  POST /upload/sas        (mint key + SAS URL)
-  |  PUT  -> Azure Blob      (bytes never touch the app)
-  |  POST /upload/complete   (verify size, produce metadata)
+  |  Azure backend      (upload_mode "sas"):
+  |    POST /upload/sas       (mint key + SAS URL)
+  |    PUT  -> Azure Blob     (bytes never touch the app)
+  |    POST /upload/complete  (verify size, produce metadata)
+  |  Any other backend  (upload_mode "direct"):
+  |    POST /upload/direct    (mint key, stream body -> blob, produce metadata)
   v
 mf4-to-blob  --[topic mf4_metadata]-->  mf4-decoder  --[topic mf4-to-msg]-->  mf4-datalake-sink
      |                                       |                                      |
@@ -26,6 +29,54 @@ mf4-to-blob  --[topic mf4_metadata]-->  mf4-decoder  --[topic mf4-to-msg]-->  mf
 Three deployments in `quix.yaml`: `MF4 Import` (mf4-to-blob), `MF4 Decoder`
 (mf4-decoder), `MF4 DataLake Sink` (mf4-datalake-sink). Two topics:
 `mf4_metadata`, `mf4-to-msg`.
+
+## Upload paths
+
+Two paths into blob storage. Which one the browser uses is decided by the
+server and reported by `GET /config` as `upload_mode`; the browser never
+guesses.
+
+| | `sas` | `direct` |
+| --- | --- | --- |
+| Backends | Azure only | Azure, S3, S3Compatible, Minio, Gcp, Local |
+| Bytes through the app | no | yes (streamed) |
+| Endpoints | `/upload/sas` + `/upload/complete` | `/upload/direct` |
+| `sha256` on `mf4_metadata` | `null` | hex digest |
+
+`direct` exists because SAS is an Azure-specific construct: this workspace's
+backend is `S3Compatible`, so `/upload/sas` could only ever answer HTTP 501
+(`sas.py::extract_azure_credentials`). Rather than hand-roll a presigned-PUT
+equivalent per provider, the direct path reuses the fsspec filesystem that
+`blob.py` already builds from the auto-injected
+`Quix__BlobStorage__Connection__Json` — the same object `mf4-decoder` reads
+blobs with. No bucket/endpoint/key variables are introduced anywhere.
+
+**Provider detection** — `blob.get_provider()` reads
+`quixportal.storage.config.load_config_from_env().provider` once and caches
+it. `main.py::_resolve_upload_mode` maps `Azure -> sas`, anything else (and an
+unreadable config) `-> direct`. The `upload_mode` deployment variable
+(`auto` by default) can pin a path for debugging; `sas` on a non-Azure backend
+is then the only way to still see the 501.
+
+**Direct request shape** —
+`POST /upload/direct?filename=<name>&size=<bytes>` with the raw file as the
+body (`application/octet-stream`, no multipart envelope). The handler mints
+`upload_id` via `metadata.make_upload_id` — once, before the first byte is
+written — resolves the blob path, then pumps `request.stream()` chunk-by-chunk
+into `blob.open_writer()`, hashing as it goes. Peak memory is one fsspec block,
+not one file. The fsspec writer is synchronous and its flushes are network
+calls, so every `write`/`close` is dispatched through `anyio.to_thread` to keep
+the event loop free for concurrent uploads and `/progress` polls. `state.py` is
+updated per chunk exactly as before. After the last chunk: size check against
+the client-declared `size`, `metadata.build_payload(...)` (with the streamed
+`sha256`), one `mf4_metadata` message keyed by `upload_id`, then status `done`.
+Any failure removes the partial blob via `blob.safe_remove`.
+
+**Frontend** — `static/index.html` awaits `/config` before the first upload and
+branches in `startUpload`: `startSasUpload` (unchanged) or `startDirectUpload`,
+which uses `XMLHttpRequest` because `fetch` exposes no upload-progress event.
+The Azure SDK import became dynamic, so a non-Azure workspace never contacts
+the CDN.
 
 ## The unique key
 
@@ -44,10 +95,11 @@ Worked example: `Recording 001.mf4` uploaded at `2026-08-19T10:22:33.123456+00:0
 -> `Recording_001-7a9622106da0`.
 
 **Minted once**, in `mf4-to-blob/metadata.py::make_upload_id`, called from
-`main.py::upload_sas` where it replaces the previous `uuid.uuid4()`. Minting at
-SAS time (not at completion time) means one value serves as the browser's
-`uploadId`, the in-process progress-registry key, the Kafka message key and the
-metadata `id` — a single identity for the whole upload.
+`main.py::upload_sas` (SAS path) or `main.py::upload_direct` (direct path),
+where it replaces the previous `uuid.uuid4()`. Minting before the bytes move —
+not at completion time — means one value serves as the browser's `uploadId`,
+the in-process progress-registry key, the Kafka message key and the metadata
+`id`: a single identity for the whole upload, whichever path it took.
 
 **Field name at each hop** (deliberately kept as the source repo had it on
 `mf4_metadata`):
@@ -70,6 +122,10 @@ variable name already used throughout the code.
 * `mf4-to-blob/main.py::upload_sas` — `upload_id = metadata.make_upload_id(...)`.
 * `mf4-to-blob/main.py::upload_complete` — passes it to `build_payload`, which
   emits it as `id`; also used as the Kafka message key.
+* `mf4-to-blob/main.py::upload_direct` — mints and consumes it in one request:
+  progress key, `build_payload` argument and Kafka key, all the same value.
+  Both paths publish through `main.py::_produce_metadata`, so the message is
+  built and keyed identically.
 * `mf4-decoder/main.py::process` — `upload_id = metadata.get("id")`; warns if
   absent rather than dropping the file.
 * `mf4-decoder/main.py::_emit_signals` — the shared per-signal loop used by
