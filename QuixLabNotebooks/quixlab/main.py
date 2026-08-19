@@ -84,7 +84,9 @@ def ai_3(can_signals_v13_4):
 def ai_1():
     """Create a form with 3 dropdowns that cascade.
 
-    1. Platf"""
+    1. Selected platform
+    2. Selected device (filter list by selected platform)
+    3. Selected route (filter list by both device and platform)"""
 
 
 if __name__ == "__main__":
