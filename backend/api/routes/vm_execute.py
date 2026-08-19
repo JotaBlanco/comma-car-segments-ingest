@@ -66,8 +66,12 @@ def execute(
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
 
     current = summaries[0]
-    assert_transition(run_id, current.status, VModelRunStatus.RUNNING)
-    apply_run_status(mongo, run_id, VModelRunStatus.RUNNING)
+    # A run already in `running` is re-executed in place. Asserting running -> running
+    # would 409 and leave it stuck there forever, which is exactly the state an
+    # interrupted execution leaves behind; the only way out has to be running it again.
+    if current.status is not VModelRunStatus.RUNNING:
+        assert_transition(run_id, current.status, VModelRunStatus.RUNNING)
+        apply_run_status(mongo, run_id, VModelRunStatus.RUNNING)
 
     try:
         report = execute_run(
