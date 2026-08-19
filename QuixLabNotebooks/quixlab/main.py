@@ -82,7 +82,9 @@ def ai_3(can_signals_v13_4):
 
 @canvas.ai(position=(200, -3843), size=(560, 420), code_height=200)
 def ai_1():
-    """Create a """
+    """Create a form with 3 dropdowns that cascade.
+
+    1. Platf"""
 
 
 if __name__ == "__main__":
