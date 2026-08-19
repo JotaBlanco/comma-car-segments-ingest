@@ -15,7 +15,7 @@ variables:
     inputType: FreeText
     multiline: false
     description: Comma-separated list of columns for Hive partitioning. Include year/month/day/hour to extract from TIMESTAMP_COLUMN.
-    defaultValue: channel
+    defaultValue: upload_id
   - name: TIMESTAMP_COLUMN
     inputType: FreeText
     description: Column containing timestamp values to extract year/month/day/hour from
@@ -47,7 +47,7 @@ variables:
   - name: CONSUMER_GROUP
     inputType: FreeText
     description: Kafka consumer group name
-    defaultValue: mdf_file_test_lake_v1
+    defaultValue: mdf_file_test_lake_v2
   - name: AUTO_OFFSET_RESET
     inputType: Options
     description: Where to start consuming if no offset exists

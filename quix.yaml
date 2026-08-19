@@ -114,11 +114,11 @@ deployments:
       - name: TABLE_NAME
         inputType: FreeText
         description: Iceberg table name; defaults to topic name if unset
-        value: mdf_file_test_ludvik
+        value: mdf_file_test_ludvik_v2
       - name: HIVE_COLUMNS
         inputType: FreeText
         description: Comma-separated list of columns for Hive partitioning. Include year/month/day/hour to extract from TIMESTAMP_COLUMN.
-        value: channel
+        value: upload_id
       - name: TIMESTAMP_COLUMN
         inputType: FreeText
         description: Column containing timestamp values to extract year/month/day/hour from
@@ -150,7 +150,7 @@ deployments:
       - name: CONSUMER_GROUP
         inputType: FreeText
         description: Kafka consumer group name
-        value: mdf_file_test_lake_v1
+        value: mdf_file_test_lake_v2
       - name: AUTO_OFFSET_RESET
         inputType: Options
         description: Where to start consuming if no offset exists
