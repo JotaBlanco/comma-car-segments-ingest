@@ -350,12 +350,12 @@ TC011_SIGNALS = ("ACC_Status", "ACC_TimeGapSet_s", "Trgt_Dist_m",
                  "Trgt_Valid_Flg", "VehSpd_Kph")
 
 
-@canvas.dataset()
+@canvas.dataset(position=(-175, -75), size=(400, 300), code_height=200)
 def signals_tc011():
     return fetch("ACC-SYS-TC-011", TC011_SIGNALS)
 
 
-@canvas.cell()
+@canvas.cell(position=(349, -100), size=(400, 300), code_height=200)
 def acc_sys_ti_011(signals_tc011):
     wide = to_wide(signals_tc011)
     absent = missing_signals(wide, TC011_SIGNALS)
