@@ -23,12 +23,27 @@ class MongoSettings(BaseSettings):
 class InfluxSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="INFLUXDB_")
 
-    user: str = Field(..., description="InfluxDB username")
-    password: str = Field(..., description="InfluxDB password")
+    user: str | None = Field(
+        None, description="InfluxDB username; unset disables logbook mirroring"
+    )
+    password: str | None = Field(
+        None, description="InfluxDB password; unset disables logbook mirroring"
+    )
     host: str = Field("localhost", description="InfluxDB host address")
     port: int = Field(8086, description="InfluxDB port")
     database: str = Field("test_manager", description="InfluxDB database name")
     measurement: str = Field("logbook", description="InfluxDB measurement name")
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def enabled(self) -> bool:
+        """Whether the logbook mirror should connect at all.
+
+        InfluxDB is a write-only mirror of the logbook - every read path uses
+        MongoDB - so missing credentials must degrade to a no-op rather than
+        block application startup.
+        """
+        return bool(self.user and self.password)
 
 
 class Settings(BaseSettings):
