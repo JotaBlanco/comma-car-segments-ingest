@@ -56,9 +56,17 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={disabled || loading}
         {...props}
       >
-        {/* Only show loading spinner for regular buttons, not when asChild (Slot requires single child) */}
-        {!asChild && loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        {children}
+        {/* Slot runs React.Children.only, and a `false` from a short-circuit still counts
+            as a child - so under asChild we must pass `children` alone, not an expression
+            beside it. Rendering the spinner for the asChild case is impossible anyway. */}
+        {asChild ? (
+          children
+        ) : (
+          <>
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {children}
+          </>
+        )}
       </Comp>
     )
   }
