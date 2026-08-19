@@ -76,7 +76,7 @@ def can_signals_v13_4(selection):
     """)
 
 
-@canvas.ai(position=(2033, -3891), size=(690, 666), code_height=200, viz={'type': 'line', 'x': 'timestamp', 'y': ['EngineRPM']})
+@canvas.ai(position=(2033, -3891), size=(690, 666), code_height=200, viz={'type': 'table', 'x': 'timestamp', 'y': ['EngineRPM']})
 def ai_3(can_signals_v13_4):
     """Plot signal EngineRPM over time."""
     # ql-ai: generated from prompt 50dd940da2feff25
