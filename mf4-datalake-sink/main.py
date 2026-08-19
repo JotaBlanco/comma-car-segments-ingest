@@ -5,13 +5,24 @@ Variant of quix-datalake-timeseries-sink for the MF4 pipeline.
 mf4-decoder produces per-channel batched Kafka messages with the shape:
 
     {
-        "file_name": "sample.mf4",       # scalar
-        "upload_id": "sample-7a9622106da0",  # scalar, unique per file
-        "channel":   "VOLTAGE",          # scalar
-        "unit":      "V",                # scalar
-        "ts_ms":     [t0, t1, ..., tN],  # array
-        "value":     [v0, v1, ..., vN],  # array
+        "file_name":  "sample.mf4",            # scalar
+        "upload_id":  "sample-7a9622106da0",   # scalar, unique per file
+        "channel":    "VOLTAGE",               # scalar
+        "unit":       "V",                     # scalar
+        "ts_ms":      [t0, t1, ..., tN],       # array
+        "value":      [v0, v1, ..., vN],       # array, float | None
+        "value_text": [s0, s1, ..., sN],       # array, str | None
     }
+
+``value`` and ``value_text`` are a per-channel split, not a per-sample one: a
+numeric channel fills ``value`` with floats and ``value_text`` with nulls, a
+string/bytes channel (including CAN signals resolved through a DBC ``VAL_``
+value table, which decode to ``'D'``, ``'P'``, ``'R'``, ...) does the reverse.
+Both keys are always present. Before the split every sample shared one
+``value`` column, so a single parquet file holding both kinds made PyArrow
+infer ``double`` from the leading rows and then raise on the first string -
+which is exactly what happens now that the table partitions on ``upload_id``
+(one file per upload) instead of on ``channel`` (one file per signal).
 
 ``upload_id`` is the pipeline-wide unique key minted by mf4-to-blob
 (``metadata.make_upload_id``: ``<safe_filename_stem>-<sha256(filename+time)[:12]>``).
@@ -37,6 +48,7 @@ sample, identical to a non-batched producer.
 """
 import inspect
 import logging
+import math
 import os
 import re
 
@@ -76,16 +88,69 @@ def _positive_int(env_var: str, default: str) -> int:
     return value
 
 
+# Running count of rows whose ``value`` was not a float and had to be coerced
+# to null. Counted and logged rather than raised: the sink writes in batches, so
+# one poison sample would fail the whole parquet write, the checkpoint would not
+# commit, and the service would retry the same offsets forever. Clearing that
+# state needs a topic purge or a redeploy, which is not an acceptable failure
+# mode for a data-shape problem in a single row.
+_coerced_rows = 0
+
+# Log the first coercion, then one line per this many, so a systematically
+# mis-typed channel is visible without flooding the log at 1000 rows/batch.
+_COERCE_LOG_EVERY = 1000
+
+
+def _coerce_value(raw):
+    """Coerce one raw sample to ``(float | None, str | None)``.
+
+    The decoder already routes numeric channels to ``value`` and text channels
+    to ``value_text``, so this is a backstop for everything else that can reach
+    the sink: messages from an older decoder, hand-written messages, or a dtype
+    the decoder mis-routed. Anything that will not become a finite float is
+    returned as ``(None, str(raw))`` - the value survives as text instead of
+    raising ``ArrowInvalid`` inside the parquet writer.
+
+    Numeric strings are accepted as numbers: a replayed older message can carry
+    ``"1.5"`` where a float belongs, and that is a number, not a label.
+    """
+    if raw is None:
+        return None, None
+    # bool is a subclass of int; check it first so True lands as 1.0 rather
+    # than being handled by some later branch.
+    if isinstance(raw, bool):
+        return float(raw), None
+    if not isinstance(raw, (int, float, str)):
+        return None, str(raw)
+    try:
+        as_float = float(raw)
+    except (TypeError, ValueError):
+        return None, str(raw)
+    # NaN / Inf have no parquet double representation that survives a round
+    # trip through pd.isna(), so they are nulls, not text.
+    return (as_float, None) if math.isfinite(as_float) else (None, None)
+
+
 def _expand_columnar(value):
     """Expand a per-channel batched message into N per-row dicts.
 
     Scalars (file_name, upload_id, channel, unit) are repeated; arrays
-    (ts_ms, value) are indexed.
+    (ts_ms, value, value_text) are indexed.
 
-    ``upload_id`` is read defensively with ``.get()``: messages produced by
-    an older decoder (already on the topic at deploy time) do not carry it,
-    and those rows land with a null key rather than crashing the sink.
+    Every yielded row carries *both* ``value`` and ``value_text``, one of them
+    ``None``. A row that omitted a key would make the column set vary between
+    rows of the same parquet file, which is the same class of unstable-schema
+    bug as the mixed-type ``value`` column this split fixes.
+
+    ``upload_id`` and ``value_text`` are read defensively with ``.get()``:
+    messages produced by an older decoder are already on the topic and
+    ``AUTO_OFFSET_RESET=earliest`` replays them. They have no ``value_text``
+    key at all, so it defaults to an all-null column and those rows write
+    cleanly without a topic purge. A ``value_text`` array of the wrong length
+    is discarded for the same reason - a malformed message must not raise.
     """
+    global _coerced_rows
+
     n = len(value["ts_ms"])
     file_name = value["file_name"]
     upload_id = value.get("upload_id")
@@ -93,14 +158,40 @@ def _expand_columnar(value):
     unit = value["unit"]
     ts_arr = value["ts_ms"]
     val_arr = value["value"]
+
+    text_arr = value.get("value_text")
+    if not isinstance(text_arr, list) or len(text_arr) != n:
+        text_arr = None
+
     for i in range(n):
+        raw = val_arr[i]
+        num, coerced_text = _coerce_value(raw)
+        text = text_arr[i] if text_arr is not None else None
+
+        if coerced_text is not None:
+            _coerced_rows += 1
+            # Do not overwrite a real value_text; the coerced string is only a
+            # fallback for rows that have nowhere else to put the value.
+            if text is None:
+                text = coerced_text
+            if _coerced_rows == 1 or _coerced_rows % _COERCE_LOG_EVERY == 0:
+                logger.warning(
+                    "Coerced %d non-numeric 'value' sample(s) to null so far; "
+                    "latest channel=%s value=%r -> value_text=%r",
+                    _coerced_rows,
+                    channel,
+                    raw,
+                    coerced_text,
+                )
+
         yield {
-            "file_name": file_name,
-            "upload_id": upload_id,
-            "channel":   channel,
-            "unit":      unit,
-            "ts_ms":     ts_arr[i],
-            "value":     val_arr[i],
+            "file_name":  file_name,
+            "upload_id":  upload_id,
+            "channel":    channel,
+            "unit":       unit,
+            "ts_ms":      ts_arr[i],
+            "value":      num,
+            "value_text": None if text is None else str(text),
         }
 
 

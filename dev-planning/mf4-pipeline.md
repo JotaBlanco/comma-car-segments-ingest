@@ -142,13 +142,24 @@ variable name already used throughout the code.
 
 ## Iceberg columns
 
-`file_name`, `upload_id`, `channel`, `unit`, `ts_ms`, `value` (plus the
-year/month/day/hour Hive partitions derived from `TIMESTAMP_COLUMN=ts_ms`).
+`file_name`, `upload_id`, `channel`, `unit`, `ts_ms`, `value`, `value_text`
+(plus the year/month/day/hour Hive partitions derived from
+`TIMESTAMP_COLUMN=ts_ms`).
 
-`HIVE_COLUMNS` stays `channel`. Partitioning on `upload_id` was considered and
-rejected: one partition per uploaded file is unbounded cardinality and would
-produce a small-files problem in the lake. `upload_id` is still a normal
-queryable column, which is all the Test Manager join needs.
+`value` is always a float or null; `value_text` is always a string or null.
+The split is per **channel**, decided from the samples' numpy dtype in
+`mf4-decoder/main.py::_is_numeric_dtype`, and every emitted record carries both
+keys with one of them null. Numeric signals fill `value`; string/bytes channels
+and CAN signals resolved through a DBC `VAL_` value table (which decode to
+`'D'`, `'P'`, `'R'`, ...) fill `value_text`. One shared `value` column made
+PyArrow infer `double` from a file's leading rows and raise `ArrowInvalid` on
+the first string.
+
+`HIVE_COLUMNS` is `upload_id`. It was previously `channel`, which put exactly
+one signal in each parquet file and so hid the mixed-type `value` problem, but a
+608-signal file then flushed 657 files at a time. One partition per upload
+trades that for unbounded partition cardinality over time; `channel` remains a
+normal queryable column.
 
 ## CAN bus-logging decode
 

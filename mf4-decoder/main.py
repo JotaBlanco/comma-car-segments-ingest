@@ -99,7 +99,44 @@ def _safe_value(v):
     return v
 
 
-def _produce_batch(file_name, upload_id, channel, unit, ts_buf, val_buf):
+def _safe_text(v):
+    """JSON-safe *string* form of one sample taken from a non-numeric channel.
+
+    Text channels put every sample in ``value_text``, so the sample is
+    stringified here instead of being left as whatever type ``_safe_value``
+    happened to produce - that keeps the column a single Arrow type. Returns
+    ``None`` for samples that carry nothing (None / NaN / undecodable), which
+    the caller drops.
+    """
+    v = _safe_value(v)
+    if v is None:
+        return None
+    if isinstance(v, str):
+        return v
+    return str(v)
+
+
+def _is_numeric_dtype(dtype) -> bool:
+    """True when a channel's samples belong in the float ``value`` column.
+
+    Numeric-vs-text is decided once per channel from the numpy dtype, never
+    per sample. Every sample of a numeric channel is emitted as a float in
+    ``value`` with ``value_text=None``; every sample of a non-numeric channel
+    is emitted as a string in ``value_text`` with ``value=None``. Mixing the
+    two inside one column is what made PyArrow infer ``double`` from the
+    leading rows and then fail on the first DBC ``VAL_`` table string.
+
+    Booleans count as numeric (0.0 / 1.0). Complex, datetime, void/structured
+    and object/bytes/str dtypes are all text.
+    """
+    return (
+        np.issubdtype(dtype, np.integer)
+        or np.issubdtype(dtype, np.floating)
+        or dtype == np.bool_
+    )
+
+
+def _produce_batch(file_name, upload_id, channel, unit, ts_buf, val_buf, text_buf):
     """Serialize a per-channel scalar+array payload as one Kafka message and produce it.
 
     The Kafka key is the emitted ``channel`` name (matches the ``channel``
@@ -110,14 +147,22 @@ def _produce_batch(file_name, upload_id, channel, unit, ts_buf, val_buf):
     ``upload_id`` is the pipeline-wide unique key minted by mf4-to-blob and
     carried on the ``id`` field of the ``mf4_metadata`` message. It is
     repeated on every batch so the sink can write it onto every lake row.
+
+    ``value`` and ``value_text`` are *both* always present and always the same
+    length as ``ts_ms``. One of the two is an all-``None`` list, chosen per
+    channel by ``_is_numeric_dtype``. Omitting a key on some batches would
+    give the sink an unstable schema, which is the bug this split exists to
+    prevent - so callers pass an explicit ``[None] * len(ts_buf)`` rather than
+    dropping the unused column.
     """
     payload = {
-        "file_name": file_name,
-        "upload_id": upload_id,
-        "channel":   channel,
-        "unit":      unit,
-        "ts_ms":     ts_buf,
-        "value":     val_buf,
+        "file_name":  file_name,
+        "upload_id":  upload_id,
+        "channel":    channel,
+        "unit":       unit,
+        "ts_ms":      ts_buf,
+        "value":      val_buf,
+        "value_text": text_buf,
     }
     try:
         msg = output_topic.serialize(key=channel, value=payload)
@@ -142,9 +187,14 @@ def _emit_channel(
     Numeric (int/float) channels go through a fully vectorized fast path:
     timestamp conversion, NaN/Inf scrubbing and scalar coercion happen in
     numpy, then a single ``tolist()`` materializes JSON-ready Python lists.
-    The per-element ``_safe_value`` loop is only used for the rare
+    The per-element ``_safe_text`` loop is only used for the rare
     object/bytes dtype channels (string/bytes payloads) where vectorization
     doesn't apply.
+
+    Which of the two value columns a channel fills is decided once, here, from
+    the samples' dtype: the numeric fast path fills ``value`` (float) and nulls
+    ``value_text``, the object/bytes path fills ``value_text`` (str) and nulls
+    ``value``. Both paths emit both keys.
 
     Returns updated (total_msgs, total_samples).
     """
@@ -155,18 +205,22 @@ def _emit_channel(
     if len(arr) == 0:
         return total_msgs, total_samples
 
-    if np.issubdtype(arr.dtype, np.number):
+    if _is_numeric_dtype(arr.dtype):
         # Vectorized numeric fast path -----------------------------------
         ts_full = (start_ms + (np.asarray(timestamps, dtype=np.float64) * 1000.0)).astype(np.int64)
 
-        if np.issubdtype(arr.dtype, np.floating):
-            ok = np.isfinite(arr)
-            if not ok.all():
-                ts_full = ts_full[ok]
-                arr = arr[ok]
-            # All-NaN/Inf channel: nothing emittable left after the mask.
-            if len(arr) == 0:
-                return total_msgs, total_samples
+        # Widen every numeric channel (int, bool, float32, ...) to float64 so
+        # the whole `value` column is one Python type. A file mixing int and
+        # float channels would otherwise hand PyArrow a mixed int/float list.
+        arr = arr.astype(np.float64, copy=False)
+
+        ok = np.isfinite(arr)
+        if not ok.all():
+            ts_full = ts_full[ok]
+            arr = arr[ok]
+        # All-NaN/Inf channel: nothing emittable left after the mask.
+        if len(arr) == 0:
+            return total_msgs, total_samples
 
         ts_list = ts_full.tolist()
         val_list = arr.tolist()
@@ -177,6 +231,7 @@ def _emit_channel(
             _produce_batch(
                 filename, upload_id, emit_channel, unit,
                 ts_list[offset:end], val_list[offset:end],
+                [None] * (end - offset),
             )
             total_msgs += 1
             total_samples += end - offset
@@ -186,34 +241,42 @@ def _emit_channel(
         return total_msgs, total_samples
 
     # Object / bytes / string dtype slow path ---------------------------
-    # Keep the existing per-element _safe_value loop here; bytes->hex
-    # fallback and isinstance gymnastics still matter for these channels.
+    # Keep the existing per-element loop here; bytes->hex fallback and
+    # isinstance gymnastics still matter for these channels. Everything this
+    # path produces goes to `value_text`, including the DBC `VAL_` value-table
+    # strings ('D', 'P', 'R', ...) that used to land in the numeric column.
     n = len(samples)
     ts_buf = []
-    val_buf = []
+    text_buf = []
 
     for offset in range(0, n, FRAME_CHUNK):
         ts_chunk = timestamps[offset:offset + FRAME_CHUNK]
         smp_chunk = samples[offset:offset + FRAME_CHUNK]
 
         for t, v in zip(ts_chunk, smp_chunk):
-            safe_v = _safe_value(v)
+            safe_v = _safe_text(v)
             if safe_v is None:
                 continue
 
             ts_buf.append(start_ms + int(float(t) * 1000))
-            val_buf.append(safe_v)
+            text_buf.append(safe_v)
             total_samples += 1
 
             if len(ts_buf) >= BATCH_RECORDS:
-                _produce_batch(filename, upload_id, emit_channel, unit, ts_buf, val_buf)
-                ts_buf, val_buf = [], []
+                _produce_batch(
+                    filename, upload_id, emit_channel, unit,
+                    ts_buf, [None] * len(ts_buf), text_buf,
+                )
+                ts_buf, text_buf = [], []
                 total_msgs += 1
                 if total_msgs % FLUSH_EVERY == 0:
                     producer.flush()
 
     if ts_buf:
-        _produce_batch(filename, upload_id, emit_channel, unit, ts_buf, val_buf)
+        _produce_batch(
+            filename, upload_id, emit_channel, unit,
+            ts_buf, [None] * len(ts_buf), text_buf,
+        )
         total_msgs += 1
 
     return total_msgs, total_samples
@@ -385,7 +448,11 @@ def _emit_signals(
     made for one file, so decoded and raw streams cannot collide.
 
     ``upload_id`` is passed straight through to ``_emit_channel``, which puts it
-    on every batch of both the numeric and the object/bytes emit path.
+    on every batch of both the numeric and the object/bytes emit path. So is
+    the ``value`` / ``value_text`` split: ``_emit_channel`` routes each signal
+    to one of the two columns from its dtype, so signals decoded from a DBC
+    ``VAL_`` value table (which come back as strings) never share a column with
+    numeric signals.
 
     Returns (total_msgs, total_samples, channels_emitted).
     """
