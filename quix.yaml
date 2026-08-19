@@ -82,38 +82,6 @@ deployments:
         show: true
         label: Configurations
         icon: tune
-  - name: CAN lake sink 2
-    application: can-lake-sink
-    version: latest
-    deploymentType: Service
-    resources:
-      limits:
-        cpu: 1000
-        memory: 2000
-    variables:
-      - name: CONSUMER_GROUP
-        inputType: FreeText
-        value: can-lake-sink-v7
-      - name: SIGNALS_TABLE
-        inputType: FreeText
-        value: can_signals_v4
-      - name: SINK_UNKNOWN_FRAMES
-        inputType: FreeText
-        value: false
-      - name: UNKNOWN_TABLE
-        inputType: FreeText
-        value: can_unknown_frames_v3
-      - name: HIVE_COLUMNS
-        inputType: FreeText
-        value: platform,device,route,~channel,~sender_node,~frame_name,~signal,~channel_name
-      - name: UNKNOWN_HIVE_COLUMNS
-        inputType: FreeText
-        value: platform,device,route,channel
-      - name: COMMIT_EVERY
-        inputType: FreeText
-        value: 100000
-    blobStorage:
-      bind: true
   - name: Quix Lakehouse Sink
     application: quix-lakehouse-sink
     version: latest
