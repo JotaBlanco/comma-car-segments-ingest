@@ -112,38 +112,6 @@ export function TestSpecDetail({
       </DetailSection>
 
       {/* 4. When the case is valid */}
-      {/* The downstream edge of the V: which implementation verifies this case. */}
-      {spec.impl_ref && (
-        <DetailSection title="Test implementation">
-          <DefinitionGrid
-            rows={[
-              {
-                label: "Implementation",
-                value: (
-                  <Link
-                    href="/test-implementations"
-                    className="font-mono text-sm text-primary underline underline-offset-4 hover:no-underline"
-                  >
-                    {spec.impl_ref}
-                  </Link>
-                ),
-              },
-              {
-                label: "QuixLab cell",
-                value: (
-                  <Link
-                    href="/test-implementations"
-                    className="font-mono text-sm text-primary underline underline-offset-4 hover:no-underline"
-                  >
-                    {spec.impl_ref.toLowerCase().replace(/-/g, "_")}
-                  </Link>
-                ),
-              },
-            ]}
-          />
-        </DetailSection>
-      )}
-
       <DetailSection title="Criteria for a valid run">
         <DefinitionGrid
           rows={[
@@ -228,6 +196,23 @@ export function TestSpecDetail({
       </DetailSection>
 
       {/* 7. Notes - provenance prose, rendered in full and never reordered */}
+      {/* The downstream edge of the V. Chip styling matches RequirementLink so the
+          two traceability directions read the same. */}
+      {spec.impl_ref && (
+        <DetailSection title="Implemented by">
+          <Link
+            href="/test-implementations"
+            title={`QuixLab cell ${spec.impl_ref.toLowerCase().replace(/-/g, "_")}`}
+            className="inline-flex items-baseline gap-2 rounded-full border px-2.5 py-0.5 transition-colors hover:bg-accent hover:text-accent-foreground"
+          >
+            <span className="font-mono text-xs">{spec.impl_ref}</span>
+            <span className="max-w-xs truncate text-xs">
+              {spec.impl_ref.toLowerCase().replace(/-/g, "_")}
+            </span>
+          </Link>
+        </DetailSection>
+      )}
+
       <DetailSection title="Notes">
         {spec.notes ? (
           <p className="text-sm leading-relaxed">{spec.notes}</p>
