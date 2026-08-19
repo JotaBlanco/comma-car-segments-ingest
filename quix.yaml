@@ -55,25 +55,13 @@ deployments:
         memory: 2000
     variables:
       - name: TABLE_NAME
-        value: mf4_signals_v2
-      - name: CONSUMER_GROUP
-        value: mf4_signals_v2_lake_v1
+        value: mf4_signals_v3
       - name: HIVE_COLUMNS
-        inputType: FreeText
-        description: Physical Hive partition columns
-        value: platform,device,route
+        value: '[platform,device,route,~channel_name,~sender_node, ~channel]'
       - name: BATCH_SIZE
-        inputType: FreeText
-        description: Input messages per checkpoint
         value: 500
-      - name: TIMESTAMP_COLUMN
-        inputType: FreeText
-        description: Column used to derive time partitions
-        value: ts_ms
-      - name: AUTO_OFFSET_RESET
-        inputType: FreeText
-        description: Where to start consuming if no offset exists
-        value: earliest
+      - name: CONSUMER_GROUP
+        value: mf4_signals_v1.2
     blobStorage:
       bind: true
   - name: Test Manager - Backend
