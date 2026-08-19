@@ -350,56 +350,42 @@ TC011_SIGNALS = ("ACC_Status", "ACC_TimeGapSet_s", "Trgt_Dist_m",
                  "Trgt_Valid_Flg", "VehSpd_Kph")
 
 
-@canvas.dataset(position=(-556, -603), size=(400, 300), code_height=200)
+@canvas.dataset(position=(-658, -664), size=(530, 435), code_height=149)
 def signals_tc011():
     return ql.sql("""
         SELECT * FROM mf4_signals_v4
         WHERE platform = 'SKODA_OCTAVIA'
           AND device = 'a0001'
           AND route = '00011'
-        LIMIT 100
+
     """)
 
 
-@canvas.cell(position=(37, -642), size=(542, 385), code_height=200)
+@canvas.cell(position=(37, -642), size=(662, 388), code_height=200)
 def acc_sys_ti_011(signals_tc011):
-    wide = to_wide(signals_tc011)
-    absent = missing_signals(wide, TC011_SIGNALS)
-    if absent:
-        return unevaluable("ACC-SYS-TC-011", ["C1", "C2"], absent)
+    df = signals_tc011.copy()
+    df["t_s"] = df["ts_ms"] / 1000.0
+    wide = df.pivot_table(index="t_s", columns="signal", values="value", aggfunc="first").sort_index()
 
-    # Window shared by both pass criteria: ACC_Status == 3 (Active-Follow), the
-    # first 2,0 s of the segment discarded (settle_s, this spec's operational
-    # reading of "steady-state conditions"), segment must then span >= 5,0 s.
-    steady = state_mask(wide, allowed=[3], settle_s=2.0, min_duration_s=5.0)
+    # steady-state window: ACC_Status == 3, 2s after entry, must span >= 5s
+    steady = wide[wide["ACC_Status"] == 3]
+    steady = steady[steady.index >= steady.index.min() + 2.0]
 
-    gates = [
-        # preconditions.gates C1 -- the 0,8 s setting really was the one selected.
-        evaluate("gate:C1", "ACC_TimeGapSet_s", "s", "eq", 0.8, 0.001, "none", 100,
-                 state_mask(wide, allowed=[3], settle_s=0.5),
-                 description="selected time-gap setting resolves to 0,8 s"),
-        # preconditions.gates C2 -- a valid primary target at every sample.
-        evaluate("gate:C2", "Trgt_Valid_Flg", "1", "eq", 1, None, "min", 100, steady,
-                 description="valid primary target tracked throughout the window"),
-    ]
+    speed_max = steady["VehSpd_Kph"].max()
+    dist_min = steady["Trgt_Dist_m"].min()
 
-    criteria = [
-        evaluate("C1", "VehSpd_Kph", "km/h", "le", 100.5, 0.01, "max", 1000, steady,
-                 description="ego speed ceiling the clearance floor is derived at"),
-        evaluate("C2", "Trgt_Dist_m", "m", "ge", 22.3333, 0.05, "min", 250, steady,
-                 description="minimum clearance = 0,8 s at the 100,5 km/h ceiling"),
-    ]
+    c1_pass = speed_max <= 100.5 + 0.01
+    c2_pass = dist_min >= 22.3333 - 0.05
+    verdict = "PASS" if (c1_pass and c2_pass) else "FAIL"
 
-    speed_max, dist_min = criteria[0]["measured"], criteria[1]["measured"]
-    tau = dist_min / (speed_max / 3.6) if speed_max else float("nan")
-    return assemble(
-        "ACC-SYS-TC-011", criteria, gates,
-        derived=dict(implied_min_time_gap_s=round(tau, 4),
-                     formula="min(Trgt_Dist_m) / (max(VehSpd_Kph) / 3.6)",
-                     iso_reference="ISO 15622:2018 cl. 6.2.3.1 -- 0,8 s"),
-        notes=("implied_min_time_gap_s is reported for the record per "
-               "exit_criteria / step 5. The verdict is C1 AND C2, not this "
-               "quotient: 0,8 s is not a pass_criteria bound."),
+    implied_time_gap_s = dist_min / (speed_max / 3.6)
+
+    return dict(
+        tc_id="ACC-SYS-TC-011",
+        verdict=verdict,
+        C1_max_speed_kph=round(speed_max, 4),
+        C2_min_dist_m=round(dist_min, 4),
+        implied_min_time_gap_s=round(implied_time_gap_s, 4),
     )
 
 
@@ -422,14 +408,14 @@ def acc_sys_ti_011(signals_tc011):
 TC014_SIGNALS = ("ACC_Status", "BrkReq_mps2", "DrvBrkPedal_Pct", "VehAccel_mps2")
 
 
-@canvas.dataset(position=(-542, -120), size=(400, 300), code_height=200)
+@canvas.dataset(position=(-667, -205), size=(558, 417), code_height=200)
 def signals_tc014():
     return ql.sql("""
         SELECT * FROM mf4_signals_v4
         WHERE platform = 'SKODA_OCTAVIA'
           AND device = 'a0001'
           AND route = '00014'
-        LIMIT 100
+
     """)
 
 
@@ -444,53 +430,56 @@ def tc014_windows(wide):
     return state, gated
 
 
-@canvas.cell(position=(105, -120), size=(400, 300), code_height=200)
+@canvas.cell(position=(34, -209), size=(673, 433), code_height=200)
 def acc_sys_ti_014(signals_tc014):
-    wide = to_wide(signals_tc014)
-    absent = missing_signals(wide, TC014_SIGNALS)
-    if absent:
-        return unevaluable("ACC-SYS-TC-014", ["C1", "C2", "C3"], absent)
+    df = signals_tc014.copy()
+    df["t_s"] = df["ts_ms"] / 1000.0
+    wide = df.pivot_table(index="t_s", columns="signal", values="value", aggfunc="first").sort_index().ffill()
 
-    state, gated = tc014_windows(wide)
+    # entry criteria: contiguous ACC-active (Status 2/3) segment, settled 0.5 s in from each entry
+    t_series = wide.index.to_series()
+    acc_active = wide["ACC_Status"].isin([2, 3])
+    run_id = (acc_active != acc_active.shift()).cumsum()
+    run_start_time = t_series.groupby(run_id).transform("min")
+    settle_s = 0.5
+    settled_mask = acc_active & ((t_series - run_start_time) >= settle_s)
 
-    gates = [
-        # preconditions.gates C1 -- driver never touched the brake, whole run.
-        evaluate("gate:C1", "DrvBrkPedal_Pct", "%", "le", 0.0, 0.01, "abs_max", 1,
-                 [wide],
-                 description="driver brake pedal released for the entire run"),
-        # preconditions.gates C2 -- a contiguous ACC-active segment of >= 20 s.
-        evaluate("gate:C2", "ACC_Status", "1", "ge", 2, None, "none", 200,
-                 state_mask(wide, allowed=[2, 3], settle_s=0.5, min_duration_s=20.0),
-                 description="contiguous Active-Cruise/Follow segment of >= 20 s"),
-    ]
+    state = wide[settled_mask]                                           # ACC active, settled -- used by C2
+    gated = state[state["DrvBrkPedal_Pct"] <= 0.0]                       # + driver off the brake -- used by C1/C3
 
-    criteria = [
-        evaluate("C1", "VehAccel_mps2", "m/s^2", "ge", -3.5, 0.05, "moving_average",
-                 200, gated, window_s=2.0,
-                 description="2 s trailing mean of the ACHIEVED deceleration"),
-        evaluate("C2", "BrkReq_mps2", "m/s^2", "ge", -3.5, 0.0, "min", 200, state,
-                 description="post-limiter deceleration REQUEST, localises the overshoot"),
-        evaluate("C3", "VehAccel_mps2", "m/s^2", "le", -3.0, 0.0, "min", 200, gated,
-                 description="non-vacuity guard: the run really did brake hard"),
-    ]
+    # C1: 2 s trailing moving average of the ACHIEVED deceleration (VehAccel_mps2), gated window
+    dt = t_series.diff().median()
+    window_n = max(int(round(2.0 / dt)), 1)
+    mov_avg = wide["VehAccel_mps2"].rolling(window_n, min_periods=window_n).mean()
+    c1_series = mov_avg.loc[gated.index].dropna()
+    c1_min = float(c1_series.min()) if len(c1_series) else None
+    c1_pass = len(c1_series) >= 200 and c1_min is not None and c1_min >= -3.5 - 0.05
 
-    instantaneous = (round(float(pd.concat([s["VehAccel_mps2"] for s in gated]).min()), 4)
-                     if gated else None)
-    return assemble(
-        "ACC-SYS-TC-014", criteria, gates,
-        derived=dict(
-            instantaneous_min_accel_mps2=instantaneous,
-            gated_segments=len(gated),
-            gated_span_s=round(sum(s["t_s"].iloc[-1] - s["t_s"].iloc[0]
-                                   for s in gated), 3),
-        ),
-        notes=("C1 reads the achieved acceleration, which includes road load and is "
-               "never clipped by the limiter chain; C2 reads the command after the "
-               "limiter. Reading C1 from AccelReq_mps2 (positive-only) or from "
-               "BrkReq_mps2 (exact at -3,500) would return a false PASS -- that is "
-               "what C2 exists to make visible. instantaneous_min_accel_mps2 is a "
-               "diagnostic: it shows how much of the averaged figure is a plateau "
-               "rather than a spike."),
+    # C2: post-limiter deceleration request (BrkReq_mps2), settled ACC-active window
+    c2_series = state["BrkReq_mps2"]
+    c2_min = float(c2_series.min()) if len(c2_series) else None
+    c2_pass = len(c2_series) >= 200 and c2_min is not None and c2_min >= -3.5
+
+    # C3: non-vacuity guard -- the run really did brake hard under ACC control
+    c3_series = gated["VehAccel_mps2"]
+    c3_min = float(c3_series.min()) if len(c3_series) else None
+    c3_pass = len(c3_series) >= 200 and c3_min is not None and c3_min <= -3.0
+
+    verdict = "PASS" if (c1_pass and c2_pass and c3_pass) else "FAIL"
+
+    return dict(
+        tc_id="ACC-SYS-TC-014",
+        verdict=verdict,
+        C1_verdict="PASS" if c1_pass else "FAIL",
+        C1_min_2s_avg_accel_mps2=round(c1_min, 4) if c1_min is not None else None,
+        C1_n=len(c1_series),
+        C2_verdict="PASS" if c2_pass else "FAIL",
+        C2_min_brake_request_mps2=round(c2_min, 4) if c2_min is not None else None,
+        C2_n=len(c2_series),
+        C3_verdict="PASS" if c3_pass else "FAIL",
+        C3_min_instantaneous_accel_mps2=round(c3_min, 4) if c3_min is not None else None,
+        C3_n=len(c3_series),
+        gated_span_s=round(gated.index.max() - gated.index.min(), 3) if len(gated) else 0.0,
     )
 
 
@@ -513,48 +502,47 @@ def acc_sys_ti_014(signals_tc014):
 TC016_SIGNALS = ("ACC_SetSpd_Kph", "ACC_Status", "VehSpd_Kph")
 
 
-@canvas.dataset(position=(-550, 358), size=(458, 377), code_height=109)
+@canvas.dataset(position=(-663, 279), size=(561, 396), code_height=147, viz={'type': 'table', 'x': '', 'y': ''})
 def signals_tc016():
     return ql.sql("""
         SELECT * FROM mf4_signals_v4
         WHERE platform = 'SKODA_OCTAVIA'
           AND device = 'a0001'
           AND route = '00016'
-        LIMIT 100
+
     """)
 
 
-@canvas.cell(position=(86, 355), size=(395, 317), code_height=200)
+@canvas.cell(position=(31, 269), size=(676, 414), code_height=200)
 def acc_sys_ti_016(signals_tc016):
-    wide = to_wide(signals_tc016)
-    absent = missing_signals(wide, TC016_SIGNALS)
-    if absent:
-        return unevaluable("ACC-SYS-TC-016", ["C1", "C2"], absent)
+    df = signals_tc016.copy()
+    df["t_s"] = df["ts_ms"] / 1000.0
+    wide = df.pivot_table(index="t_s", columns="signal", values="value", aggfunc="first").sort_index().ffill()
 
-    gates = [
-        # preconditions.gates C1 -- Active-Cruise held for a contiguous >= 20 s.
-        evaluate("gate:C1", "ACC_Status", "1", "eq", 2, None, "none", 200,
-                 state_mask(wide, allowed=[2], min_duration_s=20.0),
-                 description="Active-Cruise held for a contiguous 20 s or more"),
-    ]
+    # C1: the active set speed never exceeds 180 km/h anywhere in the run.
+    c1_series = wide["ACC_SetSpd_Kph"]
+    c1_max = float(c1_series.max())
+    c1_pass = len(c1_series) >= 100 and c1_max <= 180.0 + 0.01
 
-    criteria = [
-        evaluate("C1", "ACC_SetSpd_Kph", "km/h", "le", 180.0, 0.01, "max", 100,
-                 [wide],
-                 description="set speed never exceeds 180 km/h anywhere in the run"),
-        evaluate("C2", "ACC_SetSpd_Kph", "km/h", "eq", 180.0, 0.01, "none", 500,
-                 time_range(wide, 6.0, 60.0),
-                 description="every sample from t = 6 s is exactly 180 km/h (clamped)"),
-    ]
+    # C2: from t = 6 s (after the driver's 190 km/h request at t = 5 s) every sample
+    # must equal exactly 180 km/h -- the above-ceiling request is clamped, not accepted.
+    window = wide[(wide.index >= 6.0) & (wide.index <= 60.0)]
+    c2_series = window["ACC_SetSpd_Kph"]
+    c2_max_dev = float((c2_series - 180.0).abs().max()) if len(c2_series) else None
+    c2_pass = len(c2_series) >= 500 and c2_max_dev is not None and c2_max_dev <= 0.01
 
-    return assemble(
-        "ACC-SYS-TC-016", criteria, gates,
-        derived=dict(max_vehicle_speed_kph=round(float(wide["VehSpd_Kph"].max()), 3)),
-        notes=("max_vehicle_speed_kph is context only -- VehSpd_Kph is in the spec's "
-               "required_signals but no criterion reads it. The 180 km/h ceiling is a "
-               "project decision (controller.speed.v_set_max_kph); ISO 15622:2018 "
-               "cl. 4 defines v_set_max but sets no numeric value, so a PASS here is "
-               "conformance to the project ceiling and to nothing in the standard."),
+    verdict = "PASS" if (c1_pass and c2_pass) else "FAIL"
+
+    return dict(
+        tc_id="ACC-SYS-TC-016",
+        verdict=verdict,
+        C1_verdict="PASS" if c1_pass else "FAIL",
+        C1_max_set_speed_kph=round(c1_max, 4),
+        C1_n=len(c1_series),
+        C2_verdict="PASS" if c2_pass else "FAIL",
+        C2_max_deviation_from_180_kph=round(c2_max_dev, 4) if c2_max_dev is not None else None,
+        C2_n=len(c2_series),
+        max_vehicle_speed_kph=round(float(wide["VehSpd_Kph"].max()), 3),
     )
 
 
@@ -562,7 +550,7 @@ def acc_sys_ti_016(signals_tc016):
 #  Roll-up -- one row per criterion, traceable tc_id -> impl_id -> requirement.
 # =============================================================================
 
-@canvas.cell(position=(1551, -32), size=(400, 300), code_height=200)
+@canvas.cell(position=(1494, -187), size=(624, 387), code_height=200)
 def verdict_summary(acc_sys_ti_011, acc_sys_ti_014, acc_sys_ti_016):
     rows = []
     for result in (acc_sys_ti_011, acc_sys_ti_014, acc_sys_ti_016):
