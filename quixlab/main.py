@@ -350,12 +350,18 @@ TC011_SIGNALS = ("ACC_Status", "ACC_TimeGapSet_s", "Trgt_Dist_m",
                  "Trgt_Valid_Flg", "VehSpd_Kph")
 
 
-@canvas.dataset(position=(-175, -75), size=(400, 300), code_height=200)
+@canvas.dataset(position=(-556, -603), size=(400, 300), code_height=200)
 def signals_tc011():
-    return fetch("ACC-SYS-TC-011", TC011_SIGNALS)
+    return ql.sql("""
+        SELECT * FROM mf4_signals_v4
+        WHERE platform = 'SKODA_OCTAVIA'
+          AND device = 'a0001'
+          AND route = '00011'
+        LIMIT 100
+    """)
 
 
-@canvas.cell(position=(349, -100), size=(400, 300), code_height=200)
+@canvas.cell(position=(37, -642), size=(542, 385), code_height=200)
 def acc_sys_ti_011(signals_tc011):
     wide = to_wide(signals_tc011)
     absent = missing_signals(wide, TC011_SIGNALS)
@@ -416,9 +422,15 @@ def acc_sys_ti_011(signals_tc011):
 TC014_SIGNALS = ("ACC_Status", "BrkReq_mps2", "DrvBrkPedal_Pct", "VehAccel_mps2")
 
 
-@canvas.dataset(position=(497, -447), size=(400, 300), code_height=200)
+@canvas.dataset(position=(-542, -120), size=(400, 300), code_height=200)
 def signals_tc014():
-    return fetch("ACC-SYS-TC-014", TC014_SIGNALS)
+    return ql.sql("""
+        SELECT * FROM mf4_signals_v4
+        WHERE platform = 'SKODA_OCTAVIA'
+          AND device = 'a0001'
+          AND route = '00014'
+        LIMIT 100
+    """)
 
 
 def tc014_windows(wide):
@@ -432,7 +444,7 @@ def tc014_windows(wide):
     return state, gated
 
 
-@canvas.cell(position=(56, -389), size=(400, 300), code_height=200)
+@canvas.cell(position=(105, -120), size=(400, 300), code_height=200)
 def acc_sys_ti_014(signals_tc014):
     wide = to_wide(signals_tc014)
     absent = missing_signals(wide, TC014_SIGNALS)
@@ -482,33 +494,6 @@ def acc_sys_ti_014(signals_tc014):
     )
 
 
-@canvas.cell(position=(836, -370), size=(400, 300), code_height=200, viz={'type': 'line', 'x': 't_s', 'y': 'decel_2s_trailing_avg_mps2'})
-def acc_sys_ti_014_trace(signals_tc014):
-    """The C1 measurand plotted against its bound (tc_id ACC-SYS-TC-014,
-    impl_id ACC-SYS-TI-014, pass_criteria C1).
-
-    The charted series is the 2 s trailing average. The frame also carries
-    raw_accel_mps2, the nominal bound (-3,5), the tolerance-relaxed effective
-    bound (-3,55) and the signed margin, so a reviewer can retarget the chart's y
-    or read the numbers straight off the table view. margin_mps2 < 0 marks a
-    violating sample -- that is the whole finding, visible without having to
-    trust the verdict cell.
-    """
-    wide = to_wide(signals_tc014)
-    _, gated = tc014_windows(wide)
-    averaged = pd.concat([trailing_mean(seg, "VehAccel_mps2", 2.0) for seg in gated])
-    frame = pd.DataFrame({
-        "t_s": wide.loc[averaged.index, "t_s"].to_numpy(),
-        "decel_2s_trailing_avg_mps2": averaged.to_numpy(),
-        "raw_accel_mps2": wide.loc[averaged.index, "VehAccel_mps2"].to_numpy(),
-    })
-    frame["bound_mps2"] = -3.5                    # pass_criteria C1 rule.value
-    frame["effective_bound_mps2"] = -3.55         # bound relaxed by tolerance.abs
-    frame["margin_mps2"] = (frame["decel_2s_trailing_avg_mps2"]
-                            - frame["effective_bound_mps2"])
-    return frame
-
-
 # =============================================================================
 #  Test Implementation 3
 #  tc_id ACC-SYS-TC-016 | impl_id ACC-SYS-TI-016 | req ACC-SYS-PRF-041
@@ -528,12 +513,18 @@ def acc_sys_ti_014_trace(signals_tc014):
 TC016_SIGNALS = ("ACC_SetSpd_Kph", "ACC_Status", "VehSpd_Kph")
 
 
-@canvas.dataset(position=(865, 424), size=(400, 300), code_height=200)
+@canvas.dataset(position=(-550, 358), size=(458, 377), code_height=109)
 def signals_tc016():
-    return fetch("ACC-SYS-TC-016", TC016_SIGNALS)
+    return ql.sql("""
+        SELECT * FROM mf4_signals_v4
+        WHERE platform = 'SKODA_OCTAVIA'
+          AND device = 'a0001'
+          AND route = '00016'
+        LIMIT 100
+    """)
 
 
-@canvas.cell(position=(1, 369), size=(400, 300), code_height=200)
+@canvas.cell(position=(86, 355), size=(395, 317), code_height=200)
 def acc_sys_ti_016(signals_tc016):
     wide = to_wide(signals_tc016)
     absent = missing_signals(wide, TC016_SIGNALS)
@@ -571,7 +562,7 @@ def acc_sys_ti_016(signals_tc016):
 #  Roll-up -- one row per criterion, traceable tc_id -> impl_id -> requirement.
 # =============================================================================
 
-@canvas.cell(position=(774, -34), size=(400, 300), code_height=200)
+@canvas.cell(position=(1551, -32), size=(400, 300), code_height=200)
 def verdict_summary(acc_sys_ti_011, acc_sys_ti_014, acc_sys_ti_016):
     rows = []
     for result in (acc_sys_ti_011, acc_sys_ti_014, acc_sys_ti_016):
