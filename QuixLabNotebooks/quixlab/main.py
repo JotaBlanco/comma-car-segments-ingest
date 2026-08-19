@@ -89,6 +89,8 @@ def cell_2():
         label="Platform",
     )
 
+    devices = ql.partition_values('can_signals_v13', 'device', where={"platform": platform.value}) 
+
 
 if __name__ == "__main__":
     canvas.serve()
