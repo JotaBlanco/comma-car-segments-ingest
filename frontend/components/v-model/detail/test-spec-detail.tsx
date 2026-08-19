@@ -119,24 +119,23 @@ export function TestSpecDetail({
             rows={[
               {
                 label: "Implementation",
-                value: <span className="font-mono text-sm">{spec.impl_ref}</span>,
+                value: (
+                  <Link
+                    href="/test-implementations"
+                    className="font-mono text-sm text-primary underline underline-offset-4 hover:no-underline"
+                  >
+                    {spec.impl_ref}
+                  </Link>
+                ),
               },
               {
                 label: "QuixLab cell",
                 value: (
-                  <span className="font-mono text-sm">
-                    {spec.impl_ref.toLowerCase().replace(/-/g, "_")}
-                  </span>
-                ),
-              },
-              {
-                label: "Open",
-                value: (
                   <Link
                     href="/test-implementations"
-                    className="text-sm text-primary underline-offset-4 hover:underline"
+                    className="font-mono text-sm text-primary underline underline-offset-4 hover:no-underline"
                   >
-                    Test Implementation &rarr; QuixLab
+                    {spec.impl_ref.toLowerCase().replace(/-/g, "_")}
                   </Link>
                 ),
               },

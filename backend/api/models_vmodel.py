@@ -64,6 +64,14 @@ class Measurand(BaseModel):
 
 class Requirement(BaseModel):
     """One requirement at one artifact version.
+    covering_tc_ids: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Test cases covering this requirement, from the baseline req_links index. "
+            "Present on the list response so the client-side filter can offer coverage "
+            "via its is_empty / is_not_empty operators."
+        ),
+    )
 
     Immutable after insert. The same ``req_id`` appears once per artifact version and the
     documents genuinely differ between versions, which is why ``key`` carries the version.

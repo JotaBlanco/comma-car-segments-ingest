@@ -61,7 +61,14 @@ export function FigureSvg({ endpoint, title }: FigureSvgProps) {
     <div
       role="img"
       aria-label={title}
-      className="w-full max-w-2xl rounded border bg-background p-2 text-foreground [&_svg]:h-auto [&_svg]:w-full"
+      className={
+        // The figures set color="#111827" on the <svg> root and draw most of their
+        // structure with currentColor, so on a dark background they vanish. A CSS rule
+        // on the svg itself beats that presentation attribute; inheriting from the
+        // parent does not. Targets nested svg too, since some figures wrap.
+        "w-full max-w-2xl rounded border bg-background p-2 " +
+        "[&_svg]:h-auto [&_svg]:w-full [&_svg]:text-foreground [&_svg_*]:[color:inherit]"
+      }
       dangerouslySetInnerHTML={{ __html: markup }}
     />
   )

@@ -104,8 +104,21 @@ def list_requirements(
         .limit(query_params.page_size)
     )
 
+    # One pass over the baselines builds req_id -> covering test cases, so every listed
+    # requirement carries its coverage and the client-side filter can key on it.
+    req_links: dict[str, list[str]] = {}
+    for baseline in mongo.vm_baselines.find({}, {"req_links": 1}):
+        for req, tcs in (baseline.get("req_links") or {}).items():
+            req_links.setdefault(str(req), []).extend(tcs)
+
     return PaginatedResponse.create(
-        items=[Requirement(**doc) for doc in cursor],
+        items=[
+            Requirement(
+                **doc,
+                covering_tc_ids=sorted(set(req_links.get(str(doc.get("req_id")), []))),
+            )
+            for doc in cursor
+        ],
         total=total,
         page=query_params.page,
         page_size=query_params.page_size,
