@@ -80,7 +80,7 @@ def ai_3(can_signals_v13_4):
     """Plot channel powertrain_hs_can1 over time."""
 
 
-@canvas.ai(position=(200, -3843), size=(577, 351), code_height=200)
+@canvas.ai(position=(200, -3843), size=(594, 501), code_height=200)
 def selection():
     """Create a form with 3 dropdowns that cascade.
 
@@ -88,7 +88,7 @@ def selection():
     2. Selected device (filter list by selected platform)
     3. Selected route (filter list by both device and platform)
 
-    Return them as bag for reference
+    Return them as bag for reference downstream. 
 
     ## Questions from the AI
 
