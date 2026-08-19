@@ -222,7 +222,8 @@ export type RunOrigin = "seeded" | "planned"
  */
 export interface TcUpload {
   tc_id: string
-  upload_id: string
+  /** Null when the run is planned from test cases alone and the MF4 is attached later. */
+  upload_id: string | null
   filename?: string | null
   blob_path?: string | null
   size_bytes?: number | null
