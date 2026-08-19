@@ -146,22 +146,28 @@ def _is_numeric_dtype(dtype) -> bool:
     )
 
 
-def _record_base(file_scalars, channel, unit, channel_name, frame_name, sender_node):
-    """Every scalar one channel's batches repeat, as a single flat dict.
+def _record_base(file_scalars, signal, unit, channel_name, frame_name, sender_node):
+    """Every scalar one signal's batches repeat, as a single flat dict.
 
     ``file_scalars`` is the per-file half (``file_name``, ``upload_id`` and the
-    header provenance); the rest is the per-channel identity. Insertion order
+    header provenance); the rest is the per-signal identity. Insertion order
     here is the JSON wire order and therefore the sink's column order, so
     provenance stays first and the value arrays are appended last by
     ``_produce_batch``.
 
+    ``signal`` is the signal name (``ACCMode``); ``channel_name`` is the CAN bus
+    name (``powertrain_hs_can1``). They are not variants of each other - the
+    pair matches the reference ``can_signals_v13`` table. This key was called
+    ``channel`` before the ``mf4_signals_v3`` table; the sink still accepts that
+    spelling so the ``mf4-to-msg`` backlog written by the old decoder replays.
+
     Every value is a non-empty string by construction - see
     ``provenance.UNKNOWN``. Nothing in this dict may be ``None``: these fields
-    become Hive partition keys downstream, and the pinned sink drops rows whose
-    partition value is null.
+    become Hive partition keys (physical or virtual) downstream, and a null
+    partition value either drops the row or defeats the catalog's pruning index.
     """
     base = dict(file_scalars)
-    base["channel"] = channel
+    base["signal"] = signal
     base["unit"] = unit
     base["channel_name"] = channel_name
     base["frame_name"] = frame_name
@@ -180,8 +186,8 @@ def _produce_batch(record_base, ts_buf, val_buf, text_buf):
     column to one path and forgetting the other is exactly how ``upload_id``
     could have been silently dropped for string channels.
 
-    The Kafka key is the emitted ``channel`` name (matches the ``channel``
-    field in the payload). For multi-group channels this is the qualified
+    The Kafka key is the emitted ``signal`` name (matches the ``signal``
+    field in the payload). For multi-group signals this is the qualified
     form (``"<name>#g<group_idx>"``) on second-and-later occurrences so each
     distinct stream gets its own key.
 
@@ -197,9 +203,9 @@ def _produce_batch(record_base, ts_buf, val_buf, text_buf):
     payload["value"] = val_buf
     payload["value_text"] = text_buf
 
-    channel = record_base["channel"]
+    signal = record_base["signal"]
     try:
-        msg = output_topic.serialize(key=channel, value=payload)
+        msg = output_topic.serialize(key=signal, value=payload)
         producer.produce(
             topic=output_topic.name,
             key=msg.key,
@@ -208,7 +214,7 @@ def _produce_batch(record_base, ts_buf, val_buf, text_buf):
     except Exception as e:
         logger.error(
             "Produce failed for batch (%s/%s, %d records): %s",
-            record_base.get("file_name"), channel, len(ts_buf), e,
+            record_base.get("file_name"), signal, len(ts_buf), e,
         )
 
 
@@ -492,7 +498,7 @@ def _emit_signals(
     made for one file, so decoded and raw streams cannot collide.
 
     ``file_scalars`` (``file_name``, ``upload_id`` and the header provenance) is
-    merged with the per-channel identity into one ``record_base`` that
+    merged with the per-signal identity into one ``record_base`` that
     ``_emit_channel`` puts on every batch of both the numeric and the
     object/bytes emit path. So is the ``value`` / ``value_text`` split:
     ``_emit_channel`` routes each signal to one of the two columns from its
@@ -501,7 +507,7 @@ def _emit_signals(
 
     ``signal_frame_map`` and ``bus_names`` are supplied only for the decoded-CAN
     pass. The lookup is by the signal's **bare** name, never by the emitted
-    channel name, because the latter may carry a ``#g<idx>`` disambiguation
+    signal name, because the latter may carry a ``#g<idx>`` disambiguation
     suffix that no DBC knows about. Ordinary (non bus-logging) channels pass
     neither and fall back to ``UNKNOWN`` for all three DBC-derived columns -
     they have no CAN frame, no transmitting ECU and no bus.
@@ -517,11 +523,11 @@ def _emit_signals(
 
         group_idx = getattr(sig, "group_index", -1)
         if occ == 0:
-            emit_channel = name
+            emit_signal = name
         elif group_idx is not None and group_idx >= 0:
-            emit_channel = f"{name}#g{group_idx}"
+            emit_signal = f"{name}#g{group_idx}"
         else:
-            emit_channel = f"{name}#g{occ}"
+            emit_signal = f"{name}#g{occ}"
 
         samples = sig.samples
         if len(samples) == 0:
@@ -531,7 +537,7 @@ def _emit_signals(
         if not isinstance(unit, str):
             unit = str(unit)
 
-        # Bare name, not emit_channel: a "#g<idx>"-qualified name is our own
+        # Bare name, not emit_signal: a "#g<idx>"-qualified name is our own
         # invention and would never match a DBC entry.
         frame_name, sender_node = (
             signal_frame_map.get(name, UNKNOWN_FRAME)
@@ -541,7 +547,7 @@ def _emit_signals(
         channel_name = bus_names.get(group_idx, UNKNOWN) if bus_names else UNKNOWN
 
         record_base = _record_base(
-            file_scalars, emit_channel, unit, channel_name, frame_name, sender_node,
+            file_scalars, emit_signal, unit, channel_name, frame_name, sender_node,
         )
 
         total_msgs, total_samples = _emit_channel(
@@ -752,7 +758,7 @@ def process(metadata: dict):
             name = master_sig.name
             occ = seen_names.get(name, 0)
             seen_names[name] = occ + 1
-            emit_channel = name if occ == 0 else f"{name}#g{group_idx}"
+            emit_signal = name if occ == 0 else f"{name}#g{group_idx}"
 
             samples = master_sig.samples
             if len(samples) == 0:
@@ -765,7 +771,7 @@ def process(metadata: dict):
             # Masters belong to ordinary groups only (bus-logging groups are
             # skipped above), so they have no CAN bus, frame or sender.
             record_base = _record_base(
-                file_scalars, emit_channel, unit, UNKNOWN, UNKNOWN, UNKNOWN,
+                file_scalars, emit_signal, unit, UNKNOWN, UNKNOWN, UNKNOWN,
             )
 
             total_msgs, total_samples = _emit_channel(
