@@ -145,6 +145,9 @@ deployments:
       - name: MEASUREMENTS_URL
         description: Query Builder UI URL, mirrored from the backend for parity
     plugin:
+      embeddedView:
+        enabled: true
+        hideHeader: true
       sidebarItem:
         show: true
         label: Test Manager
