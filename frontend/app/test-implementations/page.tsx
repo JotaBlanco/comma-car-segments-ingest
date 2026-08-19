@@ -32,7 +32,7 @@ import { Loader2 } from "lucide-react"
  */
 export default function TestImplementationsPage() {
   const integrationsApi = useIntegrationsApi()
-  const { isEmbedded, token } = useQuixAuth()
+  const { token } = useQuixAuth()
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
   const [url, setUrl] = useState<string | null>(null)
@@ -128,15 +128,6 @@ export default function TestImplementationsPage() {
   return (
     <MainLayout>
       <div className="flex h-full flex-col">
-        {!isEmbedded && (
-          <Alert className="m-4 mb-0">
-            <AlertTitle>Open this from the Quix portal</AlertTitle>
-            <AlertDescription>
-              QuixLab authenticates with your Quix portal session. Viewed outside the
-              portal it will show its own sign-in or a 401 below.
-            </AlertDescription>
-          </Alert>
-        )}
 
         <iframe
           ref={iframeRef}
