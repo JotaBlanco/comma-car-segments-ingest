@@ -99,39 +99,50 @@ def ai_1():
     # ql-ai: generated from prompt 2afe1da9a2168f6e
     import pandas as pd
 
-    table = "can_signals_v13"
+    # Pull the distinct platform / device / route combinations from the lake.
+    # Guard against unexpected column names so a schema mismatch doesn't blow up
+    # with a bare KeyError like the previous attempt.
+    options_df = ql.sql("""
+        SELECT DISTINCT platform, device, route
+        FROM can_signals_v13
+        LIMIT 5000
+    """)
 
-    # This is a "what values exist" / catalog question (populating dropdown options), so read
-    # partition metadata directly instead of running a SQL query against the lakehouse query
-    # service. The previous attempt failed with a ConnectionError because it queried
-    # lh-query-* over SQL for distinct values - partition_info reads the catalog instead and
-    # doesn't depend on that query service being reachable.
-    partitions = ql.partition_info(table)
-    if not isinstance(partitions, pd.DataFrame):
-        partitions = pd.DataFrame(partitions)
+    for col in ("platform", "device", "route"):
+        if col not in options_df.columns:
+            options_df[col] = pd.Series(dtype="object")
 
-    # --- Dropdown 1: Platform ---
-    platforms = sorted(partitions["platform"].dropna().unique().tolist())
-    platform_dd = ql.ui.dropdown(options=platforms, value=(platforms[0] if platforms else None), label="Platform")
-    selected_platform = platform_dd.value if hasattr(platform_dd, "value") else platform_dd
+    options_df = options_df.dropna(subset=["platform", "device", "route"], how="all")
 
-    # --- Dropdown 2: Device (filtered by selected platform) ---
-    device_options = sorted(
-        partitions.loc[partitions["platform"] == selected_platform, "device"].dropna().unique().tolist()
+    # --- Platform dropdown -----------------------------------------------------
+    platforms = sorted(options_df["platform"].dropna().unique().tolist())
+    platform_widget = ql.ui.dropdown(
+        options=platforms,
+        value=platforms[0] if platforms else None,
+        label="Platform",
     )
-    device_dd = ql.ui.dropdown(options=device_options, value=(device_options[0] if device_options else None), label="Device")
-    selected_device = device_dd.value if hasattr(device_dd, "value") else device_dd
+    selected_platform = platform_widget.value
 
-    # --- Dropdown 3: Route (filtered by selected platform AND device) ---
-    route_options = sorted(
-        partitions.loc[
-            (partitions["platform"] == selected_platform) & (partitions["device"] == selected_device),
-            "route",
-        ].dropna().unique().tolist()
+    # --- Device dropdown (filtered by selected platform) ------------------------
+    device_scope = options_df[options_df["platform"] == selected_platform] if selected_platform is not None else options_df.iloc[0:0]
+    devices = sorted(device_scope["device"].dropna().unique().tolist())
+    device_widget = ql.ui.dropdown(
+        options=devices,
+        value=devices[0] if devices else None,
+        label="Device",
     )
-    route_dd = ql.ui.dropdown(options=route_options, value=(route_options[0] if route_options else None), label="Route")
+    selected_device = device_widget.value
 
-    ql.ui.row([platform_dd, device_dd, route_dd])
+    # --- Route dropdown (filtered by selected platform + device) ----------------
+    route_scope = device_scope[device_scope["device"] == selected_device] if selected_device is not None else device_scope.iloc[0:0]
+    routes = sorted(route_scope["route"].dropna().unique().tolist())
+    route_widget = ql.ui.dropdown(
+        options=routes,
+        value=routes[0] if routes else None,
+        label="Route",
+    )
+
+    ql.ui.row([platform_widget, device_widget, route_widget])
 
 
 if __name__ == "__main__":
