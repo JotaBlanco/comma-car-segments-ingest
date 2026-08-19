@@ -6,16 +6,6 @@ metadata:
 
 # This section describes the Deployments of the data pipeline
 deployments:
-  - name: HF CommaCarSegments Mirror
-    application: hf-comma-dataset-mirror
-    version: latest
-    deploymentType: Job
-    resources:
-      limits:
-        cpu: 500
-        memory: 1000
-    blobStorage:
-      bind: true
   - name: MongoDB
     group: Aux services
     application: mongodb
