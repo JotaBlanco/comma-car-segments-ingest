@@ -52,7 +52,7 @@ deployments:
           targetPort: 80
     variables:
       - name: SECRET_KEY
-        variableKey: mongo_backup_secret_key
+        inputType: FreeText
     blobStorage:
       bind: true
   - name: Dynamic Configuration Manager
@@ -82,24 +82,6 @@ deployments:
         show: true
         label: Configurations
         icon: tune
-  - name: rlog to MF4
-    application: rlog-to-mf4
-    version: latest
-    deploymentType: Job
-    resources:
-      limits:
-        cpu: 1000
-        memory: 2000
-    variables:
-      - name: INPUT_PREFIX
-        description: The mirror keeps HuggingFace's layout, segments/<device>/<route>/<idx>/rlog.zst
-      - name: DEVICES
-        description: comma.ai device ids for this platform (manifest lookup, not a path level)
-      - name: MAX_SEGMENTS
-        description: 0 = every segment the mirror copied (206 of the platform's 230; the mirror job was OOM-killed before finishing)
-        value: 0
-    blobStorage:
-      bind: true
   - name: MF4 replay
     application: mf4-replay
     version: latest
@@ -110,10 +92,13 @@ deployments:
         memory: 2000
     variables:
       - name: CONSUMER_GROUP
+        inputType: FreeText
         value: mf4-replay-v7
       - name: MAX_FILES
+        inputType: FreeText
         value: 0
       - name: MAX_ENVELOPES_PER_FILE
+        inputType: FreeText
         value: 0
     blobStorage:
       bind: true
@@ -127,8 +112,10 @@ deployments:
         memory: 500
     variables:
       - name: PREFIXES
+        inputType: FreeText
         description: blob prefixes to inspect; the leading empty entry is the root
       - name: DEVICES
+        inputType: FreeText
         description: count rlog.zst per device, to see how far the mirror got
     blobStorage:
       bind: true
@@ -142,18 +129,25 @@ deployments:
         memory: 2000
     variables:
       - name: CONSUMER_GROUP
+        inputType: FreeText
         value: can-lake-sink-v7
       - name: SIGNALS_TABLE
+        inputType: FreeText
         value: can_signals_v4
       - name: SINK_UNKNOWN_FRAMES
+        inputType: FreeText
         value: false
       - name: UNKNOWN_TABLE
+        inputType: FreeText
         value: can_unknown_frames_v3
       - name: HIVE_COLUMNS
+        inputType: FreeText
         value: platform,device,route,~channel,~sender_node,~frame_name,~signal,~channel_name
       - name: UNKNOWN_HIVE_COLUMNS
+        inputType: FreeText
         value: platform,device,route,channel
       - name: COMMIT_EVERY
+        inputType: FreeText
         value: 100000
     blobStorage:
       bind: true
@@ -168,18 +162,25 @@ deployments:
       replicas: 8
     variables:
       - name: TABLE_NAME
+        inputType: FreeText
         value: can_signals_v13
       - name: HIVE_COLUMNS
+        inputType: FreeText
         value: platform,device,route,~channel_name,~sender_node,~frame_name,~signal
       - name: TIMESTAMP_COLUMN
+        inputType: FreeText
         value: t_abs_ms
       - name: SORT_COLUMN
+        inputType: FreeText
         value: t_abs_ms
       - name: BATCH_SIZE
+        inputType: FreeText
         value: 2000
       - name: CONSUMER_GROUP
+        inputType: FreeText
         value: s3_direct_sink_v2.0
       - name: MAX_WRITE_WORKERS
+        inputType: FreeText
         value: 1
     blobStorage:
       bind: true
