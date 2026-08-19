@@ -72,7 +72,7 @@ def can_signals_v13_4(selection):
     WHERE platform = '{selection.platform}'
       AND device = '180ea5df0f0b4db9'
       AND route = '00000000--7b23a7654b'
-    LIMIT 
+    LIMIT 100000
     """)
 
 
@@ -81,7 +81,7 @@ def ai_3(can_signals_v13_4):
     """Plot channel powertrain_hs_can1 over time."""
 
 
-@canvas.cell(position=(273, -3847), size=(410, 337), code_height=0)
+@canvas.cell(position=(273, -3847), size=(410, 337), code_height=200)
 def selection():
 
     platforms = ql.partition_values('can_signals_v13', 'platform')  # metadata only, no data scan
