@@ -130,8 +130,8 @@ deployments:
     deploymentType: Service
     resources:
       limits:
-        cpu: 500
-        memory: 2000
+        cpu: 1000
+        memory: 8000
     publicAccess:
       enabled: true
       urlPrefix: quixlab
