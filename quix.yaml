@@ -46,6 +46,7 @@ deployments:
     blobStorage:
       bind: true
   - name: MF4 DataLake Sink
+    group: Ingestion
     application: mf4-datalake-sink
     version: latest
     deploymentType: Service
@@ -55,21 +56,9 @@ deployments:
         memory: 2000
     variables:
       - name: TABLE_NAME
-        description: New table - a partition-spec change is rejected on an existing one. mf4_signals_v2 is left untouched.
         value: mf4_signals_v4
-      - name: HIVE_COLUMNS
-        description: platform/device/route are physical key=value dirs; ~ columns are virtual (catalog-indexed, no dirs). Mirrors can_signals_v13.
-      - name: TIMESTAMP_COLUMN
-        description: Column used to derive time partitions
-      - name: SORT_COLUMN
-        description: Recorded as properties.sort_column so compaction writes time-ordered, skippable files
-      - name: BATCH_SIZE
-        description: Input messages per checkpoint. Each fans out to ~1388 rows; 2000 OOM-killed the pod at this 2000MB limit. Do not raise.
       - name: CONSUMER_GROUP
-        description: Must change with TABLE_NAME so AUTO_OFFSET_RESET=earliest replays mf4-to-msg into the new table.
         value: mf4_signals_v4_lake_v1
-      - name: AUTO_OFFSET_RESET
-        inputType: FreeText
     blobStorage:
       bind: true
   - name: Test Manager - Backend
