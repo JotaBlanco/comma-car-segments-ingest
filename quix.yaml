@@ -65,7 +65,7 @@ deployments:
       - name: BATCH_SIZE
         inputType: FreeText
         description: Input messages per checkpoint
-        value: 2000
+        value: 500
       - name: TIMESTAMP_COLUMN
         inputType: FreeText
         description: Column used to derive time partitions
