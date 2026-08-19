@@ -126,25 +126,25 @@ export default function TestImplementationsPage() {
   }
 
   return (
-    <MainLayout>
-      <div className="flex h-full flex-col">
-
-        <iframe
-          ref={iframeRef}
-          src={url}
-          title="QuixLab"
-          onLoad={() => {
-            if (token) {
-              iframeRef.current?.contentWindow?.postMessage(
-                { type: "AUTH_TOKEN", token },
-                "*"
-              )
-            }
-          }}
-          className="h-full w-full flex-1 border-0"
-          allow="clipboard-read; clipboard-write"
-        />
-      </div>
+    <MainLayout noPadding>
+      {/* Sizing copied from measurements/page.tsx: MainLayout has min-h-screen
+          rather than a definite height and <main> has none, so h-full collapses
+          to content height. 4rem matches the header's h-16. */}
+      <iframe
+        ref={iframeRef}
+        src={url}
+        title="QuixLab"
+        onLoad={() => {
+          if (token) {
+            iframeRef.current?.contentWindow?.postMessage(
+              { type: "AUTH_TOKEN", token },
+              "*"
+            )
+          }
+        }}
+        className="w-full h-[calc(100vh-4rem)] border-0"
+        allow="clipboard-read; clipboard-write"
+      />
     </MainLayout>
   )
 }
