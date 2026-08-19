@@ -57,7 +57,7 @@ deployments:
       - name: TABLE_NAME
         value: mf4_signals_v3
       - name: HIVE_COLUMNS
-        value: '[platform,device,route,~channel_name,~sender_node, ~channel]'
+        value: platform,device,route,~channel_name,~sender_node,~frame_name,~channel
       - name: BATCH_SIZE
         value: 500
       - name: CONSUMER_GROUP
