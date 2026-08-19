@@ -136,5 +136,45 @@ def selection():
         return ql.ui.row([platform_widget, device_widget, route_widget])
 
 
+@canvas.cell(position=(699, -3983), size=(926, 735), code_height=200)
+def cell_2():
+    # ql-ai: generated from prompt 952b1ab0de6295d2
+    def selection():
+        # Pull the full platform / device / route partition combinations from the
+        # catalog (fast metadata read, no data scan).
+        info = ql.partition_info("can_signals_v13")
+
+        # --- Platform dropdown -------------------------------------------------
+        platforms = sorted(info["platform"].dropna().unique().tolist())
+        platform_widget = ql.ui.dropdown(
+            options=platforms,
+            value=platforms[0] if platforms else None,
+            label="Platform",
+        )
+
+        # --- Device dropdown (filtered by selected platform) --------------------
+        devices_scope = info[info["platform"] == platform_widget.value]
+        devices = sorted(devices_scope["device"].dropna().unique().tolist())
+        device_widget = ql.ui.dropdown(
+            options=devices,
+            value=devices[0] if devices else None,
+            label="Device",
+        )
+
+        # --- Route dropdown (filtered by selected platform + device) ------------
+        routes_scope = devices_scope[devices_scope["device"] == device_widget.value]
+        routes = sorted(routes_scope["route"].dropna().unique().tolist())
+        route_widget = ql.ui.dropdown(
+            options=routes,
+            value=routes[0] if routes else None,
+            label="Route",
+        )
+
+        # Return the three widgets together so downstream cells can reference
+        # them by position: selection[0] = platform, selection[1] = device,
+        # selection[2] = route (use .value on each for the selected string).
+        return platform_widget, device_widget, route_widget
+
+
 if __name__ == "__main__":
     canvas.serve()
