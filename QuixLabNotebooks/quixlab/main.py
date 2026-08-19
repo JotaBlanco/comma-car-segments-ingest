@@ -80,95 +80,14 @@ def ai_3(can_signals_v13_4):
     """Plot channel powertrain_hs_can1 over time."""
 
 
-@canvas.ai(position=(200, -3843), size=(594, 501), code_height=200)
-def selection():
-    """Create a form with 3 dropdowns that cascade.
-
-    1. Selected platform
-    2. Selected device (filter list by selected platform)
-    3. Selected route (filter list by both device and platform)
-
-    Return them as bag for reference downstream. 
-
-    ## Questions from the AI
-
-    **Q:** Which QuixLake table (or upstream node) contains the platform, device, and route values for these dropdowns?
-    **A:** can_signals_v13
-
-    **Q:** What are the exact column names for platform, device, and route in that table?
-    **A:** platform, device, and route
-    """
-    # ql-ai: generated from prompt 952b1ab0de6295d2
-    def selection():
-        # Pull the full platform / device / route partition combinations from the
-        # catalog (fast metadata read, no data scan).
-        info = ql.partition_info("can_signals_v13")
-
-        # --- Platform dropdown -------------------------------------------------
-        platforms = sorted(info["platform"].dropna().unique().tolist())
-        platform_widget = ql.ui.dropdown(
-            options=platforms,
-            value=platforms[0] if platforms else None,
-            label="Platform",
-        )
-
-        # --- Device dropdown (filtered by selected platform) --------------------
-        devices_scope = info[info["platform"] == platform_widget.value]
-        devices = sorted(devices_scope["device"].dropna().unique().tolist())
-        device_widget = ql.ui.dropdown(
-            options=devices,
-            value=devices[0] if devices else None,
-            label="Device",
-        )
-
-        # --- Route dropdown (filtered by selected platform + device) ------------
-        routes_scope = devices_scope[devices_scope["device"] == device_widget.value]
-        routes = sorted(routes_scope["route"].dropna().unique().tolist())
-        route_widget = ql.ui.dropdown(
-            options=routes,
-            value=routes[0] if routes else None,
-            label="Route",
-        )
-
-        # Return the three widgets together so downstream cells can reference
-        # them by position: selection[0] = platform, selection[1] = device,
-        # selection[2] = route (use .value on each for the selected string).
-        return ql.ui.row([platform_widget, device_widget, route_widget])
-
-
 @canvas.cell(position=(527, -4183), size=(926, 735), code_height=531)
 def cell_2():
 
-    platfor = ql.partition_values('can_signals_v13', 'platform')  # metadata only, no data scan
-
+    platforms = ql.partition_values('can_signals_v13', 'platform')  # metadata only, no data scan
     platform = ql.ui.dropdown(
-        options=partitions,
-        value=platforms[0] if platforms else None,
+        options=platforms,
         label="Platform",
     )
-
-    # --- Device dropdown (filtered by selected platform) --------------------
-    devices_scope = info[info["platform"] == platform_widget.value]
-    devices = sorted(devices_scope["device"].dropna().unique().tolist())
-    device_widget = ql.ui.dropdown(
-        options=devices,
-        value=devices[0] if devices else None,
-        label="Device",
-    )
-
-    # --- Route dropdown (filtered by selected platform + device) ------------
-    routes_scope = devices_scope[devices_scope["device"] == device_widget.value]
-    routes = sorted(routes_scope["route"].dropna().unique().tolist())
-    route_widget = ql.ui.dropdown(
-        options=routes,
-        value=routes[0] if routes else None,
-        label="Route",
-    )
-
-    # Return the three widgets together so downstream cells can reference
-    # them by position: selection[0] = platform, selection[1] = device,
-    # selection[2] = route (use .value on each for the selected string).
-    return platform_widget, device_widget, route_widget
 
 
 if __name__ == "__main__":
