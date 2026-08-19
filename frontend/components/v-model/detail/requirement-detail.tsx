@@ -7,6 +7,7 @@ import { ProvenanceBadge } from "../provenance-badge"
 import { StatusBadge } from "../status-badge"
 import { CoveringSpecsSection } from "./covering-specs-section"
 import { DefinitionGrid, DetailSection } from "./detail-section"
+import { FigureSvg } from "./figure-svg"
 import { VMODEL_API_BASE } from "@/lib/vmodel/constants"
 import type {
   FigureReference,
@@ -152,11 +153,9 @@ export function RequirementDetail({
           <div className="space-y-4">
             {figures.map((figure) => (
               <figure key={figure.figure_id} className="space-y-1">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={figure.url}
-                  alt={figure.title || figure.figure_id}
-                  className="w-full max-w-2xl rounded border bg-background"
+                <FigureSvg
+                  endpoint={`${VMODEL_API_BASE}/figures/${figure.figure_id}`}
+                  title={figure.title || figure.figure_id}
                 />
                 <figcaption className="text-xs text-muted-foreground">
                   {figure.figure_id}

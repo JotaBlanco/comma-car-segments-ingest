@@ -225,6 +225,41 @@ export async function apiGet<T>(
 }
 
 /**
+ * GET request returning the raw response body as text.
+ *
+ * Needed for assets the browser cannot fetch itself: an <img src> tag sends no
+ * Authorization header, so an authenticated endpoint returns 403 and the image
+ * breaks. Fetching here and inlining the markup keeps the auth token attached.
+ * Retries once through refreshToken on 401/403, mirroring fetchWithRetry.
+ */
+export async function apiGetText(
+  endpoint: string,
+  params?: Record<string, any>,
+  token?: string | null,
+  refreshToken?: () => Promise<string | null>
+): Promise<string> {
+  const url = buildUrl(endpoint, params)
+
+  let response = await fetch(url, { method: "GET", headers: buildHeaders(token) })
+
+  if ((response.status === 401 || response.status === 403) && refreshToken) {
+    const fresh = await refreshToken()
+    if (fresh) {
+      response = await fetch(url, { method: "GET", headers: buildHeaders(fresh) })
+    }
+  }
+
+  if (!response.ok) {
+    throw new ApiError(
+      `Request failed: ${response.status} ${response.statusText}`,
+      response.status
+    )
+  }
+
+  return response.text()
+}
+
+/**
  * POST request
  * @param endpoint API endpoint path
  * @param data Request body data
