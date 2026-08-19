@@ -1,3 +1,4 @@
+import os
 """Fixture ingest for the V-model chain.
 
 One entry point, :func:`seed_vmodel`, loads the committed fixtures under
@@ -176,16 +177,25 @@ def seed_vmodel(mongo: Database[dict[str, Any]], reset: bool = False) -> dict[st
         "acc_project Reqs/export/json/acc-signal-catalogue.json",
     )
 
-    traces = ingest_traces(mongo, load_fixture(TRACES_FIXTURE))
-    trace_index = {str(item["source_path"]): item for item in traces}
-    result_count = ingest_results(
-        mongo,
-        load_fixture(VERDICTS_FIXTURE),
-        trace_index,
-        tc_by_req,
-        SEED_BASELINE_ID,
-    )
-    logger.info("Ingested %d traces and %d verdicts", len(traces), result_count)
+    # Runs, traces and verdicts are NOT seeded. Test Runs are created in the app and
+    # executed through QuixLab; seeding 37 fixture runs put results in the UI that no
+    # run in this system had produced. Set SEED_VMODEL_RUNS=true to restore them.
+    if os.getenv("SEED_VMODEL_RUNS", "false").strip().lower() in ("1", "true", "yes"):
+        traces = ingest_traces(mongo, load_fixture(TRACES_FIXTURE))
+        trace_index = {str(item["source_path"]): item for item in traces}
+        result_count = ingest_results(
+            mongo,
+            load_fixture(VERDICTS_FIXTURE),
+            trace_index,
+            tc_by_req,
+            SEED_BASELINE_ID,
+        )
+        logger.info("Ingested %d traces and %d verdicts", len(traces), result_count)
+    else:
+        mongo.vm_traces.delete_many({})
+        mongo.vm_run_traces.delete_many({})
+        mongo.vm_results.delete_many({})
+        logger.info("Run seeding disabled; cleared traces, run-traces and verdicts")
 
     req_links = compute_req_links(spec_docs)
     publish_baseline(
