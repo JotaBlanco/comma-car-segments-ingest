@@ -329,6 +329,103 @@ messages; at the code default of 100 it would be ~24,000. The fan-out is a
 change in *shape* (many narrow streams instead of 11 wide ones), not a
 step change in volume.
 
+## Decode-once (idempotency)
+
+`mf4-datalake-sink` is at-least-once and Iceberg only appends, so a file decoded
+twice is a file stored twice. `mf4-decoder` consumes `mf4_metadata` with
+`auto_offset_reset=earliest`, so every offset reset or consumer-group rotation
+replayed the whole topic and re-decoded every file ever uploaded. Measured on
+`mf4_signals_v4`: 126,560 rows for a route holding 25,312 distinct
+`(signal, ts_ms)` pairs — 5 exact copies of every row, spread over 2 `upload_id`
+values. Min/max and the verdicts survived that, because the copies are identical;
+`count` and `avg` did not.
+
+The decoder now drops a replayed metadata message before it downloads the blob.
+
+### Identity
+
+The dedup key is content, not upload: `sha256:<hex>`, taken from
+`mf4_metadata.sha256`. `id` — the minted `upload_id` — identifies an *upload*,
+and the 5 copies above came from 2 uploads of the same bytes, so an `upload_id`
+key would have left 2 copies standing.
+
+`sha256` is not always present, so the identity falls back:
+
+| Identity | From | Used when |
+| --- | --- | --- |
+| `sha256:<hex>` | `sha256` | direct uploads — every upload in this workspace |
+| `upload:<id>` | `id` | SAS uploads, where `sha256` is null by design |
+| `blob:<path>` | `blob_path` | producers that mint neither, e.g. metadata for `rlog-to-mf4` output, which carries no `id` |
+| `unidentified` | — | none of the three |
+
+Every rung still kills a *replay*, because a replayed message repeats whichever
+field it originally carried. The lower rungs only give up cross-upload content
+dedup: the same bytes uploaded once through SAS and once directly get two
+identities and both decode. `unidentified` is safe by construction — a message
+with no `blob_path` is one `process()` drops as malformed before decoding
+anything, so it is never marked and therefore never skipped.
+
+### Where the state lives
+
+QuixStreams scopes `State` by the **message key** (`as_state(prefix=key)` in
+`StreamingDataFrame._as_stateful`), and `mf4-to-blob` keys `mf4_metadata` by
+`upload_id`. A content-keyed store is only reachable after re-keying, so the
+topology is:
+
+```
+mf4_metadata
+  -> group_by(decode_identity)       re-key onto the identity; costs one
+  |                                  repartition__ topic carrying one small
+  |                                  message per upload
+  -> filter(needs_decode, stateful)  state.get("decoded") -> skip, no download
+  -> update(process, stateful)       decode, flush, then state.set("decoded")
+```
+
+`mark_decoded` is the last statement of the `try` in `process()`, so a decode
+that raised leaves the file unmarked and retryable: the marker is never more
+durable than the rows it vouches for. A file that decoded to nothing (no
+embedded DBC, no decodable channel) *is* marked — that is a completed decode,
+and re-running it would only re-download the file for the same empty result.
+
+`commit_every=1` on the `Application` checkpoints after each metadata message,
+so the marker lands as soon as the batches for that file are flushed, instead of
+up to `commit_interval` later. That gap is what an OOM kill mid-decode exploited.
+
+The store is backed by its changelog topic, so it survives a pod restart even
+with no state volume mounted — which is why none was added; the `MongoDB` block
+already records that the state mount on this cluster is network-backed and
+hostile to embedded databases. The store does **not** survive a consumer-group
+rotation: changelog and repartition topic names both embed the group
+(`changelog__<group>--<topic>--<store>`). `consumer_group` is therefore a
+hard-coded constant in `mf4-decoder/main.py`, deliberately not a deployment
+variable the portal can rotate.
+
+### Forcing a re-decode
+
+Two ways, because silently refusing legitimate reprocessing would be its own bug:
+
+* `force_redecode: true` on a single `mf4_metadata` message — surgical, needs no
+  redeploy, re-decodes that one file and re-marks it.
+* `FORCE_REDECODE=true` on the deployment — global, bypasses the filter for
+  everything. It is logged as a warning at boot and again on every message it
+  lets through, because leaving it on re-duplicates the lake on the next replay.
+
+Skips are logged at WARNING with a running `skipped` / `decoded` count, so a
+replay storm reads as a visible burst rather than as silence.
+
+### What this does not fix
+
+The duplicates already in `mf4_signals_v4`. Iceberg appends; this change only
+stops new ones. Clearing them means a fresh `TABLE_NAME` and a re-decode of the
+wanted files, which is a decision for the operator, not for this deployment.
+
+It also does not protect the sink. Pointing `mf4-datalake-sink` at a fresh
+`CONSUMER_GROUP` still replays `mf4-to-msg` from earliest and appends every
+batch again, with the decoder never consulted. Decoder idempotency closes the
+decoder-side replay path only; the sink-side one is closed by not rotating
+`CONSUMER_GROUP` unless the table is also new.
+
+
 ## Notes
 
 * Decoding happens in `mf4-decoder`, not in the sink. The blob is already open
