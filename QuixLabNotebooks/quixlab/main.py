@@ -86,7 +86,16 @@ def ai_1():
 
     1. Selected platform
     2. Selected device (filter list by selected platform)
-    3. Selected route (filter list by both device and platform)"""
+    3. Selected route (filter list by both device and platform)
+
+    ## Questions from the AI
+
+    **Q:** Which QuixLake table (or upstream node) contains the platform, device, and route values for these dropdowns?
+    **A:** can_signals_v13
+
+    **Q:** What are the exact column names for platform, device, and route in that table?
+    **A:** platform, device, and route
+    """
 
 
 if __name__ == "__main__":
