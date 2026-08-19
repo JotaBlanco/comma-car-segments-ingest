@@ -40,7 +40,11 @@ export function RunTestRunButton({
 }: RunTestRunButtonProps) {
   const { toast } = useToast()
 
-  const handleRun = () => {
+  const handleRun = (e: React.MouseEvent) => {
+    // The table row navigates on click; without this the button opens the run
+    // detail page instead of running.
+    e.stopPropagation()
+    e.preventDefault()
     // TODO(tomas): replace with QuixLab execution for `runId` / `plannedTcIds`.
     toast({
       title: "Execution not wired yet",
