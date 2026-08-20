@@ -19,6 +19,8 @@ import {
   type RunSummaryPlus,
 } from "./verdict"
 import { VerdictBadge } from "./verdict-badge"
+import { useVariant } from "@/lib/contexts/variant-context"
+import { cn } from "@/lib/utils/cn"
 
 interface RunReportViewProps {
   run: RunSummaryPlus
@@ -49,7 +51,10 @@ export function RunReportView({
   metrics,
   series,
 }: RunReportViewProps) {
+  const { variant } = useVariant()
   const [filter, setFilter] = useState<VerdictStatus | null>(null)
+  // Editorial tab: Results (verdicts + cases) | Run info (metadata card).
+  const [reportTab, setReportTab] = useState<"results" | "runinfo">("results")
 
   const visibleRows = useMemo(
     () => (filter === null ? rows : rows.filter((row) => row.status === filter)),
@@ -64,6 +69,100 @@ export function RunReportView({
     new Set(Array.from(series?.values() ?? [], (item) => item.source))
   )
 
+  // The case list and filter controls are reused across both the common and
+  // editorial layouts, so they live in a named variable.
+  const caseSection = (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="mr-2 text-sm font-semibold">
+          Test cases ({visibleRows.length}
+          {filter !== null ? ` of ${rows.length}` : ""})
+        </h2>
+        <FilterChip
+          label="All"
+          active={filter === null}
+          count={rows.length}
+          onClick={() => setFilter(null)}
+        />
+        {VERDICT_ORDER.map((status) => (
+          <FilterChip
+            key={status}
+            label={VERDICT_LABEL[status]}
+            active={filter === status}
+            count={metrics.counts[status]}
+            onClick={() => setFilter(filter === status ? null : status)}
+          />
+        ))}
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+          This run has no planned test cases and produced no verdicts.
+        </p>
+      ) : visibleRows.length === 0 ? (
+        <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+          No test case has that verdict in this run.
+        </p>
+      ) : (
+        <div className="space-y-4">
+          {visibleRows.map((row) => (
+            <CaseResultCard key={row.tcId} row={row} series={series?.get(row.tcId)} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+
+  // ── EDITORIAL: Results tab | Run info tab ──────────────────────────────────
+  // The metadata card (scenario, timestamps, traces) lives in "Run info" so it
+  // does not push the verdicts below the fold on the primary view.
+  if (variant === "editorial") {
+    const reportTabs = [
+      { id: "results", label: "Results" },
+      { id: "runinfo", label: "Run info" },
+    ] as const
+
+    return (
+      <div className="space-y-4">
+        <div className="flex border-b" role="tablist">
+          {reportTabs.map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={reportTab === id}
+              onClick={() => setReportTab(id)}
+              className={cn(
+                "-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors",
+                reportTab === id
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {reportTab === "results" && (
+          <div className="space-y-6">
+            {hasVerdicts ? (
+              <MetricsPanel run={run} metrics={metrics} />
+            ) : (
+              <NotRunPanel run={run} plannedCount={rows.length} />
+            )}
+            {caseSection}
+          </div>
+        )}
+
+        {reportTab === "runinfo" && (
+          <RunHeader run={run} traces={traces} sources={sources} />
+        )}
+      </div>
+    )
+  }
+
+  // ── Common layout ──────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
       <RunHeader run={run} traces={traces} sources={sources} />
@@ -74,45 +173,7 @@ export function RunReportView({
         <NotRunPanel run={run} plannedCount={rows.length} />
       )}
 
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="mr-2 text-sm font-semibold">
-            Test cases ({visibleRows.length}
-            {filter !== null ? ` of ${rows.length}` : ""})
-          </h2>
-          <FilterChip
-            label="All"
-            active={filter === null}
-            count={rows.length}
-            onClick={() => setFilter(null)}
-          />
-          {VERDICT_ORDER.map((status) => (
-            <FilterChip
-              key={status}
-              label={VERDICT_LABEL[status]}
-              active={filter === status}
-              count={metrics.counts[status]}
-              onClick={() => setFilter(filter === status ? null : status)}
-            />
-          ))}
-        </div>
-
-        {rows.length === 0 ? (
-          <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-            This run has no planned test cases and produced no verdicts.
-          </p>
-        ) : visibleRows.length === 0 ? (
-          <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-            No test case has that verdict in this run.
-          </p>
-        ) : (
-          <div className="space-y-4">
-            {visibleRows.map((row) => (
-              <CaseResultCard key={row.tcId} row={row} series={series?.get(row.tcId)} />
-            ))}
-          </div>
-        )}
-      </div>
+      {caseSection}
     </div>
   )
 }

@@ -103,12 +103,14 @@
     --journal-hw: 40 40% 52%; /* Muted gold-brown */
     --journal-sw: 185 38% 48%; /* Muted cyan-gray */
   }
+
 }
 
 @layer base {
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -119,6 +121,7 @@
   details > summary {
     list-style: none;
   }
+
   details > summary::-webkit-details-marker {
     display: none;
   }
@@ -149,5 +152,29 @@
       scrollbar-width: thin;
       scrollbar-color: hsl(var(--border)) hsl(var(--muted));
     }
+
   }
+
 }
+
+/* ================================================================
+   DESIGN VARIANTS
+   Applied via data-variant on <html>. "common" (no attribute) is
+   the original layout, unchanged.
+
+   Three variants: common (no attribute), editorial (tabs), showcase
+   (rings, fewer columns, verdict-first). Token overrides here are
+   only for properties that are structural in effect (e.g. radius
+   changes the chrome weight of every element).
+   ================================================================ */
+
+/* ── VARIANT: showcase ──────────────────────────────────────────
+   Marketing demo view. Larger radius so the cards feel polished,
+   not sharp. All structural changes are in the TSX layout.       */
+[data-variant="showcase"] {
+  --radius: 0.75rem;
+}
+
+/* ── VARIANT: editorial ─────────────────────────────────────────
+   Tab-segmented detail layout. Radius stays at default; the tab
+   chrome provides the structural differentiation.                */
