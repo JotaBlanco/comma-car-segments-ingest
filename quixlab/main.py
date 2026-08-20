@@ -590,7 +590,7 @@ def verdict_summary(acc_sys_ti_011, acc_sys_ti_014, acc_sys_ti_016):
     return pd.DataFrame(rows)
 
 
-@canvas.ai(position=(-580, 958), size=(560, 420), code_height=200, viz={'findingsStore': 'ai_1_store'})
+@canvas.ai(position=(-656, 955), size=(560, 420), code_height=200, viz={'findingsStore': 'ai_1_store'})
 def ai_1():
     """find this tc in test specification page ACC-SYS-TC-011 and generate evaluation report based on these traces. mf4_signals_v4
         WHERE platform = 'SKODA_OCTAVIA'
@@ -710,7 +710,7 @@ def ai_1_store(ai_1):
     return ql.datastore("ai_1_store")
 
 
-@canvas.ai(position=(-582, 1431), size=(560, 420), code_height=200)
+@canvas.ai(position=(-657, 1433), size=(560, 420), code_height=200)
 def ai_2():
     """find this tc in test specification page ACC-SYS-TC-014 and generate evaluation report based on these traces. mf4_signals_v4
         WHERE platform = 'SKODA_OCTAVIA'
@@ -718,7 +718,7 @@ def ai_2():
           AND route = '00014'"""
 
 
-@canvas.ai(position=(-584, 1886), size=(560, 420), code_height=200)
+@canvas.ai(position=(-653, 1888), size=(560, 420), code_height=200)
 def ai_3():
     """find this tc in test specification page ACC-SYS-TC-016 and generate evaluation report based on these traces. mf4_signals_v4
         WHERE platform = 'SKODA_OCTAVIA'
