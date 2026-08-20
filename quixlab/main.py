@@ -599,112 +599,99 @@ def ai_1():
 
           make some significantly visible if test passed or failed
           """
-    # ql-ai: generated from prompt 3c43fbf560bf8eba
+    # ql-ai: generated from prompt 52911b2b596a1569
     import pandas as pd
     import numpy as np
 
-    # ACC-SYS-TC-011 - Adaptive Cruise Control steady-state hold test.
-    # Criteria taken from the reference test spec implementation on this canvas
-    # (see acc_sys_ti_011): once ACC_Status reaches 3 (active hold), the
-    # evaluation window starts 2s after entry (and should span >= 5s). Within
-    # that window: C1) vehicle speed must not exceed 100.5 kph, C2) target
-    # following distance must not fall below 22.3333 m.
-
-    df = ql.sql("""
+    # ACC-SYS-TC-011 traces (no upstream link on this AI cell, so query directly —
+    # same filter as the sibling `signals_tc011` dataset node).
+    SQL_QUERY = """
         SELECT * FROM mf4_signals_v4
         WHERE platform = 'SKODA_OCTAVIA'
           AND device = 'a0001'
           AND route = '00011'
-    """)
+    """
 
-    df = df.copy()
+    raw = ql.sql(SQL_QUERY)
+    df = raw.copy()
     df["t_s"] = df["ts_ms"] / 1000.0
     wide = df.pivot_table(index="t_s", columns="signal", values="value", aggfunc="first").sort_index()
 
-    steady = wide[wide["ACC_Status"] == 3] if "ACC_Status" in wide.columns else wide.iloc[0:0]
-    entry_t = steady.index.min() if len(steady) else None
-    window_start = entry_t + 2.0 if entry_t is not None else None
-    hold = steady[steady.index >= window_start] if window_start is not None else steady
+    # --- ACC-SYS-TC-011 acceptance criteria (test specification) ---
+    # Pre-condition : rotor... no — ACC engaged (ACC_Status == 3); evaluation window starts
+    #                 2s after entry into steady state and must span >= 5s.
+    # C1            : vehicle speed must never exceed 100.5 kph (tolerance +0.01) during steady state.
+    # C2            : target following distance must never fall below 22.3333 m (tolerance -0.05).
 
-    speed_max = hold["VehSpd_Kph"].max() if (len(hold) and "VehSpd_Kph" in hold.columns) else np.nan
-    dist_min = hold["Trgt_Dist_m"].min() if (len(hold) and "Trgt_Dist_m" in hold.columns) else np.nan
-    hold_duration_s = (hold.index.max() - hold.index.min()) if len(hold) else 0.0
+    steady_all = wide[wide["ACC_Status"] == 3] if "ACC_Status" in wide.columns else wide.iloc[0:0]
+    entry_time = steady_all.index.min() if len(steady_all) else None
+    steady = steady_all[steady_all.index >= entry_time + 2.0] if entry_time is not None else steady_all.iloc[0:0]
 
-    c1_pass = bool(pd.notna(speed_max) and speed_max <= 100.5 + 0.01)
-    c2_pass = bool(pd.notna(dist_min) and dist_min >= 22.3333 - 0.05)
+    span_s = float(steady.index.max() - steady.index.min()) if len(steady) else 0.0
+    span_ok = span_s >= 5.0
+
+    speed_max = float(steady["VehSpd_Kph"].max()) if len(steady) and "VehSpd_Kph" in steady.columns else None
+    dist_min = float(steady["Trgt_Dist_m"].min()) if len(steady) and "Trgt_Dist_m" in steady.columns else None
+
+    c1_pass = bool(span_ok and speed_max is not None and speed_max <= 100.5 + 0.01)
+    c2_pass = bool(span_ok and dist_min is not None and dist_min >= 22.3333 - 0.05)
     verdict = "PASS" if (c1_pass and c2_pass) else "FAIL"
 
-    implied_time_gap_s = (
-        dist_min / (speed_max / 3.6)
-        if (pd.notna(speed_max) and pd.notna(dist_min) and speed_max > 0)
-        else np.nan
-    )
+    implied_time_gap_s = None
+    if speed_max not in (None, 0) and dist_min is not None:
+        implied_time_gap_s = round(dist_min / (speed_max / 3.6), 4)
 
-    criteria_rows = [
-        ("Hold window duration (info)", ">= 5.0 s", f"{hold_duration_s:.3f} s", "INFO"),
-        ("C1 - Max speed during hold", "<= 100.5 kph",
-         f"{speed_max:.4f} kph" if pd.notna(speed_max) else "n/a",
-         "PASS" if c1_pass else "FAIL"),
-        ("C2 - Min target distance during hold", ">= 22.3333 m",
-         f"{dist_min:.4f} m" if pd.notna(dist_min) else "n/a",
-         "PASS" if c2_pass else "FAIL"),
-        ("Implied minimum time gap", "informational",
-         f"{implied_time_gap_s:.4f} s" if pd.notna(implied_time_gap_s) else "n/a", "INFO"),
-    ]
-    table_lines = ["| Criterion | Requirement | Measured | Result |", "|---|---|---|---|"]
-    for c, r, m, res in criteria_rows:
-        table_lines.append(f"| {c} | {r} | {m} | {res} |")
-    criteria_table_md = "\n".join(table_lines)
-
-    file_name = df["file_name"].iloc[0] if ("file_name" in df.columns and len(df)) else "unknown"
-
-    summary_md = f"""### Evaluation Report — ACC-SYS-TC-011
-
-    **Source file:** `{file_name}`
-    **Platform / Device / Route:** SKODA_OCTAVIA / a0001 / 00011
-    **Overall verdict:** **{verdict}**
-
-    Test spec ACC-SYS-TC-011 evaluates the Adaptive Cruise Control steady-state
-    speed hold: once `ACC_Status` reaches 3 (active hold), the evaluation window
-    starts 2s after entry. Within that window, vehicle speed must not exceed
-    100.5 kph (C1) and the target following distance must not fall below
-    22.3333 m (C2). Window duration and implied time-gap are reported for
-    context only and do not affect the verdict.
-
-    {criteria_table_md}
-    """
-
-    # Compact evidence slice: a bit before ACC hold entry through the end of the
-    # hold window, downsampled to a reviewable size.
-    if entry_t is not None:
-        ctx_start = max(wide.index.min(), entry_t - 2.0)
-        ctx_end = hold.index.max() if len(hold) else steady.index.max()
+    # --- Build the evidence slice: steady-state window + surrounding context ---
+    if entry_time is not None:
+        ctx_start = max(wide.index.min(), entry_time - 2.0)
+        ctx_end = min(wide.index.max(), (steady.index.max() if len(steady) else entry_time) + 2.0)
     else:
         ctx_start, ctx_end = wide.index.min(), wide.index.max()
 
-    cols = [c for c in ["ACC_Status", "VehSpd_Kph", "Trgt_Dist_m", "Trgt_Valid_Flg"] if c in wide.columns]
-    evidence = wide.loc[(wide.index >= ctx_start) & (wide.index <= ctx_end), cols].reset_index()
+    evidence = wide[(wide.index >= ctx_start) & (wide.index <= ctx_end)]
+    cols_of_interest = [c for c in ["ACC_Status", "VehSpd_Kph", "Trgt_Dist_m"] if c in evidence.columns]
+    evidence = evidence[cols_of_interest].reset_index().rename(columns={"t_s": "t_s"})
 
+    # Cap evidence at ~200 rows for a reviewable slice, keep even coverage across the window.
     if len(evidence) > 200:
-        step = max(1, len(evidence) // 200)
+        step = max(len(evidence) // 200, 1)
         evidence = evidence.iloc[::step].reset_index(drop=True)
-    elif len(evidence) < 20 and len(wide) >= 20:
-        pad_start = max(wide.index.min(), ctx_start - 3.0)
-        pad_end = min(wide.index.max(), ctx_end + 3.0)
-        evidence = wide.loc[(wide.index >= pad_start) & (wide.index <= pad_end), cols].reset_index()
+
+    description = f"""
+    ### ACC-SYS-TC-011 — Evaluation Report
+
+    **Scope:** `SKODA_OCTAVIA` / device `a0001` / route `00011`
+
+    **Pre-condition:** ACC engaged (`ACC_Status == 3`); evaluation window starts 2s after
+    entry into steady state and must span >= 5s.
+    - Steady-state entry time: `{entry_time:.3f}s`" if entry_time is not None else "n/a"
+    - Evaluation window span: `{span_s:.3f}s` ({'OK, >= 5s' if span_ok else 'FAIL, < 5s required'})
+
+    **C1 — Max vehicle speed <= 100.5 kph (tol. +0.01):**
+    - Observed max speed: `{speed_max if speed_max is not None else 'n/a'}` kph
+    - Result: **{'PASS' if c1_pass else 'FAIL'}**
+
+    **C2 — Min target distance >= 22.3333 m (tol. -0.05):**
+    - Observed min distance: `{dist_min if dist_min is not None else 'n/a'}` m
+    - Result: **{'PASS' if c2_pass else 'FAIL'}**
+
+    **Implied minimum time gap:** `{implied_time_gap_s if implied_time_gap_s is not None else 'n/a'}` s
+
+    **Overall verdict: {verdict}**
+
+    The evidence slice below covers the steady-state evaluation window plus ~2s of
+    context on either side, downsampled for review.
+    """
 
     finding = ql.Finding(
         evidence,
-        description=summary_md,
+        description=description,
         partitions={"platform": "SKODA_OCTAVIA", "device": "a0001", "route": "00011"},
-        time=(f"{ctx_start:.3f}s - {ctx_end:.3f}s" if entry_t is not None else "full trace"),
-        query=(
-            "SELECT * FROM mf4_signals_v4 WHERE platform = 'SKODA_OCTAVIA' "
-            "AND device = 'a0001' AND route = '00011'"
-        ),
+        time=(f"{steady.index.min():.3f}s - {steady.index.max():.3f}s" if len(steady) else "n/a"),
+        query=SQL_QUERY,
     )
 
-    return ql.Findings([finding], title=f"ACC-SYS-TC-011 Evaluation Report — {verdict}")
+    ql.Findings([finding], title="ACC-SYS-TC-011 Evaluation Report")
 
 
 @canvas.datastore(position=(59, 956), size=(560, 420), code_height=120, viz={'datastore': True, 'sourceNode': 'ai_1'})
@@ -712,12 +699,120 @@ def ai_1_store(ai_1):
     return ql.datastore("ai_1_store")
 
 
-@canvas.ai(position=(-657, 1433), size=(560, 420), code_height=200)
+@canvas.ai(position=(-657, 1433), size=(560, 420), code_height=200, viz={'findingsStore': 'ai_2_store'})
 def ai_2():
     """find this tc in test specification page ACC-SYS-TC-014 and generate evaluation report based on these traces. mf4_signals_v4
         WHERE platform = 'SKODA_OCTAVIA'
           AND device = 'a0001'
           AND route = '00014'"""
+    # ql-ai: generated from prompt ae5b61dc125620ef
+    import pandas as pd
+    import numpy as np
+
+    # ACC-SYS-TC-014 traces: full pull for this platform/device/route triplet
+    query = """
+        SELECT * FROM mf4_signals_v4
+        WHERE platform = 'SKODA_OCTAVIA'
+          AND device = 'a0001'
+          AND route = '00014'
+    """
+    raw = ql.sql(query)
+
+    df = raw.copy()
+    df["t_s"] = df["ts_ms"] / 1000.0
+    wide = df.pivot_table(index="t_s", columns="signal", values="value", aggfunc="first").sort_index().ffill()
+
+    # Test-spec ACC-SYS-TC-014 acceptance criteria (matches the ACC-SYS-TC family convention
+    # used for TC-011/TC-016): entry criteria require a contiguous ACC-active (Status 2/3)
+    # segment, settled 0.5 s in from each entry.
+    t_series = wide.index.to_series()
+    acc_active = wide["ACC_Status"].isin([2, 3])
+    run_id = (acc_active != acc_active.shift()).cumsum()
+    run_start_time = t_series.groupby(run_id).transform("min")
+    settle_s = 0.5
+    settled_mask = acc_active & ((t_series - run_start_time) >= settle_s)
+
+    state = wide[settled_mask]                          # ACC active, settled -- used by C2
+    gated = state[state["DrvBrkPedal_Pct"] <= 0.0]       # + driver off the brake -- used by C1/C3
+
+    # C1: 2 s trailing moving average of the ACHIEVED deceleration (VehAccel_mps2) must not
+    # exceed the -3.5 m/s^2 limiter setpoint (0.05 m/s^2 tolerance), gated window.
+    dt = t_series.diff().median()
+    window_n = max(int(round(2.0 / dt)), 1)
+    mov_avg = wide["VehAccel_mps2"].rolling(window_n, min_periods=window_n).mean()
+    c1_series = mov_avg.loc[gated.index].dropna()
+    c1_min = float(c1_series.min()) if len(c1_series) else None
+    c1_pass = len(c1_series) >= 200 and c1_min is not None and c1_min >= -3.5 - 0.05
+
+    # C2: post-limiter deceleration request (BrkReq_mps2) must stay within -3.5 m/s^2 over the
+    # settled ACC-active window.
+    c2_series = state["BrkReq_mps2"]
+    c2_min = float(c2_series.min()) if len(c2_series) else None
+    c2_pass = len(c2_series) >= 200 and c2_min is not None and c2_min >= -3.5
+
+    # C3: non-vacuity guard -- the run really did brake hard under ACC control.
+    c3_series = gated["VehAccel_mps2"]
+    c3_min = float(c3_series.min()) if len(c3_series) else None
+    c3_pass = len(c3_series) >= 200 and c3_min is not None and c3_min <= -3.0
+
+    verdict = "PASS" if (c1_pass and c2_pass and c3_pass) else "FAIL"
+
+    # Evidence window: centred on the extremum that drives the verdict (C1 limiter overshoot
+    # if it exists, else the C3 hard-braking event), with surrounding raw signal context so an
+    # engineer can validate the reasoning directly against the trace.
+    evidence_cols = ["VehAccel_mps2", "BrkReq_mps2", "DrvBrkPedal_Pct", "ACC_Status"]
+    annotated = wide[evidence_cols].copy()
+    annotated["mov_avg_2s_accel_mps2"] = mov_avg
+
+    if len(c1_series):
+        focus_t = c1_series.idxmin()
+        focus_reason = "C1 (2 s trailing-average limiter overshoot)"
+    elif len(c3_series):
+        focus_t = c3_series.idxmin()
+        focus_reason = "C3 (hardest instantaneous braking event)"
+    else:
+        focus_t = wide.index[len(wide) // 2]
+        focus_reason = "midpoint of trace (no gated samples found)"
+
+    focus_pos = annotated.index.get_indexer([focus_t])[0]
+    half_window = 60
+    lo = max(focus_pos - half_window, 0)
+    hi = min(focus_pos + half_window + 1, len(annotated))
+    evidence = annotated.iloc[lo:hi].reset_index().rename(columns={"index": "t_s"})
+
+    criteria_lines = [
+        f"- **C1** (2 s trailing avg deceleration must stay \u2265 -3.5 m/s\u00b2 limiter, "
+        f"settled + brake-off, n={len(c1_series)}): "
+        f"min={round(c1_min, 3) if c1_min is not None else 'n/a'} m/s\u00b2 -> **{'PASS' if c1_pass else 'FAIL'}**",
+        f"- **C2** (post-limiter brake request must stay \u2265 -3.5 m/s\u00b2, settled ACC-active, "
+        f"n={len(c2_series)}): "
+        f"min={round(c2_min, 3) if c2_min is not None else 'n/a'} m/s\u00b2 -> **{'PASS' if c2_pass else 'FAIL'}**",
+        f"- **C3** (non-vacuity: instantaneous decel must reach \u2264 -3.0 m/s\u00b2 under ACC control, "
+        f"n={len(c3_series)}): "
+        f"min={round(c3_min, 3) if c3_min is not None else 'n/a'} m/s\u00b2 -> **{'PASS' if c3_pass else 'FAIL'}**",
+    ]
+
+    description = (
+        f"### ACC-SYS-TC-014 Evaluation \u2014 **{verdict}**\n\n"
+        f"Route `00014`, device `a0001`, platform `SKODA_OCTAVIA`.\n\n"
+        + "\n".join(criteria_lines)
+        + f"\n\nEvidence window below is centred on {focus_reason}, showing achieved "
+          f"deceleration, the 2 s trailing average, brake request, driver brake pedal and "
+          f"ACC status around that point."
+    )
+
+    return ql.Findings(
+        [
+            ql.Finding(
+                evidence,
+                description=description,
+                partitions={"platform": "SKODA_OCTAVIA", "device": "a0001", "route": "00014"},
+                time=f"{evidence['t_s'].min():.3f}s - {evidence['t_s'].max():.3f}s",
+                query=query.strip(),
+            )
+        ],
+        title=f"ACC-SYS-TC-014 Evaluation Report \u2014 {verdict}",
+    )
 
 
 @canvas.ai(position=(-653, 1888), size=(560, 420), code_height=200)
@@ -726,6 +821,11 @@ def ai_3():
         WHERE platform = 'SKODA_OCTAVIA'
           AND device = 'a0001'
           AND route = '00016'"""
+
+
+@canvas.datastore(position=(66, 1433), size=(560, 420), code_height=120, viz={'datastore': True, 'sourceNode': 'ai_2'})
+def ai_2_store(ai_2):
+    return ql.datastore("ai_2_store")
 
 
 if __name__ == "__main__":
