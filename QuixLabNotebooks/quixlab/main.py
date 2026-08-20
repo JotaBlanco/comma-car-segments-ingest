@@ -124,5 +124,16 @@ def ai_1(can_signals_v13_4):
     result
 
 
+@canvas.notebook(position=(2020, -523), size=(560, 420), code_height=200)
+def notebook_1():
+    # %%
+    import pandas as pd
+    df = pd.DataFrame({"x": [1,2,3], "y": [4,5,6]})
+    df
+    # %%
+    import plotly.express as px
+    px.bar(df, x="x", y="y")
+
+
 if __name__ == "__main__":
     canvas.serve()
