@@ -590,5 +590,146 @@ def verdict_summary(acc_sys_ti_011, acc_sys_ti_014, acc_sys_ti_016):
     return pd.DataFrame(rows)
 
 
+@canvas.ai(position=(-580, 958), size=(560, 420), code_height=200, viz={'findingsStore': 'ai_1_store'})
+def ai_1():
+    """find this tc in test specification page ACC-SYS-TC-011 and generate evaluation report based on these traces. mf4_signals_v4
+        WHERE platform = 'SKODA_OCTAVIA'
+          AND device = 'a0001'
+          AND route = '00011'
+          """
+    # ql-ai: generated from prompt 3c43fbf560bf8eba
+    import pandas as pd
+    import numpy as np
+
+    # ACC-SYS-TC-011 - Adaptive Cruise Control steady-state hold test.
+    # Criteria taken from the reference test spec implementation on this canvas
+    # (see acc_sys_ti_011): once ACC_Status reaches 3 (active hold), the
+    # evaluation window starts 2s after entry (and should span >= 5s). Within
+    # that window: C1) vehicle speed must not exceed 100.5 kph, C2) target
+    # following distance must not fall below 22.3333 m.
+
+    df = ql.sql("""
+        SELECT * FROM mf4_signals_v4
+        WHERE platform = 'SKODA_OCTAVIA'
+          AND device = 'a0001'
+          AND route = '00011'
+    """)
+
+    df = df.copy()
+    df["t_s"] = df["ts_ms"] / 1000.0
+    wide = df.pivot_table(index="t_s", columns="signal", values="value", aggfunc="first").sort_index()
+
+    steady = wide[wide["ACC_Status"] == 3] if "ACC_Status" in wide.columns else wide.iloc[0:0]
+    entry_t = steady.index.min() if len(steady) else None
+    window_start = entry_t + 2.0 if entry_t is not None else None
+    hold = steady[steady.index >= window_start] if window_start is not None else steady
+
+    speed_max = hold["VehSpd_Kph"].max() if (len(hold) and "VehSpd_Kph" in hold.columns) else np.nan
+    dist_min = hold["Trgt_Dist_m"].min() if (len(hold) and "Trgt_Dist_m" in hold.columns) else np.nan
+    hold_duration_s = (hold.index.max() - hold.index.min()) if len(hold) else 0.0
+
+    c1_pass = bool(pd.notna(speed_max) and speed_max <= 100.5 + 0.01)
+    c2_pass = bool(pd.notna(dist_min) and dist_min >= 22.3333 - 0.05)
+    verdict = "PASS" if (c1_pass and c2_pass) else "FAIL"
+
+    implied_time_gap_s = (
+        dist_min / (speed_max / 3.6)
+        if (pd.notna(speed_max) and pd.notna(dist_min) and speed_max > 0)
+        else np.nan
+    )
+
+    criteria_rows = [
+        ("Hold window duration (info)", ">= 5.0 s", f"{hold_duration_s:.3f} s", "INFO"),
+        ("C1 - Max speed during hold", "<= 100.5 kph",
+         f"{speed_max:.4f} kph" if pd.notna(speed_max) else "n/a",
+         "PASS" if c1_pass else "FAIL"),
+        ("C2 - Min target distance during hold", ">= 22.3333 m",
+         f"{dist_min:.4f} m" if pd.notna(dist_min) else "n/a",
+         "PASS" if c2_pass else "FAIL"),
+        ("Implied minimum time gap", "informational",
+         f"{implied_time_gap_s:.4f} s" if pd.notna(implied_time_gap_s) else "n/a", "INFO"),
+    ]
+    table_lines = ["| Criterion | Requirement | Measured | Result |", "|---|---|---|---|"]
+    for c, r, m, res in criteria_rows:
+        table_lines.append(f"| {c} | {r} | {m} | {res} |")
+    criteria_table_md = "\n".join(table_lines)
+
+    file_name = df["file_name"].iloc[0] if ("file_name" in df.columns and len(df)) else "unknown"
+
+    summary_md = f"""### Evaluation Report — ACC-SYS-TC-011
+
+    **Source file:** `{file_name}`
+    **Platform / Device / Route:** SKODA_OCTAVIA / a0001 / 00011
+    **Overall verdict:** **{verdict}**
+
+    Test spec ACC-SYS-TC-011 evaluates the Adaptive Cruise Control steady-state
+    speed hold: once `ACC_Status` reaches 3 (active hold), the evaluation window
+    starts 2s after entry. Within that window, vehicle speed must not exceed
+    100.5 kph (C1) and the target following distance must not fall below
+    22.3333 m (C2). Window duration and implied time-gap are reported for
+    context only and do not affect the verdict.
+
+    {criteria_table_md}
+    """
+
+    # Compact evidence slice: a bit before ACC hold entry through the end of the
+    # hold window, downsampled to a reviewable size.
+    if entry_t is not None:
+        ctx_start = max(wide.index.min(), entry_t - 2.0)
+        ctx_end = hold.index.max() if len(hold) else steady.index.max()
+    else:
+        ctx_start, ctx_end = wide.index.min(), wide.index.max()
+
+    cols = [c for c in ["ACC_Status", "VehSpd_Kph", "Trgt_Dist_m", "Trgt_Valid_Flg"] if c in wide.columns]
+    evidence = wide.loc[(wide.index >= ctx_start) & (wide.index <= ctx_end), cols].reset_index()
+
+    if len(evidence) > 200:
+        step = max(1, len(evidence) // 200)
+        evidence = evidence.iloc[::step].reset_index(drop=True)
+    elif len(evidence) < 20 and len(wide) >= 20:
+        pad_start = max(wide.index.min(), ctx_start - 3.0)
+        pad_end = min(wide.index.max(), ctx_end + 3.0)
+        evidence = wide.loc[(wide.index >= pad_start) & (wide.index <= pad_end), cols].reset_index()
+
+    finding = ql.Finding(
+        evidence,
+        description=summary_md,
+        partitions={"platform": "SKODA_OCTAVIA", "device": "a0001", "route": "00011"},
+        time=(f"{ctx_start:.3f}s - {ctx_end:.3f}s" if entry_t is not None else "full trace"),
+        query=(
+            "SELECT * FROM mf4_signals_v4 WHERE platform = 'SKODA_OCTAVIA' "
+            "AND device = 'a0001' AND route = '00011'"
+        ),
+    )
+
+    return ql.Findings([finding], title=f"ACC-SYS-TC-011 Evaluation Report — {verdict}")
+
+
+@canvas.datastore(position=(40, 958), size=(560, 420), code_height=120, viz={'datastore': True, 'sourceNode': 'ai_1'})
+def ai_1_store(ai_1):
+    return ql.datastore("ai_1_store")
+
+
+@canvas.ai(position=(-582, 1431), size=(560, 420), code_height=200)
+def ai_2():
+    """find this tc in test specification page ACC-SYS-TC-014 and generate evaluation report based on these traces. mf4_signals_v4
+        WHERE platform = 'SKODA_OCTAVIA'
+          AND device = 'a0001'
+          AND route = '00014'"""
+
+
+@canvas.ai(position=(-584, 1886), size=(560, 420), code_height=200)
+def ai_3():
+    """Describe what you want computed — plain English, not code.
+
+    Reference other cells with `@cell_id`; their results are this cell's inputs.
+    Example: *Calculate the 95th percentile of every numeric column in @my_cell.*
+
+    Press ▶ to run. In **generated code** mode (default) the AI writes hidden
+    Python for this prompt and the cell runs it like a normal cell — regenerated
+    only when you change the prompt. Switch the dropdown to **live agent** for a
+    full analysis session (lakehouse + sub-agent) on every run."""
+
+
 if __name__ == "__main__":
     canvas.serve()
