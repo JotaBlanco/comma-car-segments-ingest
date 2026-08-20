@@ -60,6 +60,9 @@ const config = {
           foreground: "hsl(var(--neon-foreground))",
           glow: "hsl(var(--neon-glow))",
           alt: "hsl(var(--neon-alt))",
+          pass: "hsl(var(--neon-pass))",
+          fail: "hsl(var(--neon-fail))",
+          warn: "hsl(var(--neon-warn))",
         },
         popover: {
           DEFAULT: "hsl(var(--popover))",

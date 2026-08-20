@@ -32,6 +32,7 @@ import {
   useVmResultsApi,
   useVmTestSpecsApi,
 } from "@/lib/hooks/use-api"
+import { cn } from "@/lib/utils/cn"
 import { REQ_SEGMENT_CHAPTERS } from "@/lib/vmodel/constants"
 import type { PaginatedResponse } from "@/types/pagination"
 import type { Requirement, TestResult, TestSpec } from "@/types/vmodel"
@@ -50,17 +51,23 @@ const FAMILIES = ["FUN", "PRF", "SAF"] as const
  * Pure model
  * ------------------------------------------------------------------ */
 
-type Tone = "success" | "destructive" | "warning" | "muted"
+type Tone = "coverage" | "verified" | "pass" | "fail" | "warn" | "muted"
 
 /**
  * Theme tokens, never hex. The ring paints with `currentColor`, so setting the
  * text colour of the `<circle>` is what colours the arc - and it stays correct in
  * both light and dark mode because both are defined in `app/globals.css`.
+ *
+ * The palette is the QuixLab canvas one: electric blue and violet for the two
+ * requirement measures, its green and magenta for pass and fail. Every ring used to
+ * be the same muted teal, so four different measures read as one.
  */
 const TONE_CLASS: Record<Tone, string> = {
-  success: "text-success",
-  destructive: "text-destructive",
-  warning: "text-warning",
+  coverage: "text-neon-alt",
+  verified: "text-neon",
+  pass: "text-neon-pass",
+  fail: "text-neon-fail",
+  warn: "text-neon-warn",
   muted: "text-muted-foreground",
 }
 
@@ -169,7 +176,7 @@ export function computeCoverageStats(
       percent: percentOf(covered, reqTotal),
       caption: reqTotal > 0 ? `${covered} / ${reqTotal} requirements` : "no requirements",
       hint: "Requirements with at least one covering test case",
-      segments: [{ value: covered, tone: "success" }],
+      segments: [{ value: covered, tone: "coverage" }],
       total: reqTotal,
     },
     {
@@ -178,7 +185,7 @@ export function computeCoverageStats(
       percent: percentOf(verified, reqTotal),
       caption: reqTotal > 0 ? `${verified} / ${reqTotal} requirements` : "no requirements",
       hint: "Requirements confirmed by a passing test case",
-      segments: [{ value: verified, tone: "success" }],
+      segments: [{ value: verified, tone: "verified" }],
       total: reqTotal,
     },
     {
@@ -188,9 +195,9 @@ export function computeCoverageStats(
       caption: executed > 0 ? `${passed} / ${executed} executed` : "not run yet",
       hint: "Passing share of the test cases that produced a verdict",
       segments: [
-        { value: passed, tone: "success" },
-        { value: failed, tone: "destructive" },
-        { value: inconclusive, tone: "warning" },
+        { value: passed, tone: "pass" },
+        { value: failed, tone: "fail" },
+        { value: inconclusive, tone: "warn" },
       ],
       total: executed,
     },
@@ -236,7 +243,7 @@ export function computeCoverageStats(
       // put 25% of PRF's ring in colour under a 17% label, and a quarter of FUN's ring
       // in colour under 0% - the centre number describes the green alone, so nothing
       // else may take arc. The covered count is carried by subCaption instead.
-      segments: [{ value: familyVerified, tone: "success" }],
+      segments: [{ value: familyVerified, tone: "verified" }],
       total: inFamily.length,
     }
   })
@@ -428,10 +435,15 @@ function DonutTile({ stat, size }: { stat: DonutStat; size: "lg" | "sm" }) {
     <div className="flex flex-col items-center gap-2 text-center" title={stat.hint}>
       <Donut stat={stat} size={size} />
       <div className="space-y-0.5">
+        {/* The label takes its ring's colour, the way the QuixLab canvas tints a
+            section's title to match the block it heads. It is what lets four rings of
+            four different measures be told apart at a glance. */}
         <p
-          className={`font-medium leading-tight text-foreground ${
-            size === "lg" ? "text-sm" : "text-xs"
-          }`}
+          className={cn(
+            "font-medium leading-tight",
+            size === "lg" ? "text-sm" : "text-xs",
+            TONE_CLASS[stat.segments[0]?.tone ?? "muted"]
+          )}
         >
           {stat.label}
         </p>
@@ -485,7 +497,7 @@ export function CoverageDonuts() {
       </div>
 
       <div className="rounded-md border p-4">
-        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-neon">
           Requirement coverage by feature
         </p>
         <div className="grid grid-cols-3 gap-4 md:max-w-md">
