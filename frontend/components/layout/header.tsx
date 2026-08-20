@@ -31,6 +31,8 @@ export function Header({ backLink }: HeaderProps) {
   // The resolved theme is only known in the browser, so the server cannot pick the
   // right icon. Rendering one anyway made React throw a hydration mismatch on every
   // load once a theme had been chosen, which dev surfaced as a red error toast.
+  // Gates both the toggle's icon and its tooltip. The server cannot know the
+  // resolved theme, so rendering either during SSR mismatches on hydration.
   const [themeReady, setThemeReady] = useState(false)
   useEffect(() => setThemeReady(true), [])
 
@@ -82,7 +84,13 @@ export function Header({ backLink }: HeaderProps) {
           <button
             type="button"
             aria-label="Toggle theme"
-            title={resolvedTheme === "dark" ? "Switch to light" : "Switch to dark"}
+            title={
+              themeReady
+                ? resolvedTheme === "dark"
+                  ? "Switch to light"
+                  : "Switch to dark"
+                : undefined
+            }
             onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
             className="rounded-lg p-2 hover:bg-accent"
           >
