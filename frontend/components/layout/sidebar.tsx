@@ -8,8 +8,6 @@ import {
   Code2,
   PlayCircle,
   CheckCircle2,
-  Box,
-  Server,
   ChevronLeft,
   Settings,
   Sliders,
@@ -55,13 +53,17 @@ const navSections: NavSection[] = [
       { href: "/test-results", icon: CheckCircle2, label: "Test Results" },
     ],
   },
-  {
-    label: "Assets",
-    items: [
-      { href: "/devices", icon: Box, label: "Devices" },
-      { href: "/environments", icon: Server, label: "Environments" },
-    ],
-  },
+  // Assets - Devices and Environments - is hidden while it is unused. The pages
+  // and their routes are untouched, so /devices and /environments still work and
+  // the device link on a test detail still resolves; only the nav entries are
+  // gone. Restore by putting this group back.
+  // {
+  //   label: "Assets",
+  //   items: [
+  //     { href: "/devices", icon: Box, label: "Devices" },
+  //     { href: "/environments", icon: Server, label: "Environments" },
+  //   ],
+  // },
   {
     label: "Integrations",
     items: [
