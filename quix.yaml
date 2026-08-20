@@ -218,18 +218,6 @@ deployments:
         label: Configurations
         icon: tune
         order: 0
-  - name: Seed DBC Configurations
-    group: Ingestion
-    application: dcm-seed-dbc
-    version: latest
-    deploymentType: Job
-    resources:
-      limits:
-        cpu: 500
-        memory: 1000
-    variables:
-      - name: DBC_NAMES
-        value: ford_lincoln_base_pt,FORD_CADS
   - name: QuixLab
     application: quixlab
     version: latest
