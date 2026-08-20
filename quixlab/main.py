@@ -593,6 +593,43 @@ def verdict_summary(acc_sys_ti_011, acc_sys_ti_014, acc_sys_ti_016):
 @canvas.ai(position=(-593, 1167), size=(560, 420), code_height=200)
 def ai_1():
     """create similar path to evaluate result for test 11 as is here in canvas in non ai cells"""
+    # ql-ai: generated from prompt 733e9460eedec14a
+    import pandas as pd
+
+    # same source query as signals_tc011: SKODA_OCTAVIA / a0001 / route 00011
+    raw = ql.sql("""
+        SELECT * FROM mf4_signals_v4
+        WHERE platform = 'SKODA_OCTAVIA'
+          AND device = 'a0001'
+          AND route = '00011'
+    """)
+
+    df = raw.copy()
+    df["t_s"] = df["ts_ms"] / 1000.0
+    wide = df.pivot_table(index="t_s", columns="signal", values="value", aggfunc="first").sort_index()
+
+    # steady-state window: ACC_Status == 3, 2s after entry, must span >= 5s
+    steady = wide[wide["ACC_Status"] == 3]
+    steady = steady[steady.index >= steady.index.min() + 2.0]
+
+    speed_max = steady["VehSpd_Kph"].max()
+    dist_min = steady["Trgt_Dist_m"].min()
+
+    c1_pass = speed_max <= 100.5 + 0.01
+    c2_pass = dist_min >= 22.3333 - 0.05
+    verdict = "PASS" if (c1_pass and c2_pass) else "FAIL"
+
+    implied_time_gap_s = dist_min / (speed_max / 3.6)
+
+    result = dict(
+        tc_id="ACC-SYS-TC-011",
+        verdict=verdict,
+        C1_max_speed_kph=round(speed_max, 4),
+        C2_min_dist_m=round(dist_min, 4),
+        implied_min_time_gap_s=round(implied_time_gap_s, 4),
+    )
+
+    result
 
 
 if __name__ == "__main__":
