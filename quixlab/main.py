@@ -592,7 +592,7 @@ def verdict_summary(acc_sys_ti_011, acc_sys_ti_014, acc_sys_ti_016):
 
 @canvas.ai(position=(-593, 1167), size=(560, 420), code_height=200)
 def ai_1():
-    """find this tc o"""
+    """find this tc in test specification page ACC-SYS-TC-011 and generate evaluation report based on these traces"""
     # ql-ai: generated from prompt 733e9460eedec14a
     import pandas as pd
 
