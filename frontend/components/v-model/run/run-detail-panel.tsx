@@ -6,6 +6,7 @@ import { AlertTriangle, ExternalLink, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { CaseResultCard } from "@/components/v-model/results/case-result-card"
 import { VerdictCounts } from "@/components/v-model/results/verdict-badge"
+import { RunCaseList } from "./run-case-list"
 import {
   formatSuccessRate,
   formatUtc,
@@ -175,10 +176,15 @@ export function RunDetailPanel({ runId, onRunChanged }: RunDetailPanelProps) {
             This run has no planned test cases and produced no verdicts.
           </p>
         ) : (
-          <div className="space-y-2">
-            {rows.map((row) => (
-              <CaseResultCard key={row.tcId} row={row} />
-            ))}
+          <div className="space-y-4">
+            {/* What is in the run and whether it passed, before any measurements.
+                Each line opens the test case on the Test Specification page. */}
+            <RunCaseList rows={rows} />
+            <div className="space-y-2">
+              {rows.map((row) => (
+                <CaseResultCard key={row.tcId} row={row} />
+              ))}
+            </div>
           </div>
         )}
       </div>

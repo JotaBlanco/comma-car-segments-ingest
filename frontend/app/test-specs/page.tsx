@@ -126,8 +126,19 @@ function TestSpecsPageContent() {
     [filtered, testSpecs]
   )
 
+  // Matches on `key` (ACC-SYS-TC-011@v0001) first, then falls back to a bare
+  // `tc_id`. A run only knows the test case id, not which artifact version it was
+  // planned against, so the Test Run panel links here with the id alone; without
+  // this fallback that link would open the page with nothing selected.
+  //
+  // The tree is given the resolved `key` rather than the raw param for the same
+  // reason - a bare id would leave it collapsed and unhighlighted while the detail
+  // pane showed the spec.
   const selected = useMemo(
-    () => filtered.find((item) => item.key === selectedKey) ?? null,
+    () =>
+      filtered.find((item) => item.key === selectedKey) ??
+      filtered.find((item) => item.tc_id === selectedKey) ??
+      null,
     [filtered, selectedKey]
   )
 
@@ -151,7 +162,7 @@ function TestSpecsPageContent() {
             <ItemTree
               title="Test cases"
               root={tree}
-              selectedItemId={selectedKey}
+              selectedItemId={selected?.key ?? selectedKey}
               onSelectItem={(itemId) => {
                 handleSelect(itemId)
                 onItemSelected()
