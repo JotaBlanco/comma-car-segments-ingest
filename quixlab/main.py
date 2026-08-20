@@ -592,7 +592,7 @@ def verdict_summary(acc_sys_ti_011, acc_sys_ti_014, acc_sys_ti_016):
 
 @canvas.ai(position=(-593, 1167), size=(560, 420), code_height=200)
 def ai_1():
-    """create similar path to evaluate result for test 11 as is here in canvas in no"""
+    """create similar path to evaluate result for test 11 as is here in canvas in non ai cells"""
 
 
 if __name__ == "__main__":
