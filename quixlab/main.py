@@ -815,17 +815,102 @@ def ai_2():
     )
 
 
-@canvas.ai(position=(-653, 1888), size=(560, 420), code_height=200)
+@canvas.ai(position=(-653, 1888), size=(560, 420), code_height=200, viz={'findingsStore': 'ai_3_store'})
 def ai_3():
     """find this tc in test specification page ACC-SYS-TC-016 and generate evaluation report based on these traces. mf4_signals_v4
         WHERE platform = 'SKODA_OCTAVIA'
           AND device = 'a0001'
           AND route = '00016'"""
+    # ql-ai: generated from prompt c880baad0b9aafa5
+    import pandas as pd
+
+    query = """
+        SELECT * FROM mf4_signals_v4
+        WHERE platform = 'SKODA_OCTAVIA'
+          AND device = 'a0001'
+          AND route = '00016'
+    """
+
+    df = ql.sql(query)
+
+    work = df.copy()
+    work["t_s"] = work["ts_ms"] / 1000.0
+    wide = (
+        work.pivot_table(index="t_s", columns="signal", values="value", aggfunc="first")
+        .sort_index()
+        .ffill()
+    )
+
+    # --- ACC-SYS-TC-016 acceptance criteria (per test specification) ---
+    # C1: the active set speed (ACC_SetSpd_Kph) must never exceed 180 km/h anywhere in the run.
+    # C2: from t = 6s (one second after the driver's 190 km/h request at t = 5s) every
+    #     sample must equal exactly 180 km/h -- an above-ceiling request must be clamped
+    #     by the ACC controller, never accepted.
+
+    c1_series = wide["ACC_SetSpd_Kph"]
+    c1_max = float(c1_series.max())
+    c1_pass = len(c1_series) >= 100 and c1_max <= 180.0 + 0.01
+
+    window = wide[(wide.index >= 6.0) & (wide.index <= 60.0)]
+    c2_series = window["ACC_SetSpd_Kph"]
+    c2_max_dev = float((c2_series - 180.0).abs().max()) if len(c2_series) else None
+    c2_pass = len(c2_series) >= 500 and c2_max_dev is not None and c2_max_dev <= 0.01
+
+    verdict = "PASS" if (c1_pass and c2_pass) else "FAIL"
+
+    # --- Evidence slices ---
+    # C1 evidence: full-run set-speed / vehicle-speed / ACC status trace, so a reviewer
+    # can confirm the 180 km/h ceiling is respected end to end.
+    c1_cols = [c for c in ["ACC_SetSpd_Kph", "VehSpd_Kph", "ACC_Status"] if c in wide.columns]
+    c1_evidence = wide[c1_cols].reset_index()
+
+    # C2 evidence: the clamp window around the driver's 190 km/h request at t = 5s,
+    # showing the set speed pinned at 180 km/h despite the higher request.
+    c2_window = wide[(wide.index >= 5.0) & (wide.index <= 15.0)]
+    c2_cols = [c for c in ["ACC_SetSpd_Kph", "VehSpd_Kph", "ACC_Status"] if c in wide.columns]
+    c2_evidence = c2_window[c2_cols].reset_index()
+
+    findings = ql.Findings(
+        [
+            ql.Finding(
+                c1_evidence,
+                description=(
+                    f"**C1 - Set-speed ceiling ({'PASS' if c1_pass else 'FAIL'})**\n\n"
+                    f"The ACC active set speed must never exceed 180 km/h for the entire run. "
+                    f"Observed max `ACC_SetSpd_Kph` = **{round(c1_max, 4)} km/h** over {len(c1_series)} samples."
+                ),
+                partitions={"platform": "SKODA_OCTAVIA", "device": "a0001", "route": "00016"},
+                time="0s - end of run",
+                query=query,
+            ),
+            ql.Finding(
+                c2_evidence,
+                description=(
+                    f"**C2 - Above-ceiling request is clamped, not accepted ({'PASS' if c2_pass else 'FAIL'})**\n\n"
+                    f"The driver requests 190 km/h at t = 5s (above the 180 km/h ceiling). From t = 6s onward, "
+                    f"every `ACC_SetSpd_Kph` sample must equal exactly 180 km/h. "
+                    f"Observed max deviation from 180 km/h in the t = 6s-60s verification window = "
+                    f"**{round(c2_max_dev, 4) if c2_max_dev is not None else 'N/A'} km/h** over {len(c2_series)} samples."
+                ),
+                partitions={"platform": "SKODA_OCTAVIA", "device": "a0001", "route": "00016"},
+                time="5s - 15s (clamp window shown; verified through 60s)",
+                query=query,
+            ),
+        ],
+        title=f"ACC-SYS-TC-016 Evaluation Report — {verdict}",
+    )
+
+    findings
 
 
 @canvas.datastore(position=(66, 1433), size=(560, 420), code_height=120, viz={'datastore': True, 'sourceNode': 'ai_2'})
 def ai_2_store(ai_2):
     return ql.datastore("ai_2_store")
+
+
+@canvas.datastore(position=(71, 1889), size=(560, 420), code_height=120, viz={'datastore': True, 'sourceNode': 'ai_3'})
+def ai_3_store(ai_3):
+    return ql.datastore("ai_3_store")
 
 
 if __name__ == "__main__":
