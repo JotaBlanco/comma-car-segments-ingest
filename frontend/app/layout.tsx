@@ -4,7 +4,6 @@ import { Toaster } from "@/components/ui/toaster"
 import { SidebarProvider } from "@/lib/contexts/sidebar-context"
 import { ThemeContextProvider } from "@/lib/contexts/theme-context"
 import { QuixAuthProvider } from "@/lib/contexts/quix-auth-context"
-import { VariantProvider } from "@/lib/contexts/variant-context"
 import { AuthTokenDialog } from "@/components/auth/auth-token-dialog"
 
 export const metadata: Metadata = {
@@ -27,12 +26,10 @@ export default function RootLayout({
         <QuixAuthProvider>
           <AuthTokenDialog />
           <ThemeContextProvider>
-            <VariantProvider>
               <SidebarProvider>
                 {children}
                 <Toaster />
               </SidebarProvider>
-            </VariantProvider>
           </ThemeContextProvider>
         </QuixAuthProvider>
       </body>
