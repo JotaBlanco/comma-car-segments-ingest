@@ -4,7 +4,6 @@ import Link from "next/link"
 import { AlertTriangle, ExternalLink, Loader2 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
-import { CaseResultCard } from "@/components/v-model/results/case-result-card"
 import { VerdictCounts } from "@/components/v-model/results/verdict-badge"
 import { RunCaseList } from "./run-case-list"
 import {
@@ -32,11 +31,12 @@ interface RunDetailPanelProps {
  * of its test cases, each with its verdict and - where the run was evaluated - the
  * measured value against the bound it was judged by.
  *
- * The per-case rows are `CaseResultCard` from the Test Results stage, not a second
- * implementation of the same row. Collapsed it is verdict plus measured-vs-bound;
- * expanded it is the full `reason` string, the window, the scope and the
- * per-criterion table. Reusing it means the two surfaces cannot drift into
- * describing one verdict two different ways.
+ * The cases are `RunCaseList`: one line each, expandable in place to that case's
+ * `CaseResultCard` - the full reason string, the window, the scope and the
+ * per-criterion table. The details used to sit in a second stack below the list,
+ * which put every result on screen whether or not anyone wanted it and rendered
+ * each verdict twice. Reusing the Test Results card here means the two stages
+ * cannot drift into describing one verdict two different ways.
  *
  * A run with no verdicts is not a failed run: `success_rate` is null there and the
  * pane says "not run yet" in words rather than rendering 0%.
@@ -176,16 +176,7 @@ export function RunDetailPanel({ runId, onRunChanged }: RunDetailPanelProps) {
             This run has no planned test cases and produced no verdicts.
           </p>
         ) : (
-          <div className="space-y-4">
-            {/* What is in the run and whether it passed, before any measurements.
-                Each line opens the test case on the Test Specification page. */}
-            <RunCaseList rows={rows} />
-            <div className="space-y-2">
-              {rows.map((row) => (
-                <CaseResultCard key={row.tcId} row={row} />
-              ))}
-            </div>
-          </div>
+          <RunCaseList rows={rows} />
         )}
       </div>
     </div>
