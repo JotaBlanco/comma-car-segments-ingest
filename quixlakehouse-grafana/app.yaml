@@ -9,6 +9,14 @@ blobStorage:
   bind: true
 
 variables:
+  - name: GF_SECURITY_ALLOW_EMBEDDING
+    inputType: FreeText
+    description: Must be true for Test Manager's Lakehouse page to frame Grafana. Left
+      false, Grafana sends X-Frame-Options deny and the browser refuses the frame with
+      no error the embedding app can catch.
+    defaultValue: "true"
+    required: true
+
   - name: GF_SECURITY_ADMIN_PASSWORD
     inputType: Secret
     description: Grafana admin password. Set this -- Grafana otherwise defaults to "admin".

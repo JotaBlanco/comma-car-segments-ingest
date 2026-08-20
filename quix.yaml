@@ -295,6 +295,12 @@ deployments:
     variables:
       - name: GF_SECURITY_ADMIN_PASSWORD
         variableKey: grafana_password
+      # Grafana answers every request with X-Frame-Options: deny unless this is
+      # set, so the Lakehouse page rendered an empty panel - the browser refused
+      # the frame outright and nothing in our code could see it happen.
+      - name: GF_SECURITY_ALLOW_EMBEDDING
+        inputType: FreeText
+        value: true
     plugin:
       embeddedView:
         enabled: true
