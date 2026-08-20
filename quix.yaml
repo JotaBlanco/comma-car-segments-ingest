@@ -78,14 +78,7 @@ deployments:
       - name: FRAME_CHUNK
         value: 1000
       - name: FORCE_REDECODE
-        inputType: FreeText
-        description: >-
-          Escape hatch for the decode-once filter. "false" skips a file that
-          was already decoded, so replaying mf4_metadata cannot stack another
-          copy of it in the lake. "true" re-decodes everything, duplicates
-          included. Force a single file instead with force_redecode=true on
-          its mf4_metadata message.
-        value: "false"
+        description: Escape hatch for the decode-once filter. "false" skips a file that was already decoded, so replaying mf4_metadata cannot stack another copy of it in the lake. "true" re-decodes everything, duplicates included. Force a single file instead with force_redecode=true on its mf4_metadata message.
     blobStorage:
       bind: true
   - name: MF4 DataLake Sink
@@ -98,48 +91,12 @@ deployments:
         cpu: 1000
         memory: 2000
     variables:
-      # Declared in full, deliberately. The portal keeps its own value for any
-      # variable this file does not name, so a setting that lives only in the
-      # portal is invisible here and survives every sync - which is how
-      # BATCH_SIZE stayed at 500 with nothing in git saying so.
-      - name: input
-        value: mf4-to-msg
       - name: TABLE_NAME
         value: mf4_signals_v4
       - name: CONSUMER_GROUP
         value: mf4_signals_v4_lake_v1
-      - name: HIVE_COLUMNS
-        value: platform,device,route,~channel_name,~sender_node,~frame_name,~signal
-      - name: TIMESTAMP_COLUMN
-        value: ts_ms
-      - name: SORT_COLUMN
-        value: ts_ms
-      # Counts INPUT messages, and each one fans out to N rows through
-      # `apply(..., expand=True)` - roughly 1 400 for a CAN signal message. At 500
-      # that is ~700 000 row dicts held before the first flush, plus the Arrow
-      # conversion, inside a 2 GB limit: the process is killed by the kernel, so
-      # there is no traceback and no application error to see.
       - name: BATCH_SIZE
         value: 50
-      - name: COMMIT_INTERVAL
-        value: 30
-      - name: MAX_WRITE_WORKERS
-        value: 10
-      - name: AUTO_DISCOVER
-        value: true
-      - name: CATALOG_NAMESPACE
-        value: default
-      # Replays the topic from the start for a new consumer group. Combined with a
-      # crash before the first commit that is what re-writes rows already in the
-      # table, so the duplicate counts grow on every restart.
-      - name: AUTO_OFFSET_RESET
-        value: earliest
-      - name: KAFKA_KEY_DESERIALIZER
-        value: str
-      - name: KAFKA_VALUE_DESERIALIZER
-        value: json
-      - name: LOGLEVEL
-        value: INFO
     blobStorage:
       bind: true
   - name: Test Manager - Backend
@@ -194,9 +151,7 @@ deployments:
           targetPort: 3000
     variables:
       - name: MF4_UPLOAD_URL
-        inputType: FreeText
         description: MF4 upload service; read at runtime via /api/mf4-upload-config
-        value: https://mf4import-testrigorg-commacarsegmentsingest-t-b5554eca.testrig-depl.dev.quix.io
       - name: MEASUREMENTS_URL
         description: Query Builder UI URL, mirrored from the backend for parity
     plugin:
@@ -266,7 +221,7 @@ deployments:
     blobStorage:
       bind: true
   - name: Dynamic Configuration Manager
-    group: Aux services
+    group: Ingestion
     application: DynamicConfiguration
     version: latest
     deploymentType: Managed
@@ -274,6 +229,9 @@ deployments:
       limits:
         cpu: 100
         memory: 500
+    publicAccess:
+      enabled: true
+      urlPrefix: config-api-svc
     network:
       serviceName: config-api-svc
     configuration:
@@ -293,43 +251,7 @@ deployments:
         show: true
         label: Configurations
         icon: tune
-  - name: Seed DBC Configurations
-    group: Ingestion
-    application: dcm-seed-dbc
-    version: latest
-    deploymentType: Job
-    resources:
-      limits:
-        # Parsing an 820 KB database into 331 frames / 2150 signals with cantools
-        # is the whole cost here, and it is single-threaded.
-        cpu: 500
-        memory: 1000
-    variables:
-      - name: CONFIG_API_URL
-        inputType: FreeText
-        required: true
-        value: http://config-api-svc
-      - name: DCM_TYPE
-        inputType: FreeText
-        required: true
-        value: dbc
-      - name: DBC_NAMES
-        inputType: FreeText
-        required: true
-        value: ford_lincoln_base_pt,FORD_CADS
-      - name: PLATFORM
-        inputType: FreeText
-        required: true
-        value: FORD_F_150_LIGHTNING_MK1
-      - name: REPLACE
-        inputType: FreeText
-        value: true
-      - name: REQUEST_TIMEOUT_S
-        inputType: FreeText
-        value: 120
-      - name: LOGLEVEL
-        inputType: FreeText
-        value: INFO
+        order: 0
   - name: QuixLab
     application: quixlab
     version: latest
