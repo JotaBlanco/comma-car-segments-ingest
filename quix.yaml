@@ -112,10 +112,12 @@ deployments:
         value: https://grafana-testrigorg-commacarsegmentsingest-t-b5554eca.testrig-depl.dev.quix.io
       - name: LAKEHOUSE_UI_URL
         inputType: FreeText
-        description: Lakehouse browser framed by the Lakehouse page. This is the Grafana
-          in quixlakehouse-grafana, which reads the Lakehouse Query API - not
-          Quix__Lakehouse__Query__Url itself, which is the API and has no UI.
-        value: https://grafana-testrigorg-commacarsegmentsingest-t-b5554eca.testrig-depl.dev.quix.io
+        description: The portal's Lakehouse browser - tables and partitions - framed by
+          the Lakehouse page. `lakehouse` is a top-level portal route, so this is the
+          same view the portal's own sidebar opens. Grafana charts the same data and is
+          framed by Measurements instead; Quix__Lakehouse__Query__Url is the API behind
+          both and has no UI.
+        value: https://portal.testrig.dev.quix.io/lakehouse?workspace=testrigorg-commacarsegmentsingest-t-b5554eca
       - name: MONGO_PASSWORD
         variableKey: mongo_password
       - name: CONFIG_API_URL

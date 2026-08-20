@@ -24,6 +24,12 @@ const VariantContext = createContext<VariantContextValue | null>(null)
 
 export function VariantProvider({ children }: { children: React.ReactNode }) {
   const [variant, setVariantState] = useState<Variant>("default")
+  // Whether the stored value has been read yet. Without this the choice did not
+  // survive a reload: the apply effect below runs on first mount holding the
+  // initial "default", writes it to storage, and React's development double-mount
+  // then re-runs the read effect against the value that write had just clobbered.
+  // Persisting only after the read makes the two effects order-independent.
+  const [hydrated, setHydrated] = useState(false)
 
   // Read persisted variant on mount. localStorage is unavailable during SSR.
   useEffect(() => {
@@ -31,6 +37,7 @@ export function VariantProvider({ children }: { children: React.ReactNode }) {
     if (stored && (VARIANTS as readonly string[]).includes(stored)) {
       setVariantState(stored as Variant)
     }
+    setHydrated(true)
   }, [])
 
   // Apply data-variant to <html> so the CSS selectors in globals.css fire.
@@ -41,8 +48,10 @@ export function VariantProvider({ children }: { children: React.ReactNode }) {
     } else {
       document.documentElement.setAttribute("data-variant", variant)
     }
-    localStorage.setItem(STORAGE_KEY, variant)
-  }, [variant])
+    if (hydrated) {
+      localStorage.setItem(STORAGE_KEY, variant)
+    }
+  }, [variant, hydrated])
 
   const setVariant = useCallback((v: Variant) => {
     setVariantState(v)
