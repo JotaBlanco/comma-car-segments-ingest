@@ -59,8 +59,10 @@ type Tone = "coverage" | "verified" | "pass" | "fail" | "warn" | "muted"
  * both light and dark mode because both are defined in `app/globals.css`.
  *
  * The palette is the QuixLab canvas one: electric blue and violet for the two
- * requirement measures, its green and magenta for pass and fail. Every ring used to
- * be the same muted teal, so four different measures read as one.
+ * requirement measures. Pass and fail stay plainly green and red - a verdict has to
+ * read as a verdict - and take their neon from the faint glow on the arc rather than
+ * from the hue. Every ring used to be the same muted teal, so four different
+ * measures read as one.
  */
 const TONE_CLASS: Record<Tone, string> = {
   coverage: "text-neon-alt",
@@ -412,7 +414,13 @@ function Donut({ stat, size }: { stat: DonutStat; size: "lg" | "sm" }) {
               strokeDasharray={`${length} ${CIRCUMFERENCE - length}`}
               strokeDashoffset={offset}
               className={TONE_CLASS[segment.tone]}
-              style={{ transition: "stroke-dasharray 600ms ease-out" }}
+              style={{
+                transition: "stroke-dasharray 600ms ease-out",
+                // The neon is a faint glow around the arc, not the arc's hue. Carrying
+                // it in the colour instead turned pass into pastel mint and fail into
+                // magenta, so a verdict stopped reading as green and red.
+                filter: "drop-shadow(0 0 2px currentColor)",
+              }}
             />
           )
         })}

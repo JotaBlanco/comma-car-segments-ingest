@@ -40,14 +40,19 @@ export const RUN_STATUS_LABEL: Record<string, string> = {
   error: "Error",
 }
 
-export const RUN_STATUS_VARIANT: Record<
-  string,
-  "secondary" | "info" | "success" | "destructive" | "outline"
-> = {
-  planned: "secondary",
-  running: "info",
-  completed: "success",
-  error: "destructive",
+/**
+ * Execution status, given the same neon treatment as a verdict so the run row does
+ * not sit under the neon summary band looking like a different product. Applied on
+ * top of the `outline` variant; the app-wide filled variants are untouched.
+ */
+export const RUN_STATUS_NEON: Record<string, string> = {
+  planned: "border-border bg-muted/40 text-muted-foreground",
+  running:
+    "border-neon-alt/40 bg-neon-alt/10 text-neon-alt shadow-[0_0_6px_-2px_hsl(var(--neon-alt))]",
+  completed:
+    "border-neon-pass/40 bg-neon-pass/10 text-neon-pass shadow-[0_0_6px_-2px_hsl(var(--neon-pass))]",
+  error:
+    "border-neon-fail/40 bg-neon-fail/10 text-neon-fail shadow-[0_0_6px_-2px_hsl(var(--neon-fail))]",
 }
 
 /**
@@ -64,14 +69,20 @@ export function caseCounts(
 }
 
 /** Badge variant per verdict. `NOT_RUN` is neutral - it is not a failure. */
-export const VERDICT_VARIANT: Record<
-  VerdictStatus,
-  "success" | "destructive" | "warning" | "outline"
-> = {
-  PASS: "success",
-  FAIL: "destructive",
-  INCONCLUSIVE: "warning",
-  NOT_RUN: "outline",
+/**
+ * Per-verdict neon treatment: the verdict's own colour on a faint tint, a hairline
+ * ring and a small outward glow. Applied on top of the `outline` badge variant, so
+ * the app-wide success / destructive variants every other page uses are untouched.
+ *
+ * The filled variants read as flat blocks of muted teal and maroon next to the neon
+ * summary rings directly above them, which is what "too boring" meant.
+ */
+export const VERDICT_NEON: Record<VerdictStatus, string> = {
+  PASS: "border-neon-pass/40 bg-neon-pass/10 text-neon-pass shadow-[0_0_6px_-2px_hsl(var(--neon-pass))]",
+  FAIL: "border-neon-fail/40 bg-neon-fail/10 text-neon-fail shadow-[0_0_6px_-2px_hsl(var(--neon-fail))]",
+  INCONCLUSIVE:
+    "border-neon-warn/40 bg-neon-warn/10 text-neon-warn shadow-[0_0_6px_-2px_hsl(var(--neon-warn))]",
+  NOT_RUN: "border-border bg-muted/40 text-muted-foreground",
 }
 
 export const VERDICT_LABEL: Record<VerdictStatus, string> = {

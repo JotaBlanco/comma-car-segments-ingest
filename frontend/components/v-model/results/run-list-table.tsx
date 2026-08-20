@@ -18,9 +18,10 @@ import {
   formatUtc,
   isUnevaluated,
   RUN_STATUS_LABEL,
-  RUN_STATUS_VARIANT,
+  RUN_STATUS_NEON,
   type RunSummaryPlus,
 } from "./verdict"
+import { cn } from "@/lib/utils/cn"
 import { VerdictCounts } from "./verdict-badge"
 
 /**
@@ -83,8 +84,8 @@ function RunRow({ run }: { run: RunSummaryPlus }) {
           <span className="text-sm">{run.scenario || "not set"}</span>
           <div className="flex items-center gap-1">
             <Badge
-              variant={RUN_STATUS_VARIANT[status] ?? "outline"}
-              className="w-fit text-[10px]"
+              variant="outline"
+              className={cn("w-fit text-[10px]", RUN_STATUS_NEON[status])}
             >
               {RUN_STATUS_LABEL[status] ?? status}
             </Badge>

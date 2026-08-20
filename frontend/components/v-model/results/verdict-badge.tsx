@@ -2,7 +2,8 @@
 
 import { Badge } from "@/components/ui/badge"
 import type { VerdictStatus } from "@/types/vmodel"
-import { summaryChips, VERDICT_LABEL, VERDICT_VARIANT } from "./verdict"
+import { cn } from "@/lib/utils/cn"
+import { summaryChips, VERDICT_LABEL, VERDICT_NEON } from "./verdict"
 
 /** One verdict, rendered with the same colour everywhere in the stage. */
 export function VerdictBadge({
@@ -13,7 +14,7 @@ export function VerdictBadge({
   className?: string
 }) {
   return (
-    <Badge variant={VERDICT_VARIANT[status]} className={className}>
+    <Badge variant="outline" className={cn(VERDICT_NEON[status], className)}>
       {VERDICT_LABEL[status]}
     </Badge>
   )
@@ -40,7 +41,11 @@ export function VerdictCounts({
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {chips.map((chip) => (
-        <Badge key={chip.status} variant={VERDICT_VARIANT[chip.status]}>
+        <Badge
+          key={chip.status}
+          variant="outline"
+          className={VERDICT_NEON[chip.status]}
+        >
           {VERDICT_LABEL[chip.status]} {chip.count}
         </Badge>
       ))}
