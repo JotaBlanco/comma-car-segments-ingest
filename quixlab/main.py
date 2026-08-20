@@ -597,7 +597,7 @@ def ai_1():
           AND device = 'a0001'
           AND route = '00011'
 
-          make some significantly visible if t
+          make some significantly visible if test passed or failed
           """
     # ql-ai: generated from prompt 3c43fbf560bf8eba
     import pandas as pd
