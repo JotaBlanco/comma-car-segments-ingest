@@ -43,9 +43,9 @@
     --neon-foreground: 0 0% 100%;
     --neon-glow: 258 82% 52%;
     --neon-alt: 217 91% 55%;
-    --neon-pass: 152 72% 34%;
-    --neon-fail: 336 78% 46%;
-    --neon-warn: 27 90% 45%;
+    --neon-pass: 145 80% 33%;
+    --neon-fail: 2 78% 47%;
+    --neon-warn: 30 92% 45%;
 
     /* Journal category colors - industrial subdued palette */
     --journal-safety: 0 35% 45%; /* Muted maroon */
@@ -91,9 +91,9 @@
     --neon-foreground: 258 40% 12%;
     --neon-glow: 255 95% 70%;
     --neon-alt: 217 91% 60%;
-    --neon-pass: 142 71% 60%;
-    --neon-fail: 330 84% 66%;
-    --neon-warn: 27 96% 62%;
+    --neon-pass: 142 82% 46%;
+    --neon-fail: 0 84% 57%;
+    --neon-warn: 30 96% 56%;
 
     /* Journal category colors - dark mode optimized */
     --journal-safety: 0 40% 52%; /* Muted maroon */

@@ -12,7 +12,7 @@ import {
   formatSuccessRate,
   formatUtc,
   RUN_STATUS_LABEL,
-  RUN_STATUS_VARIANT,
+  RUN_STATUS_NEON,
   VERDICT_LABEL,
   type CaseRow,
   type RunMetrics,
@@ -136,7 +136,7 @@ function RunHeader({
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-center gap-3">
           <CardTitle className="font-mono text-base">{run.run_id}</CardTitle>
-          <Badge variant={RUN_STATUS_VARIANT[status] ?? "outline"}>
+          <Badge variant="outline" className={RUN_STATUS_NEON[status]}>
             {RUN_STATUS_LABEL[status] ?? status}
           </Badge>
           {/* `origin` says how the run was created, not where it got to. Next to a
