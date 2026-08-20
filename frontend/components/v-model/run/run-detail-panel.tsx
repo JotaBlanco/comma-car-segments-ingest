@@ -88,7 +88,14 @@ export function RunDetailPanel({ runId, onRunChanged }: RunDetailPanelProps) {
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="font-mono text-lg font-semibold">{run.run_id}</h2>
           <RunStatusBadge status={run.status} />
-          <Badge variant="outline">{run.origin}</Badge>
+          {/* Third place this chip lived. `origin` is how the run was created, not
+              where it got to, so beside a Completed badge it reads as a second,
+              contradictory status. Shown only while the run has not finished - same
+              rule as the run list and the report header. It still gates the Run
+              button below, which is about the run being stored, not about display. */}
+          {(run.status === "planned" || run.status === "running") && (
+            <Badge variant="outline">{run.origin}</Badge>
+          )}
           {run.baseline_id && (
             <Badge variant="secondary">baseline {run.baseline_id}</Badge>
           )}
