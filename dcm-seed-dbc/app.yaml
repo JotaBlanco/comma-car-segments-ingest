@@ -1,0 +1,48 @@
+name: dcm-seed-dbc
+language: python
+variables:
+  - name: CONFIG_API_URL
+    inputType: FreeText
+    description: Dynamic Configuration Manager base URL. Cluster-internal service name
+      of the DCM deployment; the API is not publicly reachable, which is why the seed
+      runs in the environment rather than from a workstation.
+    defaultValue: http://config-api-svc
+    required: true
+  - name: DCM_TYPE
+    inputType: FreeText
+    description: Configuration type the databases are stored under. Fixed at pipeline
+      build time on the consuming side, so changing it here orphans existing lookups.
+    defaultValue: dbc
+    required: true
+  - name: DBC_NAMES
+    inputType: FreeText
+    description: Comma-separated .dbc basenames from this app's dbc/ directory. Each
+      becomes one configuration whose target_key is the name, matching the dcm.target_key
+      property rlog-to-mf4 writes into an MF4 header.
+    defaultValue: ford_lincoln_base_pt
+    required: true
+  - name: PLATFORM
+    inputType: FreeText
+    description: Vehicle platform recorded in the document. Informational - the decoder
+      resolves by target_key, not by this.
+    defaultValue: FORD_F_150_LIGHTNING_MK1
+    required: true
+  - name: REPLACE
+    inputType: FreeText
+    description: true adds a new version to an existing configuration instead of failing.
+      Leave true so re-running the Job is safe.
+    defaultValue: "true"
+    required: false
+  - name: REQUEST_TIMEOUT_S
+    inputType: FreeText
+    description: Per-request timeout. An 820 KB database serialises to a large document,
+      so the POST is not instant.
+    defaultValue: "120"
+    required: false
+  - name: LOGLEVEL
+    inputType: FreeText
+    defaultValue: INFO
+    required: false
+dockerfile: dockerfile
+runEntryPoint: main.py
+defaultFile: main.py
