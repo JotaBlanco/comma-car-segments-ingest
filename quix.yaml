@@ -64,10 +64,48 @@ deployments:
         cpu: 1000
         memory: 2000
     variables:
+      # Declared in full, deliberately. The portal keeps its own value for any
+      # variable this file does not name, so a setting that lives only in the
+      # portal is invisible here and survives every sync - which is how
+      # BATCH_SIZE stayed at 500 with nothing in git saying so.
+      - name: input
+        value: mf4-to-msg
       - name: TABLE_NAME
         value: mf4_signals_v4
       - name: CONSUMER_GROUP
         value: mf4_signals_v4_lake_v1
+      - name: HIVE_COLUMNS
+        value: platform,device,route,~channel_name,~sender_node,~frame_name,~signal
+      - name: TIMESTAMP_COLUMN
+        value: ts_ms
+      - name: SORT_COLUMN
+        value: ts_ms
+      # Counts INPUT messages, and each one fans out to N rows through
+      # `apply(..., expand=True)` - roughly 1 400 for a CAN signal message. At 500
+      # that is ~700 000 row dicts held before the first flush, plus the Arrow
+      # conversion, inside a 2 GB limit: the process is killed by the kernel, so
+      # there is no traceback and no application error to see.
+      - name: BATCH_SIZE
+        value: 50
+      - name: COMMIT_INTERVAL
+        value: 30
+      - name: MAX_WRITE_WORKERS
+        value: 10
+      - name: AUTO_DISCOVER
+        value: true
+      - name: CATALOG_NAMESPACE
+        value: default
+      # Replays the topic from the start for a new consumer group. Combined with a
+      # crash before the first commit that is what re-writes rows already in the
+      # table, so the duplicate counts grow on every restart.
+      - name: AUTO_OFFSET_RESET
+        value: earliest
+      - name: KAFKA_KEY_DESERIALIZER
+        value: str
+      - name: KAFKA_VALUE_DESERIALIZER
+        value: json
+      - name: LOGLEVEL
+        value: INFO
     blobStorage:
       bind: true
   - name: Test Manager - Backend
