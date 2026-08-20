@@ -41,42 +41,8 @@ deployments:
         memory: 2500
     desiredStatus: Running
     variables:
-      # Declared in full: the portal keeps its own value for anything this file
-      # does not name, so an undeclared setting is invisible here and survives
-      # every sync.
-      - name: input
-        inputType: InputTopic
-        required: true
-        value: mf4_metadata
-      - name: output
-        inputType: OutputTopic
-        required: true
-        value: mf4-to-msg
-      # An InputTopic missing from this block never reaches the deployment, and
-      # the pipeline graph draws no edge for it.
-      - name: config
-        inputType: InputTopic
-        required: true
-        value: config-updates
-      # The CAN database now comes from DCM, resolved by platform, so it is
-      # external and versioned rather than frozen into each recording.
-      - name: DBC_SOURCE
-        inputType: FreeText
-        required: true
-        value: dcm
-      - name: DCM_TYPE
-        inputType: FreeText
-        required: true
-        value: dbc
-      - name: DBC_PLATFORM
-        inputType: FreeText
-        value: FORD_F_150_LIGHTNING_MK1
       - name: BATCH_RECORDS
         value: 5000
-      - name: FLUSH_EVERY
-        value: 1000
-      - name: FRAME_CHUNK
-        value: 1000
       - name: FORCE_REDECODE
         description: Escape hatch for the decode-once filter. "false" skips a file that was already decoded, so replaying mf4_metadata cannot stack another copy of it in the lake. "true" re-decodes everything, duplicates included. Force a single file instead with force_redecode=true on its mf4_metadata message.
     blobStorage:
@@ -149,11 +115,6 @@ deployments:
       ports:
         - port: 80
           targetPort: 3000
-    variables:
-      - name: MF4_UPLOAD_URL
-        description: MF4 upload service; read at runtime via /api/mf4-upload-config
-      - name: MEASUREMENTS_URL
-        description: Query Builder UI URL, mirrored from the backend for parity
     plugin:
       embeddedView:
         enabled: true
@@ -164,6 +125,11 @@ deployments:
         label: Test Manager
         icon: data_thresholding
         order: 1
+      globalItem:
+        show: true
+        label: Test Manager
+        icon: view_list
+        order: 0
   - name: MongoDB
     group: Aux services
     application: mongodb
