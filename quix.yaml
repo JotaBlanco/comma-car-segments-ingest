@@ -276,6 +276,10 @@ deployments:
       - name: GF_SECURITY_ADMIN_PASSWORD
         variableKey: grafana_password
     plugin:
+      embeddedView:
+        enabled: true
+        hideHeader: true
+        default: true
       sidebarItem:
         show: true
         label: Grafana
