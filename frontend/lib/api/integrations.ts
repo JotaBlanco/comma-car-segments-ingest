@@ -98,6 +98,22 @@ export const integrationsApi = {
     ),
 
   /**
+   * Get the Measurements URL - Grafana, charting the decoded signals out of the
+   * Lakehouse Query API. No SQL or token is appended: the old query-builder UI
+   * took both as query params, Grafana takes neither.
+   */
+  getMeasurementsUrl: (
+    token?: string | null,
+    refreshToken?: () => Promise<string | null>
+  ) =>
+    apiGet<{ url: string }>(
+      "/integrations/measurements-url",
+      undefined,
+      token,
+      refreshToken
+    ),
+
+  /**
    * Get the MF4 Import URL, framed by the File Import page. Backend-served for
    * the same reason as getQuixlabUrl above.
    */

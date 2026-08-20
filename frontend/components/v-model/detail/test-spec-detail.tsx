@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { DefinitionGrid, DetailSection } from "./detail-section"
 import { PassCriteriaTable } from "./pass-criteria-table"
 import { RequirementLink } from "./requirement-link"
+import { TruncatedText } from "./truncated-text"
 import type { TestSpec } from "@/types/vmodel"
 
 interface TestSpecDetailProps {
@@ -26,6 +27,15 @@ interface TestSpecDetailProps {
  * then the conditions under which the proof is valid, then the criteria as data.
  * The requirement links are placed directly under the objective because the
  * requirement-to-test link is the reason this page exists.
+ *
+ * Open by default: objective, verifies requirements, test steps, pass criteria,
+ * implemented-by link. These are the verdict-relevant surfaces a reader needs
+ * without interaction.
+ *
+ * Collapsed by default: entry/exit criteria, scenario, data requirements, notes,
+ * record. These are reference material that matter for setup and provenance but
+ * not for reviewing a result. A one-line summary on the closed header keeps them
+ * scannable.
  */
 export function TestSpecDetail({
   spec,
@@ -81,12 +91,15 @@ export function TestSpecDetail({
         </div>
       </header>
 
-      {/* 2. Objective */}
+      {/* 2. Objective — open: it is the case's core purpose statement. */}
       <DetailSection title="Objective">
-        <p className="border-l-2 pl-4 text-base leading-relaxed">{spec.objective}</p>
+        <TruncatedText
+          text={spec.objective ?? ""}
+          className="border-l-2 pl-4 text-base leading-relaxed"
+        />
       </DetailSection>
 
-      {/* 3. The forward traceability link - the point of this page */}
+      {/* 3. Forward traceability — open: the TC↔REQ link is the reason this page exists. */}
       <DetailSection title="Verifies requirements">
         {coveredIds.length > 0 ? (
           <div className="flex flex-wrap gap-2">
@@ -111,8 +124,14 @@ export function TestSpecDetail({
         )}
       </DetailSection>
 
-      {/* 4. When the case is valid */}
-      <DetailSection title="Criteria for a valid run">
+      {/* 4. Run validity conditions — collapsed: reference context for test setup,
+          not needed when reviewing a result. */}
+      <DetailSection
+        title="Criteria for a valid run"
+        collapsible
+        defaultOpen={false}
+        closedSummary="entry, exit criteria, test environment"
+      >
         <DefinitionGrid
           rows={[
             { label: "Entry criteria", value: spec.entry_criteria },
@@ -123,7 +142,7 @@ export function TestSpecDetail({
         />
       </DetailSection>
 
-      {/* 4b. How to reach the state the criteria are evaluated in */}
+      {/* 4b. Steps — open: these are the procedure, verdict-relevant. */}
       {(spec.steps?.length ?? 0) > 0 && (
         <DetailSection title="Test steps">
           <ol className="space-y-3">
@@ -147,14 +166,19 @@ export function TestSpecDetail({
         </DetailSection>
       )}
 
-      {/* 4c. The scenario the steps are executed against */}
+      {/* 4c. Scenario config — collapsed: setup reference, not verdict-relevant. */}
       {scenario.length > 0 && (
-        <DetailSection title="Scenario">
+        <DetailSection
+          title="Scenario"
+          collapsible
+          defaultOpen={false}
+          closedSummary="scenario and config references"
+        >
           <DefinitionGrid rows={scenario} />
         </DetailSection>
       )}
 
-      {/* 5. Pass criteria as data */}
+      {/* 5. Pass criteria — open: the data that determines the verdict. */}
       <DetailSection title="Pass criteria">
         <PassCriteriaTable
           criteria={spec.pass_criteria ?? []}
@@ -163,8 +187,13 @@ export function TestSpecDetail({
         />
       </DetailSection>
 
-      {/* 6. What the run has to deliver for the criteria to be evaluable */}
-      <DetailSection title="Data requirements">
+      {/* 6. Data requirements — collapsed: signal/trace setup info, secondary. */}
+      <DetailSection
+        title="Data requirements"
+        collapsible
+        defaultOpen={false}
+        closedSummary="required signals and trace count"
+      >
         {dataRequirements ? (
           <div className="space-y-3">
             <DefinitionGrid
@@ -195,9 +224,7 @@ export function TestSpecDetail({
         )}
       </DetailSection>
 
-      {/* 7. Notes - provenance prose, rendered in full and never reordered */}
-      {/* The downstream edge of the V. Chip styling matches RequirementLink so the
-          two traceability directions read the same. */}
+      {/* 7. TC↔TI link — open: downstream edge of the V, critical traceability. */}
       {spec.impl_ref && (
         <DetailSection title="Implemented by">
           <Link
@@ -213,16 +240,27 @@ export function TestSpecDetail({
         </DetailSection>
       )}
 
-      <DetailSection title="Notes">
+      {/* 8. Notes — collapsed: provenance prose, useful but not primary. */}
+      <DetailSection
+        title="Notes"
+        collapsible
+        defaultOpen={false}
+        closedSummary="provenance and remarks"
+      >
         {spec.notes ? (
-          <p className="text-sm leading-relaxed">{spec.notes}</p>
+          <TruncatedText text={spec.notes} className="text-sm leading-relaxed" />
         ) : (
           <p className="text-sm text-muted-foreground">None &mdash; no notes recorded.</p>
         )}
       </DetailSection>
 
-      {/* 8. Provenance of the record itself */}
-      <DetailSection title="Record">
+      {/* 9. Record — collapsed: key and sha256 are internal provenance metadata. */}
+      <DetailSection
+        title="Record"
+        collapsible
+        defaultOpen={false}
+        closedSummary="key, sha256, last change"
+      >
         <DefinitionGrid
           rows={[
             { label: "Key", value: <span className="font-mono text-xs">{spec.key}</span> },

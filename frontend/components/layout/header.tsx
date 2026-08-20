@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Bell, Search, User, X, ArrowLeft, LogOut, Moon, Sun } from "lucide-react"
+import { Bell, Check, Search, User, X, ArrowLeft, LogOut, Moon, Palette, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -14,6 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useVariant, VARIANTS, VARIANT_LABELS } from "@/lib/contexts/variant-context"
 
 interface BackLink {
   href: string
@@ -28,6 +29,7 @@ export function Header({ backLink }: HeaderProps) {
   const [searchInput, setSearchInput] = useState("")
   const { userName, userEmail, isEmbedded, clearTokenAndPrompt } = useQuixAuth()
   const { resolvedTheme, setTheme } = useTheme()
+  const { variant, setVariant } = useVariant()
   // The resolved theme is only known in the browser, so the server cannot pick the
   // right icon. Rendering one anyway made React throw a hydration mismatch on every
   // load once a theme had been chosen, which dev surfaced as a red error toast.
@@ -94,6 +96,36 @@ export function Header({ backLink }: HeaderProps) {
               <Moon className="h-5 w-5" />
             )}
           </button>
+
+          {/* Design variant picker — lets the user switch visual style at runtime.
+              The default variant is "Default" which preserves the existing look.
+              Stored in localStorage under tm-design-variant. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label="Switch design variant"
+                title="Design variant"
+                className="rounded-lg p-2 hover:bg-accent"
+              >
+                <Palette className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuLabel>Design Variant</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {VARIANTS.map((v) => (
+                <DropdownMenuItem
+                  key={v}
+                  onClick={() => setVariant(v)}
+                  className="flex items-center justify-between"
+                >
+                  <span>{VARIANT_LABELS[v]}</span>
+                  {v === variant && <Check className="h-4 w-4 text-primary" aria-hidden="true" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Notifications */}
           <button className="relative rounded-lg p-2 hover:bg-accent">

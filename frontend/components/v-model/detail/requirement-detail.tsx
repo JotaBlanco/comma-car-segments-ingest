@@ -8,6 +8,7 @@ import { StatusBadge } from "../status-badge"
 import { CoveringSpecsSection } from "./covering-specs-section"
 import { DefinitionGrid, DetailSection } from "./detail-section"
 import { FigureSvg } from "./figure-svg"
+import { TruncatedText } from "./truncated-text"
 import { VMODEL_API_BASE } from "@/lib/vmodel/constants"
 import type {
   FigureReference,
@@ -40,6 +41,12 @@ interface RequirementDetailProps {
  * renders from the list row immediately and layers the enriched detail (resolved
  * figures, available versions) on top when that call returns, so a slow or
  * missing detail endpoint degrades instead of blanking the pane.
+ *
+ * Open by default: requirement text, figures, related requirements, covering
+ * specs. These are the surfaces a reader needs to understand and trace the req.
+ *
+ * Collapsed by default: attributes, rationale, source, record. These are
+ * structured metadata and provenance — reference material, not primary reading.
  */
 export function RequirementDetail({
   summary,
@@ -90,13 +97,22 @@ export function RequirementDetail({
         </div>
       </header>
 
-      {/* 2. Requirement text - the single "shall" sentence */}
+      {/* 2. Requirement text — open: the "shall" sentence is the req's core content. */}
       <DetailSection title="Requirement text">
-        <p className="border-l-2 pl-4 text-base leading-relaxed">{item.text}</p>
+        <TruncatedText
+          text={item.text ?? ""}
+          className="border-l-2 pl-4 text-base leading-relaxed"
+        />
       </DetailSection>
 
-      {/* 3. Definition grid */}
-      <DetailSection title="Attributes">
+      {/* 3. Attributes — collapsed: structural metadata useful for filtering/tracing
+          but not for reading the requirement itself. */}
+      <DetailSection
+        title="Attributes"
+        collapsible
+        defaultOpen={false}
+        closedSummary="chapter, EARS pattern, verification method"
+      >
         <DefinitionGrid
           rows={[
             { label: "Chapter", value: item.chapter },
@@ -125,13 +141,24 @@ export function RequirementDetail({
         />
       </DetailSection>
 
-      {/* 4. Rationale - its first sentence is the provenance column, never reordered */}
-      <DetailSection title="Rationale">
-        <p className="text-sm leading-relaxed">{item.rationale}</p>
+      {/* 4. Rationale — collapsed: design decision background, secondary reading.
+          Its first sentence is the provenance column, never reordered.           */}
+      <DetailSection
+        title="Rationale"
+        collapsible
+        defaultOpen={false}
+        closedSummary="design decision background"
+      >
+        <TruncatedText text={item.rationale ?? ""} className="text-sm leading-relaxed" />
       </DetailSection>
 
-      {/* 5. Source clauses */}
-      <DetailSection title="Source">
+      {/* 5. Source clauses — collapsed: normative reference material, provenance. */}
+      <DetailSection
+        title="Source"
+        collapsible
+        defaultOpen={false}
+        closedSummary="normative references"
+      >
         {(item.source ?? []).length > 0 ? (
           <ul className="space-y-1">
             {item.source.map((source) => (
@@ -147,7 +174,7 @@ export function RequirementDetail({
         )}
       </DetailSection>
 
-      {/* 6. Figures - the image that completes the info */}
+      {/* 6. Figures — open: visual diagrams complete the requirement's information. */}
       {figures.length > 0 && (
         <DetailSection title="Figures">
           <div className="space-y-4">
@@ -169,7 +196,7 @@ export function RequirementDetail({
         </DetailSection>
       )}
 
-      {/* 7. Related requirements - deep links into this same page */}
+      {/* 7. Related requirements — open: deep links to peer requirements. */}
       <DetailSection title="Related requirements">
         {(item.related_reqs ?? []).length > 0 ? (
           <div className="flex flex-wrap gap-2">
@@ -192,15 +219,20 @@ export function RequirementDetail({
         )}
       </DetailSection>
 
-      {/* 8. Reverse traceability - what verifies this requirement */}
+      {/* 8. Reverse traceability — open: what verifies this requirement. */}
       <CoveringSpecsSection
         specs={coveringSpecs}
         loading={coveringSpecsLoading}
         unavailable={coveringSpecsUnavailable}
       />
 
-      {/* Provenance of the record itself */}
-      <DetailSection title="Record">
+      {/* 9. Record — collapsed: internal key, sha256 and version bookkeeping. */}
+      <DetailSection
+        title="Record"
+        collapsible
+        defaultOpen={false}
+        closedSummary="key, sha256, versions"
+      >
         <DefinitionGrid
           rows={[
             { label: "Key", value: <span className="font-mono text-xs">{item.key}</span> },

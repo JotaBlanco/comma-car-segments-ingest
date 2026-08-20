@@ -104,6 +104,12 @@ deployments:
         description: MF4 Import public URL framed by the File Import page, so a recording
           is uploaded in the same window as the five V-model stages that consume it.
         value: https://mf4import-testrigorg-commacarsegmentsingest-t-b5554eca.testrig-depl.dev.quix.io
+      - name: MEASUREMENTS_URL
+        inputType: FreeText
+        description: Grafana, framed by the Measurements page - the charts over the
+          decoded signals it reads from the Lakehouse Query API. Previously pointed at a
+          query UI in another org's warehouse, which never held this pipeline's data.
+        value: https://grafana-testrigorg-commacarsegmentsingest-t-b5554eca.testrig-depl.dev.quix.io
       - name: LAKEHOUSE_UI_URL
         inputType: FreeText
         description: Lakehouse browser framed by the Lakehouse page. This is the Grafana

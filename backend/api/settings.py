@@ -79,11 +79,10 @@ class Settings(BaseSettings):
     measurements_url: str | None = Field(
         None,
         description=(
-            "Quix Lake Query API base URL. The Measurements page that framed its UI is "
-            "gone - the Lakehouse page replaced it - but the measurement CSV download "
-            "still queries {measurements_url}/api/query, so this is not dead config. "
-            "Note it currently points at a different workspace's warehouse than the one "
-            "this pipeline sinks to."
+            "URL the Measurements page frames: Grafana, charting the decoded signals it "
+            "reads from the Lakehouse Query API. The measurement CSV download also "
+            "queries {measurements_url}/api/query, which Grafana does not serve - that "
+            "download needs its own Query API address before it will work again."
         ),
     )
     analytics_url: str | None = Field(
@@ -102,9 +101,10 @@ class Settings(BaseSettings):
     lakehouse_ui_url: str | None = Field(
         None,
         description=(
-            "Quix Lakehouse UI URL, framed by the Lakehouse page. Distinct from "
-            "lakehouse_query_url below, which is the Query API the evaluation reads "
-            "signals from - this one is the tables-and-partitions browser."
+            "Quix Lakehouse browser framed by the Lakehouse page - the tables and "
+            "partitions view. Not Grafana, which charts the same data and is framed by "
+            "the Measurements page, and not lakehouse_query_url below, which is the API "
+            "the evaluation reads signals from and has no UI."
         ),
     )
     data_lake_workspace_id: str | None = Field(

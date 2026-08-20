@@ -381,6 +381,28 @@ async def get_quixlab_url(
     return ConfigManagerUrl(url=settings.quixlab_url)
 
 
+@router.get("/measurements-url", response_model=ConfigManagerUrl)
+async def get_measurements_url(
+    _auth: None = Depends(read_permission),
+) -> ConfigManagerUrl:
+    """Get the Measurements URL for the Measurements page.
+
+    Grafana, charting the decoded signals it reads from the Lakehouse Query API.
+    Returned bare: the query-builder UI this page used to frame took a pre-filled
+    SQL statement and an SDK token as query params, and Grafana takes neither, so
+    passing them would only leak the token into history and referrer headers.
+    """
+    settings = get_settings()
+
+    if not settings.measurements_url:
+        raise HTTPException(
+            status_code=501,
+            detail="Measurements not configured. Set MEASUREMENTS_URL environment variable.",
+        )
+
+    return ConfigManagerUrl(url=settings.measurements_url)
+
+
 @router.get("/mf4-import-url", response_model=ConfigManagerUrl)
 async def get_mf4_import_url(
     _auth: None = Depends(read_permission),

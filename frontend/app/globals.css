@@ -113,6 +113,16 @@
     @apply bg-background text-foreground;
   }
 
+  /* Remove the native disclosure triangle from <details>/<summary> so our
+     custom chevron is the only affordance. Applied globally because <details>
+     is only used in CollapsibleSection; no other component uses it. */
+  details > summary {
+    list-style: none;
+  }
+  details > summary::-webkit-details-marker {
+    display: none;
+  }
+
   /* Dark theme scrollbar styling */
   .dark {
     /* Webkit browsers (Chrome, Safari, Edge) */
@@ -140,5 +150,157 @@
       scrollbar-color: hsl(var(--border)) hsl(var(--muted));
     }
   }
+}
+
+/* ================================================================
+   DESIGN VARIANTS
+   Applied via data-variant on <html>. "default" (no attribute) is
+   the existing look — no token changes. Each variant overrides only
+   what it needs; every other token inherits unchanged.
+
+   Specificity note: all variant selectors have spec ≥ (0,2,0) so
+   they beat the .dark block (0,1,0). Light-mode-only overrides use
+   html:not(.dark)[data-variant] to stay below the dark overrides.
+   ================================================================ */
+
+/* ── VARIANT: focus ─────────────────────────────────────────────
+   Reference: Linear.app issue list and sidebar.
+   Principle: zero radius, hairline borders, no decoration — every
+   visual affordance is earned by function, not style. The sharp
+   corners and slightly heavier border bring a technical density
+   that matches instrument-grade engineering tooling.             */
+[data-variant="focus"] {
+  --radius: 0rem;
+}
+
+html:not(.dark)[data-variant="focus"] {
+  --border: 214.3 28% 76%;
+}
+
+html.dark[data-variant="focus"] {
+  --radius: 0rem;
+  --border: 225 6% 30%;
+}
+
+/* ── VARIANT: console ───────────────────────────────────────────
+   Reference: Grafana dark panels and Datadog infrastructure view.
+   Principle: dark-slate background in both light and dark mode
+   (a "terminal" that does not flip to white), amber primary
+   replacing the Quix blue. The amber/orange accent reads as
+   "measurement in progress" rather than "brand". Tight 0.25rem
+   radius retains some softness while maintaining the tool feel.  */
+[data-variant="console"] {
+  --radius: 0.25rem;
+  --background: 222 22% 13%;
+  --foreground: 210 10% 86%;
+  --card: 222 20% 16%;
+  --card-foreground: 210 10% 86%;
+  --popover: 222 20% 16%;
+  --popover-foreground: 210 10% 86%;
+  --primary: 35 88% 55%;
+  --primary-foreground: 222 25% 10%;
+  --secondary: 222 18% 20%;
+  --secondary-foreground: 210 10% 86%;
+  --muted: 222 18% 17%;
+  --muted-foreground: 215 8% 56%;
+  --accent: 222 18% 22%;
+  --accent-foreground: 210 10% 86%;
+  --border: 222 16% 22%;
+  --input: 222 16% 25%;
+  --ring: 35 88% 55%;
+  --neon: 35 90% 60%;
+  --neon-glow: 35 90% 60%;
+  --neon-alt: 200 80% 55%;
+  --neon-warn: 35 90% 60%;
+}
+
+html.dark[data-variant="console"] {
+  --background: 222 28% 9%;
+  --foreground: 210 10% 90%;
+  --card: 222 22% 12%;
+  --card-foreground: 210 10% 90%;
+  --popover: 222 22% 12%;
+  --popover-foreground: 210 10% 90%;
+  --primary: 35 90% 58%;
+  --primary-foreground: 222 28% 9%;
+  --muted: 222 20% 13%;
+  --muted-foreground: 215 8% 60%;
+  --border: 222 16% 20%;
+  --neon: 35 94% 62%;
+  --neon-glow: 35 94% 62%;
+}
+
+/* ── VARIANT: editorial ─────────────────────────────────────────
+   Reference: Vercel Dashboard and shadcn/ui component showcases.
+   Principle: generous 0.75rem radius, warm-tinted neutrals, white
+   cards floating on a cream background. Depth comes from color
+   contrast (pure white card on warm 96% background) rather than
+   decorative shadows. The warmth is deliberate: it reads as
+   "curated documentation" vs the clinical default palette.       */
+[data-variant="editorial"] {
+  --radius: 0.75rem;
+}
+
+html:not(.dark)[data-variant="editorial"] {
+  --radius: 0.75rem;
+  --background: 40 25% 96%;
+  --card: 0 0% 100%;
+  --border: 30 15% 87%;
+  --muted: 30 12% 92%;
+  --muted-foreground: 30 5% 46%;
+  --accent: 30 20% 88%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+}
+
+html.dark[data-variant="editorial"] {
+  --radius: 0.75rem;
+  --background: 30 8% 8%;
+  --card: 30 6% 12%;
+  --border: 30 6% 20%;
+  --muted: 30 5% 13%;
+  --muted-foreground: 30 5% 58%;
+  --accent: 30 8% 18%;
+  --accent-foreground: 210 40% 98%;
+}
+
+/* Cards float more distinctly in editorial mode. Override Tailwind's --tw-shadow
+   custom property rather than box-shadow directly, so focus-ring composition
+   (--tw-ring-shadow) continues to participate in the final box-shadow value.    */
+[data-variant="editorial"] .shadow-sm {
+  --tw-shadow: 0 2px 8px hsl(var(--border) / 60%), 0 0 0 1px hsl(var(--border) / 35%);
+  --tw-shadow-colored: 0 2px 8px var(--tw-shadow-color), 0 0 0 1px var(--tw-shadow-color);
+}
+
+/* ── VARIANT: neon-max ──────────────────────────────────────────
+   Reference: QuixLab Canvas (the product that generated this
+   app's palette). Principle: the neon/violet token becomes the
+   primary action color instead of Quix blue. Every interactive
+   confirmation — buttons, active sidebar item, selected tree row —
+   carries the full neon accent, making the brand palette unmissable.
+   Both light and dark modes use whichever neon value is already
+   defined for that mode (darker violet in light, bright lavender
+   in dark), so contrast is maintained automatically.             */
+[data-variant="neon-max"] {
+  --primary: var(--neon);
+  --primary-foreground: 0 0% 100%;
+  --ring: var(--neon);
+}
+
+html.dark[data-variant="neon-max"] {
+  --primary: var(--neon);
+  /* Bright lavender (255 92% 76%) needs dark text to hit 4.5:1. */
+  --primary-foreground: 258 40% 12%;
+  --ring: var(--neon);
+}
+
+/* Amplify the tint on the selected tree row in neon-max.
+   The existing Tailwind class bg-neon/10 is overridden by this
+   higher-specificity attribute+aria selector.                   */
+[data-variant="neon-max"] [aria-selected="true"] {
+  background-color: hsl(var(--neon) / 0.18);
+}
+
+[data-variant="neon-max"] [aria-current="page"] {
+  background-color: hsl(var(--neon) / 0.12);
 }
 
