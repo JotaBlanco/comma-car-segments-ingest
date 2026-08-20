@@ -102,12 +102,13 @@ deployments:
         value: https://grafana-testrigorg-commacarsegmentsingest-t-b5554eca.testrig-depl.dev.quix.io
       - name: LAKEHOUSE_UI_URL
         inputType: FreeText
-        description: The portal's Lakehouse browser - tables and partitions - framed by
-          the Lakehouse page. `lakehouse` is a top-level portal route, so this is the
-          same view the portal's own sidebar opens. Grafana charts the same data and is
-          framed by Measurements instead; Quix__Lakehouse__Query__Url is the API behind
-          both and has no UI.
-        value: https://portal.testrig.dev.quix.io/lakehouse?workspace=testrigorg-commacarsegmentsingest-t-b5554eca
+        description: The Lakehouse UI - tables and partitions - framed by the Lakehouse
+          page. An org-global deployment (testrigorg-global), which is why it does not
+          appear in this workspace's deployment list, and it pairs with the lh-cat-3d7475f5
+          catalog the sink writes through. The portal's own /lakehouse route was used
+          first and was wrong: it boots the whole portal shell around the panel. Grafana
+          charts the same data and is framed by Measurements instead.
+        value: https://lh-ui-3d7475f5-testrigorg-global.testrig-depl.dev.quix.io
       - name: MONGO_PASSWORD
         variableKey: mongo_password
       - name: CONFIG_API_URL

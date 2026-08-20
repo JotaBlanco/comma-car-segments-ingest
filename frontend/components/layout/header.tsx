@@ -97,9 +97,12 @@ export function Header({ backLink }: HeaderProps) {
             )}
           </button>
 
-          {/* Design variant picker — lets the user switch visual style at runtime.
-              The default variant is "Default" which preserves the existing look.
-              Stored in localStorage under tm-design-variant. */}
+          {/* Design variant picker - a local preview tool for choosing a look, not a
+              feature for whoever opens the deployed app, so it is gated to development
+              the same way the Local Dev badge above is. NODE_ENV is "production" in the
+              deployed image, so the control simply is not rendered there; the variant
+              CSS costs nothing without the data-variant attribute to trigger it. */}
+          {process.env.NODE_ENV === "development" && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -126,6 +129,7 @@ export function Header({ backLink }: HeaderProps) {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+          )}
 
           {/* Notifications */}
           <button className="relative rounded-lg p-2 hover:bg-accent">
