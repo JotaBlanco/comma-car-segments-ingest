@@ -162,6 +162,7 @@ function TestRunPageContent() {
             </div>
           ) : (
             <ItemTree
+              title="Test runs"
               root={tree}
               selectedItemId={selectedRunId}
               onSelectItem={(itemId) => {

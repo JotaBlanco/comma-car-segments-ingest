@@ -149,6 +149,7 @@ function TestSpecsPageContent() {
             </div>
           ) : (
             <ItemTree
+              title="Test cases"
               root={tree}
               selectedItemId={selectedKey}
               onSelectItem={(itemId) => {

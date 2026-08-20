@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { Bell, Search, User, X, ArrowLeft, LogOut, Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { useQuixAuth } from "@/lib/contexts/quix-auth-context"
 import {
@@ -28,6 +28,11 @@ export function Header({ backLink }: HeaderProps) {
   const [searchInput, setSearchInput] = useState("")
   const { userName, userEmail, isEmbedded, clearTokenAndPrompt } = useQuixAuth()
   const { resolvedTheme, setTheme } = useTheme()
+  // The resolved theme is only known in the browser, so the server cannot pick the
+  // right icon. Rendering one anyway made React throw a hydration mismatch on every
+  // load once a theme had been chosen, which dev surfaced as a red error toast.
+  const [themeReady, setThemeReady] = useState(false)
+  useEffect(() => setThemeReady(true), [])
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center border-b bg-background px-6">
@@ -81,7 +86,9 @@ export function Header({ backLink }: HeaderProps) {
             onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
             className="rounded-lg p-2 hover:bg-accent"
           >
-            {resolvedTheme === "dark" ? (
+            {!themeReady ? (
+              <span className="block h-5 w-5" />
+            ) : resolvedTheme === "dark" ? (
               <Sun className="h-5 w-5" />
             ) : (
               <Moon className="h-5 w-5" />

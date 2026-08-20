@@ -12,9 +12,13 @@ import { VMODEL_FEATURE, VMODEL_PROJECT } from "./constants"
 export interface TreeNode {
   /** Stable path id, e.g. "QuixPlatformVehicle/ACC/Performance". */
   id: string
-  /** Dimmed leading part of the label (may be empty). */
+  /**
+   * The kind of thing this node is - for a group level, the field it groups by.
+   * Rendered as a pill after the label, not as a prefix. Empty on leaves and on
+   * the project / feature roots, where the value already names itself.
+   */
   labelKey: string
-  /** Bright part of the label. */
+  /** The node's own name. */
   labelValue: string
   /** Right-aligned meta string: a count for groups, version/revision for leaves. */
   meta: string
@@ -149,7 +153,9 @@ export function buildTree<T extends TreeItem>(
         const scopedChildren = buckets.get(value) ?? []
         return {
           id: childPath,
-          labelKey: "",
+          // The field this level groups by, shown as a pill next to the value the way
+          // the Lakehouse tree tags a partition folder with `platform` / `device`.
+          labelKey: field.replace(/_/g, " "),
           labelValue: value,
           meta: metaFor(childPath, scopedChildren.length),
           depth,

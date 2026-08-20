@@ -34,6 +34,16 @@
     --ring: 217 100% 50%;
     --radius: 0.5rem;
 
+    /* Neon accent, taken from the QuixLab canvas: violet with an electric-blue
+       partner. Deliberately the only saturated colour in an otherwise muted
+       industrial palette, so it marks just what the eye should land on first.
+       Deeper in light mode, because true neon reads as washed-out grey on a
+       near-white background. */
+    --neon: 258 82% 52%;
+    --neon-foreground: 0 0% 100%;
+    --neon-glow: 258 82% 52%;
+    --neon-alt: 217 91% 55%;
+
     /* Journal category colors - industrial subdued palette */
     --journal-safety: 0 35% 45%; /* Muted maroon */
     --journal-setup: 170 35% 40%; /* Muted teal */
@@ -72,6 +82,12 @@
     --border: 225 6% 26%; /* #434352 */
     --input: 225 6% 30%; /* Slightly lighter for input fields */
     --ring: 217 100% 50%;
+
+    /* Full neon on dark, where it can actually glow - the QuixLab lavender. */
+    --neon: 255 92% 76%;
+    --neon-foreground: 258 40% 12%;
+    --neon-glow: 255 95% 70%;
+    --neon-alt: 217 91% 60%;
 
     /* Journal category colors - dark mode optimized */
     --journal-safety: 0 40% 52%; /* Muted maroon */

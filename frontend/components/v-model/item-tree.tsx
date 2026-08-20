@@ -25,6 +25,12 @@ interface ItemTreeProps {
   expandGroups?: boolean
   /** Rendered instead of the tree when there is nothing to show. */
   emptyMessage?: string
+  /**
+   * Section heading above the tree, e.g. "Requirements". Rendered uppercase and
+   * letter-spaced, after the Lakehouse "TABLES & PARTITIONS" header, so the pane
+   * names itself when the tree is scrolled. Omitted when absent.
+   */
+  title?: string
 }
 
 /**
@@ -42,6 +48,7 @@ export function ItemTree({
   filterActive,
   expandGroups = false,
   emptyMessage = "No items match the current filter.",
+  title,
 }: ItemTreeProps) {
   const [expanded, setExpanded] = useState<Set<string>>(() =>
     defaultExpandedIds(root, filterActive || expandGroups)
@@ -96,7 +103,13 @@ export function ItemTree({
   const hasItems = root.children.some((feature) => feature.children.length > 0)
 
   return (
-    <div ref={containerRef} role="tree" aria-label="Artifact tree" className="min-w-max">
+    <div ref={containerRef} className="w-full">
+      {title && (
+        <p className="sticky top-0 z-10 bg-background/95 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-foreground backdrop-blur">
+          {title}
+        </p>
+      )}
+      <div role="tree" aria-label="Artifact tree">
       {rows.map((node) => (
         <TreeRow
           key={node.id}
@@ -107,6 +120,7 @@ export function ItemTree({
           onSelect={(target) => target.itemId && onSelectItem(target.itemId)}
         />
       ))}
+      </div>
       {!hasItems && (
         <p className="px-3 py-4 text-sm text-muted-foreground">{emptyMessage}</p>
       )}

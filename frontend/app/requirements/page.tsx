@@ -148,6 +148,7 @@ function RequirementsPageContent() {
             </div>
           ) : (
             <ItemTree
+              title="Requirements"
               root={tree}
               selectedItemId={selectedKey}
               onSelectItem={(itemId) => {

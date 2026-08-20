@@ -126,17 +126,25 @@ export function Sidebar() {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors min-h-[40px]",
+                    "relative flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors min-h-[40px]",
                     "hover:bg-accent/50",
                     isActive
-                      ? "bg-accent text-accent-foreground"
+                      ? // The neon bar and glow mark the current stage of the V-model
+                        // chain. It is the only saturated colour in the sidebar, so the
+                        // eye finds "where am I" without reading any label.
+                        "bg-neon/10 text-foreground before:absolute before:left-0 before:top-1/2 " +
+                        "before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-full " +
+                        "before:bg-neon before:shadow-[0_0_8px_hsl(var(--neon-glow))]"
                       : "text-muted-foreground hover:text-accent-foreground",
                     collapsed && "justify-center"
                   )}
                   title={collapsed ? item.label : undefined}
                   aria-current={isActive ? "page" : undefined}
                 >
-                  <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
+                  <Icon
+                    className={cn("h-5 w-5 shrink-0", isActive && "text-neon")}
+                    aria-hidden="true"
+                  />
                   {!collapsed && <span className="ml-3 truncate">{item.label}</span>}
                 </Link>
               )
