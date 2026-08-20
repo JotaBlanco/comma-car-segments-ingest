@@ -596,6 +596,8 @@ def ai_1():
         WHERE platform = 'SKODA_OCTAVIA'
           AND device = 'a0001'
           AND route = '00011'
+
+          make some significantly visible if t
           """
     # ql-ai: generated from prompt 3c43fbf560bf8eba
     import pandas as pd
@@ -705,7 +707,7 @@ def ai_1():
     return ql.Findings([finding], title=f"ACC-SYS-TC-011 Evaluation Report — {verdict}")
 
 
-@canvas.datastore(position=(58, 971), size=(560, 420), code_height=120, viz={'datastore': True, 'sourceNode': 'ai_1'})
+@canvas.datastore(position=(59, 956), size=(560, 420), code_height=120, viz={'datastore': True, 'sourceNode': 'ai_1'})
 def ai_1_store(ai_1):
     return ql.datastore("ai_1_store")
 
