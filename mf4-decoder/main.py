@@ -11,7 +11,9 @@ import pandas as pd
 from asammdf import MDF
 from quixportal.storage import get_filesystem
 from quixstreams import Application, State
+from quixstreams.dataframe.joins.lookups import QuixConfigurationService
 
+import dcm_dbc
 from idempotency import decode_identity, log_mode, mark_decoded, needs_decode
 from provenance import (
     UNKNOWN,
@@ -35,11 +37,30 @@ BATCH_RECORDS = int(os.getenv("BATCH_RECORDS", "100"))   # Records per Kafka mes
 FLUSH_EVERY = int(os.getenv("FLUSH_EVERY", "1000"))      # librdkafka flush every N batches (was: N samples)
 
 # CAN bus-logging decode -----------------------------------------------------
-# "embedded" (default): decode CAN bus-logging files with the DBC that the MF4
-# carries as an attachment. "none": do not decode. External DBC fetching is
-# deliberately not implemented; the knob exists so it can be added later
-# without changing today's behaviour.
-DBC_SOURCE = os.getenv("DBC_SOURCE", "embedded").strip().lower()
+# "dcm" (default): decode with the database held in the Dynamic Configuration
+# Manager, resolved by vehicle platform. "embedded": use the DBC the MF4 carries
+# as an attachment. "none": do not decode.
+#
+# `dcm` is the default because the database is then external and versioned: one
+# document per platform, editable in the Configurations UI, with every change a
+# new version rather than a re-upload of every affected recording. An embedded
+# DBC is frozen into the file at write time and cannot be corrected afterwards.
+DBC_SOURCE = os.getenv("DBC_SOURCE", "dcm").strip().lower()
+
+# Configuration type the databases are stored under in DCM. Fixed at
+# pipeline-build time by QuixConfigurationService - only the target_key varies
+# per message - so changing it here orphans every existing lookup.
+DCM_TYPE = os.getenv("DCM_TYPE", "dbc")
+
+# Platform used as the DCM target_key when the metadata message does not carry
+# one. The platform is written in the MF4 header, which cannot be read until the
+# file has been downloaded and opened - by which time the lookup has already
+# run - so a deployment ingesting one platform names it here.
+DBC_PLATFORM = os.getenv("DBC_PLATFORM", "").strip()
+
+# Column the lookup writes the resolved document into, and the column it keys on.
+F_DBC_DOC = "dcm_dbc_doc"
+F_DCM_KEY = "dcm_target_key"
 
 # MDF4 channel-group flag / bus-type values, copied from
 # asammdf/blocks/v4_constants.py (FLAG_CG_BUS_EVENT, BUS_TYPE_CAN). Copied
@@ -453,7 +474,7 @@ def _extract_dbc_files(mdf, attachment_indices, target_dir):
     return paths
 
 
-def _decode_can_bus_logging(mdf, target_dir):
+def _decode_can_bus_logging(mdf, target_dir, dcm_doc=None):
     """Decode raw CAN frames into named signals using the file's own DBC.
 
     Returns ``(decoded_mdf, dbc_paths)``. ``decoded_mdf`` is one channel group
@@ -470,6 +491,31 @@ def _decode_can_bus_logging(mdf, target_dir):
     if DBC_SOURCE == "none":
         logger.warning("DBC_SOURCE=none - CAN bus logging will not be decoded")
         return None, []
+
+    if DBC_SOURCE == "dcm":
+        # The document arrived on the message from the DCM lookup. `fallback` and
+        # the field default both yield None, so an absent configuration lands here
+        # as None rather than as an exception - which is why this is a warning and
+        # a return, not a raise.
+        if not dcm_doc:
+            logger.warning(
+                "No DCM database resolved for this file - nothing can be decoded. "
+                "Check that a '%s' configuration exists for its platform.",
+                DCM_TYPE,
+            )
+            return None, []
+        try:
+            dbc_path, dropped = dcm_dbc.materialise(dcm_doc, target_dir / "dcm.dbc")
+        except Exception:
+            logger.exception("Could not turn the DCM document into a loadable database")
+            return None, []
+        database_files = {"CAN": [(str(dbc_path), 0)]}
+        try:
+            return mdf.extract_bus_logging(database_files=database_files), [dbc_path]
+        except Exception:
+            logger.exception("extract_bus_logging failed with the DCM database")
+            return None, [dbc_path]
+
     if DBC_SOURCE != "embedded":
         logger.warning("Unknown DBC_SOURCE=%r - treating it as 'embedded'", DBC_SOURCE)
 
@@ -684,7 +730,9 @@ def process(metadata: dict, state: State):
                 filename, len(bus_groups), raw_bus_channels, raw_bus_frames,
             )
             dbc_dir = pathlib.Path(tempfile.mkdtemp(prefix="mf4-dbc-"))
-            decoded, dbc_paths = _decode_can_bus_logging(mdf, dbc_dir)
+            decoded, dbc_paths = _decode_can_bus_logging(
+                mdf, dbc_dir, dcm_doc=metadata.get(F_DBC_DOC)
+            )
 
             if decoded is not None:
                 # Second read of the same on-disk DBCs: asammdf uses them to
@@ -866,6 +914,36 @@ sdf = sdf.group_by(
 # Replayed metadata is dropped here, ahead of the blob download: a skip costs
 # one state read instead of a full re-decode and a duplicate copy in the lake.
 sdf = sdf.filter(needs_decode, stateful=True)
+
+if DBC_SOURCE == "dcm":
+    # Resolve the CAN database from DCM. The lookup runs after the decode-once
+    # filter so a replayed file costs one state read rather than a config fetch.
+    #
+    # `fallback="default"` is not optional: the SDK default is "error", which
+    # re-raises inside join() and takes the application down when content cannot
+    # be fetched. A per-field `default=` does not cover that - it is consulted
+    # only when the configuration is absent, never when the fetch itself throws.
+    #
+    # jsonpath="$" pulls the whole document, which is a full copy per message.
+    # That is a real cost to watch, but one message here is one MF4 file, not one
+    # signal sample, so it is paid once per file rather than per row.
+    lookup = QuixConfigurationService(
+        app.topic(os.environ["config"]),
+        app_config=app.config,
+        fallback="default",
+    )
+    # The key is a column rather than a callable so the resolved value is visible
+    # in the message for debugging, and so the lookup contract stays a plain
+    # column reference.
+    sdf[F_DCM_KEY] = sdf.apply(
+        lambda value: str(value.get("platform") or DBC_PLATFORM or UNKNOWN)
+    )
+    sdf = sdf.join_lookup(
+        lookup,
+        {F_DBC_DOC: lookup.json_field(jsonpath="$", type=DCM_TYPE, default=None)},
+        on=F_DCM_KEY,
+    )
+
 sdf = sdf.update(process, stateful=True)
 
 log_mode()

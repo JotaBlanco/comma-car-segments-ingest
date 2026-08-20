@@ -7,4 +7,9 @@ asammdf
 # pinned here explicitly so a future asammdf that drops the dependency
 # cannot silently break decoding at deploy time.
 canmatrix
+# The DCM path rebuilds a cantools Database from the stored JSON document and
+# writes it back out as .dbc for extract_bus_logging. Pinned to the release
+# dcm-seed-dbc serialises with, so the document a seeder wrote and the database
+# this rebuilds are produced by the same code.
+cantools==42.0.3
 quixportal[all]==2.0.1

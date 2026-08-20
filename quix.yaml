@@ -41,8 +41,42 @@ deployments:
         memory: 2500
     desiredStatus: Running
     variables:
+      # Declared in full: the portal keeps its own value for anything this file
+      # does not name, so an undeclared setting is invisible here and survives
+      # every sync.
+      - name: input
+        inputType: InputTopic
+        required: true
+        value: mf4_metadata
+      - name: output
+        inputType: OutputTopic
+        required: true
+        value: mf4-to-msg
+      # An InputTopic missing from this block never reaches the deployment, and
+      # the pipeline graph draws no edge for it.
+      - name: config
+        inputType: InputTopic
+        required: true
+        value: config-updates
+      # The CAN database now comes from DCM, resolved by platform, so it is
+      # external and versioned rather than frozen into each recording.
+      - name: DBC_SOURCE
+        inputType: FreeText
+        required: true
+        value: dcm
+      - name: DCM_TYPE
+        inputType: FreeText
+        required: true
+        value: dbc
+      - name: DBC_PLATFORM
+        inputType: FreeText
+        value: FORD_F_150_LIGHTNING_MK1
       - name: BATCH_RECORDS
         value: 5000
+      - name: FLUSH_EVERY
+        value: 1000
+      - name: FRAME_CHUNK
+        value: 1000
       - name: FORCE_REDECODE
         inputType: FreeText
         description: >-

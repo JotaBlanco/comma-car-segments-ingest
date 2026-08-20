@@ -11,6 +11,33 @@ variables:
     description: Topic to publish decoded per-timestamp messages
     defaultValue: mf4-to-msg
     required: true
+  - name: config
+    inputType: InputTopic
+    description: DCM configuration-events topic. QuixConfigurationService consumes it to
+      resolve the CAN database for each file. Required whenever DBC_SOURCE is dcm.
+    defaultValue: config-updates
+    required: true
+  - name: DBC_SOURCE
+    inputType: FreeText
+    description: Where the CAN database comes from. "dcm" resolves it from the Dynamic
+      Configuration Manager by platform, so the database is external and versioned.
+      "embedded" uses the DBC attached to the MF4. "none" disables CAN decoding.
+    defaultValue: dcm
+    required: true
+  - name: DCM_TYPE
+    inputType: FreeText
+    description: Configuration type the databases are stored under. Fixed at pipeline
+      build time, so changing it orphans existing lookups.
+    defaultValue: dbc
+    required: true
+  - name: DBC_PLATFORM
+    inputType: FreeText
+    description: Platform used as the DCM target_key when the metadata message carries
+      no platform. The MF4 header states the platform but cannot be read until the file
+      is open, which is after the lookup has run - so a deployment ingesting one
+      platform names it here.
+    defaultValue: FORD_F_150_LIGHTNING_MK1
+    required: false
   - name: BATCH_RECORDS
     inputType: FreeText
     description: Records packed into one Kafka message (cluster size). Sink expands them back 1:1.
