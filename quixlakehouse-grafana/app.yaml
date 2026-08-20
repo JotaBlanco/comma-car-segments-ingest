@@ -1,0 +1,52 @@
+name: quixlakehouse-grafana
+language: docker
+
+# Grafana never reads or writes blob storage. The bind is here because it is the
+# injection vehicle for the whole Quix__Lakehouse__* bundle on dev -- without it,
+# Quix__Lakehouse__Query__Url and __AuthToken are simply absent from the environment
+# and the image's entrypoint aborts at boot with an explanatory error.
+blobStorage:
+  bind: true
+
+variables:
+  - name: GF_SECURITY_ADMIN_PASSWORD
+    inputType: Secret
+    description: Grafana admin password. Set this -- Grafana otherwise defaults to "admin".
+    defaultValue: grafana_admin_password
+    required: true
+
+  - name: GF_SERVER_ROOT_URL
+    inputType: FreeText
+    description: Public URL of this deployment. Grafana builds login redirects and share
+      links from it; a wrong value makes sign-in look broken in ways that resemble a
+      plugin fault. Derived from the environment's publicUrlTemplate.
+    defaultValue: https://grafana-testrigorg-commacarsegmentsingest-grafana.testrig-depl.dev.quix.io
+    required: true
+
+  - name: GF_LOG_LEVEL
+    inputType: FreeText
+    description: Grafana log level (debug, info, warn, error)
+    defaultValue: info
+    required: false
+
+  # Overrides the auto-injected lakehouse token. The entrypoint reads this name
+  # before its QUIXLAKE_TOKEN fallback, so a value here wins over what the
+  # blobStorage bind injects.
+  #
+  # Needed because the Query API is cluster-scoped (testrigorg-global) and so
+  # validates Organisation/Read rather than Workspace/All -- see auth.py:26-42 in
+  # Quix.DataLake.Timeseries. The injected token does not satisfy that and the
+  # datasource fails with "Authentication rejected". A PAT does, because auth.py
+  # accepts any Quix platform token on the validate_permissions path.
+  #
+  # Trade-off: every dashboard viewer then queries as whoever owns this token, and
+  # billing attributes to them. Tracked as an open question on sc-74412.
+  - name: Quix__Lakehouse__Query__AuthToken
+    inputType: Secret
+    description: Org-scoped token or PAT for the Lakehouse Query API. Leave empty to use
+      the value injected by the blobStorage bind.
+    defaultValue: quixlake_query_token
+    required: false
+
+dockerfile: dockerfile
+defaultFile: dockerfile

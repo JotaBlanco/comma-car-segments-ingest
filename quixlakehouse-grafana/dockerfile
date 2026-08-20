@@ -1,0 +1,22 @@
+# Grafana with the QuixLakeHouse datasource plugin baked in.
+#
+# Deliberately a one-line pull, not a build. The plugin's frontend (TypeScript) and
+# backend (Go) are compiled in its own repo, quixio/quixlakehouse-datasource, by
+# .github/workflows/publish-image.yml. Quix uses THIS folder as the Docker build
+# context, so it could never compile that source from here -- publishing an image is
+# what lets the two repos stay separate instead of vendoring a copy of the plugin.
+#
+# Pinned by DIGEST, not by `:dev`. Two reasons: `:dev` moves under you, and an
+# unchanged FROM line can be served from Quix's build cache, so a retag alone is not
+# guaranteed to deploy new code. A digest changes the line and forces the pull.
+#
+# This digest is the build of ce4345b ("make the provisioned datasource editable").
+# To move it, read the digest from the publish-image run and replace it here.
+#
+# NB: the sha-<short> tag for this build does not exist -- pushing it hit a GitHub
+# secondary rate limit after :dev had already been pushed. The build itself is fine.
+#
+# The base image already sets ENTRYPOINT (its entrypoint renders the datasource
+# provisioning file from the injected Quix__Lakehouse__* vars, then starts Grafana),
+# GF_PATHS_PROVISIONING and the unsigned-plugin allowlist. Nothing to repeat here.
+FROM ghcr.io/quixio/quixlakehouse-grafana:sha-2acf0ec
