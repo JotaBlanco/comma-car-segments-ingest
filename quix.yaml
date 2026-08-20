@@ -106,7 +106,8 @@ deployments:
           page. An org-global deployment (testrigorg-global), which is why it does not
           appear in this workspace's deployment list, and it pairs with the lh-cat-3d7475f5
           catalog the sink writes through. The portal's own /lakehouse route was used
-          first and was wrong: it boots the whole portal shell around the panel. Grafana
+          first and was wrong because it boots the whole portal shell around the panel.
+          Grafana
           charts the same data and is framed by Measurements instead.
         value: https://lh-ui-3d7475f5-testrigorg-global.testrig-depl.dev.quix.io
       - name: MONGO_PASSWORD
