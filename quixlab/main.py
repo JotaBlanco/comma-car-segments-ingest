@@ -710,8 +710,16 @@ def ai_1_store(ai_1):
     return ql.datastore("ai_1_store")
 
 
-@canvas.ai(position=(-571, 1443), size=(560, 420), code_height=200)
+@canvas.ai(position=(-582, 1431), size=(560, 420), code_height=200)
 def ai_2():
+    """find this tc in test specification page ACC-SYS-TC-014 and generate evaluation report based on these traces. mf4_signals_v4
+        WHERE platform = 'SKODA_OCTAVIA'
+          AND device = 'a0001'
+          AND route = '00014'"""
+
+
+@canvas.ai(position=(-584, 1886), size=(560, 420), code_height=200)
+def ai_3():
     """Describe what you want computed — plain English, not code.
 
     Reference other cells with `@cell_id`; their results are this cell's inputs.
