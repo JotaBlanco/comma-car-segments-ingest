@@ -80,36 +80,6 @@ export const integrationsApi = {
   },
 
   /**
-   * Get Measurements/Query Builder URL
-   * @param testId - Test ID for SQL filter
-   * @param campaignId - Campaign ID for SQL filter
-   * @param environmentId - Environment ID for SQL filter
-   */
-  getMeasurementsUrl: (
-    testId?: string | null,
-    campaignId?: string | null,
-    environmentId?: string | null,
-    token?: string | null,
-    refreshToken?: () => Promise<string | null>
-  ) => {
-    const params: {
-      test_id?: string
-      campaign_id?: string
-      environment_id?: string
-    } = {}
-    if (testId) params.test_id = testId
-    if (campaignId) params.campaign_id = campaignId
-    if (environmentId) params.environment_id = environmentId
-    const queryParams = Object.keys(params).length > 0 ? params : undefined
-    return apiGet<ConfigManagerUrl>(
-      "/integrations/measurements-url",
-      queryParams,
-      token,
-      refreshToken
-    )
-  },
-
-  /**
    * QuixLab URL for the Test Implementation page.
    *
    * Comes from the backend, not a NEXT_PUBLIC_* var: the frontend image is

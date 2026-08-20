@@ -23,7 +23,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { TestStatusBadge } from "./test-status-badge"
 import type { Test } from "@/types/test"
-import { ArrowUpDown, Loader2, Download, BarChart3, LineChart } from "lucide-react"
+import { ArrowUpDown, Loader2, Download, LineChart } from "lucide-react"
 import { useDateFormatter } from "@/lib/hooks/use-date-formatter"
 import { useIntegrationsApi } from "@/lib/hooks/use-api"
 import { useToast } from "@/lib/hooks/use-toast"
@@ -215,20 +215,6 @@ export const TestsTable = memo(function TestsTable({ data, sorting, onSortingCha
                 )}
               </Button>
 
-              {/* Go to Data Query */}
-              <Link
-                href={`/measurements?test_id=${test.test_id}&campaign_id=${test.campaign_id}&environment_id=${test.environment_id}`}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0"
-                  title="Go to Data Query"
-                >
-                  <BarChart3 className="h-4 w-4" />
-                </Button>
-              </Link>
 
               {/* Go to Analytics */}
               <Link

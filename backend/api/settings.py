@@ -77,7 +77,14 @@ class Settings(BaseSettings):
 
     # Integration services URLs
     measurements_url: str | None = Field(
-        None, description="Measurements/Query Builder service URL"
+        None,
+        description=(
+            "Quix Lake Query API base URL. The Measurements page that framed its UI is "
+            "gone - the Lakehouse page replaced it - but the measurement CSV download "
+            "still queries {measurements_url}/api/query, so this is not dead config. "
+            "Note it currently points at a different workspace's warehouse than the one "
+            "this pipeline sinks to."
+        ),
     )
     analytics_url: str | None = Field(
         None, description="Analytics/Notebook service URL"

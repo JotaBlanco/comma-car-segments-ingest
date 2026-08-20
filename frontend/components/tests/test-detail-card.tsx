@@ -22,7 +22,7 @@ import { useToast } from "@/lib/hooks/use-toast"
 import { useDateFormatter } from "@/lib/hooks/use-date-formatter"
 import { downloadCsv } from "@/lib/utils/csv"
 import type { Test } from "@/types/test"
-import { Save, X, ExternalLink, Sliders, Database, BarChart3, LineChart, Download } from "lucide-react"
+import { Save, X, ExternalLink, Sliders, Database, LineChart, Download } from "lucide-react"
 
 interface TestDetailCardProps {
   test: Test
@@ -221,15 +221,6 @@ export function TestDetailCard({ test, onTestUpdated }: TestDetailCardProps) {
               <Database className="mr-2 h-4 w-4" />
               Data Lake
             </Button>
-            <Link href={`/measurements?test_id=${test.test_id}&campaign_id=${test.campaign_id}&environment_id=${test.environment_id}`}>
-              <Button
-                variant="outline"
-                size="sm"
-              >
-                <BarChart3 className="mr-2 h-4 w-4" />
-                Query Data
-              </Button>
-            </Link>
             <Link href={`/analytics?test_id=${test.test_id}&campaign_id=${test.campaign_id}&environment_id=${test.environment_id}`}>
               <Button
                 variant="outline"
