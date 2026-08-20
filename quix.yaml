@@ -275,6 +275,11 @@ deployments:
     variables:
       - name: GF_SECURITY_ADMIN_PASSWORD
         variableKey: grafana_password
+    plugin:
+      sidebarItem:
+        show: true
+        label: Grafana
+        order: 0
     blobStorage:
       bind: true
 
