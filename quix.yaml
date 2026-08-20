@@ -253,6 +253,30 @@ deployments:
         order: 1
     blobStorage:
       bind: true
+  - name: Grafana
+    application: quixlakehouse-grafana
+    version: latest
+    deploymentType: Service
+    resources:
+      limits:
+        cpu: 200
+        memory: 500
+    publicAccess:
+      enabled: true
+      urlPrefix: grafana
+    state:
+      enabled: true
+      size: 1
+    network:
+      serviceName: grafana
+      ports:
+        - port: 80
+          targetPort: 3000
+    variables:
+      - name: GF_SECURITY_ADMIN_PASSWORD
+        variableKey: grafana_password
+    blobStorage:
+      bind: true
 
 # This section describes the Topics of the data pipeline
 topics:
