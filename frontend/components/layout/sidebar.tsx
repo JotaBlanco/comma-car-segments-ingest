@@ -15,6 +15,8 @@ import {
   Sliders,
   BarChart3,
   LineChart,
+  Database,
+  Upload,
 } from "lucide-react"
 import { cn } from "@/lib/utils/cn"
 import { useSidebar } from "@/lib/contexts/sidebar-context"
@@ -63,6 +65,8 @@ const navSections: NavSection[] = [
   {
     label: "Integrations",
     items: [
+      { href: "/file-import", icon: Upload, label: "File Import" },
+      { href: "/lakehouse", icon: Database, label: "Lakehouse" },
       { href: "/config-manager", icon: Sliders, label: "Configurations" },
       { href: "/measurements", icon: BarChart3, label: "Measurements" },
       { href: "/analytics", icon: LineChart, label: "Analytics" },

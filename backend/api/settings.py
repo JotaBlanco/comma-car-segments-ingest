@@ -85,6 +85,21 @@ class Settings(BaseSettings):
     quixlab_url: str | None = Field(
         None, description="QuixLab public URL; the Test Implementation page frames it"
     )
+    mf4_import_url: str | None = Field(
+        None,
+        description=(
+            "MF4 Import public URL; the File Import page frames it so uploads happen "
+            "inside Test Manager instead of on a separate tab"
+        ),
+    )
+    lakehouse_ui_url: str | None = Field(
+        None,
+        description=(
+            "Quix Lakehouse UI URL, framed by the Lakehouse page. Distinct from "
+            "lakehouse_query_url below, which is the Query API the evaluation reads "
+            "signals from - this one is the tables-and-partitions browser."
+        ),
+    )
     data_lake_workspace_id: str | None = Field(
         None, description="Data Lake workspace ID (defaults to workspace_id if not set)"
     )

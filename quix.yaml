@@ -88,8 +88,28 @@ deployments:
     variables:
       - name: QUIXLAB_URL
         inputType: FreeText
-        description: QuixLab public URL framed by the Test Implementation page
+        description: QuixLab public URL framed by the Test Implementation page. This
+          project's own lab; the Analytics page frames a different one, so repointing
+          either cannot move the other.
         value: https://quixlab-testrigorg-commacarsegmentsingest-t-b5554eca.testrig-depl.dev.quix.io
+      - name: ANALYTICS_URL
+        inputType: FreeText
+        description: QuixLab framed by the Analytics page. A separate deployment in the
+          cananalysis-dev workspace, maintained independently of ours. The direct
+          deployment URL is used rather than the portal /embedded route, because that
+          route would put the portal inside a frame the portal is already serving.
+        value: https://quixlab-testrigorg-cananalysis-dev.testrig-depl.dev.quix.io
+      - name: MF4_IMPORT_URL
+        inputType: FreeText
+        description: MF4 Import public URL framed by the File Import page, so a recording
+          is uploaded in the same window as the five V-model stages that consume it.
+        value: https://mf4import-testrigorg-commacarsegmentsingest-t-b5554eca.testrig-depl.dev.quix.io
+      - name: LAKEHOUSE_UI_URL
+        inputType: FreeText
+        description: Lakehouse browser framed by the Lakehouse page. This is the Grafana
+          in quixlakehouse-grafana, which reads the Lakehouse Query API - not
+          Quix__Lakehouse__Query__Url itself, which is the API and has no UI.
+        value: https://grafana-testrigorg-commacarsegmentsingest-t-b5554eca.testrig-depl.dev.quix.io
       - name: MONGO_PASSWORD
         variableKey: mongo_password
       - name: CONFIG_API_URL

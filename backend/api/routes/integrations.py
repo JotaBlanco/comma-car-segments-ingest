@@ -431,3 +431,46 @@ async def get_quixlab_url(
         )
 
     return ConfigManagerUrl(url=settings.quixlab_url)
+
+
+@router.get("/mf4-import-url", response_model=ConfigManagerUrl)
+async def get_mf4_import_url(
+    _auth: None = Depends(read_permission),
+) -> ConfigManagerUrl:
+    """Get the MF4 Import URL for the File Import page.
+
+    Same contract as quixlab-url: served from the backend because a NEXT_PUBLIC_*
+    value would be inlined at frontend build time and undefined at runtime, and no
+    token is appended because the service is gated at the Quix ingress, which wants
+    a portal session cookie rather than a PAT.
+    """
+    settings = get_settings()
+
+    if not settings.mf4_import_url:
+        raise HTTPException(
+            status_code=501,
+            detail="MF4 Import not configured. Set MF4_IMPORT_URL environment variable.",
+        )
+
+    return ConfigManagerUrl(url=settings.mf4_import_url)
+
+
+@router.get("/lakehouse-url", response_model=ConfigManagerUrl)
+async def get_lakehouse_url(
+    _auth: None = Depends(read_permission),
+) -> ConfigManagerUrl:
+    """Get the Lakehouse UI URL for the Lakehouse page.
+
+    This is the tables-and-partitions browser, not ``Quix__Lakehouse__Query__Url``:
+    that one is the Query API the Test Run evaluation reads decoded signals from and
+    is injected by the platform, whereas this is a UI address nothing injects.
+    """
+    settings = get_settings()
+
+    if not settings.lakehouse_ui_url:
+        raise HTTPException(
+            status_code=501,
+            detail="Lakehouse UI not configured. Set LAKEHOUSE_UI_URL environment variable.",
+        )
+
+    return ConfigManagerUrl(url=settings.lakehouse_ui_url)

@@ -128,6 +128,36 @@ export const integrationsApi = {
     ),
 
   /**
+   * Get the MF4 Import URL, framed by the File Import page. Backend-served for
+   * the same reason as getQuixlabUrl above.
+   */
+  getMf4ImportUrl: (
+    token?: string | null,
+    refreshToken?: () => Promise<string | null>
+  ) =>
+    apiGet<{ url: string }>(
+      "/integrations/mf4-import-url",
+      undefined,
+      token,
+      refreshToken
+    ),
+
+  /**
+   * Get the Lakehouse UI URL - the tables-and-partitions browser, not the Query
+   * API the Test Run evaluation reads signals from.
+   */
+  getLakehouseUrl: (
+    token?: string | null,
+    refreshToken?: () => Promise<string | null>
+  ) =>
+    apiGet<{ url: string }>(
+      "/integrations/lakehouse-url",
+      undefined,
+      token,
+      refreshToken
+    ),
+
+  /**
    * Get Analytics/Notebook URL
    * @param testId - Test ID for context
    * @param campaignId - Campaign ID for context
