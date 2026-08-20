@@ -22,6 +22,8 @@ variables:
     description: Where the CAN database comes from. "dcm" resolves it from the Dynamic
       Configuration Manager by platform, so the database is external and versioned.
       "embedded" uses the DBC attached to the MF4. "none" disables CAN decoding.
+      Bus-logging files that yield no decodable signals are dropped - raw frame fields
+      are never written to the signals table.
     defaultValue: dcm
     required: true
   - name: DCM_TYPE
@@ -50,15 +52,6 @@ variables:
     inputType: FreeText
     description: MDF read-chunk size (samples per per-channel slice).
     defaultValue: 1000
-  - name: DBC_SOURCE
-    inputType: FreeText
-    description: >-
-      Where the CAN database comes from when the MF4 is a bus-logging file
-      (raw CAN_DataFrame.* frames). "embedded" decodes with the DBC attached
-      inside the MF4 itself; "none" disables decoding. External DBC fetching
-      is not implemented. Bus-logging files that yield no decodable signals
-      are dropped - raw frame fields are never written to the signals table.
-    defaultValue: embedded
   - name: FORCE_REDECODE
     inputType: FreeText
     description: >-
