@@ -88,33 +88,21 @@ deployments:
     variables:
       - name: QUIXLAB_URL
         inputType: FreeText
-        description: QuixLab public URL framed by the Test Implementation page. This
-          project's own lab; the Analytics page frames a different one, so repointing
-          either cannot move the other.
+        description: QuixLab public URL framed by the Test Implementation page. This project's own lab; the Analytics page frames a different one, so repointing either cannot move the other.
         value: https://quixlab-testrigorg-commacarsegmentsingest-t-b5554eca.testrig-depl.dev.quix.io
       - name: ANALYTICS_URL
-        inputType: FreeText
-        description: QuixLab framed by the Analytics page. A separate deployment in the
-          cananalysis-dev workspace, maintained independently of ours. The direct
-          deployment URL is used rather than the portal /embedded route, because that
-          route would put the portal inside a frame the portal is already serving.
+        description: QuixLab framed by the Analytics page. A separate deployment in the cananalysis-dev workspace, maintained independently of ours. The direct deployment URL is used rather than the portal /embedded route, because that route would put the portal inside a frame the portal is already serving.
         value: https://quixlab-testrigorg-cananalysis-dev.testrig-depl.dev.quix.io
       - name: MF4_IMPORT_URL
         inputType: FreeText
-        description: MF4 Import public URL framed by the File Import page, so a recording
-          is uploaded in the same window as the five V-model stages that consume it.
+        description: MF4 Import public URL framed by the File Import page, so a recording is uploaded in the same window as the five V-model stages that consume it.
         value: https://mf4import-testrigorg-commacarsegmentsingest-t-b5554eca.testrig-depl.dev.quix.io
       - name: MEASUREMENTS_URL
-        inputType: FreeText
-        description: Grafana, framed by the Measurements page - the charts over the
-          decoded signals it reads from the Lakehouse Query API. Previously pointed at a
-          query UI in another org's warehouse, which never held this pipeline's data.
+        description: Grafana, framed by the Measurements page - the charts over the decoded signals it reads from the Lakehouse Query API. Previously pointed at a query UI in another org's warehouse, which never held this pipeline's data.
         value: https://grafana-testrigorg-commacarsegmentsingest-t-b5554eca.testrig-depl.dev.quix.io
       - name: LAKEHOUSE_UI_URL
         inputType: FreeText
-        description: Lakehouse browser framed by the Lakehouse page. This is the Grafana
-          in quixlakehouse-grafana, which reads the Lakehouse Query API - not
-          Quix__Lakehouse__Query__Url itself, which is the API and has no UI.
+        description: Lakehouse browser framed by the Lakehouse page. This is the Grafana in quixlakehouse-grafana, which reads the Lakehouse Query API - not Quix__Lakehouse__Query__Url itself, which is the API and has no UI.
         value: https://grafana-testrigorg-commacarsegmentsingest-t-b5554eca.testrig-depl.dev.quix.io
       - name: MONGO_PASSWORD
         variableKey: mongo_password
@@ -301,12 +289,10 @@ deployments:
     variables:
       - name: GF_SECURITY_ADMIN_PASSWORD
         variableKey: grafana_password
-      # Grafana answers every request with X-Frame-Options: deny unless this is
-      # set, so the Lakehouse page rendered an empty panel - the browser refused
-      # the frame outright and nothing in our code could see it happen.
-      - name: GF_SECURITY_ALLOW_EMBEDDING
-        inputType: FreeText
-        value: true
+      - name: GF_SERVER_ROOT_URL
+        value: https://lh-query-3d7475f5-testrigorg-global.testrig-depl.dev.quix.io
+      - name: Quix__Lakehouse__Query__AuthToken
+        variableKey: QuixLakeToken
     plugin:
       embeddedView:
         enabled: true
