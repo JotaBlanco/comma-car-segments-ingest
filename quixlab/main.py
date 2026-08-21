@@ -694,7 +694,7 @@ def ai_1():
     ql.Findings([finding], title="ACC-SYS-TC-011 Evaluation Report")
 
 
-@canvas.datastore(position=(59, 956), size=(560, 420), code_height=120, viz={'datastore': True, 'sourceNode': 'ai_1'})
+@canvas.datastore(position=(93, 840), size=(649, 500), code_height=120, viz={'datastore': True, 'sourceNode': 'ai_1'})
 def ai_1_store(ai_1):
     return ql.datastore("ai_1_store")
 
