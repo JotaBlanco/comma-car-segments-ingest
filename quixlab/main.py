@@ -41,7 +41,7 @@ import numpy as np
 import pandas as pd
 import quixlab as ql
 
-canvas = ql.Canvas(title="ACC Performance Test Cases")
+canvas = ql.Canvas(title="ACC Performance Test Cases", lake_tree_open=['can_signals_v13', 'can_signals_v13/platform=KIA_NIRO_EV_2ND_GEN', 'can_signals_v13/platform=KIA_NIRO_EV_2ND_GEN/device=7e83bf856d5fbb93', 'can_signals_v13/platform=KIA_NIRO_EV_2ND_GEN/device=7e83bf856d5fbb93/route=00000007--4ca4d4cf2e', 'can_signals_v13/platform=KIA_NIRO_EV_2ND_GEN/device=7e83bf856d5fbb93/route=00000007--4ca4d4cf2e/channel_name=camera_ipma_hs_can3', 'can_signals_v13/platform=KIA_NIRO_EV_2ND_GEN/device=7e83bf856d5fbb93/route=00000007--4ca4d4cf2e/channel_name=camera_ipma_hs_can3/sender_node=APRK', 'can_signals_v13/platform=KIA_NIRO_EV_2ND_GEN/device=7e83bf856d5fbb93/route=00000007--4ca4d4cf2e/channel_name=camera_ipma_hs_can3/sender_node=APRK/frame_name=SPAS1'])
 
 TABLE = "mf4_signals_v4"
 
