@@ -709,110 +709,102 @@ def ai_2():
     import pandas as pd
     import numpy as np
 
-    # ACC-SYS-TC-014 traces: full pull for this platform/device/route triplet
+    # ACC-SYS-TC-014 traces per spec: hard braking under ACC control
     query = """
         SELECT * FROM mf4_signals_v4
         WHERE platform = 'SKODA_OCTAVIA'
           AND device = 'a0001'
           AND route = '00014'
     """
-    raw = ql.sql(query)
+    df = ql.sql(query)
 
-    df = raw.copy()
-    df["t_s"] = df["ts_ms"] / 1000.0
-    wide = df.pivot_table(index="t_s", columns="signal", values="value", aggfunc="first").sort_index().ffill()
+    tc_id = "ACC-SYS-TC-014"
 
-    # Test-spec ACC-SYS-TC-014 acceptance criteria (matches the ACC-SYS-TC family convention
-    # used for TC-011/TC-016): entry criteria require a contiguous ACC-active (Status 2/3)
-    # segment, settled 0.5 s in from each entry.
-    t_series = wide.index.to_series()
-    acc_active = wide["ACC_Status"].isin([2, 3])
-    run_id = (acc_active != acc_active.shift()).cumsum()
-    run_start_time = t_series.groupby(run_id).transform("min")
-    settle_s = 0.5
-    settled_mask = acc_active & ((t_series - run_start_time) >= settle_s)
+    def _blocked_report(reason):
+        return dict(
+            tc_id=tc_id,
+            verdict="INCONCLUSIVE",
+            reason=reason,
+            query=query.strip(),
+        )
 
-    state = wide[settled_mask]                          # ACC active, settled -- used by C2
-    gated = state[state["DrvBrkPedal_Pct"] <= 0.0]       # + driver off the brake -- used by C1/C3
-
-    # C1: 2 s trailing moving average of the ACHIEVED deceleration (VehAccel_mps2) must not
-    # exceed the -3.5 m/s^2 limiter setpoint (0.05 m/s^2 tolerance), gated window.
-    dt = t_series.diff().median()
-    window_n = max(int(round(2.0 / dt)), 1)
-    mov_avg = wide["VehAccel_mps2"].rolling(window_n, min_periods=window_n).mean()
-    c1_series = mov_avg.loc[gated.index].dropna()
-    c1_min = float(c1_series.min()) if len(c1_series) else None
-    c1_pass = len(c1_series) >= 200 and c1_min is not None and c1_min >= -3.5 - 0.05
-
-    # C2: post-limiter deceleration request (BrkReq_mps2) must stay within -3.5 m/s^2 over the
-    # settled ACC-active window.
-    c2_series = state["BrkReq_mps2"]
-    c2_min = float(c2_series.min()) if len(c2_series) else None
-    c2_pass = len(c2_series) >= 200 and c2_min is not None and c2_min >= -3.5
-
-    # C3: non-vacuity guard -- the run really did brake hard under ACC control.
-    c3_series = gated["VehAccel_mps2"]
-    c3_min = float(c3_series.min()) if len(c3_series) else None
-    c3_pass = len(c3_series) >= 200 and c3_min is not None and c3_min <= -3.0
-
-    verdict = "PASS" if (c1_pass and c2_pass and c3_pass) else "FAIL"
-
-    # Evidence window: centred on the extremum that drives the verdict (C1 limiter overshoot
-    # if it exists, else the C3 hard-braking event), with surrounding raw signal context so an
-    # engineer can validate the reasoning directly against the trace.
-    evidence_cols = ["VehAccel_mps2", "BrkReq_mps2", "DrvBrkPedal_Pct", "ACC_Status"]
-    annotated = wide[evidence_cols].copy()
-    annotated["mov_avg_2s_accel_mps2"] = mov_avg
-
-    if len(c1_series):
-        focus_t = c1_series.idxmin()
-        focus_reason = "C1 (2 s trailing-average limiter overshoot)"
-    elif len(c3_series):
-        focus_t = c3_series.idxmin()
-        focus_reason = "C3 (hardest instantaneous braking event)"
+    # --- Guard: previous failure (KeyError: 'ts_ms') happened because the query
+    # returned 0 rows / no columns and the code indexed df["ts_ms"] unconditionally.
+    required_cols = {"ts_ms", "signal", "value"}
+    if df.empty:
+        report = _blocked_report(
+            "No trace rows returned for platform='SKODA_OCTAVIA', device='a0001', route='00014' "
+            "in mf4_signals_v4. Verify these platform/device/route identifiers match an existing "
+            "recording, or link the correct trace source to this cell."
+        )
     else:
-        focus_t = wide.index[len(wide) // 2]
-        focus_reason = "midpoint of trace (no gated samples found)"
-
-    focus_pos = annotated.index.get_indexer([focus_t])[0]
-    half_window = 60
-    lo = max(focus_pos - half_window, 0)
-    hi = min(focus_pos + half_window + 1, len(annotated))
-    evidence = annotated.iloc[lo:hi].reset_index().rename(columns={"index": "t_s"})
-
-    criteria_lines = [
-        f"- **C1** (2 s trailing avg deceleration must stay \u2265 -3.5 m/s\u00b2 limiter, "
-        f"settled + brake-off, n={len(c1_series)}): "
-        f"min={round(c1_min, 3) if c1_min is not None else 'n/a'} m/s\u00b2 -> **{'PASS' if c1_pass else 'FAIL'}**",
-        f"- **C2** (post-limiter brake request must stay \u2265 -3.5 m/s\u00b2, settled ACC-active, "
-        f"n={len(c2_series)}): "
-        f"min={round(c2_min, 3) if c2_min is not None else 'n/a'} m/s\u00b2 -> **{'PASS' if c2_pass else 'FAIL'}**",
-        f"- **C3** (non-vacuity: instantaneous decel must reach \u2264 -3.0 m/s\u00b2 under ACC control, "
-        f"n={len(c3_series)}): "
-        f"min={round(c3_min, 3) if c3_min is not None else 'n/a'} m/s\u00b2 -> **{'PASS' if c3_pass else 'FAIL'}**",
-    ]
-
-    description = (
-        f"### ACC-SYS-TC-014 Evaluation \u2014 **{verdict}**\n\n"
-        f"Route `00014`, device `a0001`, platform `SKODA_OCTAVIA`.\n\n"
-        + "\n".join(criteria_lines)
-        + f"\n\nEvidence window below is centred on {focus_reason}, showing achieved "
-          f"deceleration, the 2 s trailing average, brake request, driver brake pedal and "
-          f"ACC status around that point."
-    )
-
-    return ql.Findings(
-        [
-            ql.Finding(
-                evidence,
-                description=description,
-                partitions={"platform": "SKODA_OCTAVIA", "device": "a0001", "route": "00014"},
-                time=f"{evidence['t_s'].min():.3f}s - {evidence['t_s'].max():.3f}s",
-                query=query.strip(),
+        missing_cols = required_cols - set(df.columns)
+        if missing_cols:
+            report = _blocked_report(
+                f"mf4_signals_v4 returned rows but is missing expected long-format columns "
+                f"{sorted(missing_cols)}. Columns present: {list(df.columns)}."
             )
-        ],
-        title=f"ACC-SYS-TC-014 Evaluation Report \u2014 {verdict}",
-    )
+        else:
+            wdf = df.copy()
+            wdf["t_s"] = wdf["ts_ms"] / 1000.0
+            wide = wdf.pivot_table(index="t_s", columns="signal", values="value", aggfunc="first").sort_index().ffill()
+
+            needed_signals = ["ACC_Status", "DrvBrkPedal_Pct", "VehAccel_mps2", "BrkReq_mps2"]
+            missing_signals = [s for s in needed_signals if s not in wide.columns]
+
+            if missing_signals:
+                report = _blocked_report(
+                    f"Trace is missing required signal(s) {missing_signals} for the ACC-SYS-TC-014 "
+                    f"acceptance criteria. Signals present: {sorted(wide.columns)}."
+                )
+            else:
+                # Entry criteria: contiguous ACC-active (Status 2/3) segment, settled 0.5 s in from each entry
+                t_series = wide.index.to_series()
+                acc_active = wide["ACC_Status"].isin([2, 3])
+                run_id = (acc_active != acc_active.shift()).cumsum()
+                run_start_time = t_series.groupby(run_id).transform("min")
+                settle_s = 0.5
+                settled_mask = acc_active & ((t_series - run_start_time) >= settle_s)
+
+                state = wide[settled_mask]                                     # ACC active, settled -- used by C2
+                gated = state[state["DrvBrkPedal_Pct"] <= 0.0]                  # + driver off the brake -- used by C1/C3
+
+                # C1: 2 s trailing moving average of the ACHIEVED deceleration (VehAccel_mps2), gated window
+                dt = t_series.diff().median()
+                window_n = max(int(round(2.0 / dt)), 1) if dt and dt > 0 else 1
+                mov_avg = wide["VehAccel_mps2"].rolling(window_n, min_periods=window_n).mean()
+                c1_series = mov_avg.loc[gated.index].dropna()
+                c1_min = float(c1_series.min()) if len(c1_series) else None
+                c1_pass = len(c1_series) >= 200 and c1_min is not None and c1_min >= -3.5 - 0.05
+
+                # C2: post-limiter deceleration request (BrkReq_mps2), settled ACC-active window
+                c2_series = state["BrkReq_mps2"]
+                c2_min = float(c2_series.min()) if len(c2_series) else None
+                c2_pass = len(c2_series) >= 200 and c2_min is not None and c2_min >= -3.5
+
+                # C3: non-vacuity guard -- the run really did brake hard under ACC control
+                c3_series = gated["VehAccel_mps2"]
+                c3_min = float(c3_series.min()) if len(c3_series) else None
+                c3_pass = len(c3_series) >= 200 and c3_min is not None and c3_min <= -3.0
+
+                verdict = "PASS" if (c1_pass and c2_pass and c3_pass) else "FAIL"
+
+                report = dict(
+                    tc_id=tc_id,
+                    verdict=verdict,
+                    C1_verdict="PASS" if c1_pass else "FAIL",
+                    C1_min_2s_avg_accel_mps2=round(c1_min, 4) if c1_min is not None else None,
+                    C1_n=len(c1_series),
+                    C2_verdict="PASS" if c2_pass else "FAIL",
+                    C2_min_brake_request_mps2=round(c2_min, 4) if c2_min is not None else None,
+                    C2_n=len(c2_series),
+                    C3_verdict="PASS" if c3_pass else "FAIL",
+                    C3_min_instantaneous_accel_mps2=round(c3_min, 4) if c3_min is not None else None,
+                    C3_n=len(c3_series),
+                    gated_span_s=round(gated.index.max() - gated.index.min(), 3) if len(gated) else 0.0,
+                )
+
+    report
 
 
 @canvas.ai(position=(-653, 1888), size=(560, 420), code_height=200, viz={'findingsStore': 'ai_3_store'})
