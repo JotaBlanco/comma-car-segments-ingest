@@ -21,3 +21,6 @@ next-env.d.ts
 
 # scratch
 .tmp/
+
+# Internal planning notes - local only, not shared via the repo
+dev-planning/
