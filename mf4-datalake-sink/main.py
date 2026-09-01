@@ -325,7 +325,7 @@ def parse_hive_columns(columns_str: str) -> tuple[list[str], list[str]]:
 app = Application(
     broker_address=os.getenv("KAFKA_BOOTSTRAP_SERVERS"),
     consumer_group=os.getenv("CONSUMER_GROUP", "mdf_file_test_lake_v1"),
-    auto_offset_reset=os.getenv("AUTO_OFFSET_RESET", "latest"),
+    auto_offset_reset=os.getenv("AUTO_OFFSET_RESET", "earliest"),
     commit_interval=_positive_int("COMMIT_INTERVAL", "30"),
     commit_every=_positive_int("BATCH_SIZE", "30"),
 )
@@ -398,8 +398,8 @@ blob_sink = _FlushScopedWarningSink(
     namespace=os.getenv("CATALOG_NAMESPACE", "default"),
     auto_create_bucket=True,
     max_workers=_positive_int("MAX_WRITE_WORKERS", "10"),
-    on_client_connect_success=lambda: print("CONNECTED!"),
-    on_client_connect_failure=lambda e: print(f"ERROR! {e}"),
+    on_client_connect_success=lambda: logger.info("lakehouse client connected"),
+    on_client_connect_failure=lambda e: logger.error("lakehouse client failed: %s", e),
 )
 
 # Create streaming dataframe

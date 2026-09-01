@@ -54,6 +54,11 @@ variables:
     inputType: Options
     description: Where to start consuming if no offset exists
     defaultValue: earliest
+    options:
+      - label: Earliest - replay the whole topic
+        value: earliest
+      - label: Latest - only messages produced from now on
+        value: latest
   - name: LOGLEVEL
     inputType: Options
     description: Application logging level
