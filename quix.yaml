@@ -58,11 +58,11 @@ deployments:
         memory: 2000
     variables:
       - name: TABLE_NAME
-        value: mf4_signals_v4
-      - name: CONSUMER_GROUP
-        value: mf4_signals_v4_lake_v1
+        value: mf4_signals_v5
       - name: BATCH_SIZE
         value: 50
+      - name: CONSUMER_GROUP
+        value: mf4_signals_v5
     blobStorage:
       bind: true
   - name: Test Manager - Backend
@@ -102,13 +102,7 @@ deployments:
         value: https://grafana-testrigorg-commacarsegmentsingest-t-b5554eca.testrig-depl.dev.quix.io
       - name: LAKEHOUSE_UI_URL
         inputType: FreeText
-        description: The Lakehouse UI - tables and partitions - framed by the Lakehouse
-          page. An org-global deployment (testrigorg-global), which is why it does not
-          appear in this workspace's deployment list, and it pairs with the lh-cat-3d7475f5
-          catalog the sink writes through. The portal's own /lakehouse route was used
-          first and was wrong because it boots the whole portal shell around the panel.
-          Grafana
-          charts the same data and is framed by Measurements instead.
+        description: The Lakehouse UI - tables and partitions - framed by the Lakehouse page. An org-global deployment (testrigorg-global), which is why it does not appear in this workspace's deployment list, and it pairs with the lh-cat-3d7475f5 catalog the sink writes through. The portal's own /lakehouse route was used first and was wrong because it boots the whole portal shell around the panel. Grafana charts the same data and is framed by Measurements instead.
         value: https://lh-ui-3d7475f5-testrigorg-global.testrig-depl.dev.quix.io
       - name: MONGO_PASSWORD
         variableKey: mongo_password
