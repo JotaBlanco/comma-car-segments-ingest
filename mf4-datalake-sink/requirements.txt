@@ -4,7 +4,7 @@
 # hive_columns verbatim into df.groupby() and would create literal "~signal="
 # directories. Do not relax this pin without re-checking
 # quixstreams/sinks/core/quix_ts_datalake_sink.py for "~" handling.
-quixstreams[quixdatalake]  @ git+https://github.com/quixio/quix-streams.git@c888997ab65303a5565cef84da687eb3d6f98790
+quixstreams[quixdatalake]  @ git+https://github.com/quixio/quix-streams.git@00f130e98b70a1a8e19e49f2563d3be489a21f81
 python-dotenv
 
 # Blob storage support via quixportal (AWS S3, Azure, GCP, MinIO)
