@@ -46,14 +46,6 @@ variables:
     inputType: FreeText
     description: Kafka commit interval in seconds
     defaultValue: 30
-  - name: KAFKA_KEY_DESERIALIZER
-    inputType: FreeText
-    description: The key deserializer to use
-    defaultValue: str
-  - name: KAFKA_VALUE_DESERIALIZER
-    inputType: FreeText
-    description: the value deserializer to use
-    defaultValue: json
   - name: CONSUMER_GROUP
     inputType: FreeText
     description: Kafka consumer group name. Must change together with TABLE_NAME so AUTO_OFFSET_RESET=earliest replays the topic into the new table.

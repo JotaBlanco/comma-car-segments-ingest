@@ -64,6 +64,8 @@ The Kafka message key is the signal name (matches the in-payload
 (``"<name>#g<group_idx>"``) on second-and-later occurrences. This means
 messages for one file are spread across partitions by signal; the sink
 does not depend on per-file ordering since each Iceberg row is independent.
+**This sink never reads that key.** Every column, ``signal`` included, comes
+from the payload - see the NOTE above ``sdf.sink`` for why.
 
 For a CAN bus-logging MF4 the decoder resolves the raw frames against the DBC
 embedded in the file and emits the decoded signal names (``ACC_ObjDist``,
@@ -401,21 +403,15 @@ blob_sink = _FlushScopedWarningSink(
 )
 
 # Create streaming dataframe
-sdf = app.dataframe(topic=app.topic(os.environ["input"], key_deserializer="str"))
+sdf = app.dataframe(topic=app.topic(os.environ["input"]))
 
 # Expand batched payload: one Kafka message (per-channel scalar+array) -> N records.
 sdf = sdf.apply(_expand_columnar, expand=True)
 
-# Per-record signal from the message key (defensive duplicate; the decoder keys
-# every batch by the same string it puts in the payload's `signal` scalar, and
-# a pre-v3 message keys by its `channel` scalar - so this resolves the rename
-# for the replayed backlog too).
-# `or value["signal"]` matters now that `signal` is a VIRTUAL partition: a
-# keyless message would otherwise null the column, and the catalog marks a file
-# virtual_indexed as a whole - an unindexed null row inside an indexed file gets
-# pruned away by any `WHERE signal = ...`. _expand_columnar guarantees non-null;
-# this keeps that guarantee.
-sdf["signal"] = sdf.apply(lambda value, key, *_: key or value["signal"], metadata=True)
+# NOTE: `signal` is deliberately NOT re-derived from the Kafka message key here.
+# A key addresses a message; it is not a row's identity, and coupling a table
+# column to the producer's keying scheme breaks the column the day the producer
+# re-keys. `_expand_columnar` reads it from the payload and guarantees non-null.
 
 # Attach sink
 sdf.sink(blob_sink)
