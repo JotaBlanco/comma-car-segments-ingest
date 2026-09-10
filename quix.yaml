@@ -289,8 +289,6 @@ deployments:
     variables:
       - name: GF_SECURITY_ADMIN_PASSWORD
         variableKey: grafana_password
-      - name: GF_SERVER_ROOT_URL
-        value: https://lh-query-3d7475f5-testrigorg-global.testrig-depl.dev.quix.io
       - name: Quix__Lakehouse__Query__AuthToken
         variableKey: QuixLakeToken
     plugin:
