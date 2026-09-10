@@ -19,4 +19,4 @@
 # The base image already sets ENTRYPOINT (its entrypoint renders the datasource
 # provisioning file from the injected Quix__Lakehouse__* vars, then starts Grafana),
 # GF_PATHS_PROVISIONING and the unsigned-plugin allowlist. Nothing to repeat here.
-FROM ghcr.io/quixio/quixlakehouse-grafana:sha-d6e0b65
+FROM ghcr.io/quixio/quixlakehouse-grafana@sha256:0e07de7986d1f23de38e6f6ed57916cc5dd862652fa3406dcbe02e210d91f0a2
