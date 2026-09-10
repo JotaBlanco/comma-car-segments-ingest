@@ -294,6 +294,8 @@ deployments:
         value: https://grafana-testrigorg-commacarsegmentsingest-t-b5554eca.testrig-depl.dev.quix.io
       - name: GF_LOG_LEVEL
         value: debug
+      - name: GF_DATABASE_MIGRATION_LOCKING
+        value: true
       - name: Quix__Lakehouse__Query__AuthToken
         variableKey: QuixLakeToken
     plugin:
