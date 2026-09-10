@@ -281,6 +281,7 @@ deployments:
     state:
       enabled: true
       size: 1
+      path: /app/state/grafana
     network:
       serviceName: grafana
       ports:
