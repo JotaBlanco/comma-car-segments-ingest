@@ -288,8 +288,6 @@ deployments:
         - port: 80
           targetPort: 3000
     variables:
-      - name: GF_SECURITY_ALLOW_EMBED
-        value: false
       - name: GF_SECURITY_ADMIN_PASSWORD
         variableKey: grafana_password
       - name: GF_SERVER_ROOT_URL
