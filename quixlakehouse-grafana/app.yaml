@@ -9,7 +9,7 @@ blobStorage:
   bind: true
 
 variables:
-  - name: GF_SECURITY_ALLOW_EMBED
+  - name:  GF_SECURITY_ALLOW_EMBEDDING
     inputType: FreeText
     description: Must be true for Test Manager's Lakehouse page to frame Grafana. Left
       false, Grafana sends X-Framr refuses the frame with
