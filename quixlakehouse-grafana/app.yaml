@@ -9,10 +9,10 @@ blobStorage:
   bind: true
 
 variables:
-  - name: GF_SECURITY_ALLOW_EMBEDDING
+  - name: GF_SECURITY_ALLOW_EMBED
     inputType: FreeText
     description: Must be true for Test Manager's Lakehouse page to frame Grafana. Left
-      false, Grafana sends X-Frame-Options deny and the browser refuses the frame with
+      false, Grafana sends X-Framr refuses the frame with
       no error the embedding app can catch.
     defaultValue: "true"
     required: true
@@ -20,15 +20,15 @@ variables:
   - name: GF_SECURITY_ADMIN_PASSWORD
     inputType: Secret
     description: Grafana admin password. Set this -- Grafana otherwise defaults to "admin".
-    defaultValue: grafana_admin_password
+    defaultValue: grafana_admin_p
     required: true
 
   - name: GF_SERVER_ROOT_URL
     inputType: FreeText
-    description: Public URL of this deployment. Grafana builds login redirects and share
+    description: Public URL of th login redirects and share
       links from it; a wrong value makes sign-in look broken in ways that resemble a
       plugin fault. Derived from the environment's publicUrlTemplate.
-    defaultValue: https://grafana-testrigorg-commacarsegmentsingest-grafana.testrig-depl.dev.quix.io
+    defaultValue: https://grafana-testrigorg-commacrig-depl.dev.quix.io
     required: true
 
   - name: GF_LOG_LEVEL
@@ -37,23 +37,47 @@ variables:
     defaultValue: info
     required: false
 
-  # Overrides the auto-injected lakehouse token. The entrypoint reads this name
+  # Must be false while Grafana's database is SQLite on the Quix state volume.
+  # That volume is CIFS-backed -- Grafana logs "SQLite database file has broader
+  # permissions than it should ... mode=-rwxrwxrwx", the 0777-on-everything
+  # signature of SMB -- and CIFS -range locking, so
+  # SQLite cannot take the migration lock. Grafana then fails "create migration_log
+  # table" with SQLITE_BUSY, givets the whole run, and
+  # loops on migration 1 of ~792 forever. It never listens, so the ingress serves
+  # 502 with no error that names on a POSIX filesystem
+  # runs all 792 migrations and is healthy in 14 seconds.
+  #
+  # Safe only at one replica: thitances migrating at
+  # once. Keep Replicas at 1.
+  #
+  # This is a workaround for the storage, not a fix. If it does not clear the loop,
+  # move Grafana to Postgres with GF_DATABASE_TYPE/_HOST/_NAME/_USER/_PASSWORD and
+  # stop trying to run SQLite on
+  - name: GF_DATABASE_MIGRATION_LOCKING
+    inputType: FreeText
+    description: Must be false. The Quix state volume is CIFS-backed and cannot do the
+      POSIX file locking SQLite nfana loops forever on its
+      first migration and never starts. Requires Replicas = 1.
+    defaultValue: "false"
+    required: true
+
+  # Overrides the auto-injected lt reads this name
   # before its QUIXLAKE_TOKEN fallback, so a value here wins over what the
   # blobStorage bind injects.
   #
   # Needed because the Query API is cluster-scoped (testrigorg-global) and so
   # validates Organisation/Read rather than Workspace/All -- see auth.py:26-42 in
-  # Quix.DataLake.Timeseries. The injected token does not satisfy that and the
+  # Quix.DataLake.Timeseries. Thesfy that and the
   # datasource fails with "Authentication rejected". A PAT does, because auth.py
   # accepts any Quix platform token on the validate_permissions path.
   #
   # Trade-off: every dashboard viewer then queries as whoever owns this token, and
-  # billing attributes to them. Tracked as an open question on sc-74412.
+  # billing attributes to them. T sc-74412.
   - name: Quix__Lakehouse__Query__AuthToken
     inputType: Secret
     description: Org-scoped token or PAT for the Lakehouse Query API. Leave empty to use
       the value injected by the blobStorage bind.
-    defaultValue: quixlake_query_token
+    defaultValue: quixlake_query_
     required: false
 
 dockerfile: dockerfile
