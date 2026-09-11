@@ -21,4 +21,4 @@
 # GF_PATHS_PROVISIONING and the unsigned-plugin allowlist. Nothing to repeat here.
 
 #FROM ghcr.io/quixio/quixlakehouse-grafana:0.1.0
-FROM ghcr.io/quixio/quixlakehouse-grafana@sha256:80f9591c9c11d7c0784728c7427d1f53683d496ce7cefa431fe8ff1d79c1e228
+FROM ghcr.io/quixio/quixlakehouse-grafana@sha256:95d1f37154a58c58933ef30f65c335cdda6c979244dafa48db4b7939cd277d2b
