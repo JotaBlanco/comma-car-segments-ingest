@@ -1,0 +1,79 @@
+name: MF4 DataLake Sink
+language: python
+variables:
+  - name: input
+    inputType: InputTopic
+    description: Name of the Kafka input topic to consume from (per-channel batched MF4 messages)
+    defaultValue: mf4-to-msg
+    required: true
+  - name: TABLE_NAME
+    inputType: FreeText
+    multiline: false
+    description: Iceberg table name; defaults to topic name if unset. A new name is required whenever HIVE_COLUMNS changes - the sink validates the partition spec of an existing table at setup() and refuses a mismatch.
+    defaultValue: mf4_signals_v3
+  - name: HIVE_COLUMNS
+    inputType: FreeText
+    multiline: false
+    description: >-
+      Comma-separated columns for Hive partitioning. Include year/month/day/hour
+      to extract them from TIMESTAMP_COLUMN. A leading '~' marks a VIRTUAL
+      partition: it appears in the partition tree and prunes queries via the
+      catalog index, but is not written as a key=value directory and does not
+      split files. Supported by the pinned QuixStreams commit
+      (c888997ab65303a5565cef84da687eb3d6f98790) and by nothing older. Mirrors
+      the reference can_signals_v13 table.
+    defaultValue: platform,device,route,~channel_name,~sender_node,~frame_name,~signal
+  - name: TIMESTAMP_COLUMN
+    inputType: FreeText
+    description: Column containing timestamp values to extract year/month/day/hour from
+    defaultValue: ts_ms
+  - name: AUTO_DISCOVER
+    inputType: Options
+    description: Automatically register table in REST Catalog on first write
+    defaultValue: true
+  - name: CATALOG_NAMESPACE
+    inputType: FreeText
+    description: Catalog namespace for table registration
+    defaultValue: default
+  - name: BATCH_SIZE
+    inputType: FreeText
+    description: >-
+      Input messages per checkpoint (commit_every). Each one fans out to ~1388
+      rows via apply(expand=True), so this is NOT a row count. 2000 OOM-killed
+      the pod at a 2000MB memory limit; keep it at 500 unless the limit rises.
+    defaultValue: 500
+  - name: COMMIT_INTERVAL
+    inputType: FreeText
+    description: Kafka commit interval in seconds
+    defaultValue: 30
+  - name: CONSUMER_GROUP
+    inputType: FreeText
+    description: Kafka consumer group name. Must change together with TABLE_NAME so AUTO_OFFSET_RESET=earliest replays the topic into the new table.
+    defaultValue: mf4_signals_v3_lake_v1
+  - name: AUTO_OFFSET_RESET
+    inputType: Options
+    description: Where to start consuming if no offset exists
+    defaultValue: earliest
+    options:
+      - label: Earliest - replay the whole topic
+        value: earliest
+      - label: Latest - only messages produced from now on
+        value: latest
+  - name: LOGLEVEL
+    inputType: Options
+    description: Application logging level
+    defaultValue: INFO
+  - name: SORT_COLUMN
+    inputType: FreeText
+    description: >-
+      Column recorded on the table as properties.sort_column. Lakehouse
+      compaction rewrites files ordered by it so time-range / ORDER BY queries
+      can skip whole files. Leave empty to fall back to TIMESTAMP_COLUMN.
+    defaultValue: ts_ms
+  - name: MAX_WRITE_WORKERS
+    inputType: FreeText
+    description: How many files can be written in parallel to storage at once (based on partitioning + batch size)
+    defaultValue: 10
+dockerfile: dockerfile
+runEntryPoint: main.py
+defaultFile: main.py

@@ -1,0 +1,1621 @@
+{
+  "created_by": "acc_project build_reqs (tools/accreqs/json_writer.py)",
+  "created_utc": "2026-08-18T00:00:00+00:00",
+  "item_count": 37,
+  "item_ids": [
+    "ACC-SYS-FUN-001",
+    "ACC-SYS-FUN-002",
+    "ACC-SYS-FUN-003",
+    "ACC-SYS-FUN-004",
+    "ACC-SYS-FUN-005",
+    "ACC-SYS-FUN-006",
+    "ACC-SYS-FUN-021",
+    "ACC-SYS-FUN-022",
+    "ACC-SYS-FUN-023",
+    "ACC-SYS-FUN-041",
+    "ACC-SYS-FUN-042",
+    "ACC-SYS-FUN-060",
+    "ACC-SYS-FUN-061",
+    "ACC-SYS-PRF-001",
+    "ACC-SYS-PRF-002",
+    "ACC-SYS-PRF-003",
+    "ACC-SYS-PRF-020",
+    "ACC-SYS-PRF-021",
+    "ACC-SYS-PRF-022",
+    "ACC-SYS-PRF-040",
+    "ACC-SYS-PRF-041",
+    "ACC-SYS-PRF-042",
+    "ACC-SYS-PRF-060",
+    "ACC-SYS-PRF-061",
+    "ACC-SYS-PRF-062",
+    "ACC-SYS-SAF-001",
+    "ACC-SYS-SAF-002",
+    "ACC-SYS-SAF-003",
+    "ACC-SYS-SAF-004",
+    "ACC-SYS-SAF-021",
+    "ACC-SYS-SAF-022",
+    "ACC-SYS-SAF-023",
+    "ACC-SYS-SAF-024",
+    "ACC-SYS-SAF-040",
+    "ACC-SYS-SAF-041",
+    "ACC-SYS-SAF-042",
+    "ACC-SYS-SAF-060"
+  ],
+  "items": [
+    {
+      "chapter": "Functional-HMI",
+      "ears_pattern": "Ubiquitous",
+      "figure_refs": [
+        "F2"
+      ],
+      "id": "ACC-SYS-FUN-001",
+      "measurand": [],
+      "rationale": "ISO 15622:2018 defines ACC behaviour as a set of control sub-states, the speed control sub-state (cl. 3.12.2), the following control sub-state (cl. 3.12.5) and the FSRA hold state (cl. 3.12.6), and cl. 6.1 requires an FSRA-type system to change into the hold state after standstill. The standard does not enumerate a complete state set for an implementation, so the seven-state set is project-owned: Off, Standby, Active-Cruise, Active-Follow and Active-Hold map onto the sub-states of the standard plus the inactive conditions, Driver-Override carries the cl. 6.3.1 pedal precedence, and Degraded-Fault carries the cl. 6.6 failure reactions. Overlap rule O2 places the existence of every state, including Degraded-Fault, in the Functional chapter. Owned by the systems engineer, 2026-08-18.",
+      "related_reqs": [
+        "ACC-SYS-FUN-002",
+        "ACC-SYS-FUN-005",
+        "ACC-SYS-SAF-021"
+      ],
+      "revision": "2.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "ISO 15622:2018 cl. 3.12.2",
+        "ISO 15622:2018 cl. 3.12.5",
+        "ISO 15622:2018 cl. 3.12.6",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Approved",
+      "system_states": [
+        "Off",
+        "Standby",
+        "Active-Cruise",
+        "Active-Follow",
+        "Active-Hold",
+        "Driver-Override",
+        "Degraded-Fault"
+      ],
+      "text": "The ACC system shall provide the operating states Off, Standby, Active-Cruise, Active-Follow, Active-Hold, Driver-Override and Degraded-Fault.",
+      "title": "Operating state set",
+      "verification_method": "Inspection",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Functional-HMI",
+      "ears_pattern": "EventDriven",
+      "figure_refs": [
+        "F2"
+      ],
+      "id": "ACC-SYS-FUN-002",
+      "measurand": [
+        {
+          "name": "ignition",
+          "unit": "bool"
+        },
+        {
+          "name": "acc_state",
+          "unit": "enum"
+        }
+      ],
+      "rationale": "The ACC system needs a defined powered but inactive condition from which the driver can activate it, and a defined entry into that condition. No retrieved clause of ISO 15622:2018 specifies the power-on state, so the choice of Standby rather than Off after ignition on is project-owned; it is the behaviour that makes the cl. 6.2.1 activation transition reachable without a separate main switch. Owned by the systems engineer, 2026-08-18.",
+      "related_reqs": [
+        "ACC-SYS-FUN-001",
+        "ACC-SYS-FUN-003",
+        "ACC-SYS-FUN-004"
+      ],
+      "revision": "2.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Approved",
+      "system_states": [
+        "Off",
+        "Standby"
+      ],
+      "text": "When the ignition is switched on, the ACC system shall enter the Standby state.",
+      "title": "Entry to Standby on ignition on",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Functional-HMI",
+      "ears_pattern": "EventDriven",
+      "figure_refs": [
+        "F2"
+      ],
+      "id": "ACC-SYS-FUN-003",
+      "measurand": [
+        {
+          "name": "ignition",
+          "unit": "bool"
+        },
+        {
+          "name": "acc_state",
+          "unit": "enum"
+        }
+      ],
+      "rationale": "Every state of ACC-SYS-FUN-001 needs a defined exit to the unpowered condition, otherwise the state machine of figure F2 has no path back to Off and the Degraded-Fault state is a sink. No retrieved clause of ISO 15622:2018 specifies the power-down behaviour, so the transition is project-owned. Release of brake force on this transition is bounded separately by ACC-SYS-SAF-024, because combining a state transition with an actuator constraint would make this requirement compound (INCOSE R19). Owned by the systems engineer, 2026-08-18.",
+      "related_reqs": [
+        "ACC-SYS-FUN-002",
+        "ACC-SYS-SAF-024"
+      ],
+      "revision": "2.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Approved",
+      "system_states": [
+        "Off",
+        "Standby",
+        "Active-Cruise",
+        "Active-Follow",
+        "Active-Hold",
+        "Driver-Override",
+        "Degraded-Fault"
+      ],
+      "text": "When the ignition is switched off, the ACC system shall enter the Off state.",
+      "title": "Entry to Off on ignition off",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Functional-HMI",
+      "ears_pattern": "Complex",
+      "figure_refs": [
+        "F2"
+      ],
+      "id": "ACC-SYS-FUN-004",
+      "measurand": [
+        {
+          "name": "set_switch",
+          "unit": "bool"
+        },
+        {
+          "name": "acc_state",
+          "unit": "enum"
+        },
+        {
+          "name": "v_set",
+          "unit": "m/s"
+        }
+      ],
+      "rationale": "ISO 15622:2018 cl. 6.1 describes the active condition in which vehicle speed is controlled automatically, and cl. 6.3 covers the driver interface, but the driver-interface content is past the truncation point of the publisher-hosted preview, so no standardised activation command is available. Activation on a driver set command is project-owned. Activation while a fault is present is inhibited by ACC-SYS-SAF-042, which is a separate requirement because its trigger is a fault (overlap rule O2). Owned by the systems engineer, 2026-08-18. ACC-SYS-SAF-042 was rejected at the 2026-08-19 baseline review as a duplicate of the Standby guard of this requirement, so no separate activation-inhibit requirement exists; the guard of this statement and the recovery path of ACC-SYS-SAF-023 carry that behaviour between them.",
+      "related_reqs": [
+        "ACC-SYS-FUN-021",
+        "ACC-SYS-SAF-042"
+      ],
+      "revision": "2.1",
+      "schema_version": "1.0.0",
+      "source": [
+        "ISO 15622:2018 cl. 6.1",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Approved",
+      "system_states": [
+        "Standby",
+        "Active-Cruise"
+      ],
+      "text": "While the ACC system is in the Standby state, when the driver operates the set switch, the ACC system shall enter the Active-Cruise state.",
+      "title": "Activation to Active-Cruise on driver set command",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Functional-HMI",
+      "ears_pattern": "EventDriven",
+      "figure_refs": [
+        "F2"
+      ],
+      "id": "ACC-SYS-FUN-005",
+      "measurand": [
+        {
+          "name": "v_ego",
+          "unit": "m/s"
+        },
+        {
+          "name": "acc_state",
+          "unit": "enum"
+        },
+        {
+          "name": "t",
+          "unit": "s"
+        }
+      ],
+      "rationale": "ISO 15622:2018 cl. 6.1 requires an FSRA-type system to change from following control to the hold state within a time period not to exceed 3 s after the subject vehicle has come to a stop, and to keep the vehicle stationary by automatic brake control in that state. The 3 s value is read verbatim from the publisher-hosted 2018 preview and is one of the few clause-6 numbers confirmed for the current edition. The clearance held in the Active-Hold state is specified by ACC-SYS-PRF-003.",
+      "related_reqs": [
+        "ACC-SYS-FUN-006",
+        "ACC-SYS-PRF-003",
+        "ACC-SYS-PRF-042"
+      ],
+      "revision": "2.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "ISO 15622:2018 cl. 6.1"
+      ],
+      "status": "Approved",
+      "system_states": [
+        "Active-Follow",
+        "Active-Hold"
+      ],
+      "text": "When the subject vehicle reaches standstill while the ACC system is in the Active-Follow state, the ACC system shall enter the Active-Hold state within 3 s of standstill.",
+      "title": "Entry to Active-Hold after standstill",
+      "verification_method": "Test",
+      "verification_tag": "VERIFIED-PRIMARY",
+      "verified_by": []
+    },
+    {
+      "chapter": "Functional-HMI",
+      "ears_pattern": "Complex",
+      "figure_refs": [
+        "F2"
+      ],
+      "id": "ACC-SYS-FUN-006",
+      "measurand": [
+        {
+          "name": "resume_switch",
+          "unit": "bool"
+        },
+        {
+          "name": "acc_state",
+          "unit": "enum"
+        },
+        {
+          "name": "v_ego",
+          "unit": "m/s"
+        }
+      ],
+      "rationale": "ISO 15622:2018 cl. 6.2.4 is the resume-from-standstill clause, titled the Go transition, but its content is past the truncation point of the publisher-hosted preview, so no standardised resume trigger or timing is available. The only verified 2018 statement about it is the foreword change note that automatic start from hold is no longer prohibited, which is a permission and not a requirement. A driver resume command is therefore specified as the guaranteed path out of the hold state, and it is project-owned. The hands-off escalation that must precede a resume is carried by ACC-SYS-SAF-060. Owned by the systems engineer, 2026-08-18.",
+      "related_reqs": [
+        "ACC-SYS-FUN-005",
+        "ACC-SYS-SAF-060"
+      ],
+      "revision": "2.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "ISO 15622:2018 cl. 6.2.4",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Approved",
+      "system_states": [
+        "Active-Follow",
+        "Active-Hold"
+      ],
+      "text": "While the ACC system is in the Active-Hold state, when the driver operates the resume switch, the ACC system shall enter the Active-Follow state.",
+      "title": "Driver-commanded resume from Active-Hold",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Functional-HMI",
+      "ears_pattern": "StateDriven",
+      "figure_refs": [
+        "F2",
+        "F3"
+      ],
+      "id": "ACC-SYS-FUN-021",
+      "measurand": [
+        {
+          "name": "v_ego",
+          "unit": "m/s"
+        },
+        {
+          "name": "v_set",
+          "unit": "m/s"
+        },
+        {
+          "name": "d_clearance",
+          "unit": "m"
+        },
+        {
+          "name": "acc_control_mode",
+          "unit": "enum"
+        }
+      ],
+      "rationale": "ISO 15622:2018 cl. 6.1 states that when ACC is active the vehicle speed shall be controlled automatically either to maintain a clearance to a forward vehicle or to maintain the set speed, whichever speed is lower, and cl. 6.2.1 states the transition between the two control modes shall be made automatically. This requirement fixes the arbitration; the automatic-transition obligation is carried separately by ACC-SYS-FUN-022 so that neither statement is compound (INCOSE R19). The phrase \"the lower of A and B\" is a single selection response, not two combined responses, so R20 is satisfied.",
+      "related_reqs": [
+        "ACC-SYS-FUN-022",
+        "ACC-SYS-PRF-001",
+        "ACC-SYS-PRF-003"
+      ],
+      "revision": "2.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "ISO 15622:2018 cl. 6.1",
+        "ISO 15622:2018 cl. 6.2.1"
+      ],
+      "status": "Approved",
+      "system_states": [
+        "Active-Cruise",
+        "Active-Follow"
+      ],
+      "text": "While the ACC system is in the Active-Cruise state or the Active-Follow state, the ACC system shall control the subject vehicle speed to the lower of the set speed and the speed required to maintain the selected time gap to the target vehicle.",
+      "title": "Control-mode arbitration between set speed and following",
+      "verification_method": "Test",
+      "verification_tag": "VERIFIED-PRIMARY",
+      "verified_by": []
+    },
+    {
+      "chapter": "Functional-HMI",
+      "ears_pattern": "StateDriven",
+      "figure_refs": [
+        "F2"
+      ],
+      "id": "ACC-SYS-FUN-022",
+      "measurand": [
+        {
+          "name": "acc_control_mode",
+          "unit": "enum"
+        },
+        {
+          "name": "target_detected",
+          "unit": "bool"
+        },
+        {
+          "name": "v_ego",
+          "unit": "m/s"
+        }
+      ],
+      "rationale": "ISO 15622:2018 cl. 6.2.1 states verbatim that the transition between the control modes, following controlled or speed controlled, shall be made automatically, and cl. 6.1 states that the change between the two control modes is made automatically by the ACC system. Read from the publisher-hosted 2018 preview. This requirement carries only the automatic-transition obligation; which mode wins is carried by ACC-SYS-FUN-021 (INCOSE R19). The phrase \"between speed control and following control\" names the two endpoints of one transition, not two responses, so R20 is satisfied.",
+      "related_reqs": [
+        "ACC-SYS-FUN-021",
+        "ACC-SYS-FUN-023"
+      ],
+      "revision": "2.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "ISO 15622:2018 cl. 6.1",
+        "ISO 15622:2018 cl. 6.2.1"
+      ],
+      "status": "Approved",
+      "system_states": [
+        "Active-Cruise",
+        "Active-Follow"
+      ],
+      "text": "While the ACC system is in the Active-Cruise state or the Active-Follow state, the ACC system shall change between speed control and following control without driver input.",
+      "title": "Automatic transition between control modes",
+      "verification_method": "Test",
+      "verification_tag": "VERIFIED-PRIMARY",
+      "verified_by": []
+    },
+    {
+      "chapter": "Functional-HMI",
+      "ears_pattern": "StateDriven",
+      "figure_refs": [
+        "F3",
+        "F5"
+      ],
+      "id": "ACC-SYS-FUN-023",
+      "measurand": [
+        {
+          "name": "target_id",
+          "unit": "enum"
+        },
+        {
+          "name": "d_clearance",
+          "unit": "m"
+        },
+        {
+          "name": "v_target",
+          "unit": "m/s"
+        }
+      ],
+      "rationale": "ISO 15622:2018 cl. 6.1 states verbatim that if there is more than one forward vehicle, the one to be followed shall be selected automatically, and refers to cl. 6.2.3.3 for the selection detail; that sub-clause is past the truncation point of the publisher-hosted preview, so the selection criterion itself is project-owned. Smallest clearance is chosen because it is the criterion that makes the following-control requirements of ACC-SYS-PRF-001 and ACC-SYS-PRF-003 conservative for the closest vehicle. This rule also governs which vehicle becomes the target after a cut-in or a cut-out, so no separate reselection rule exists (INCOSE R32); the latency of a reselection is carried by ACC-SYS-PRF-062. Owned by the systems engineer, 2026-08-18. ACC-SYS-PRF-062 was retired at the 2026-08-19 baseline review, so the reselection latency is no longer specified separately; the outcome it protected is bounded by ACC-SYS-PRF-061.",
+      "related_reqs": [
+        "ACC-SYS-FUN-021",
+        "ACC-SYS-PRF-062"
+      ],
+      "revision": "1.1",
+      "schema_version": "1.0.0",
+      "source": [
+        "ISO 15622:2018 cl. 6.1",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Reviewed",
+      "system_states": [
+        "Active-Cruise",
+        "Active-Follow"
+      ],
+      "text": "While the ACC system is in the Active-Cruise state or the Active-Follow state and more than one forward vehicle is present in the subject vehicle lane, the ACC system shall select as the target vehicle the forward vehicle with the smallest clearance to the subject vehicle.",
+      "title": "Target vehicle selection among forward vehicles",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Functional-HMI",
+      "ears_pattern": "StateDriven",
+      "figure_refs": [
+        "F1",
+        "F2"
+      ],
+      "id": "ACC-SYS-FUN-041",
+      "measurand": [
+        {
+          "name": "accel_pedal_pos",
+          "unit": "%"
+        },
+        {
+          "name": "a_x_cmd_acc",
+          "unit": "m/s^2"
+        },
+        {
+          "name": "acc_state",
+          "unit": "enum"
+        }
+      ],
+      "rationale": "ISO 15622:2018 cl. 6.3.1 places driver override precedence in the standard, accelerator input taking priority over ACC engine control, but the clause is past the truncation point of the publisher-hosted preview and was read from the ISO/TC 204 community extract, a non-official source, hence VERIFIED-SECONDARY. The requirement is written as a state invariant rather than as an entry event and an exit event, so that one statement specifies both the entry to and the exit from the Driver-Override state without becoming compound (INCOSE R19). Overlap rule O5 places driver pedal override in the Functional chapter: the driver is commanding and nothing is wrong. Brake pedal input is handled by ACC-SYS-FUN-042 because its response is a different state.",
+      "related_reqs": [
+        "ACC-SYS-FUN-042",
+        "ACC-SYS-FUN-060"
+      ],
+      "revision": "2.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "ISO 15622:2018 cl. 6.3.1"
+      ],
+      "status": "Approved",
+      "system_states": [
+        "Active-Cruise",
+        "Active-Follow",
+        "Active-Hold",
+        "Driver-Override"
+      ],
+      "text": "While the driver accelerator pedal position requests a powertrain torque greater than the powertrain torque requested by the ACC system, the ACC system shall be in the Driver-Override state.",
+      "title": "Accelerator pedal override precedence",
+      "verification_method": "Test",
+      "verification_tag": "VERIFIED-SECONDARY",
+      "verified_by": []
+    },
+    {
+      "chapter": "Functional-HMI",
+      "ears_pattern": "Complex",
+      "figure_refs": [
+        "F1",
+        "F2"
+      ],
+      "id": "ACC-SYS-FUN-042",
+      "measurand": [
+        {
+          "name": "brake_pedal_switch",
+          "unit": "bool"
+        },
+        {
+          "name": "cancel_switch",
+          "unit": "bool"
+        },
+        {
+          "name": "acc_state",
+          "unit": "enum"
+        }
+      ],
+      "rationale": "ISO 15622:2018 cl. 6.3.1 places driver braking precedence over ACC braking in the standard; the clause is past the truncation point of the publisher-hosted preview and was read from the ISO/TC 204 community extract, hence VERIFIED-SECONDARY. The cancel switch is the second deactivation trigger and is project-owned. Both triggers are carried by one requirement because they are alternative conditions on one response, the entry to Standby; INCOSE R20 forbids combining two responses, not two trigger conditions. Release of brake force on this transition is bounded by ACC-SYS-SAF-024.",
+      "related_reqs": [
+        "ACC-SYS-FUN-041",
+        "ACC-SYS-SAF-024"
+      ],
+      "revision": "2.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "ISO 15622:2018 cl. 6.3.1",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Approved",
+      "system_states": [
+        "Standby",
+        "Active-Cruise",
+        "Active-Follow",
+        "Active-Hold"
+      ],
+      "text": "While the ACC system is in the Active-Cruise state, the Active-Follow state or the Active-Hold state, when the driver depresses the brake pedal or operates the cancel switch, the ACC system shall enter the Standby state.",
+      "title": "Deactivation to Standby on driver cancel command",
+      "verification_method": "Test",
+      "verification_tag": "VERIFIED-SECONDARY",
+      "verified_by": []
+    },
+    {
+      "chapter": "Functional-HMI",
+      "ears_pattern": "StateDriven",
+      "figure_refs": [
+        "F1"
+      ],
+      "id": "ACC-SYS-FUN-060",
+      "measurand": [],
+      "rationale": "ISO 15622:2018 cl. 6.3 covers the driver interface but its content is past the truncation point of the publisher-hosted preview, so no standardised display content list is available. The four indicated quantities are the information the driver needs to predict ACC behaviour: the state determines whether ACC is controlling the vehicle, the set speed and the time gap setting determine the target of that control, and the target detected status distinguishes speed control from following control. They form one indication set presented by one function, so this is a singular requirement under INCOSE R19; the enumeration is the object of one response, not four responses. Overlap rule O4 places nominal-state indication in the Functional chapter; fault annunciation is ACC-SYS-SAF-004. Owned by the systems engineer, 2026-08-18.",
+      "related_reqs": [
+        "ACC-SYS-FUN-021",
+        "ACC-SYS-SAF-004"
+      ],
+      "revision": "1.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "ISO 15622:2018 cl. 6.3",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Draft",
+      "system_states": [
+        "Standby",
+        "Active-Cruise",
+        "Active-Follow",
+        "Active-Hold",
+        "Driver-Override",
+        "Degraded-Fault"
+      ],
+      "text": "While the ACC system is in the Standby state, the Active-Cruise state, the Active-Follow state, the Active-Hold state, the Driver-Override state or the Degraded-Fault state, the ACC system shall indicate to the driver the ACC state, the set speed, the selected time gap setting and the target detected status.",
+      "title": "Driver indication of ACC status",
+      "verification_method": "Demonstration",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Functional-HMI",
+      "ears_pattern": "EventDriven",
+      "figure_refs": [
+        "F1"
+      ],
+      "id": "ACC-SYS-FUN-061",
+      "measurand": [
+        {
+          "name": "brake_light",
+          "unit": "bool"
+        },
+        {
+          "name": "a_x_cmd_acc",
+          "unit": "m/s^2"
+        },
+        {
+          "name": "t",
+          "unit": "s"
+        }
+      ],
+      "rationale": "Engineering assumption, not a confirmed 2018 value. ISO 15622:2018 cl. 6.5 is titled Activation of brake lights and its existence and title are confirmed from the table of contents of the publisher-hosted 2018 preview, but the preview truncates in cl. 6.2.3 and never reaches cl. 6.5, so the 2018 timing could not be read from any primary source. The 100 ms value is verbatim from ISO/DIS 15622 (1999) cl. 6.5, a verbatim copy of the draft international standard, which is primary for that draft and superseded for the published editions. The value is therefore tagged UNVERIFIED-2018; obtaining ISO 15622:2018 cl. 6.5 and confirming the timing is an open action in the assumptions register. Overlap rule O3 places a latency on a discrete output in the Functional chapter.",
+      "related_reqs": [
+        "ACC-SYS-PRF-020",
+        "ACC-SYS-SAF-040"
+      ],
+      "revision": "2.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "ISO/DIS 15622 (1999) cl. 6.5"
+      ],
+      "status": "Approved",
+      "system_states": [
+        "Active-Cruise",
+        "Active-Follow",
+        "Active-Hold"
+      ],
+      "text": "When the ACC system initiates automatic service braking of the subject vehicle, the ACC system shall illuminate the brake lights within 100 ms of that initiation.",
+      "title": "Brake light illumination on automatic braking",
+      "verification_method": "Test",
+      "verification_tag": "UNVERIFIED-2018",
+      "verified_by": []
+    },
+    {
+      "chapter": "Performance",
+      "ears_pattern": "StateDriven",
+      "figure_refs": [
+        "F3"
+      ],
+      "id": "ACC-SYS-PRF-001",
+      "measurand": [
+        {
+          "name": "tau_gap",
+          "unit": "s"
+        },
+        {
+          "name": "d_clearance",
+          "unit": "m"
+        },
+        {
+          "name": "v_ego",
+          "unit": "m/s"
+        }
+      ],
+      "rationale": "ISO 15622:2018 cl. 6.2.3.1 states verbatim that the minimum selectable time gap for following control mode under steady-state conditions for all speeds v shall be greater than or equal to 0,8 s. Read from the publisher-hosted 2018 preview, which reaches this clause. Note the value changed across editions, the 2002 first edition required a minimum of 1 s, so the edition is stated explicitly. The phrase \"every subject vehicle speed within the operating speed range\" replaces the phrase \"all speeds\" of the standard to avoid the universal qualifier flagged by INCOSE R34 while preserving the intent of the standard.",
+      "related_reqs": [
+        "ACC-SYS-FUN-021",
+        "ACC-SYS-PRF-002",
+        "ACC-SYS-PRF-003"
+      ],
+      "revision": "2.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "ISO 15622:2018 cl. 6.2.3.1"
+      ],
+      "status": "Approved",
+      "system_states": [
+        "Active-Follow"
+      ],
+      "text": "While the ACC system is in the Active-Follow state under steady-state conditions, the ACC system shall maintain a time gap to the target vehicle of not less than 0,8 s at every subject vehicle speed within the operating speed range.",
+      "title": "Minimum selectable time gap",
+      "verification_method": "Test",
+      "verification_tag": "VERIFIED-PRIMARY",
+      "verified_by": []
+    },
+    {
+      "chapter": "Performance",
+      "ears_pattern": "Ubiquitous",
+      "figure_refs": [
+        "F3"
+      ],
+      "id": "ACC-SYS-PRF-002",
+      "measurand": [
+        {
+          "name": "tau_gap",
+          "unit": "s"
+        },
+        {
+          "name": "gap_setting",
+          "unit": "enum"
+        },
+        {
+          "name": "v_ego",
+          "unit": "m/s"
+        }
+      ],
+      "rationale": "ISO 15622:2018 cl. 6.2.3.1 states verbatim that at least one selectable time gap setting shall be in the range 1,5 s to 2,2 s for speeds greater than 8 m/s. Read from the publisher-hosted 2018 preview. The speed qualifier is new in the 2018 edition; the 2002 first edition carried the same band with no speed qualifier, so the qualifier is retained here to match the current edition. This requirement fixes the setting range only; the floor on the resulting time gap is ACC-SYS-PRF-001.",
+      "related_reqs": [
+        "ACC-SYS-FUN-060",
+        "ACC-SYS-PRF-001",
+        "ACC-SYS-PRF-003"
+      ],
+      "revision": "2.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "ISO 15622:2018 cl. 6.2.3.1"
+      ],
+      "status": "Approved",
+      "system_states": [
+        "Standby",
+        "Active-Cruise",
+        "Active-Follow"
+      ],
+      "text": "The ACC system shall provide at least one selectable time gap setting within the range 1,5 s to 2,2 s for subject vehicle speeds greater than 8 m/s.",
+      "title": "Selectable time gap setting range",
+      "verification_method": "Test",
+      "verification_tag": "VERIFIED-PRIMARY",
+      "verified_by": []
+    },
+    {
+      "chapter": "Performance",
+      "ears_pattern": "StateDriven",
+      "figure_refs": [
+        "F3",
+        "F4"
+      ],
+      "id": "ACC-SYS-PRF-003",
+      "measurand": [
+        {
+          "name": "d_clearance",
+          "unit": "m"
+        },
+        {
+          "name": "tau_gap",
+          "unit": "s"
+        },
+        {
+          "name": "v_ego",
+          "unit": "m/s"
+        }
+      ],
+      "rationale": "ISO 15622:2018 cl. 6.2.3.1 gives the minimum steady-state clearance as MAX(c_min, tau_min times v) and states that the clearance may temporarily fall below that value under transient conditions, after which the system shall adjust the clearance to attain the desired clearance. The relation is read verbatim from the publisher-hosted 2018 preview and is VERIFIED-PRIMARY, but the standard defines c_min as a symbol in cl. 4 without setting a numeric value, so the 2,5 m standstill clearance is project-owned; the requirement therefore carries the weaker DERIVED tag because its weakest constituent is a project choice. 2,5 m is chosen as a bumper-to-bumper clearance that keeps a stopped subject vehicle outside the crush zone of the target vehicle and leaves room for creep on a gradient. The same floor governs the Active-Hold state, which is why ACC-SYS-FUN-005 refers to this requirement for the held clearance. Owned by the systems engineer, 2026-08-18.",
+      "related_reqs": [
+        "ACC-SYS-FUN-005",
+        "ACC-SYS-FUN-021",
+        "ACC-SYS-PRF-001"
+      ],
+      "revision": "2.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "ISO 15622:2018 cl. 6.2.3.1",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Approved",
+      "system_states": [
+        "Active-Follow",
+        "Active-Hold"
+      ],
+      "text": "While the ACC system is in the Active-Follow state or the Active-Hold state under steady-state conditions, the ACC system shall maintain a clearance to the target vehicle of not less than the greater of 2,5 m and the product of the selected time gap setting and the subject vehicle speed.",
+      "title": "Minimum steady-state clearance",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Performance",
+      "ears_pattern": "StateDriven",
+      "figure_refs": [
+        "F4",
+        "F6"
+      ],
+      "id": "ACC-SYS-PRF-020",
+      "measurand": [
+        {
+          "name": "a_x_ego",
+          "unit": "m/s^2"
+        }
+      ],
+      "rationale": "Engineering assumption, not a confirmed 2018 value. The limit lives in ISO 15622 cl. 6.4, Operational limits. The clause exists in the 2018 third edition and its title is confirmed from the publisher-hosted preview, but the preview truncates in cl. 6.2.3 and never reaches cl. 6.4, so the 2018 value could not be read from any primary source. The value of 3,5 m/s² over 2 s is verbatim from the 2010 second edition obtained through an unauthorised full-text copy and corroborated by two independent secondary summaries. The value is known to be volatile: the 1999 ISO/DIS set 3,0 m/s², relaxed to 3,5 m/s² by publication. This requirement therefore ships tagged UNVERIFIED-2018; obtaining ISO 15622:2018 cl. 6.4 and confirming the value is an open action in the assumptions register. Jerk is specified separately by ACC-SYS-PRF-021 because INCOSE R19 forbids combining the two. The transient authority ceiling that bounds this comfort limit is ACC-SYS-SAF-040.",
+      "related_reqs": [
+        "ACC-SYS-PRF-021",
+        "ACC-SYS-PRF-022",
+        "ACC-SYS-SAF-040"
+      ],
+      "revision": "2.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "ISO 15622:2010 cl. 6.4"
+      ],
+      "status": "Approved",
+      "system_states": [
+        "Active-Cruise",
+        "Active-Follow"
+      ],
+      "text": "While the ACC system is in the Active-Cruise state or the Active-Follow state, the ACC system shall limit the automatic deceleration of the subject vehicle to a 2 s moving average of not more than 3,5 m/s².",
+      "title": "Automatic deceleration limit",
+      "verification_method": "Test",
+      "verification_tag": "UNVERIFIED-2018",
+      "verified_by": []
+    },
+    {
+      "chapter": "Performance",
+      "ears_pattern": "StateDriven",
+      "figure_refs": [
+        "F4",
+        "F6"
+      ],
+      "id": "ACC-SYS-PRF-021",
+      "measurand": [
+        {
+          "name": "a_x_ego",
+          "unit": "m/s^2"
+        }
+      ],
+      "rationale": "Engineering assumption, not a confirmed 2018 value. The limit lives in ISO 15622 cl. 6.4, Operational limits, which exists in the 2018 third edition but is past the truncation point of the publisher-hosted preview. The value of 2,5 m/s³ averaged over 1 s is verbatim from the 2010 second edition via an unauthorised full-text copy and is identical in the 1999 ISO/DIS, which is the one clause-6.4 value that did not move between the draft and the published second edition; that stability raises confidence but does not make the 2018 value primary-verified. The requirement is therefore tagged UNVERIFIED-2018. Deceleration magnitude is specified separately by ACC-SYS-PRF-020 because INCOSE R19 forbids combining the two.",
+      "related_reqs": [
+        "ACC-SYS-PRF-020",
+        "ACC-SYS-SAF-024"
+      ],
+      "revision": "2.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "ISO 15622:2010 cl. 6.4",
+        "ISO/DIS 15622 (1999) cl. 6.4"
+      ],
+      "status": "Approved",
+      "system_states": [
+        "Active-Cruise",
+        "Active-Follow"
+      ],
+      "text": "While the ACC system is in the Active-Cruise state or the Active-Follow state, the ACC system shall limit the rate of increase of automatic deceleration of the subject vehicle to a 1 s moving average of not more than 2,5 m/s³.",
+      "title": "Automatic negative jerk limit",
+      "verification_method": "Test",
+      "verification_tag": "UNVERIFIED-2018",
+      "verified_by": []
+    },
+    {
+      "chapter": "Performance",
+      "ears_pattern": "StateDriven",
+      "figure_refs": [
+        "F6"
+      ],
+      "id": "ACC-SYS-PRF-022",
+      "measurand": [
+        {
+          "name": "a_x_ego",
+          "unit": "m/s^2"
+        }
+      ],
+      "rationale": "Engineering assumption, not a confirmed 2018 value. The limit lives in ISO 15622 cl. 6.4, Operational limits, which exists in the 2018 third edition but is past the truncation point of the publisher-hosted preview. The value a_max of not more than 2,0 m/s² is verbatim from the 2010 second edition via an unauthorised full-text copy and is identical in the 1999 ISO/DIS. The requirement is therefore tagged UNVERIFIED-2018. No averaging window is stated by either source, so the limit is written as an instantaneous bound, which is the conservative reading.",
+      "related_reqs": [
+        "ACC-SYS-PRF-020",
+        "ACC-SYS-PRF-042"
+      ],
+      "revision": "2.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "ISO 15622:2010 cl. 6.4",
+        "ISO/DIS 15622 (1999) cl. 6.4"
+      ],
+      "status": "Approved",
+      "system_states": [
+        "Active-Cruise",
+        "Active-Follow"
+      ],
+      "text": "While the ACC system is in the Active-Cruise state or the Active-Follow state, the ACC system shall limit the automatic acceleration of the subject vehicle to not more than 2,0 m/s².",
+      "title": "Automatic acceleration limit",
+      "verification_method": "Test",
+      "verification_tag": "UNVERIFIED-2018",
+      "verified_by": []
+    },
+    {
+      "chapter": "Performance",
+      "ears_pattern": "Ubiquitous",
+      "figure_refs": [
+        "F6"
+      ],
+      "id": "ACC-SYS-PRF-040",
+      "measurand": [
+        {
+          "name": "v_set",
+          "unit": "m/s"
+        }
+      ],
+      "rationale": "Engineering assumption, not a confirmed 2018 value. ISO 15622 cl. 6.4 requires the minimum selectable set speed v_set_min to be not less than 7 m/s and not less than v_low. The clause exists in the 2018 third edition but is past the truncation point of the publisher-hosted preview; the value is verbatim from the 2010 second edition via an unauthorised full-text copy and identical in the 1999 ISO/DIS. Tagged UNVERIFIED-2018. The companion v_low floor of 5 m/s for automatic positive acceleration is deliberately not carried into a requirement, because the system is FSRA-type and the 2018 foreword confirms that automatic start from hold is no longer prohibited, so a 5 m/s floor on positive acceleration would contradict ACC-SYS-FUN-006. That omission is recorded in the assumptions register.",
+      "related_reqs": [
+        "ACC-SYS-FUN-006",
+        "ACC-SYS-PRF-041"
+      ],
+      "revision": "1.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "ISO 15622:2010 cl. 6.4",
+        "ISO/DIS 15622 (1999) cl. 6.4"
+      ],
+      "status": "Draft",
+      "system_states": [
+        "Standby",
+        "Active-Cruise",
+        "Active-Follow"
+      ],
+      "text": "The ACC system shall constrain the set speed to values of not less than 7 m/s.",
+      "title": "Minimum selectable set speed",
+      "verification_method": "Test",
+      "verification_tag": "UNVERIFIED-2018",
+      "verified_by": []
+    },
+    {
+      "chapter": "Performance",
+      "ears_pattern": "Ubiquitous",
+      "figure_refs": [
+        "F6"
+      ],
+      "id": "ACC-SYS-PRF-041",
+      "measurand": [
+        {
+          "name": "v_set",
+          "unit": "m/s"
+        }
+      ],
+      "rationale": "ISO 15622:2018 cl. 4 defines v_set_max as the maximum selectable set speed, confirmed from the publisher-hosted preview, but no retrieved edition of the standard sets a numeric ceiling, so the value is project-owned. 180 km/h is chosen as the ceiling because it covers the whole Euro NCAP Assisted Driving car-to-car test speed range, which reaches 130 km/h, with margin for unrestricted-motorway use, while remaining below the speed at which the forward-sensing range assumptions of ACC-SYS-PRF-003 would need re-derivation. Owned by the systems engineer, 2026-08-18.",
+      "related_reqs": [
+        "ACC-SYS-PRF-003",
+        "ACC-SYS-PRF-040"
+      ],
+      "revision": "2.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "ISO 15622:2018 cl. 4",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Approved",
+      "system_states": [
+        "Standby",
+        "Active-Cruise",
+        "Active-Follow"
+      ],
+      "text": "The ACC system shall constrain the set speed to values of not more than 180 km/h.",
+      "title": "Maximum selectable set speed",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Performance",
+      "ears_pattern": "Complex",
+      "figure_refs": [
+        "F4",
+        "F6"
+      ],
+      "id": "ACC-SYS-PRF-042",
+      "measurand": [
+        {
+          "name": "v_ego",
+          "unit": "m/s"
+        },
+        {
+          "name": "v_target",
+          "unit": "m/s"
+        },
+        {
+          "name": "d_clearance",
+          "unit": "m"
+        }
+      ],
+      "rationale": "ISO 15622:2018 cl. 6.2.3.1 states that from steady-state following an FSRA-type system will attempt to stop behind an already tracked and gradually stopping vehicle whose speed is below v_stopping, and gives v_stopping as 10 m/s; the value is read verbatim from the publisher-hosted 2018 preview. The standard phrases the capability with the future \"will\", which is a capability statement rather than a testable obligation, so the obligation is restated here with \"shall\" for an FSRA-type system, which is the classification of this system. The a_stopping deceleration value of the standard is past the truncation point of the preview and is therefore not carried into this requirement; the deceleration the system may use is bounded instead by ACC-SYS-PRF-020. The clearance at standstill is ACC-SYS-PRF-003 and the subsequent transition to Active-Hold is ACC-SYS-FUN-005.",
+      "related_reqs": [
+        "ACC-SYS-FUN-005",
+        "ACC-SYS-PRF-003",
+        "ACC-SYS-PRF-020"
+      ],
+      "revision": "2.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "ISO 15622:2018 cl. 6.2.3.1",
+        "ISO 15622:2018 cl. 7.3.2"
+      ],
+      "status": "Approved",
+      "system_states": [
+        "Active-Follow"
+      ],
+      "text": "While the ACC system is in the Active-Follow state and the target vehicle speed is less than 10 m/s, when the target vehicle decelerates to standstill, the ACC system shall bring the subject vehicle to standstill behind the target vehicle.",
+      "title": "Stop behind a gradually stopping target vehicle",
+      "verification_method": "Test",
+      "verification_tag": "VERIFIED-PRIMARY",
+      "verified_by": []
+    },
+    {
+      "chapter": "Performance",
+      "ears_pattern": "Complex",
+      "figure_refs": [
+        "F4"
+      ],
+      "id": "ACC-SYS-PRF-060",
+      "measurand": [
+        {
+          "name": "d_clearance",
+          "unit": "m"
+        },
+        {
+          "name": "a_x_ego",
+          "unit": "m/s^2"
+        },
+        {
+          "name": "v_ego",
+          "unit": "m/s"
+        },
+        {
+          "name": "v_target",
+          "unit": "m/s"
+        }
+      ],
+      "rationale": "The scenario is the Euro NCAP Assisted Driving car-to-car rear braking case, CCRb, with the lead vehicle braking at 4 m/s² at 100 % overlap; the deceleration value and the 120 km/h subject vehicle speed are read verbatim from Euro NCAP AD v2.2 (2024-09), which is the fixed scenario baseline of this project. Euro NCAP scores full avoidance rather than stating a minimum clearance, so the 0,5 m residual clearance is project-owned; it is chosen as a measurable no-contact criterion that a differential-GNSS test setup can resolve, and it is deliberately smaller than the 2,5 m steady-state floor of ACC-SYS-PRF-003 because this is a transient. The deceleration the system may use to achieve it is bounded by ACC-SYS-PRF-020 and ACC-SYS-SAF-040. Owned by the systems engineer, 2026-08-18.",
+      "related_reqs": [
+        "ACC-SYS-PRF-003",
+        "ACC-SYS-PRF-020",
+        "ACC-SYS-SAF-040"
+      ],
+      "revision": "1.1",
+      "schema_version": "1.0.0",
+      "source": [
+        "Euro NCAP AD v2.2 (2024-09) §ACC car-to-car rear braking",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Reviewed",
+      "system_states": [
+        "Active-Follow"
+      ],
+      "text": "While the ACC system is in the Active-Follow state at a subject vehicle speed of 120 km/h, when the target vehicle decelerates at 4,0 m/s² to standstill, the ACC system shall maintain a clearance to the target vehicle of not less than 0,5 m.",
+      "title": "Response to a braking target vehicle",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Performance",
+      "ears_pattern": "EventDriven",
+      "figure_refs": [
+        "F5"
+      ],
+      "id": "ACC-SYS-PRF-061",
+      "measurand": [
+        {
+          "name": "d_clearance",
+          "unit": "m"
+        },
+        {
+          "name": "a_x_ego",
+          "unit": "m/s^2"
+        },
+        {
+          "name": "v_ego",
+          "unit": "m/s"
+        },
+        {
+          "name": "target_id",
+          "unit": "enum"
+        }
+      ],
+      "rationale": "The scenario is the Euro NCAP Assisted Driving cut-out case: the lead vehicle performs a full lane change out of the lane of the vehicle under test with a 3,5 m lateral offset, revealing a stationary target, with the reference instant at a time to collision of 3,00 s. The geometry, the lateral offset and the 3,00 s reference instant are read verbatim from Euro NCAP AD v2.2 (2024-09); note that the current v1.1 (2025-10) protocol moves the collision-avoidance variant of this case to 2,00 s, so this requirement changes if the newer Vehicle Assistance protocol is adopted. As in ACC-SYS-PRF-060 the 0,5 m residual clearance is project-owned because Euro NCAP scores avoidance rather than a clearance. The latency of the target change itself is ACC-SYS-PRF-062. Owned by the systems engineer, 2026-08-18. This requirement supersedes ACC-SYS-PRF-062, which was retired at the 2026-08-19 baseline review because it allocated internal reselection time rather than stating observable behaviour; the clearance bound here is the obligation that survives.",
+      "related_reqs": [
+        "ACC-SYS-FUN-023",
+        "ACC-SYS-PRF-062",
+        "ACC-SYS-SAF-041"
+      ],
+      "revision": "1.2",
+      "schema_version": "1.0.0",
+      "source": [
+        "Euro NCAP AD v2.2 (2024-09) §ACC cut-out",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Reviewed",
+      "system_states": [
+        "Active-Cruise",
+        "Active-Follow"
+      ],
+      "text": "When the target vehicle completes a lane change out of the subject vehicle lane at a time to collision of 3,00 s to a stationary vehicle ahead, the ACC system shall maintain a clearance to that stationary vehicle of not less than 0,5 m.",
+      "title": "Response to a cut-out revealing a stationary vehicle",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Performance",
+      "ears_pattern": "EventDriven",
+      "figure_refs": [
+        "F5"
+      ],
+      "id": "ACC-SYS-PRF-062",
+      "measurand": [
+        {
+          "name": "target_id",
+          "unit": "enum"
+        },
+        {
+          "name": "t",
+          "unit": "s"
+        },
+        {
+          "name": "v_ego",
+          "unit": "m/s"
+        }
+      ],
+      "rationale": "ISO 15622:2018 cl. 6.1 requires automatic selection of the vehicle to be followed when more than one forward vehicle is present, and Euro NCAP AD v2.2 (2024-09) defines the cut-out geometry, but neither source sets a reselection latency, so the 0,5 s value is project-owned. It is chosen so that at the 90 km/h cut-out entry speed of the Euro NCAP case the subject vehicle travels not more than 12,5 m before the newly revealed vehicle is the target, which keeps the reselection inside the 3,00 s time to collision of ACC-SYS-PRF-061 with margin for the control response. This requirement carries the latency only; which vehicle is selected is ACC-SYS-FUN-023, so the selection rule is expressed once (INCOSE R32). Owned by the systems engineer, 2026-08-18. Retired at the 2026-08-19 baseline review and superseded by ACC-SYS-PRF-061, which is named first in related_reqs: the 0,5 s figure allocates internal reselection time rather than stating behaviour observable at the system boundary, its measurand target_id is an implementation-internal signal, and the outcome the allocation existed to protect is already required by ACC-SYS-PRF-061, which bounds the clearance to the revealed stationary vehicle in the same cut-out scenario. The selection rule itself is unaffected and stays with ACC-SYS-FUN-023. The row stays and the ID is retired rather than reused, per spec rule I2. Retired by the systems engineer, 2026-08-19.",
+      "related_reqs": [
+        "ACC-SYS-FUN-023",
+        "ACC-SYS-PRF-061"
+      ],
+      "revision": "2.1",
+      "schema_version": "1.0.0",
+      "source": [
+        "ISO 15622:2018 cl. 6.1",
+        "Euro NCAP AD v2.2 (2024-09) §ACC cut-out",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Obsolete",
+      "system_states": [
+        "Active-Cruise",
+        "Active-Follow"
+      ],
+      "text": "When the target vehicle completes a lane change out of the subject vehicle lane, the ACC system shall complete the selection of the target vehicle within 0,5 s of lane change completion.",
+      "title": "Target reselection latency after a cut-out",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Safety-Fault-Handling",
+      "ears_pattern": "UnwantedBehaviour",
+      "figure_refs": [
+        "F1"
+      ],
+      "id": "ACC-SYS-SAF-001",
+      "measurand": [
+        {
+          "name": "sensor_health",
+          "unit": "enum"
+        },
+        {
+          "name": "target_detected",
+          "unit": "bool"
+        },
+        {
+          "name": "t",
+          "unit": "s"
+        }
+      ],
+      "rationale": "ISO 15622:2018 cl. 6.6 is titled failure reactions but its content is past the truncation point of the publisher-hosted preview, so no standardised detection criterion or window is available. Both the criterion and the 300 ms window are project-owned: 300 ms is roughly six frames at the 20 Hz nominal forward-sensor rate, long enough to distinguish a persistent obstruction such as spray, ice or mud from a transient dropout, and short enough that the state transition of ACC-SYS-SAF-021 still completes inside the driver-reaction floor. This requirement sets the health signal only; the state transition it triggers is ACC-SYS-SAF-021 and the annunciation is ACC-SYS-SAF-004, kept separate because INCOSE R19 forbids combining a detection, a transition and an output. Owned by the systems engineer, 2026-08-18. Retired at the 2026-08-19 baseline review and superseded by ACC-SYS-SAF-021, which is named first in related_reqs: ACC-SYS-SAF-021 triggers the Degraded-Fault transition on forward-sensing unavailability directly, so a separate obligation to set an internal health signal within 300 ms added a second latency and an implementation-internal signal without adding behaviour observable at the system boundary, which ASPICE SYS.2.BP1 note 02 keeps out of a system requirement. The forward-sensing health indication that the recovery check of ACC-SYS-SAF-023 observes is unaffected; only the requirement that specified its set latency is retired. The row stays and the ID is retired rather than reused, per spec rule I2. Retired by the systems engineer, 2026-08-19.",
+      "related_reqs": [
+        "ACC-SYS-SAF-004",
+        "ACC-SYS-SAF-021"
+      ],
+      "revision": "2.1",
+      "schema_version": "1.0.0",
+      "source": [
+        "ISO 15622:2018 cl. 6.6",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Obsolete",
+      "system_states": [
+        "Standby",
+        "Active-Cruise",
+        "Active-Follow",
+        "Active-Hold"
+      ],
+      "text": "If the ACC system detects that the forward-sensing field of view is obstructed or that the forward-sensing target data are implausible, then the ACC system shall set the forward-sensing health signal to the fault value within 300 ms of that detection.",
+      "title": "Detection of forward-sensing degradation",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Safety-Fault-Handling",
+      "ears_pattern": "UnwantedBehaviour",
+      "figure_refs": [
+        "F1"
+      ],
+      "id": "ACC-SYS-SAF-002",
+      "measurand": [
+        {
+          "name": "bus_health",
+          "unit": "enum"
+        },
+        {
+          "name": "v_ego",
+          "unit": "m/s"
+        },
+        {
+          "name": "t",
+          "unit": "s"
+        }
+      ],
+      "rationale": "No retrieved clause of ISO 15622:2018 addresses vehicle bus signal timeouts; cl. 6.6 failure reactions is past the truncation point of the publisher-hosted preview. Both windows are project-owned. 200 ms is chosen as four periods of the 50 ms nominal wheel-speed and yaw-rate transmission cycle shown crossing the system boundary in figure F1, which tolerates isolated frame loss without tolerating a silent sender; 100 ms keeps the health signal ahead of the 200 ms state transition of ACC-SYS-SAF-022. Owned by the systems engineer, 2026-08-18.",
+      "related_reqs": [
+        "ACC-SYS-SAF-004",
+        "ACC-SYS-SAF-022"
+      ],
+      "revision": "1.1",
+      "schema_version": "1.0.0",
+      "source": [
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Reviewed",
+      "system_states": [
+        "Standby",
+        "Active-Cruise",
+        "Active-Follow",
+        "Active-Hold"
+      ],
+      "text": "If the ACC system detects that a vehicle bus signal used for longitudinal control has not been updated for more than 200 ms, then the ACC system shall set the vehicle bus health signal to the stale value within 100 ms of that detection.",
+      "title": "Detection of stale vehicle bus signals",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Safety-Fault-Handling",
+      "ears_pattern": "UnwantedBehaviour",
+      "figure_refs": [
+        "F1"
+      ],
+      "id": "ACC-SYS-SAF-003",
+      "measurand": [
+        {
+          "name": "actuation_health",
+          "unit": "enum"
+        },
+        {
+          "name": "a_x_ego",
+          "unit": "m/s^2"
+        },
+        {
+          "name": "a_x_cmd_acc",
+          "unit": "m/s^2"
+        },
+        {
+          "name": "t",
+          "unit": "s"
+        }
+      ],
+      "rationale": "Loss of brake or powertrain actuation authority is a cl. 6.6 failure reaction concern, and cl. 6.6 is past the truncation point of the publisher-hosted preview, so the detection criterion is project-owned. The criterion is written as a plant-response mismatch rather than as an actuator-internal diagnostic so that it stays free of design and implementation, as ASPICE SYS.2.BP1 note 02 requires. 1,0 m/s² is chosen to sit above the road-gradient and load disturbances that a longitudinal controller absorbs and below the 2,0 m/s² acceleration limit of ACC-SYS-PRF-022, so a full loss of authority is detected while normal tracking error is not. 500 ms is chosen to exceed the actuator response time that the deceleration ramp of ACC-SYS-PRF-021 already implies. Overlap rule O1 places loss of the ability to meet a limit in the Safety chapter. Owned by the systems engineer, 2026-08-18.",
+      "related_reqs": [
+        "ACC-SYS-PRF-022",
+        "ACC-SYS-SAF-022"
+      ],
+      "revision": "1.1",
+      "schema_version": "1.0.0",
+      "source": [
+        "ISO 15622:2018 cl. 6.6",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Reviewed",
+      "system_states": [
+        "Active-Cruise",
+        "Active-Follow",
+        "Active-Hold"
+      ],
+      "text": "If the ACC system detects that the longitudinal acceleration of the subject vehicle differs from the commanded longitudinal acceleration by more than 1,0 m/s² for more than 500 ms, then the ACC system shall set the actuation health signal to the fault value within 200 ms of that detection.",
+      "title": "Detection of loss of actuation authority",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Safety-Fault-Handling",
+      "ears_pattern": "EventDriven",
+      "figure_refs": [
+        "F1",
+        "F2"
+      ],
+      "id": "ACC-SYS-SAF-004",
+      "measurand": [],
+      "rationale": "ISO 15622:2018 cl. 6.3 covers the driver interface and cl. 6.6 covers failure reactions; both are past the truncation point of the publisher-hosted preview, so the annunciation form and timing are project-owned. 500 ms is chosen to be well inside the driver-reaction floor of roughly 250 ms plus a glance transition, so the indication is present before the driver can react to the vehicle behaviour that prompted it. The requirement that the fault indication be distinguishable from the nominal state indication of ACC-SYS-FUN-060 is the point of the requirement, and follows overlap rule O4, which assigns driver-facing warning of degraded capability to the Safety chapter. Owned by the systems engineer, 2026-08-18.",
+      "related_reqs": [
+        "ACC-SYS-FUN-060",
+        "ACC-SYS-SAF-021"
+      ],
+      "revision": "1.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "ISO 15622:2018 cl. 6.3",
+        "ISO 15622:2018 cl. 6.6",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Draft",
+      "system_states": [
+        "Degraded-Fault"
+      ],
+      "text": "When the ACC system enters the Degraded-Fault state, the ACC system shall present to the driver a fault indication that differs from the indication of the ACC state within 500 ms of entering that state.",
+      "title": "Annunciation of a fault to the driver",
+      "verification_method": "Demonstration",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Safety-Fault-Handling",
+      "ears_pattern": "UnwantedBehaviour",
+      "figure_refs": [
+        "F1",
+        "F2"
+      ],
+      "id": "ACC-SYS-SAF-021",
+      "measurand": [
+        {
+          "name": "sensor_health",
+          "unit": "enum"
+        },
+        {
+          "name": "acc_state",
+          "unit": "enum"
+        },
+        {
+          "name": "t",
+          "unit": "s"
+        }
+      ],
+      "rationale": "ISO 15622:2018 cl. 6.6 is titled failure reactions but its content is past the truncation point of the publisher-hosted preview, so no standardised detection window or transition latency is available. Both numbers are project-owned: 500 ms is chosen as roughly two forward-sensor frames at a 20 Hz nominal rate, long enough to reject a single dropped frame and short enough that at 30 m/s the subject vehicle travels 15 m unsensed; 200 ms is chosen to be below the driver-reaction floor of roughly 250 ms so the state change precedes any driver response. Owned by the systems engineer, 2026-08-18. Annunciation to the driver is a separate requirement (ACC-SYS-SAF-004) because INCOSE R19 forbids combining a state transition with an output.",
+      "related_reqs": [
+        "ACC-SYS-FUN-001",
+        "ACC-SYS-SAF-022"
+      ],
+      "revision": "2.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Approved",
+      "system_states": [
+        "Active-Cruise",
+        "Active-Follow",
+        "Active-Hold",
+        "Degraded-Fault"
+      ],
+      "text": "If the ACC system detects that the forward-sensing function has been unavailable for more than 500 ms while the ACC system is in the Active-Cruise state, the Active-Follow state or the Active-Hold state, then the ACC system shall enter the Degraded-Fault state within 200 ms of that detection.",
+      "title": "Transition to Degraded-Fault on loss of forward sensing",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Safety-Fault-Handling",
+      "ears_pattern": "UnwantedBehaviour",
+      "figure_refs": [
+        "F2"
+      ],
+      "id": "ACC-SYS-SAF-022",
+      "measurand": [
+        {
+          "name": "bus_health",
+          "unit": "enum"
+        },
+        {
+          "name": "actuation_health",
+          "unit": "enum"
+        },
+        {
+          "name": "acc_state",
+          "unit": "enum"
+        },
+        {
+          "name": "t",
+          "unit": "s"
+        }
+      ],
+      "rationale": "Companion to ACC-SYS-SAF-021 for the two fault sources that do not come from forward sensing: the vehicle bus health signal set by ACC-SYS-SAF-002 and the actuation health signal set by ACC-SYS-SAF-003. The trigger sets of the two requirements are disjoint, so the transition is expressed once for each source class and no requirement is duplicated (INCOSE R32). The 200 ms transition latency is the same project-owned value as in ACC-SYS-SAF-021 and is chosen for the same reason, to precede the driver-reaction floor. Owned by the systems engineer, 2026-08-18.",
+      "related_reqs": [
+        "ACC-SYS-SAF-002",
+        "ACC-SYS-SAF-003",
+        "ACC-SYS-SAF-021"
+      ],
+      "revision": "1.1",
+      "schema_version": "1.0.0",
+      "source": [
+        "DERIVED-FROM:ACC-SYS-SAF-021",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Reviewed",
+      "system_states": [
+        "Active-Cruise",
+        "Active-Follow",
+        "Active-Hold",
+        "Degraded-Fault"
+      ],
+      "text": "If the vehicle bus health signal or the actuation health signal indicates a fault while the ACC system is in the Active-Cruise state, the Active-Follow state or the Active-Hold state, then the ACC system shall enter the Degraded-Fault state within 200 ms of that indication.",
+      "title": "Transition to Degraded-Fault on bus or actuation fault",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Safety-Fault-Handling",
+      "ears_pattern": "UnwantedBehaviour",
+      "figure_refs": [
+        "F2"
+      ],
+      "id": "ACC-SYS-SAF-023",
+      "measurand": [
+        {
+          "name": "sensor_health",
+          "unit": "enum"
+        },
+        {
+          "name": "bus_health",
+          "unit": "enum"
+        },
+        {
+          "name": "actuation_health",
+          "unit": "enum"
+        },
+        {
+          "name": "acc_state",
+          "unit": "enum"
+        }
+      ],
+      "rationale": "Without this requirement the Degraded-Fault state is a sink from which only an ignition cycle escapes, which would make a recovered transient fault permanently disabling. Recovery to Standby rather than directly to an active state is deliberate: it forces a fresh driver set command through ACC-SYS-FUN-004 so control never resumes without driver intent. No retrieved clause of ISO 15622:2018 specifies the recovery path, so both the path and the 500 ms latency are project-owned; 500 ms is the same order as the annunciation latency of ACC-SYS-SAF-004 so the driver sees the fault indication clear at the same time as the state changes. Owned by the systems engineer, 2026-08-18.",
+      "related_reqs": [
+        "ACC-SYS-FUN-004",
+        "ACC-SYS-SAF-021",
+        "ACC-SYS-SAF-022"
+      ],
+      "revision": "1.1",
+      "schema_version": "1.0.0",
+      "source": [
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Reviewed",
+      "system_states": [
+        "Standby",
+        "Degraded-Fault"
+      ],
+      "text": "If the forward-sensing health signal, the vehicle bus health signal and the actuation health signal indicate no fault while the ACC system is in the Degraded-Fault state, then the ACC system shall enter the Standby state within 500 ms of that indication.",
+      "title": "Exit from Degraded-Fault to Standby",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Safety-Fault-Handling",
+      "ears_pattern": "UnwantedBehaviour",
+      "figure_refs": [
+        "F4"
+      ],
+      "id": "ACC-SYS-SAF-024",
+      "measurand": [
+        {
+          "name": "a_x_cmd_acc",
+          "unit": "m/s^2"
+        },
+        {
+          "name": "a_x_ego",
+          "unit": "m/s^2"
+        },
+        {
+          "name": "t",
+          "unit": "s"
+        }
+      ],
+      "rationale": "Engineering assumption, not a confirmed 2018 value. ISO 15622 cl. 6.4, Operational limits, carries a qualitative requirement that brake force is not released suddenly on automatic deactivation; the clause exists in the 2018 third edition but is past the truncation point of the publisher-hosted preview, so the 2018 wording could not be read. The qualitative requirement is verbatim from the 2010 second edition via an unauthorised full-text copy and is present in the 1999 ISO/DIS. Because that source states no rate, the bound reuses the 2,5 m/s³ jerk value of the same clause, which ACC-SYS-PRF-021 already applies to increasing deceleration, so release and application are bounded symmetrically; the value therefore inherits the UNVERIFIED-2018 tag of its source clause. This requirement governs every exit from automatic braking, including the transitions of ACC-SYS-FUN-003, ACC-SYS-FUN-042 and ACC-SYS-SAF-021.",
+      "related_reqs": [
+        "ACC-SYS-FUN-003",
+        "ACC-SYS-FUN-042",
+        "ACC-SYS-PRF-021"
+      ],
+      "revision": "2.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "ISO 15622:2010 cl. 6.4",
+        "DERIVED-FROM:ACC-SYS-PRF-021"
+      ],
+      "status": "Approved",
+      "system_states": [
+        "Standby",
+        "Active-Cruise",
+        "Active-Follow",
+        "Active-Hold",
+        "Degraded-Fault"
+      ],
+      "text": "If the ACC system ends automatic brake control while the subject vehicle is decelerating, then the ACC system shall reduce the commanded deceleration at a rate of not more than 2,5 m/s³.",
+      "title": "Bounded release of automatic brake force",
+      "verification_method": "Test",
+      "verification_tag": "UNVERIFIED-2018",
+      "verified_by": []
+    },
+    {
+      "chapter": "Safety-Fault-Handling",
+      "ears_pattern": "Ubiquitous",
+      "figure_refs": [
+        "F1",
+        "F6"
+      ],
+      "id": "ACC-SYS-SAF-040",
+      "measurand": [
+        {
+          "name": "a_x_cmd_acc",
+          "unit": "m/s^2"
+        }
+      ],
+      "rationale": "This is an authority boundary, not a comfort limit: it separates the braking domain of ACC from autonomous emergency braking, which shares the brake actuator (see figure F1). The Assisted Driving protocol of Euro NCAP v2.2 (2024-09) draws the assessment demarcation where braking levels stay below approximately 5 m/s², read verbatim from the official protocol. That statement is an assessment demarcation rather than a design limit, so the project converts it into a hard commanded-deceleration ceiling and owns the conversion; the word approximately is removed because INCOSE R7 forbids vague terms in a requirement statement. Placed in the Safety chapter rather than Performance under overlap rule O6, because its purpose is inter-system arbitration. The 2 s-average comfort limit of 3,5 m/s² (ACC-SYS-PRF-020) is the tighter nominal constraint; this requirement bounds the transient. Owned by the systems engineer, 2026-08-18.",
+      "related_reqs": [
+        "ACC-SYS-PRF-020",
+        "ACC-SYS-SAF-041"
+      ],
+      "revision": "2.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "Euro NCAP AD v2.2 (2024-09) §ACC-vs-AEB demarcation",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Approved",
+      "system_states": [
+        "Active-Cruise",
+        "Active-Follow",
+        "Active-Hold"
+      ],
+      "text": "The ACC system shall limit the instantaneous deceleration it commands of the subject vehicle to not more than 5,0 m/s².",
+      "title": "Deceleration authority ceiling",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Safety-Fault-Handling",
+      "ears_pattern": "UnwantedBehaviour",
+      "figure_refs": [
+        "F1",
+        "F6"
+      ],
+      "id": "ACC-SYS-SAF-041",
+      "measurand": [
+        {
+          "name": "aeb_brake_request",
+          "unit": "bool"
+        },
+        {
+          "name": "a_x_cmd_acc",
+          "unit": "m/s^2"
+        }
+      ],
+      "rationale": "ACC and autonomous emergency braking share one brake actuator, shown crossing the system boundary in figure F1, so the arbitration between them has to be specified somewhere and this artifact is the system-layer document that owns the ACC side of it. The Assisted Driving protocol of Euro NCAP v2.2 (2024-09) assesses ACC capability only where it is confirmed that autonomous emergency braking did not intervene, which establishes that the two functions are expected to be separable but sets no arbitration rule, so the rule is project-owned. Yielding completely rather than adding requests is chosen because summed requests would make the achieved deceleration depend on the internal state of two systems and would defeat the ceiling of ACC-SYS-SAF-040. Owned by the systems engineer, 2026-08-18.",
+      "related_reqs": [
+        "ACC-SYS-PRF-060",
+        "ACC-SYS-SAF-040"
+      ],
+      "revision": "1.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "Euro NCAP AD v2.2 (2024-09) §ACC-vs-AEB demarcation",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Draft",
+      "system_states": [
+        "Active-Cruise",
+        "Active-Follow",
+        "Active-Hold"
+      ],
+      "text": "If the autonomous emergency braking system requests brake actuation, then the ACC system shall limit the deceleration it commands to 0,0 m/s² until that request ends.",
+      "title": "Yielding brake authority to autonomous emergency braking",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Safety-Fault-Handling",
+      "ears_pattern": "UnwantedBehaviour",
+      "figure_refs": [
+        "F2"
+      ],
+      "id": "ACC-SYS-SAF-042",
+      "measurand": [
+        {
+          "name": "set_switch",
+          "unit": "bool"
+        },
+        {
+          "name": "acc_state",
+          "unit": "enum"
+        }
+      ],
+      "rationale": "ACC-SYS-FUN-004 activates the system on a driver set command from the Standby state; this requirement closes the corresponding path from the Degraded-Fault state so that a driver cannot activate longitudinal control while the system knows it cannot deliver it. Written as an unwanted-behaviour statement with a positive response, remaining in the current state, rather than as a prohibition, because INCOSE R17 discourages using \"not\" as the verb qualifier. No retrieved clause of ISO 15622:2018 states an activation inhibit for the fault case, so the requirement is project-owned; the LSRA activation inhibit below v_low in cl. 6.1 is the closest analogue and does not apply to an FSRA-type system. Owned by the systems engineer, 2026-08-18. Rejected at the 2026-08-19 baseline review: ACC-SYS-FUN-004 activates the system only from the Standby state, so a set-switch operation in the Degraded-Fault state has no specified effect, and the only exit from that state is the health-signal recovery path of ACC-SYS-SAF-023, so a second statement of that behaviour duplicates one that already exists (INCOSE R32). The row stays and the ID is retired rather than deleted, per spec rule I2, so that the decision remains auditable. The review recorded that an explicit inhibit is to be reinstated under a new ID if hardware-in-the-loop testing shows any activation path out of the Degraded-Fault state. Rejected by the systems engineer, 2026-08-19.",
+      "related_reqs": [
+        "ACC-SYS-FUN-004",
+        "ACC-SYS-SAF-023"
+      ],
+      "revision": "1.1",
+      "schema_version": "1.0.0",
+      "source": [
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Rejected",
+      "system_states": [
+        "Degraded-Fault"
+      ],
+      "text": "If the driver operates the set switch while the ACC system is in the Degraded-Fault state, then the ACC system shall remain in the Degraded-Fault state.",
+      "title": "Inhibit of activation while a fault is present",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Safety-Fault-Handling",
+      "ears_pattern": "UnwantedBehaviour",
+      "figure_refs": [
+        "F2"
+      ],
+      "id": "ACC-SYS-SAF-060",
+      "measurand": [
+        {
+          "name": "hands_off",
+          "unit": "bool"
+        },
+        {
+          "name": "v_ego",
+          "unit": "m/s"
+        },
+        {
+          "name": "acc_state",
+          "unit": "enum"
+        }
+      ],
+      "rationale": "The Assisted Driving protocol of Euro NCAP v2.2 (2024-09) states in the ACC auto-resume scenario that on resuming, the hands-off warning escalation must begin before the vehicle under test reaches 10 km/h; the threshold is read verbatim from the official protocol, hence VERIFIED-PRIMARY. The requirement is placed in the Safety chapter under overlap rule O4 because it is a driver-facing warning of a required takeover rather than an indication of nominal state. It complements ACC-SYS-FUN-006, which specifies the driver resume command itself, and it bounds any implementation that resumes from hold without a driver command, which the 2018 foreword of ISO 15622 permits.",
+      "related_reqs": [
+        "ACC-SYS-FUN-006",
+        "ACC-SYS-SAF-004"
+      ],
+      "revision": "2.0",
+      "schema_version": "1.0.0",
+      "source": [
+        "Euro NCAP AD v2.2 (2024-09) §ACC Auto-Resume"
+      ],
+      "status": "Approved",
+      "system_states": [
+        "Active-Hold",
+        "Degraded-Fault"
+      ],
+      "text": "If the ACC system detects that the driver hands-off condition is present while the ACC system is in the Active-Hold state, then the ACC system shall begin the takeover warning escalation before the subject vehicle speed reaches 10 km/h.",
+      "title": "Driver availability escalation before resume",
+      "verification_method": "Test",
+      "verification_tag": "VERIFIED-PRIMARY",
+      "verified_by": []
+    }
+  ],
+  "notes": "Generated from Reqs/requirements/*.yaml by tools/build_reqs.py json. The YAML is the source of truth; this file is the canonical rendering of it and the JSON side of the ReqIF/JSON convergence check. Non-requirement document material lives in the sidecar acc-system-document.json, because the canonical schemas are additionalProperties:false.",
+  "parent_version": null,
+  "schema_version": "1.0.0",
+  "set": "requirements",
+  "set_canonical_sha256": "9589ad52aaee7316b3b4a0f7ae9008889338a5d1d8293ca24392346c649ab0cc",
+  "source_upload": {
+    "filename": "acc-system-requirements.json",
+    "media_type": "application/json",
+    "sha256": "f36f583d1ea0c6670c68e7eb5c14eddd95000bcedf7f5cc348709124de06ed52",
+    "size_bytes": 68968,
+    "upload_kind": "json"
+  },
+  "validator_version": "accreqs-json-writer/1.0.0",
+  "version": "v0100",
+  "warnings": []
+}

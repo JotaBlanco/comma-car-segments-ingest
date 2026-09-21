@@ -1,0 +1,1835 @@
+{
+  "created_by": "ArchDev (test-specification authoring, dev-planning/test-manager-v/schemas.md)",
+  "created_utc": "2026-08-18T00:00:00+00:00",
+  "item_count": 9,
+  "item_ids": [
+    "ACC-SYS-TC-001",
+    "ACC-SYS-TC-002",
+    "ACC-SYS-TC-003",
+    "ACC-SYS-TC-011",
+    "ACC-SYS-TC-014",
+    "ACC-SYS-TC-016",
+    "ACC-SYS-TC-021",
+    "ACC-SYS-TC-024",
+    "ACC-SYS-TC-030"
+  ],
+  "items": [
+    {
+      "covers_req_ids": [
+        "ACC-SYS-FUN-005"
+      ],
+      "data_requirements": {
+        "min_traces": 1,
+        "required_channel_groups": [
+          "PT_CAN_100Hz",
+          "ACC_HMI_10Hz"
+        ],
+        "required_signals": [
+          "ACC_HoldActive_Flg",
+          "ACC_Status",
+          "ACC_TrgtDetd_Flg",
+          "VehSpd_Kph",
+          "VehStandstill_Flg"
+        ],
+        "trace_required": true
+      },
+      "entry_criteria": "The run's PT_CAN_100Hz and ACC_HMI_10Hz groups decode and ACC_HMI_10Hz is ZOH-alignable onto the 100 Hz base raster.",
+      "exit_criteria": "All three pass criteria PASS, and the hold-entry latency is reported together with its 0,05 s cross-raster alignment uncertainty.",
+      "impl_ref": null,
+      "last_change": "2026-08-18T00:00:00+00:00",
+      "mnemonic": "TC-FUN-005-01",
+      "notes": "Provenance: ACC-SYS-FUN-005 is VERIFIED-PRIMARY (ISO 15622:2018 cl. 6.1); the 3 s bound is read verbatim from the publisher-hosted 2018 preview and is one of the few clause-6 numbers confirmed for the current edition. EXPECTED VERDICT: PASS -- measured hold-entry latency 0,27 s against the 3 s bound. The from-event is on a 100 Hz group and the to-event on a 10 Hz group, so the result carries uncertainty_s = 0,05; per schemas.md section 4 that uncertainty is reported beside the value and never subtracted from the bound, which is why tolerance.abs is 0,0 rather than 0,05. C3 bounds the speed at 0,36 km/h because that is hold.v_standstill_eps_mps = 0,10 m/s converted into the channel's own unit; the 0,01 tolerance is the VehSpd_Kph quantisation step from the signal catalogue.",
+      "objective": "Show that the ACC enters Active-Hold no later than 3 s after the subject vehicle reaches standstill while in Active-Follow, and that the state entered is a real brake-held standstill rather than a state label.",
+      "pass_criteria": [
+        {
+          "channel_group": "ACC_HMI_10Hz",
+          "criterion_id": "C1",
+          "description": "Elapsed time from the standstill rising edge to ACC_Status entering 4 (Active-Hold, per the channel comment) is not more than 3 s.",
+          "min_samples": 1,
+          "on_missing_signal": "error",
+          "reduce": {
+            "from": {
+              "kind": "rising",
+              "signal": "VehStandstill_Flg"
+            },
+            "occurrence": "max",
+            "op": "time_between_edges",
+            "to": {
+              "kind": "to_value",
+              "signal": "ACC_Status",
+              "value": 4
+            }
+          },
+          "requirement_ref": "ACC-SYS-FUN-005",
+          "rule": {
+            "op": "le",
+            "value": 3.0
+          },
+          "signal": "ACC_Status",
+          "tolerance": {
+            "abs": 0.0,
+            "rel": null
+          },
+          "unit": "s",
+          "window": {
+            "type": "full"
+          }
+        },
+        {
+          "channel_group": "ACC_HMI_10Hz",
+          "criterion_id": "C2",
+          "description": "The hold telltale is asserted for every sample of the Active-Hold residency, so the state entered is the hold function and not only a state code.",
+          "min_samples": 10,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "none"
+          },
+          "requirement_ref": "ACC-SYS-FUN-005",
+          "rule": {
+            "op": "eq",
+            "quantifier": "all",
+            "value": 1
+          },
+          "signal": "ACC_HoldActive_Flg",
+          "tolerance": null,
+          "unit": "1",
+          "window": {
+            "in": [
+              4
+            ],
+            "min_duration_s": 1.0,
+            "settle_s": 0.2,
+            "signal": "ACC_Status",
+            "type": "state_mask"
+          }
+        },
+        {
+          "channel_group": "PT_CAN_100Hz",
+          "criterion_id": "C3",
+          "description": "The vehicle is held stationary in Active-Hold: speed magnitude at or below 0,36 km/h, i.e. the 0,10 m/s standstill epsilon expressed in km/h.",
+          "min_samples": 100,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "abs_max"
+          },
+          "requirement_ref": "ACC-SYS-FUN-005",
+          "rule": {
+            "op": "le",
+            "value": 0.36
+          },
+          "signal": "VehSpd_Kph",
+          "tolerance": {
+            "abs": 0.01,
+            "rel": null
+          },
+          "unit": "km/h",
+          "window": {
+            "in": [
+              4
+            ],
+            "min_duration_s": 1.0,
+            "settle_s": 0.5,
+            "signal": "ACC_Status",
+            "type": "state_mask"
+          }
+        }
+      ],
+      "pass_criteria_logic": "all",
+      "preconditions": {
+        "gates": [
+          {
+            "channel_group": "ACC_HMI_10Hz",
+            "criterion_id": "C1",
+            "description": "Active-Follow is occupied for at least 1 s before the lead brakes.",
+            "min_samples": 10,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "none"
+            },
+            "requirement_ref": "ACC-SYS-FUN-005",
+            "rule": {
+              "op": "eq",
+              "quantifier": "all",
+              "value": 3
+            },
+            "signal": "ACC_Status",
+            "tolerance": null,
+            "unit": "1",
+            "window": {
+              "in": [
+                3
+              ],
+              "min_duration_s": 1.0,
+              "signal": "ACC_Status",
+              "type": "state_mask"
+            }
+          },
+          {
+            "channel_group": "PT_CAN_100Hz",
+            "criterion_id": "C2",
+            "description": "The subject vehicle reaches standstill at least once in the run.",
+            "min_samples": 1,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "max"
+            },
+            "requirement_ref": "ACC-SYS-FUN-005",
+            "rule": {
+              "op": "eq",
+              "value": 1
+            },
+            "signal": "VehStandstill_Flg",
+            "tolerance": null,
+            "unit": "1",
+            "window": {
+              "type": "full"
+            }
+          }
+        ],
+        "prose": "The run must reach Active-Follow behind a valid primary target before the lead brakes, and the subject vehicle must actually reach standstill. Without both, the latency measurement has no from-event and no to-event, and the test case must not be allowed to report a PASS on an empty measurement."
+      },
+      "priority": "high",
+      "regression_flag": true,
+      "revision": "1.0",
+      "schema_version": "1.0.0",
+      "status": "Draft",
+      "steps": [
+        {
+          "action": "Replay the stop_and_go_hold_resume / dwell8s run; decode PT_CAN_100Hz and ACC_HMI_10Hz and ZOH-align the 10 Hz group onto the 100 Hz base.",
+          "expected": "Both groups decode; ACC_Status, ACC_HoldActive_Flg, VehSpd_Kph and VehStandstill_Flg are present with the units of signal catalogue v0001.",
+          "step_no": 1
+        },
+        {
+          "action": "Let the ego settle into following control behind the 20 km/h lead.",
+          "expected": "ACC_Status == 3 (Active-Follow) with ACC_TrgtDetd_Flg == 1.",
+          "step_no": 2
+        },
+        {
+          "action": "The lead brakes at -3 m/s2 from t = 8 s; follow the ego to standstill.",
+          "expected": "VehStandstill_Flg rises when the ego speed falls below the project standstill definition hold.v_standstill_eps_mps = 0,10 m/s.",
+          "step_no": 3
+        },
+        {
+          "action": "Measure the elapsed time from the VehStandstill_Flg rising edge to the first ACC_Status sample equal to 4, which the ACC_Status channel comment defines as Active-Hold.",
+          "expected": "The elapsed time is not more than 3 s (ISO 15622:2018 cl. 6.1).",
+          "step_no": 4
+        },
+        {
+          "action": "Over the Active-Hold residency, read the hold telltale and the vehicle speed.",
+          "expected": "ACC_HoldActive_Flg == 1 throughout and the speed magnitude stays at or below 0,36 km/h, which is the 0,10 m/s standstill epsilon in the channel's own unit.",
+          "step_no": 5
+        }
+      ],
+      "stimulus": {
+        "config_ref": "5703474a9755",
+        "notes": "Euro NCAP Auto-Resume geometry: 20 km/h lead, 30 km/h set speed, lead brakes at -3 m/s2 from t = 8 s to standstill at t = 9,85 s, then about 8 s of dwell. The dwell8s variant is chosen over dwell3s because the longer dwell leaves an unambiguous Active-Hold residency for the two steady-state criteria.",
+        "scenario_ref": "stop_and_go_hold_resume",
+        "variant_id": "dwell8s"
+      },
+      "tc_id": "ACC-SYS-TC-001",
+      "technique": "SIL",
+      "test_environment": "SIL: acc_stim 0.2.0 plant + controller, device acc-plant-sim-01. Evaluated offline from the run's MF4 in Data/, indexed by Data/manifest.csv; signal names, units and enum legends pinned to signal catalogue v0001 (Reqs/export/json/acc-signal-catalogue.json).",
+      "title": "Active-Hold entry within 3 s of standstill from Active-Follow",
+      "verification_method": "Test"
+    },
+    {
+      "covers_req_ids": [
+        "ACC-SYS-FUN-021"
+      ],
+      "data_requirements": {
+        "min_traces": 1,
+        "required_channel_groups": [
+          "PT_CAN_100Hz",
+          "ACC_HMI_10Hz"
+        ],
+        "required_signals": [
+          "ACC_SetSpd_Kph",
+          "ACC_Status",
+          "ACC_TimeGapSet_s",
+          "ACC_TrgtDetd_Flg",
+          "VehSpd_Kph"
+        ],
+        "trace_required": true
+      },
+      "entry_criteria": "The set speed is armed above the lead speed, so the two arbitration candidates are distinguishable in the trace.",
+      "exit_criteria": "All three pass criteria PASS on the named run.",
+      "impl_ref": null,
+      "last_change": "2026-08-18T00:00:00+00:00",
+      "mnemonic": "TC-FUN-021-01",
+      "notes": "Provenance: ACC-SYS-FUN-021 is VERIFIED-PRIMARY (ISO 15622:2018 cl. 6.1 and cl. 6.2.1). VOCABULARY LIMITATION: rule.value is a number, so the closed criterion vocabulary cannot compare two signals; 'the lower of the set speed and the gap-limited speed' cannot be written as VehSpd_Kph <= min(ACC_SetSpd_Kph, v_gap). The arbitration is pinned instead against the run's two known constants: gates C1 and C2 assert that the set speed really is 110 km/h and the gap setting really is 1,8 s, and pass criteria C2 and C3 then confine the achieved speed to a band around the 100 km/h lead that excludes the set speed by 8 km/h. A system that ignored the gap and chased the set speed fails C2 and C3; a system that exceeded the set speed fails C1. The arbitration is therefore verified at this operating point, not universally -- a general check needs a signal-versus-signal rule op that test-case-1.0.0 does not define. EXPECTED VERDICT: PASS -- maximum 100,02 km/h against the 110 km/h set speed, steady-state mean 99,998 km/h.",
+      "objective": "Show that while active the ACC controls speed to the lower of the set speed and the speed needed to hold the selected time gap: with a 110 km/h set speed and a 100 km/h lead, the ego must track the lead and never the set speed.",
+      "pass_criteria": [
+        {
+          "channel_group": "PT_CAN_100Hz",
+          "criterion_id": "C1",
+          "description": "The ego speed never exceeds the set speed while the ACC is active: the set-speed branch is an upper bound on the arbitration outcome.",
+          "min_samples": 1000,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "max"
+          },
+          "requirement_ref": "ACC-SYS-FUN-021",
+          "rule": {
+            "op": "le",
+            "value": 110.0
+          },
+          "signal": "VehSpd_Kph",
+          "tolerance": {
+            "abs": 0.01,
+            "rel": null
+          },
+          "unit": "km/h",
+          "window": {
+            "in": [
+              2,
+              3
+            ],
+            "settle_s": 0.5,
+            "signal": "ACC_Status",
+            "type": "state_mask"
+          }
+        },
+        {
+          "channel_group": "PT_CAN_100Hz",
+          "criterion_id": "C2",
+          "description": "In steady-state following control the mean ego speed lies in 98 to 102 km/h, the band around the 100 km/h lead speed, so the gap-limited branch and not the 110 km/h set speed determined the commanded speed.",
+          "min_samples": 1000,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "mean"
+          },
+          "requirement_ref": "ACC-SYS-FUN-021",
+          "rule": {
+            "op": "within",
+            "value": 98.0,
+            "value2": 102.0
+          },
+          "signal": "VehSpd_Kph",
+          "tolerance": {
+            "abs": 0.01,
+            "rel": null
+          },
+          "unit": "km/h",
+          "window": {
+            "in": [
+              3
+            ],
+            "min_duration_s": 10.0,
+            "settle_s": 10.0,
+            "signal": "ACC_Status",
+            "type": "state_mask"
+          }
+        },
+        {
+          "channel_group": "PT_CAN_100Hz",
+          "criterion_id": "C3",
+          "description": "No sample in steady-state following control rises above 102 km/h, so the arbitration does not intermittently flip back to the set speed.",
+          "min_samples": 1000,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "none"
+          },
+          "requirement_ref": "ACC-SYS-FUN-021",
+          "rule": {
+            "op": "le",
+            "quantifier": "all",
+            "value": 102.0
+          },
+          "signal": "VehSpd_Kph",
+          "tolerance": {
+            "abs": 0.01,
+            "rel": null
+          },
+          "unit": "km/h",
+          "window": {
+            "in": [
+              3
+            ],
+            "min_duration_s": 10.0,
+            "settle_s": 10.0,
+            "signal": "ACC_Status",
+            "type": "state_mask"
+          }
+        }
+      ],
+      "pass_criteria_logic": "all",
+      "preconditions": {
+        "gates": [
+          {
+            "channel_group": "ACC_HMI_10Hz",
+            "criterion_id": "C1",
+            "description": "The armed set speed is 110 km/h throughout ACC control.",
+            "min_samples": 100,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "none"
+            },
+            "requirement_ref": "ACC-SYS-FUN-021",
+            "rule": {
+              "op": "eq",
+              "quantifier": "all",
+              "value": 110.0
+            },
+            "signal": "ACC_SetSpd_Kph",
+            "tolerance": {
+              "abs": 0.01,
+              "rel": null
+            },
+            "unit": "km/h",
+            "window": {
+              "in": [
+                2,
+                3
+              ],
+              "settle_s": 0.5,
+              "signal": "ACC_Status",
+              "type": "state_mask"
+            }
+          },
+          {
+            "channel_group": "ACC_HMI_10Hz",
+            "criterion_id": "C2",
+            "description": "The selected time gap is the 1,8 s setting throughout ACC control.",
+            "min_samples": 100,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "none"
+            },
+            "requirement_ref": "ACC-SYS-FUN-021",
+            "rule": {
+              "op": "eq",
+              "quantifier": "all",
+              "value": 1.8
+            },
+            "signal": "ACC_TimeGapSet_s",
+            "tolerance": {
+              "abs": 0.001,
+              "rel": null
+            },
+            "unit": "s",
+            "window": {
+              "in": [
+                2,
+                3
+              ],
+              "settle_s": 0.5,
+              "signal": "ACC_Status",
+              "type": "state_mask"
+            }
+          },
+          {
+            "channel_group": "ACC_HMI_10Hz",
+            "criterion_id": "C3",
+            "description": "A primary target is detected for the whole following-control window.",
+            "min_samples": 50,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "min"
+            },
+            "requirement_ref": "ACC-SYS-FUN-021",
+            "rule": {
+              "op": "eq",
+              "value": 1
+            },
+            "signal": "ACC_TrgtDetd_Flg",
+            "tolerance": null,
+            "unit": "1",
+            "window": {
+              "in": [
+                3
+              ],
+              "min_duration_s": 5.0,
+              "settle_s": 0.5,
+              "signal": "ACC_Status",
+              "type": "state_mask"
+            }
+          }
+        ],
+        "prose": "The arbitration is only exercised if the set speed really is the higher of the two candidates and a valid primary target really is present, so both are asserted as gates rather than assumed from the scenario file."
+      },
+      "priority": "high",
+      "regression_flag": true,
+      "revision": "1.0",
+      "schema_version": "1.0.0",
+      "status": "Draft",
+      "steps": [
+        {
+          "action": "Replay the follow_steady_timegap / tau18 run and decode PT_CAN_100Hz and ACC_HMI_10Hz.",
+          "expected": "ACC_SetSpd_Kph reads 110 km/h and ACC_TimeGapSet_s reads 1,8 s once the ACC is armed at t = 1 s.",
+          "step_no": 1
+        },
+        {
+          "action": "Confirm the ACC is in following control with a target detected.",
+          "expected": "ACC_Status == 3 (Active-Follow) and ACC_TrgtDetd_Flg == 1.",
+          "step_no": 2
+        },
+        {
+          "action": "Over the whole ACC-active window, take the maximum ego speed.",
+          "expected": "The ego speed never exceeds the 110 km/h set speed.",
+          "step_no": 3
+        },
+        {
+          "action": "Over the steady-state part of following control (10 s after entry onwards), take the mean and the maximum ego speed.",
+          "expected": "The mean lies inside 98 to 102 km/h, i.e. the ego holds the 100 km/h lead speed and not the 110 km/h set speed, and no sample rises above 102 km/h.",
+          "step_no": 4
+        }
+      ],
+      "stimulus": {
+        "config_ref": "09d8ff905c4c",
+        "notes": "Set speed 110 km/h, constant 100 km/h lead, time-gap setting 3 (tau = 1,8 s), 60 s. The 10 km/h offset between set speed and lead speed is what makes the arbitration observable: with the two equal the run would be indistinguishable from plain cruise control.",
+        "scenario_ref": "follow_steady_timegap",
+        "variant_id": "tau18"
+      },
+      "tc_id": "ACC-SYS-TC-002",
+      "technique": "SIL",
+      "test_environment": "SIL: acc_stim 0.2.0 plant + controller, device acc-plant-sim-01. Evaluated offline from the run's MF4 in Data/, indexed by Data/manifest.csv; signal names, units and enum legends pinned to signal catalogue v0001 (Reqs/export/json/acc-signal-catalogue.json).",
+      "title": "Speed arbitration selects the lower of set speed and time-gap speed",
+      "verification_method": "Test"
+    },
+    {
+      "covers_req_ids": [
+        "ACC-SYS-FUN-061"
+      ],
+      "data_requirements": {
+        "min_traces": 1,
+        "required_channel_groups": [
+          "PT_CAN_100Hz"
+        ],
+        "required_signals": [
+          "BrkLmpReq_Flg",
+          "BrkLmp_Actv_Flg",
+          "BrkReq_mps2",
+          "DrvBrkPedal_Pct"
+        ],
+        "trace_required": true
+      },
+      "entry_criteria": "BrkReq_mps2 and BrkLmp_Actv_Flg are both on PT_CAN_100Hz, so the latency needs no cross-raster alignment.",
+      "exit_criteria": "Both pass criteria PASS and the worst-case latency is reported with its 0,005 s midpoint-convention uncertainty.",
+      "impl_ref": null,
+      "last_change": "2026-08-18T00:00:00+00:00",
+      "mnemonic": "TC-FUN-061-01",
+      "notes": "Provenance: ACC-SYS-FUN-061 is UNVERIFIED-2018. The 100 ms value is verbatim from ISO/DIS 15622 (1999) cl. 6.5; ISO 15622:2018 cl. 6.5 exists and is titled Activation of brake lights but is past the truncation point of the publisher-hosted preview, so a PASS here is not evidence of conformance to the published 2018 edition. The from-event threshold is -0,30 m/s2 because that is brake_light.threshold_mps2, the value at which the plant defines braking as initiated; using a rounder number would fold the time BrkReq_mps2 takes to travel from that number to the real threshold into the measured latency and quietly inflate it. EXPECTED VERDICT: PASS -- worst observed latency 0,08 s, which is brake_light.request_latency_s = 0,020 s plus brake_light.actuation_latency_s = 0,060 s, leaving 20 ms of margin. Both signals are on PT_CAN_100Hz so no ZOH alignment is involved; the result carries uncertainty_s = 0,005 from the 100 Hz midpoint convention. BrkLmpReq_Flg is listed in required_signals although no criterion reads it, because splitting the measured 80 ms into its request and actuation shares is what a failure investigation needs first.",
+      "objective": "Show that the brake lamps light no later than 100 ms after the ACC initiates automatic service braking, measured from the instant the deceleration request crosses the plant's brake-light threshold of -0,30 m/s2.",
+      "pass_criteria": [
+        {
+          "channel_group": "PT_CAN_100Hz",
+          "criterion_id": "C1",
+          "description": "Worst-case elapsed time from the deceleration request crossing -0,30 m/s2 to the brake lamp actually illuminating is not more than 100 ms.",
+          "min_samples": 1,
+          "on_missing_signal": "error",
+          "reduce": {
+            "from": {
+              "kind": "threshold",
+              "op": "lt",
+              "signal": "BrkReq_mps2",
+              "value": -0.3
+            },
+            "occurrence": "max",
+            "op": "time_between_edges",
+            "to": {
+              "kind": "rising",
+              "signal": "BrkLmp_Actv_Flg"
+            }
+          },
+          "requirement_ref": "ACC-SYS-FUN-061",
+          "rule": {
+            "op": "le",
+            "value": 0.1
+          },
+          "signal": "BrkLmp_Actv_Flg",
+          "tolerance": {
+            "abs": 0.0,
+            "rel": null
+          },
+          "unit": "s",
+          "window": {
+            "type": "full"
+          }
+        },
+        {
+          "channel_group": "PT_CAN_100Hz",
+          "criterion_id": "C2",
+          "description": "The brake lamp illuminates at least once, so C1 cannot pass on an empty set of edge pairs.",
+          "min_samples": 1,
+          "on_missing_signal": "error",
+          "reduce": {
+            "edge": "rising",
+            "op": "count_edges"
+          },
+          "requirement_ref": "ACC-SYS-FUN-061",
+          "rule": {
+            "op": "ge",
+            "value": 1
+          },
+          "signal": "BrkLmp_Actv_Flg",
+          "tolerance": {
+            "abs": 0.0,
+            "rel": null
+          },
+          "unit": "1",
+          "window": {
+            "type": "full"
+          }
+        }
+      ],
+      "pass_criteria_logic": "all",
+      "preconditions": {
+        "gates": [
+          {
+            "channel_group": "PT_CAN_100Hz",
+            "criterion_id": "C1",
+            "description": "The ACC commands at least one deceleration below the -0,30 m/s2 brake-light threshold.",
+            "min_samples": 1,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "min"
+            },
+            "requirement_ref": "ACC-SYS-FUN-061",
+            "rule": {
+              "op": "le",
+              "value": -0.3
+            },
+            "signal": "BrkReq_mps2",
+            "tolerance": {
+              "abs": 0.0,
+              "rel": null
+            },
+            "unit": "m/s^2",
+            "window": {
+              "type": "full"
+            }
+          },
+          {
+            "channel_group": "PT_CAN_100Hz",
+            "criterion_id": "C2",
+            "description": "The driver never touches the brake pedal, so every lamp edge is ACC-initiated.",
+            "min_samples": 1,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "abs_max"
+            },
+            "requirement_ref": "ACC-SYS-FUN-061",
+            "rule": {
+              "op": "le",
+              "value": 0.0
+            },
+            "signal": "DrvBrkPedal_Pct",
+            "tolerance": {
+              "abs": 0.01,
+              "rel": null
+            },
+            "unit": "%",
+            "window": {
+              "type": "full"
+            }
+          }
+        ],
+        "prose": "Automatic braking must actually be initiated below the lamp threshold, and no driver brake input may exist in the run, otherwise a lamp edge could belong to the driver rather than to the ACC."
+      },
+      "priority": "high",
+      "regression_flag": true,
+      "revision": "1.0",
+      "schema_version": "1.0.0",
+      "status": "Draft",
+      "steps": [
+        {
+          "action": "Replay the lead_brake_ccrb_4mps2 / v100 run and decode PT_CAN_100Hz.",
+          "expected": "BrkReq_mps2, BrkLmpReq_Flg, BrkLmp_Actv_Flg and DrvBrkPedal_Pct are present at 100 Hz.",
+          "step_no": 1
+        },
+        {
+          "action": "Find every instant at which BrkReq_mps2 falls below -0,30 m/s2, the value of brake_light.threshold_mps2 at which the plant defines automatic braking as initiated.",
+          "expected": "At least one such crossing exists; on this run there are five.",
+          "step_no": 2
+        },
+        {
+          "action": "For each crossing, measure the elapsed time to the next rising edge of BrkLmp_Actv_Flg, the actual lamp state, and keep the worst pair.",
+          "expected": "The worst-case elapsed time is not more than 100 ms.",
+          "step_no": 3
+        },
+        {
+          "action": "Count the rising edges of BrkLmp_Actv_Flg over the run.",
+          "expected": "At least one rising edge exists, so the latency measurement is not vacuous.",
+          "step_no": 4
+        }
+      ],
+      "stimulus": {
+        "config_ref": "945a9d55efcd",
+        "notes": "Euro NCAP CCRb: steady following at 100 km/h, lead brakes at -4 m/s2 from t = 15 s for 7 s, then releases. Chosen because it produces several clean braking initiations with no driver pedal input anywhere in the run, so every lamp edge is attributable to the ACC.",
+        "scenario_ref": "lead_brake_ccrb_4mps2",
+        "variant_id": "v100"
+      },
+      "tc_id": "ACC-SYS-TC-003",
+      "technique": "SIL",
+      "test_environment": "SIL: acc_stim 0.2.0 plant + controller, device acc-plant-sim-01. Evaluated offline from the run's MF4 in Data/, indexed by Data/manifest.csv; signal names, units and enum legends pinned to signal catalogue v0001 (Reqs/export/json/acc-signal-catalogue.json).",
+      "title": "Brake lights illuminate within 100 ms of automatic braking initiation",
+      "verification_method": "Test"
+    },
+    {
+      "covers_req_ids": [
+        "ACC-SYS-PRF-001"
+      ],
+      "data_requirements": {
+        "min_traces": 1,
+        "required_channel_groups": [
+          "PT_CAN_100Hz",
+          "RADAR_OBJ_50Hz",
+          "ACC_HMI_10Hz"
+        ],
+        "required_signals": [
+          "ACC_Status",
+          "ACC_TimeGapSet_s",
+          "Trgt_Dist_m",
+          "Trgt_Valid_Flg",
+          "VehSpd_Kph"
+        ],
+        "trace_required": true
+      },
+      "entry_criteria": "The tau = 0,8 s setting is selected and a valid primary target is tracked for the whole steady-state window.",
+      "exit_criteria": "Both pass criteria PASS; the report states the implied minimum time gap as the quotient of the two measured extremes.",
+      "impl_ref": null,
+      "last_change": "2026-08-18T00:00:00+00:00",
+      "mnemonic": "TC-PRF-001-01",
+      "notes": "Provenance: ACC-SYS-PRF-001 is VERIFIED-PRIMARY (ISO 15622:2018 cl. 6.2.3.1: the minimum selectable time gap under steady-state conditions shall be at least 0,8 s). Note the value changed across editions -- the 2002 first edition required 1 s -- so the edition matters. VOCABULARY LIMITATION: the time gap is Trgt_Dist_m divided by the ego speed, and the closed criterion vocabulary has neither signal arithmetic nor a signal-versus-signal rule, so the requirement is decomposed into a speed ceiling (C1) and a clearance floor (C2). C1 AND C2 together imply tau >= 0,8 s; either alone does not. The pair is conservative by construction: it can report a failure where the instantaneous quotient is marginally above 0,8 s, but it can never report a pass where the quotient is below it, which is the safe direction for a minimum-separation requirement. The 0,05 m tolerance on C2 is exactly one Trgt_Dist_m quantisation step (sensor.quantisation.dist_m in the signal catalogue) and it is load-bearing: this variant's nominal steady-state clearance of 22,2222 m does not lie on the 0,05 m quantisation grid, so the reported range can round below any bound derived from the nominal figure. settle_s = 2,0 s is this test case's operational reading of 'steady-state conditions'. EXPECTED VERDICT: PASS -- minimum clearance 22,900 m against the 22,3333 m floor and peak speed 100,070 km/h against the 100,5 km/h ceiling, implying a minimum time gap of about 0,823 s. The gap settles above the commanded 22,2222 m because speed.feedforward_drag is off, so the follow controller needs a standing gap error to produce the drag-compensating acceleration.",
+      "objective": "Show that at the shortest selectable time-gap setting the steady-state gap to the target never falls below 0,8 s, expressed as the pair (ego-speed ceiling, clearance floor) because the criterion vocabulary has no signal arithmetic.",
+      "pass_criteria": [
+        {
+          "channel_group": "PT_CAN_100Hz",
+          "criterion_id": "C1",
+          "description": "Ego speed in the steady-state window stays at or below 100,5 km/h. This is the ceiling the metre bound of C2 is derived at; C1 and C2 are only meaningful together.",
+          "min_samples": 1000,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "max"
+          },
+          "requirement_ref": "ACC-SYS-PRF-001",
+          "rule": {
+            "op": "le",
+            "value": 100.5
+          },
+          "signal": "VehSpd_Kph",
+          "tolerance": {
+            "abs": 0.01,
+            "rel": null
+          },
+          "unit": "km/h",
+          "window": {
+            "in": [
+              3
+            ],
+            "min_duration_s": 5.0,
+            "settle_s": 2.0,
+            "signal": "ACC_Status",
+            "type": "state_mask"
+          }
+        },
+        {
+          "channel_group": "RADAR_OBJ_50Hz",
+          "criterion_id": "C2",
+          "description": "Minimum clearance to the primary target in the steady-state window is at least 22,3333 m, which is 0,8 s at the 100,5 km/h ceiling asserted by C1 (0,8 x 100,5 / 3,6).",
+          "min_samples": 250,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "min"
+          },
+          "requirement_ref": "ACC-SYS-PRF-001",
+          "rule": {
+            "op": "ge",
+            "value": 22.3333
+          },
+          "signal": "Trgt_Dist_m",
+          "tolerance": {
+            "abs": 0.05,
+            "rel": null
+          },
+          "unit": "m",
+          "window": {
+            "in": [
+              3
+            ],
+            "min_duration_s": 5.0,
+            "settle_s": 2.0,
+            "signal": "ACC_Status",
+            "type": "state_mask"
+          }
+        }
+      ],
+      "pass_criteria_logic": "all",
+      "preconditions": {
+        "gates": [
+          {
+            "channel_group": "ACC_HMI_10Hz",
+            "criterion_id": "C1",
+            "description": "The selected time-gap setting resolves to 0,8 s, the shortest selectable value.",
+            "min_samples": 100,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "none"
+            },
+            "requirement_ref": "ACC-SYS-PRF-001",
+            "rule": {
+              "op": "eq",
+              "quantifier": "all",
+              "value": 0.8
+            },
+            "signal": "ACC_TimeGapSet_s",
+            "tolerance": {
+              "abs": 0.001,
+              "rel": null
+            },
+            "unit": "s",
+            "window": {
+              "in": [
+                3
+              ],
+              "settle_s": 0.5,
+              "signal": "ACC_Status",
+              "type": "state_mask"
+            }
+          },
+          {
+            "channel_group": "RADAR_OBJ_50Hz",
+            "criterion_id": "C2",
+            "description": "A valid primary target is tracked for every sample of the steady-state window.",
+            "min_samples": 100,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "min"
+            },
+            "requirement_ref": "ACC-SYS-PRF-001",
+            "rule": {
+              "op": "eq",
+              "value": 1
+            },
+            "signal": "Trgt_Valid_Flg",
+            "tolerance": null,
+            "unit": "1",
+            "window": {
+              "in": [
+                3
+              ],
+              "min_duration_s": 5.0,
+              "settle_s": 2.0,
+              "signal": "ACC_Status",
+              "type": "state_mask"
+            }
+          }
+        ],
+        "prose": "The requirement is about the minimum selectable gap, so the run must have the 0,8 s setting selected, and a clearance bound is only meaningful while a valid primary target is tracked."
+      },
+      "priority": "high",
+      "regression_flag": true,
+      "revision": "1.0",
+      "schema_version": "1.0.0",
+      "status": "Draft",
+      "steps": [
+        {
+          "action": "Replay the follow_steady_timegap / tau08 run and decode PT_CAN_100Hz, RADAR_OBJ_50Hz and ACC_HMI_10Hz.",
+          "expected": "ACC_TimeGapSet_s reads 0,8 s and Trgt_Valid_Flg is 1 throughout following control.",
+          "step_no": 1
+        },
+        {
+          "action": "Restrict the evaluation to following control 2 s after entry onwards, which is this test case's operational reading of the requirement's 'steady-state conditions'.",
+          "expected": "A contiguous window of at least 5 s is available.",
+          "step_no": 2
+        },
+        {
+          "action": "Take the maximum ego speed over that window.",
+          "expected": "The maximum is not above 100,5 km/h, the ceiling the clearance floor is derived at.",
+          "step_no": 3
+        },
+        {
+          "action": "Take the minimum primary-target clearance over the same window.",
+          "expected": "The minimum is not below 22,3333 m, which is 0,8 s at 100,5 km/h.",
+          "step_no": 4
+        },
+        {
+          "action": "Report the implied minimum time gap as min(Trgt_Dist_m) divided by max(VehSpd_Kph) / 3,6.",
+          "expected": "The implied time gap is at least 0,8 s (ISO 15622:2018 cl. 6.2.3.1).",
+          "step_no": 5
+        }
+      ],
+      "stimulus": {
+        "config_ref": "80c3cb927293",
+        "notes": "Steady following at 100 km/h at time-gap setting 1, i.e. tau = 0,8 s, the shortest of controller.spacing.tau_settings_s and therefore the setting at which the ISO minimum is actually at risk. The run starts at its own desired clearance of 22,2222 m, so what the trace shows is the settling behaviour of the untuned default gains rather than a capture transient.",
+        "scenario_ref": "follow_steady_timegap",
+        "variant_id": "tau08"
+      },
+      "tc_id": "ACC-SYS-TC-011",
+      "technique": "SIL",
+      "test_environment": "SIL: acc_stim 0.2.0 plant + controller, device acc-plant-sim-01. Evaluated offline from the run's MF4 in Data/, indexed by Data/manifest.csv; signal names, units and enum legends pinned to signal catalogue v0001 (Reqs/export/json/acc-signal-catalogue.json).",
+      "title": "Time gap not less than 0,8 s in steady-state following control",
+      "verification_method": "Test"
+    },
+    {
+      "covers_req_ids": [
+        "ACC-SYS-PRF-020"
+      ],
+      "data_requirements": {
+        "min_traces": 1,
+        "required_channel_groups": [
+          "PT_CAN_100Hz",
+          "ACC_HMI_10Hz"
+        ],
+        "required_signals": [
+          "ACC_Status",
+          "BrkReq_mps2",
+          "DrvBrkPedal_Pct",
+          "VehAccel_mps2"
+        ],
+        "trace_required": true
+      },
+      "entry_criteria": "A contiguous ACC-active segment of at least 20 s exists, so the 2 s trailing average has a fully populated window well inside the evaluation region.",
+      "exit_criteria": "The verdict is reported for the achieved value (C1) and the post-limiter request (C2) separately, so a failure is localised rather than merely recorded.",
+      "impl_ref": null,
+      "last_change": "2026-08-18T00:00:00+00:00",
+      "mnemonic": "TC-PRF-020-01",
+      "notes": "Provenance: ACC-SYS-PRF-020 is UNVERIFIED-2018. The 3,5 m/s2 over 2 s is verbatim from ISO 15622:2010 cl. 6.4; the 2018 clause exists but is past the truncation point of the publisher-hosted preview, and the value is known to be volatile (the 1999 ISO/DIS set 3,0 m/s2). EXPECTED VERDICT: FAIL -- and that is the point of this test case, not a defect in it. The requirement's measurand is a_x_ego, the ACHIEVED longitudinal acceleration, which on this bus is VehAccel_mps2: a plant output that includes road load and is never clipped by the limiter chain. Its 2 s trailing average reaches 3,824 m/s2 here against a 3,5 m/s2 bound, and the overshoot scales with speed -- 3,654 / 3,723 / 3,824 m/s2 at the v070 / v100 / v130 variants -- because drag adds to commanded braking. TWO WAYS TO HIDE THAT FAILURE WERE DELIBERATELY AVOIDED. Reading the deceleration from AccelReq_mps2 gives a false PASS, because that channel is max(a_cmd, 0) and is positive-only. Reading it from BrkReq_mps2 also gives a PASS, because that limiter is exact at -3,500 m/s2 across all 37 runs -- criterion C2 records precisely that, so the report says where the overshoot is instead of only that there is one. STATE GATING IS LOAD-BEARING IN THE OTHER DIRECTION TOO. Without the ACC_Status and DrvBrkPedal_Pct gates the driver_override_brake run shows 3,85 m/s2 achieved while BrkReq_mps2 is 0, i.e. the driver's own braking charged to the ACC; with the gates that run drops to 0,03 m/s2. The pedal gate is written as `le 0.0` rather than an equality because DrvBrkPedal_Pct is a float percentage and cannot be negative. tolerance.abs = 0,05 m/s2 matches the worked example in schemas.md section 4 and does not mask the finding: the effective bound is -3,55 m/s2 against a measured -3,824 m/s2, so the criterion fails with 0,274 m/s2 to spare. EVALUATOR NOTE: moving_average is trailing and the window here is a state mask, so an implementation must not average across a mask discontinuity. On this run the ACC-active segment is a single contiguous 39 s block (t = 1,0 to 40,0 s) and the pedal gate removes nothing, so no discontinuity exists; min_duration_s = 2,0 on the mask part states the requirement that any surviving segment be at least as long as the averaging window.",
+      "objective": "Show whether the 2 s moving average of the ACHIEVED longitudinal deceleration stays within 3,5 m/s2 while the ACC is in control and the driver is off the brake. The requirement's measurand is a_x_ego, so the achieved value is the one that counts.",
+      "pass_criteria": [
+        {
+          "channel_group": "PT_CAN_100Hz",
+          "criterion_id": "C1",
+          "description": "The 2 s trailing moving average of the ACHIEVED longitudinal acceleration never falls below -3,5 m/s2 while the ACC is in control and the driver brake pedal is released.",
+          "min_samples": 200,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "moving_average",
+            "window_s": 2.0
+          },
+          "requirement_ref": "ACC-SYS-PRF-020",
+          "rule": {
+            "op": "ge",
+            "quantifier": "all",
+            "value": -3.5
+          },
+          "signal": "VehAccel_mps2",
+          "tolerance": {
+            "abs": 0.05,
+            "rel": null
+          },
+          "unit": "m/s^2",
+          "window": {
+            "parts": [
+              {
+                "in": [
+                  2,
+                  3
+                ],
+                "min_duration_s": 2.0,
+                "settle_s": 0.5,
+                "signal": "ACC_Status",
+                "type": "state_mask"
+              },
+              {
+                "op": "le",
+                "signal": "DrvBrkPedal_Pct",
+                "type": "signal_threshold",
+                "value": 0.0
+              }
+            ],
+            "type": "all_of"
+          }
+        },
+        {
+          "channel_group": "PT_CAN_100Hz",
+          "criterion_id": "C2",
+          "description": "Companion evidence, same requirement: the deceleration REQUEST after the whole limiter chain never falls below -3,5 m/s2. Read together with C1 this separates a limiter defect from a road-load effect.",
+          "min_samples": 200,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "min"
+          },
+          "requirement_ref": "ACC-SYS-PRF-020",
+          "rule": {
+            "op": "ge",
+            "value": -3.5
+          },
+          "signal": "BrkReq_mps2",
+          "tolerance": {
+            "abs": 0.0,
+            "rel": null
+          },
+          "unit": "m/s^2",
+          "window": {
+            "in": [
+              2,
+              3
+            ],
+            "settle_s": 0.5,
+            "signal": "ACC_Status",
+            "type": "state_mask"
+          }
+        },
+        {
+          "channel_group": "PT_CAN_100Hz",
+          "criterion_id": "C3",
+          "description": "Non-vacuity guard: the run really did produce heavy braking under ACC control, so neither a PASS nor a FAIL can come from an empty or gentle window.",
+          "min_samples": 200,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "min"
+          },
+          "requirement_ref": "ACC-SYS-PRF-020",
+          "rule": {
+            "op": "le",
+            "value": -3.0
+          },
+          "signal": "VehAccel_mps2",
+          "tolerance": {
+            "abs": 0.0,
+            "rel": null
+          },
+          "unit": "m/s^2",
+          "window": {
+            "parts": [
+              {
+                "in": [
+                  2,
+                  3
+                ],
+                "min_duration_s": 2.0,
+                "settle_s": 0.5,
+                "signal": "ACC_Status",
+                "type": "state_mask"
+              },
+              {
+                "op": "le",
+                "signal": "DrvBrkPedal_Pct",
+                "type": "signal_threshold",
+                "value": 0.0
+              }
+            ],
+            "type": "all_of"
+          }
+        }
+      ],
+      "pass_criteria_logic": "all",
+      "preconditions": {
+        "gates": [
+          {
+            "channel_group": "PT_CAN_100Hz",
+            "criterion_id": "C1",
+            "description": "The driver never touches the brake pedal anywhere in the run, so the achieved deceleration is attributable to the ACC.",
+            "min_samples": 1,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "abs_max"
+            },
+            "requirement_ref": "ACC-SYS-PRF-020",
+            "rule": {
+              "op": "le",
+              "value": 0.0
+            },
+            "signal": "DrvBrkPedal_Pct",
+            "tolerance": {
+              "abs": 0.01,
+              "rel": null
+            },
+            "unit": "%",
+            "window": {
+              "type": "full"
+            }
+          },
+          {
+            "channel_group": "ACC_HMI_10Hz",
+            "criterion_id": "C2",
+            "description": "A contiguous Active-Cruise or Active-Follow segment of at least 20 s exists, i.e. at least 200 samples at 10 Hz, so the 2 s trailing average cannot be evaluated on a sliver of data.",
+            "min_samples": 200,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "none"
+            },
+            "requirement_ref": "ACC-SYS-PRF-020",
+            "rule": {
+              "op": "ge",
+              "quantifier": "all",
+              "value": 2
+            },
+            "signal": "ACC_Status",
+            "tolerance": null,
+            "unit": "1",
+            "window": {
+              "in": [
+                2,
+                3
+              ],
+              "min_duration_s": 20.0,
+              "settle_s": 0.5,
+              "signal": "ACC_Status",
+              "type": "state_mask"
+            }
+          }
+        ],
+        "prose": "Scope gating is the whole difficulty of this requirement. The achieved acceleration includes whatever the driver does, so the evaluation must be confined to samples where the ACC is in speed or following control AND the driver brake pedal is released; otherwise driver braking is charged to the ACC. The window must also be long and contiguous enough for a 2 s trailing average."
+      },
+      "priority": "high",
+      "regression_flag": true,
+      "revision": "1.0",
+      "schema_version": "1.0.0",
+      "status": "Draft",
+      "steps": [
+        {
+          "action": "Replay the lead_brake_ccrb_4mps2 / v130 run and decode PT_CAN_100Hz and ACC_HMI_10Hz; ZOH-align ACC_Status onto the 100 Hz base.",
+          "expected": "VehAccel_mps2, BrkReq_mps2 and DrvBrkPedal_Pct are present at 100 Hz in m/s^2, m/s^2 and % respectively.",
+          "step_no": 1
+        },
+        {
+          "action": "Mask the trace to samples where ACC_Status is 2 or 3 AND DrvBrkPedal_Pct <= 0.",
+          "expected": "A contiguous window of at least 20 s survives the mask.",
+          "step_no": 2
+        },
+        {
+          "action": "Compute the 2 s trailing moving average of VehAccel_mps2 over that window, dropping samples whose averaging window is incomplete.",
+          "expected": "A series in m/s^2 with at least 200 samples.",
+          "step_no": 3
+        },
+        {
+          "action": "Check that no sample of the average falls below -3,5 m/s2.",
+          "expected": "EXPECTED TO FAIL: the average reaches -3,824 m/s2 on this run.",
+          "step_no": 4
+        },
+        {
+          "action": "Repeat on BrkReq_mps2, the deceleration request after the whole limiter chain.",
+          "expected": "The request never falls below -3,500 m/s2, which localises the overshoot in the road-load contribution to the achieved value rather than in the limiter.",
+          "step_no": 5
+        }
+      ],
+      "stimulus": {
+        "config_ref": "d3c693ca7316",
+        "notes": "Euro NCAP CCRb at the top of the assessment speed band: steady following at 130 km/h, lead brakes at -4 m/s2 from t = 15 s for 7 s. The v130 variant is the worst case of the three because aerodynamic drag adds to commanded braking and the overshoot therefore scales with speed.",
+        "scenario_ref": "lead_brake_ccrb_4mps2",
+        "variant_id": "v130"
+      },
+      "tc_id": "ACC-SYS-TC-014",
+      "technique": "SIL",
+      "test_environment": "SIL: acc_stim 0.2.0 plant + controller, device acc-plant-sim-01. Evaluated offline from the run's MF4 in Data/, indexed by Data/manifest.csv; signal names, units and enum legends pinned to signal catalogue v0001 (Reqs/export/json/acc-signal-catalogue.json).",
+      "title": "Automatic deceleration limited to a 2 s moving average of 3,5 m/s2",
+      "verification_method": "Test"
+    },
+    {
+      "covers_req_ids": [
+        "ACC-SYS-PRF-041"
+      ],
+      "data_requirements": {
+        "min_traces": 1,
+        "required_channel_groups": [
+          "PT_CAN_100Hz",
+          "ACC_HMI_10Hz"
+        ],
+        "required_signals": [
+          "ACC_SetSpd_Kph",
+          "ACC_Status",
+          "VehSpd_Kph"
+        ],
+        "trace_required": true
+      },
+      "entry_criteria": "The ACC is armed in Active-Cruise with no target within sensor range.",
+      "exit_criteria": "Both pass criteria PASS on the named run.",
+      "impl_ref": null,
+      "last_change": "2026-08-18T00:00:00+00:00",
+      "mnemonic": "TC-PRF-041-01",
+      "notes": "Provenance: the verification_tag of ACC-SYS-PRF-041 in Reqs/requirements/performance.yaml is DERIVED, and its source field names PROJECT-CHOICE:systems-engineer; the scenario's own source_tag in Data/manifest.csv reads PROJECT-CHOICE. Either way the 180 km/h ceiling is a project decision fixed 2026-08-18 (controller.speed.v_set_max_kph). ISO 15622:2018 cl. 4 defines the symbol v_set_max but sets no numeric value, so a PASS here is conformance to the project ceiling and to nothing in the standard. C2 is the criterion that makes the test non-trivial: the driver requests 190 km/h at t = 5 s, so a system that simply accepted the request would read 190 km/h from t = 6 s onwards. The request itself is a scenario input and is not published on any bus, so it cannot appear in a criterion; C2 asserts its consequence instead. EXPECTED VERDICT: PASS -- ACC_SetSpd_Kph is 180,0 km/h for all 541 samples after t = 6 s, exactly at the bound; the achieved speed reaches 173,65 km/h, short of the ceiling, which is a cruise-droop observation and not part of this requirement. tolerance.abs = 0,01 km/h is the VehSpd_Kph quantisation step and cannot mask the failure mode this test looks for, which is a 10 km/h overshoot. VehSpd_Kph is listed in required_signals for that context although no criterion reads it.",
+      "objective": "Show that the active set speed never exceeds the 180 km/h ceiling, including when the driver explicitly requests 190 km/h, so the request is clamped rather than accepted.",
+      "pass_criteria": [
+        {
+          "channel_group": "ACC_HMI_10Hz",
+          "criterion_id": "C1",
+          "description": "The active set speed never exceeds 180 km/h anywhere in the run.",
+          "min_samples": 100,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "max"
+          },
+          "requirement_ref": "ACC-SYS-PRF-041",
+          "rule": {
+            "op": "le",
+            "value": 180.0
+          },
+          "signal": "ACC_SetSpd_Kph",
+          "tolerance": {
+            "abs": 0.01,
+            "rel": null
+          },
+          "unit": "km/h",
+          "window": {
+            "type": "full"
+          }
+        },
+        {
+          "channel_group": "ACC_HMI_10Hz",
+          "criterion_id": "C2",
+          "description": "From t = 6 s, after the driver requests 190 km/h at t = 5 s, the active set speed is exactly 180 km/h at every sample -- the request is clamped, not accepted.",
+          "min_samples": 500,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "none"
+          },
+          "requirement_ref": "ACC-SYS-PRF-041",
+          "rule": {
+            "op": "eq",
+            "quantifier": "all",
+            "value": 180.0
+          },
+          "signal": "ACC_SetSpd_Kph",
+          "tolerance": {
+            "abs": 0.01,
+            "rel": null
+          },
+          "unit": "km/h",
+          "window": {
+            "t_end_s": 60.0,
+            "t_start_s": 6.0,
+            "type": "time_range"
+          }
+        }
+      ],
+      "pass_criteria_logic": "all",
+      "preconditions": {
+        "gates": [
+          {
+            "channel_group": "ACC_HMI_10Hz",
+            "criterion_id": "C1",
+            "description": "The ACC holds Active-Cruise for a contiguous 20 s or more.",
+            "min_samples": 200,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "none"
+            },
+            "requirement_ref": "ACC-SYS-PRF-041",
+            "rule": {
+              "op": "eq",
+              "quantifier": "all",
+              "value": 2
+            },
+            "signal": "ACC_Status",
+            "tolerance": null,
+            "unit": "1",
+            "window": {
+              "in": [
+                2
+              ],
+              "min_duration_s": 20.0,
+              "signal": "ACC_Status",
+              "type": "state_mask"
+            }
+          }
+        ],
+        "prose": "The ceiling is only exercised while the ACC is actually in speed control, so the run must hold Active-Cruise for the bulk of its duration."
+      },
+      "priority": "medium",
+      "regression_flag": true,
+      "revision": "1.0",
+      "schema_version": "1.0.0",
+      "status": "Draft",
+      "steps": [
+        {
+          "action": "Replay the cruise_set_speed_max / base run and decode ACC_HMI_10Hz.",
+          "expected": "ACC_SetSpd_Kph is present at 10 Hz in km/h; it reads 0 before the first SET, because no set speed exists yet.",
+          "step_no": 1
+        },
+        {
+          "action": "Take the maximum of ACC_SetSpd_Kph over the whole run.",
+          "expected": "The maximum is not above 180 km/h.",
+          "step_no": 2
+        },
+        {
+          "action": "From t = 6 s, i.e. after the driver's 190 km/h request at t = 5 s, check every sample of ACC_SetSpd_Kph.",
+          "expected": "Every sample equals 180 km/h: the above-ceiling request was clamped, not accepted.",
+          "step_no": 3
+        }
+      ],
+      "stimulus": {
+        "config_ref": "122c536c8f4d",
+        "notes": "The only run that exercises the ceiling: ego starts at 130 km/h, the set speed is armed at 180 km/h at t = 1 s, and the driver requests 190 km/h at t = 5 s. The lead is parked 5000 m ahead, beyond sensor.max_range_m, so no target exists and the arbitration cannot lower the commanded speed for an unrelated reason.",
+        "scenario_ref": "cruise_set_speed_max",
+        "variant_id": "base"
+      },
+      "tc_id": "ACC-SYS-TC-016",
+      "technique": "SIL",
+      "test_environment": "SIL: acc_stim 0.2.0 plant + controller, device acc-plant-sim-01. Evaluated offline from the run's MF4 in Data/, indexed by Data/manifest.csv; signal names, units and enum legends pinned to signal catalogue v0001 (Reqs/export/json/acc-signal-catalogue.json).",
+      "title": "Set speed constrained to not more than 180 km/h",
+      "verification_method": "Test"
+    },
+    {
+      "covers_req_ids": [
+        "ACC-SYS-SAF-021"
+      ],
+      "data_requirements": {
+        "min_traces": 1,
+        "required_channel_groups": [
+          "RADAR_OBJ_50Hz",
+          "ACC_HMI_10Hz"
+        ],
+        "required_signals": [
+          "ACC_FltCode_Enum",
+          "ACC_Status",
+          "ACC_Warn_Enum",
+          "Rdr_Sts_Enum",
+          "Trgt_Valid_Flg"
+        ],
+        "trace_required": true
+      },
+      "entry_criteria": "The run injects a real forward-sensing dropout while the ACC is in a covered active state, and RADAR_OBJ_50Hz is ZOH-alignable onto ACC_HMI_10Hz.",
+      "exit_criteria": "All three pass criteria PASS, and the report carries the observability caveat in this test case's notes verbatim: the measured latency bounds the composite budget from above and says nothing about the 500 ms debounce.",
+      "impl_ref": null,
+      "last_change": "2026-08-18T00:00:00+00:00",
+      "mnemonic": "TC-SAF-021-01",
+      "notes": "Provenance: ACC-SYS-SAF-021 is DERIVED. Both numbers are PROJECT-CHOICE:systems-engineer -- 500 ms is about two forward-sensor frames at 20 Hz, 200 ms is below the roughly 250 ms driver-reaction floor. ISO 15622:2018 cl. 6.6 exists but its content is past the truncation point of the preview. OBSERVABILITY LIMITATION -- READ THIS BEFORE TRUSTING A PASS. The requirement says 'within 200 ms of that detection', and detection is an internal event: the bus carries the sensor status and the ACC state but nothing marking the instant the ACC concluded that 500 ms of unavailability had elapsed. There is no signal to anchor a 200 ms measurement to, and the closed criterion vocabulary cannot synthesise one, so C1 measures the composite budget the requirement implies end to end: 500 ms plus 200 ms = 700 ms from the Rdr_Sts_Enum edge into blocked/fault to the first ACC_Status sample of 6. EXPECTED VERDICT: PASS -- measured 0,000 s against the 0,700 s bound, with uncertainty_s = 0,05 from the 50 Hz to 10 Hz ZOH alignment. THAT MEASURED ZERO IS ITSELF A FINDING and is not evidence of a correct debounce: the plant transitions to Degraded/Fault in the same control step in which the dropout is injected, so the 500 ms unavailability filter the requirement presumes is not observable in this build. C1 bounds the latency from above only; it cannot and does not verify that a shorter dropout is rejected. No lower bound is asserted, because the register states 500 ms as a trigger condition on the detector, not as a minimum latency for the transition, and reporting FAIL for being early would be testing a requirement that does not exist. RECOMMENDED OPEN POINT for Buddy: either SAF-021 needs a companion requirement forbidding a transition before 500 ms of continuous unavailability, or the detector needs the debounce that SAF-021 assumes it has. ACC_Warn_Enum is listed in required_signals without a criterion because the takeover request at t = 20,2 s (fault.t_warn_latency_s = 0,20) belongs to ACC-SYS-SAF-004, which is outside this set.",
+      "objective": "Show that the ACC reaches Degraded-Fault within the composite 700 ms the requirement implies -- 500 ms of unavailability plus a 200 ms transition -- measured from the sensor status entering blocked/fault, and that the fault it reports is the sensor one.",
+      "pass_criteria": [
+        {
+          "channel_group": "ACC_HMI_10Hz",
+          "criterion_id": "C1",
+          "description": "Elapsed time from the sensor status entering blocked/fault to ACC_Status entering 6 (Degraded/Fault) is not more than 0,700 s, i.e. the requirement's 500 ms unavailability window plus its 200 ms transition allowance.",
+          "min_samples": 1,
+          "on_missing_signal": "error",
+          "reduce": {
+            "from": {
+              "kind": "threshold",
+              "op": "ge",
+              "signal": "Rdr_Sts_Enum",
+              "value": 2
+            },
+            "occurrence": "max",
+            "op": "time_between_edges",
+            "to": {
+              "kind": "to_value",
+              "signal": "ACC_Status",
+              "value": 6
+            }
+          },
+          "requirement_ref": "ACC-SYS-SAF-021",
+          "rule": {
+            "op": "le",
+            "value": 0.7
+          },
+          "signal": "ACC_Status",
+          "tolerance": {
+            "abs": 0.0,
+            "rel": null
+          },
+          "unit": "s",
+          "window": {
+            "type": "full"
+          }
+        },
+        {
+          "channel_group": "ACC_HMI_10Hz",
+          "criterion_id": "C2",
+          "description": "The state reached is Degraded-Fault: the maximum ACC_Status over the run is exactly 6, so C1 cannot pass on an absent to-event.",
+          "min_samples": 100,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "max"
+          },
+          "requirement_ref": "ACC-SYS-SAF-021",
+          "rule": {
+            "op": "eq",
+            "value": 6
+          },
+          "signal": "ACC_Status",
+          "tolerance": null,
+          "unit": "1",
+          "window": {
+            "type": "full"
+          }
+        },
+        {
+          "channel_group": "ACC_HMI_10Hz",
+          "criterion_id": "C3",
+          "description": "For every sample of the Degraded-Fault residency the reported fault code is 1, the sensor fault, so the transition is attributed to the injected cause.",
+          "min_samples": 10,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "none"
+          },
+          "requirement_ref": "ACC-SYS-SAF-021",
+          "rule": {
+            "op": "equals_enum",
+            "quantifier": "all",
+            "value": 1
+          },
+          "signal": "ACC_FltCode_Enum",
+          "tolerance": null,
+          "unit": "1",
+          "window": {
+            "in": [
+              6
+            ],
+            "min_duration_s": 1.0,
+            "signal": "ACC_Status",
+            "type": "state_mask"
+          }
+        }
+      ],
+      "pass_criteria_logic": "all",
+      "preconditions": {
+        "gates": [
+          {
+            "channel_group": "RADAR_OBJ_50Hz",
+            "criterion_id": "C1",
+            "description": "The sensor status reaches 2, which the Rdr_Sts_Enum channel comment defines as blocked/fault.",
+            "min_samples": 1,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "max"
+            },
+            "requirement_ref": "ACC-SYS-SAF-021",
+            "rule": {
+              "op": "eq",
+              "value": 2
+            },
+            "signal": "Rdr_Sts_Enum",
+            "tolerance": null,
+            "unit": "1",
+            "window": {
+              "type": "full"
+            }
+          },
+          {
+            "channel_group": "ACC_HMI_10Hz",
+            "criterion_id": "C2",
+            "description": "The ACC holds a covered active state for at least 5 s before the dropout.",
+            "min_samples": 50,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "none"
+            },
+            "requirement_ref": "ACC-SYS-SAF-021",
+            "rule": {
+              "op": "ge",
+              "quantifier": "all",
+              "value": 2
+            },
+            "signal": "ACC_Status",
+            "tolerance": null,
+            "unit": "1",
+            "window": {
+              "in": [
+                2,
+                3,
+                4
+              ],
+              "min_duration_s": 5.0,
+              "signal": "ACC_Status",
+              "type": "state_mask"
+            }
+          }
+        ],
+        "prose": "Forward sensing must genuinely become unavailable, and the ACC must be in Active-Cruise, Active-Follow or Active-Hold when it does, because those are the only states the requirement covers."
+      },
+      "priority": "high",
+      "regression_flag": true,
+      "revision": "1.0",
+      "schema_version": "1.0.0",
+      "status": "Draft",
+      "steps": [
+        {
+          "action": "Replay the fault_sensor_dropout / base run and decode RADAR_OBJ_50Hz and ACC_HMI_10Hz; ZOH-align the 50 Hz group onto the 10 Hz group.",
+          "expected": "Rdr_Sts_Enum, ACC_Status and ACC_FltCode_Enum are present with the enum legends of signal catalogue v0001.",
+          "step_no": 1
+        },
+        {
+          "action": "Confirm the ACC is in Active-Follow when the dropout is injected at t = 20 s.",
+          "expected": "ACC_Status == 3 up to the injection instant.",
+          "step_no": 2
+        },
+        {
+          "action": "Measure the elapsed time from Rdr_Sts_Enum first reaching 2 (blocked/fault) to the first ACC_Status sample equal to 6 (Degraded/Fault).",
+          "expected": "The elapsed time is not more than 0,700 s, the 500 ms detection window plus the 200 ms transition the requirement allows.",
+          "step_no": 3
+        },
+        {
+          "action": "Confirm the state actually reached is Degraded-Fault and not a lesser state.",
+          "expected": "The maximum of ACC_Status over the run is exactly 6.",
+          "step_no": 4
+        },
+        {
+          "action": "Read the fault code reported for every sample of the Degraded-Fault residency.",
+          "expected": "ACC_FltCode_Enum == 1, which the channel comment defines as the sensor fault.",
+          "step_no": 5
+        }
+      ],
+      "stimulus": {
+        "config_ref": "e42b91e34fb7",
+        "notes": "The only run in the catalogue that reaches Degraded/Fault: steady following at 100 km/h, then a 2 s total radar dropout from t = 20 s during which every object slot reports invalid and Rdr_Sts_Enum reports blocked. The ACC falls back to Standby at t = 22 s once the fault has cleared and the command ramp has finished.",
+        "scenario_ref": "fault_sensor_dropout",
+        "variant_id": "base"
+      },
+      "tc_id": "ACC-SYS-TC-021",
+      "technique": "SIL",
+      "test_environment": "SIL: acc_stim 0.2.0 plant + controller, device acc-plant-sim-01. Evaluated offline from the run's MF4 in Data/, indexed by Data/manifest.csv; signal names, units and enum legends pinned to signal catalogue v0001 (Reqs/export/json/acc-signal-catalogue.json).",
+      "title": "Degraded-Fault entry on loss of forward sensing",
+      "verification_method": "Test"
+    },
+    {
+      "covers_req_ids": [
+        "ACC-SYS-SAF-024"
+      ],
+      "data_requirements": {
+        "min_traces": 1,
+        "required_channel_groups": [
+          "PT_CAN_100Hz",
+          "ACC_HMI_10Hz"
+        ],
+        "required_signals": [
+          "ACC_Status",
+          "BrkPress_Bar",
+          "BrkReq_mps2",
+          "VehAccel_mps2"
+        ],
+        "trace_required": true
+      },
+      "entry_criteria": "The run contains at least one interval of commanded automatic braking that ends while the vehicle is still decelerating.",
+      "exit_criteria": "Both pass criteria PASS and the measured peak release rate is reported to six decimal places, so the float32 excess over the bound is visible rather than hidden by the tolerance.",
+      "impl_ref": null,
+      "last_change": "2026-08-18T00:00:00+00:00",
+      "mnemonic": "TC-SAF-024-01",
+      "notes": "Provenance: ACC-SYS-SAF-024 is UNVERIFIED-2018. ISO 15622:2010 cl. 6.4 states only the qualitative 'brake force is not released suddenly'; the 2,5 m/s3 number is inherited from the jerk limit of ACC-SYS-PRF-021 (controller.limits.jerk_max_mps3) so that application and release are bounded symmetrically, and the 2018 wording could not be read. UNIT NOTE: the criterion signal is an acceleration in m/s^2 and reduce.op = derivative transforms it to m/s^3 per schemas.md section 3.1, so criterion.unit is m/s^3. An evaluator doing unit algebra will reject m/s^2 here. SIGN CONVENTION: BrkReq_mps2 is min(a_cmd, 0) and therefore negative-only, so releasing the brake makes it increase toward zero and the release rate is the POSITIVE derivative. rule.op = le bounds exactly that and deliberately ignores the negative derivatives of the application direction, which belong to ACC-SYS-PRF-021. EXPECTED VERDICT: PASS -- the release ramp runs from -3,500 m/s2 at t = 19,50 s to zero at t = 20,95 s at a measured 2,500010 m/s3, i.e. the L4 jerk limiter binds exactly at the requirement's bound. tolerance.abs = 0,01 m/s3 is REQUIRED, not cosmetic: BrkReq_mps2 is stored as float32, so the central difference of an exactly-2,5 m/s3 ramp evaluates to 2,500009537 and a zero-tolerance comparison would report a spurious FAIL on a 1e-5 excess that is pure storage rounding. OBSERVATION FOR THE REGISTER, OUT OF SCOPE HERE: inside the same window the most negative derivative is about -50 m/s3 at the onset of braking. That is a candidate finding against ACC-SYS-PRF-021, which has no test case in this set. BrkPress_Bar and VehAccel_mps2 are listed in required_signals without criteria because the qualitative source requirement is about brake FORCE, and the pressure trace is what a reviewer will want to see beside the request.",
+      "objective": "Show that when the ACC ends automatic brake control while the vehicle is decelerating, the commanded deceleration is reduced at no more than 2,5 m/s3, i.e. brake force is not released suddenly.",
+      "pass_criteria": [
+        {
+          "channel_group": "PT_CAN_100Hz",
+          "criterion_id": "C1",
+          "description": "While automatic braking is commanded, the time derivative of the commanded deceleration never exceeds +2,5 m/s3. Positive is the release direction because BrkReq_mps2 is negative-only and rises toward zero as the brake is released.",
+          "min_samples": 100,
+          "on_missing_signal": "error",
+          "reduce": {
+            "method": "central",
+            "op": "derivative"
+          },
+          "requirement_ref": "ACC-SYS-SAF-024",
+          "rule": {
+            "op": "le",
+            "quantifier": "all",
+            "value": 2.5
+          },
+          "signal": "BrkReq_mps2",
+          "tolerance": {
+            "abs": 0.01,
+            "rel": null
+          },
+          "unit": "m/s^3",
+          "window": {
+            "op": "lt",
+            "signal": "BrkReq_mps2",
+            "type": "signal_threshold",
+            "value": -0.05
+          }
+        },
+        {
+          "channel_group": "PT_CAN_100Hz",
+          "criterion_id": "C2",
+          "description": "Non-vacuity guard: at least one sample inside the same window shows a release faster than 1,0 m/s3, so C1 was exercised by a real release rather than passing on a flat request.",
+          "min_samples": 100,
+          "on_missing_signal": "error",
+          "reduce": {
+            "method": "central",
+            "op": "derivative"
+          },
+          "requirement_ref": "ACC-SYS-SAF-024",
+          "rule": {
+            "op": "ge",
+            "quantifier": "any",
+            "value": 1.0
+          },
+          "signal": "BrkReq_mps2",
+          "tolerance": {
+            "abs": 0.0,
+            "rel": null
+          },
+          "unit": "m/s^3",
+          "window": {
+            "op": "lt",
+            "signal": "BrkReq_mps2",
+            "type": "signal_threshold",
+            "value": -0.05
+          }
+        }
+      ],
+      "pass_criteria_logic": "all",
+      "preconditions": {
+        "gates": [
+          {
+            "channel_group": "PT_CAN_100Hz",
+            "criterion_id": "C1",
+            "description": "Automatic brake control is genuinely active at some point: the commanded deceleration reaches at least 1,0 m/s2.",
+            "min_samples": 1,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "min"
+            },
+            "requirement_ref": "ACC-SYS-SAF-024",
+            "rule": {
+              "op": "le",
+              "value": -1.0
+            },
+            "signal": "BrkReq_mps2",
+            "tolerance": {
+              "abs": 0.0,
+              "rel": null
+            },
+            "unit": "m/s^2",
+            "window": {
+              "type": "full"
+            }
+          },
+          {
+            "channel_group": "PT_CAN_100Hz",
+            "criterion_id": "C2",
+            "description": "Automatic brake control ends: the commanded deceleration returns to zero within the run.",
+            "min_samples": 1,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "max"
+            },
+            "requirement_ref": "ACC-SYS-SAF-024",
+            "rule": {
+              "op": "ge",
+              "value": 0.0
+            },
+            "signal": "BrkReq_mps2",
+            "tolerance": {
+              "abs": 0.0,
+              "rel": null
+            },
+            "unit": "m/s^2",
+            "window": {
+              "type": "full"
+            }
+          }
+        ],
+        "prose": "The requirement is conditional on automatic brake control being active and then ending, so both halves are asserted: the request must go meaningfully negative, and it must return to zero."
+      },
+      "priority": "high",
+      "regression_flag": true,
+      "revision": "1.0",
+      "schema_version": "1.0.0",
+      "status": "Draft",
+      "steps": [
+        {
+          "action": "Replay the cut_out_ttc_3s / p90_70 run and decode PT_CAN_100Hz.",
+          "expected": "BrkReq_mps2 is present at 100 Hz in m/s^2.",
+          "step_no": 1
+        },
+        {
+          "action": "Restrict the evaluation to samples where BrkReq_mps2 < -0,05 m/s2, i.e. to intervals in which the ACC is actually commanding automatic braking.",
+          "expected": "At least 100 samples survive; on this run 2600 of 4001 do.",
+          "step_no": 2
+        },
+        {
+          "action": "Take the central-difference time derivative of BrkReq_mps2 over that window, giving a series in m/s3.",
+          "expected": "Positive values are the release direction, because BrkReq_mps2 is negative-only and increases toward zero as the brake is released.",
+          "step_no": 3
+        },
+        {
+          "action": "Check that no sample of the derivative exceeds +2,5 m/s3.",
+          "expected": "The peak release rate is 2,500010 m/s3, within the 0,01 m/s3 float32 tolerance of the 2,5 m/s3 bound.",
+          "step_no": 4
+        },
+        {
+          "action": "Confirm at least one sample shows a release faster than 1,0 m/s3.",
+          "expected": "A real release occurred inside the evaluated window, so the bound was actually tested.",
+          "step_no": 5
+        }
+      ],
+      "stimulus": {
+        "config_ref": "bae256820083",
+        "notes": "Following at 90 km/h behind a 70 km/h lead that cuts out at TTC 3 s. The cut-out ends automatic brake control while the ego is still decelerating, which is exactly the antecedent of the requirement: the request holds -3,500 m/s2 to t = 19,50 s and then ramps to zero by t = 20,95 s. Note the fault_sensor_dropout run, which the plant spec names as the ramp-out demonstrator, is NOT usable here -- BrkReq_mps2 is identically zero for its whole 40 s, so the antecedent never occurs and the test case would be vacuous.",
+        "scenario_ref": "cut_out_ttc_3s",
+        "variant_id": "p90_70"
+      },
+      "tc_id": "ACC-SYS-TC-024",
+      "technique": "SIL",
+      "test_environment": "SIL: acc_stim 0.2.0 plant + controller, device acc-plant-sim-01. Evaluated offline from the run's MF4 in Data/, indexed by Data/manifest.csv; signal names, units and enum legends pinned to signal catalogue v0001 (Reqs/export/json/acc-signal-catalogue.json).",
+      "title": "Commanded deceleration released at not more than 2,5 m/s3",
+      "verification_method": "Test"
+    },
+    {
+      "covers_req_ids": [
+        "ACC-SYS-SAF-040"
+      ],
+      "data_requirements": {
+        "min_traces": 1,
+        "required_channel_groups": [
+          "PT_CAN_100Hz",
+          "RADAR_OBJ_50Hz",
+          "ACC_HMI_10Hz"
+        ],
+        "required_signals": [
+          "ACC_Status",
+          "AccelReq_mps2",
+          "BrkReq_mps2",
+          "Trgt_TTC_s"
+        ],
+        "trace_required": true
+      },
+      "entry_criteria": "The run drives the ACC toward its authority limit, i.e. the commanded deceleration reaches at least 3,0 m/s2.",
+      "exit_criteria": "Both pass criteria PASS and the unused authority margin is reported, since it is what shows the comfort limit binding before the authority ceiling.",
+      "impl_ref": null,
+      "last_change": "2026-08-18T00:00:00+00:00",
+      "mnemonic": "TC-SAF-040-01",
+      "notes": "Provenance: ACC-SYS-SAF-040 is DERIVED. The roughly 5 m/s2 figure is the Euro NCAP AD v2.2 (2024-09) ACC-versus-AEB assessment demarcation, read verbatim from the official protocol; the project converts an assessment demarcation into a hard commanded-deceleration ceiling (controller.limits.a_dec_authority_max_mps2 = -5,0) and owns the conversion, including the removal of the word 'approximately'. The requirement's measurand is a_x_cmd_acc, the COMMANDED value, which on this bus is BrkReq_mps2: the deceleration request after the whole limiter chain. window.type is `full` because the requirement is Ubiquitous and BrkReq_mps2 is by construction the ACC's own command, already zero whenever the ACC is not commanding; state-gating it would add no scope and would create a way for the criterion to become vacuous. EXPECTED VERDICT: PASS -- the request bottoms out at -3,500 m/s2 against the -5,0 m/s2 ceiling, leaving 1,5 m/s2 of unused authority, because the tighter comfort limit of ACC-SYS-PRF-020 (controller.limits.a_dec_max_mps2 = -3,5) binds first. That margin is the interesting number in the report: it is the headroom the ACC deliberately does not use, and it is what makes the PRF-020 failure a comfort-limit finding rather than an authority breach. C2 is a machine-checked statement of a trap: AccelReq_mps2 is max(a_cmd, 0) and is therefore never negative, so reading deceleration from it produces a false PASS on every deceleration requirement in the register. Trgt_TTC_s is listed in required_signals without a criterion because the worst-case justification for this run is its zero time-to-collision.",
+      "objective": "Show that the instantaneous deceleration the ACC commands never exceeds 5,0 m/s2, the authority boundary that separates ACC braking from autonomous emergency braking on the shared actuator.",
+      "pass_criteria": [
+        {
+          "channel_group": "PT_CAN_100Hz",
+          "criterion_id": "C1",
+          "description": "The commanded deceleration never exceeds 5,0 m/s2 in magnitude at any sample of the run.",
+          "min_samples": 1000,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "none"
+          },
+          "requirement_ref": "ACC-SYS-SAF-040",
+          "rule": {
+            "op": "ge",
+            "quantifier": "all",
+            "value": -5.0
+          },
+          "signal": "BrkReq_mps2",
+          "tolerance": {
+            "abs": 0.0,
+            "rel": null
+          },
+          "unit": "m/s^2",
+          "window": {
+            "type": "full"
+          }
+        },
+        {
+          "channel_group": "PT_CAN_100Hz",
+          "criterion_id": "C2",
+          "description": "AccelReq_mps2 is never negative, i.e. the positive branch of the command carries no hidden deceleration. This pins the signal split that makes C1 the complete commanded-deceleration check.",
+          "min_samples": 1000,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "min"
+          },
+          "requirement_ref": "ACC-SYS-SAF-040",
+          "rule": {
+            "op": "ge",
+            "value": 0.0
+          },
+          "signal": "AccelReq_mps2",
+          "tolerance": {
+            "abs": 0.0,
+            "rel": null
+          },
+          "unit": "m/s^2",
+          "window": {
+            "type": "full"
+          }
+        }
+      ],
+      "pass_criteria_logic": "all",
+      "preconditions": {
+        "gates": [
+          {
+            "channel_group": "ACC_HMI_10Hz",
+            "criterion_id": "C1",
+            "description": "The ACC holds a covered active state for a contiguous 5 s or more.",
+            "min_samples": 50,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "none"
+            },
+            "requirement_ref": "ACC-SYS-SAF-040",
+            "rule": {
+              "op": "ge",
+              "quantifier": "all",
+              "value": 2
+            },
+            "signal": "ACC_Status",
+            "tolerance": null,
+            "unit": "1",
+            "window": {
+              "in": [
+                2,
+                3,
+                4
+              ],
+              "min_duration_s": 5.0,
+              "signal": "ACC_Status",
+              "type": "state_mask"
+            }
+          },
+          {
+            "channel_group": "PT_CAN_100Hz",
+            "criterion_id": "C2",
+            "description": "The run drives the command toward its limit: the commanded deceleration reaches at least 3,0 m/s2.",
+            "min_samples": 1,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "min"
+            },
+            "requirement_ref": "ACC-SYS-SAF-040",
+            "rule": {
+              "op": "le",
+              "value": -3.0
+            },
+            "signal": "BrkReq_mps2",
+            "tolerance": {
+              "abs": 0.0,
+              "rel": null
+            },
+            "unit": "m/s^2",
+            "window": {
+              "type": "full"
+            }
+          }
+        ],
+        "prose": "An authority ceiling can only be shown to hold by a run that approaches it, so the ACC must be active and must command heavy braking."
+      },
+      "priority": "high",
+      "regression_flag": true,
+      "revision": "1.0",
+      "schema_version": "1.0.0",
+      "status": "Draft",
+      "steps": [
+        {
+          "action": "Replay the cut_in_ttc_0s / p50_10 run and decode PT_CAN_100Hz.",
+          "expected": "BrkReq_mps2 and AccelReq_mps2 are present at 100 Hz in m/s^2; the trace is 1433 samples because the run truncates at contact.",
+          "step_no": 1
+        },
+        {
+          "action": "Check every sample of BrkReq_mps2, the deceleration request after the whole limiter chain, against the -5,0 m/s2 ceiling.",
+          "expected": "No sample falls below -5,0 m/s2; the deepest is -3,500 m/s2.",
+          "step_no": 2
+        },
+        {
+          "action": "Check that AccelReq_mps2 is never negative.",
+          "expected": "It is max(a_cmd, 0) and therefore positive-only, which is the machine-checked reason a deceleration requirement must never be evaluated on it.",
+          "step_no": 3
+        }
+      ],
+      "stimulus": {
+        "config_ref": "c7d9734278c6",
+        "notes": "Zero-TTC cut-in, the most aggressive transient in the catalogue and therefore the right worst case for an authority ceiling. The run ends in contact at t = 14,32 s and the trace is truncated there, which is why the min_samples floor is set against the 1433 samples that survive truncation rather than a nominal duration.",
+        "scenario_ref": "cut_in_ttc_0s",
+        "variant_id": "p50_10"
+      },
+      "tc_id": "ACC-SYS-TC-030",
+      "technique": "SIL",
+      "test_environment": "SIL: acc_stim 0.2.0 plant + controller, device acc-plant-sim-01. Evaluated offline from the run's MF4 in Data/, indexed by Data/manifest.csv; signal names, units and enum legends pinned to signal catalogue v0001 (Reqs/export/json/acc-signal-catalogue.json).",
+      "title": "Instantaneous commanded deceleration not more than 5,0 m/s2",
+      "verification_method": "Test"
+    }
+  ],
+  "notes": "Nine system test cases, one per requirement, covering ACC-SYS-FUN-005 / -021 / -061, ACC-SYS-PRF-001 / -020 / -041 and ACC-SYS-SAF-021 / -024 / -040. Every pass_criteria entry is machine-evaluable: exact channel name, channel group, unit, window, reduction, numeric bound, tolerance, quantifier where the reduction is series-valued, min_samples and an explicit on_missing_signal. No threshold appears in prose only; the `description` fields are display text and carry no bound the evaluator needs. Signal names, units and enum values are pinned to signal catalogue v0001 in Reqs/export/json/acc-signal-catalogue.json, which is extracted from a real MF4; every enum value used in a window or a rule (ACC_Status 2 = Active-Cruise, 3 = Active-Follow, 4 = Active-Hold, 6 = Degraded/Fault; Rdr_Sts_Enum 2 = blocked/fault; ACC_FltCode_Enum 1 = sensor) is read from that catalogue's enum_map, which in turn comes from the MF4 channel comments. Provenance is preserved per test case in `notes`, which states the covered requirement's verification_tag: a PASS on ACC-SYS-TC-003, -014 or -024 cannot be mistaken for standard-verified, because all three cover UNVERIFIED-2018 requirements whose numeric bounds could not be read from ISO 15622:2018. ACC-SYS-TC-014 is EXPECTED TO FAIL. That is deliberate: ACC-SYS-PRF-020 declares a_x_ego as its measurand, the achieved deceleration reaches a 2 s average of 3,824 m/s2 against a 3,5 m/s2 bound on 8 of the 37 runs, and the criterion is written on VehAccel_mps2 so the failure is detected rather than hidden behind the positive-only AccelReq_mps2 or the exactly-limited BrkReq_mps2. Two requirements could not be expressed exactly in the closed vocabulary and are documented as such in their own notes: ACC-SYS-FUN-021 and ACC-SYS-PRF-001 both need a signal-versus-signal comparison that rule.value (a number) cannot express, and are decomposed into conjunctions of numeric bounds valid at the named operating point; ACC-SYS-SAF-021 needs an internal detection instant that no bus signal carries, and is measured as the composite 700 ms budget instead. impl_ref is null on all nine: the Python implementations are authored separately and the sha256 of a file this document has not seen must not be asserted here.",
+  "parent_version": null,
+  "schema_version": "1.0.0",
+  "set": "test_specs",
+  "set_canonical_sha256": "8d2422251cff3564fd375c49af0d07dddb26ba006f70f9077dbfaa35af87e87d",
+  "source_upload": {
+    "filename": "acc-system-test-specs.json",
+    "media_type": "application/json",
+    "sha256": "ecc333f86066f15869cd036341a4a598c7c85dd823b798ed003df1da611edf27",
+    "size_bytes": 78278,
+    "upload_kind": "json"
+  },
+  "validator_version": "accspecs-testspec-author/1.0.0",
+  "version": "v0001",
+  "warnings": []
+}

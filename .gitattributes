@@ -7,11 +7,6 @@
 # point with a confusing "no such file or directory".
 *.sh text eol=lf
 
-# Deployment descriptors are read by the platform and by python yaml; a CR
-# survives parsing but churns diffs and has already caused one bad edit.
-*.yaml text eol=lf
-*.yml text eol=lf
-
 # Container entry points and their configs.
 dockerfile text eol=lf
 Dockerfile text eol=lf
@@ -22,8 +17,3 @@ Dockerfile text eol=lf
 
 # Cap'n Proto schemas are compiled at runtime by pycapnp.
 *.capnp text eol=lf
-
-# The requirements acceptance fixtures are compared byte for byte by the
-# ReqIF/JSON convergence test (spec 1.1.2). An EOL rewrite on checkout would
-# change the flattened text and every canonical_sha256 derived from it.
-backend-api/tests/fixtures/** -text

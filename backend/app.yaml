@@ -1,0 +1,40 @@
+name: backend
+language: python
+variables:
+  - name: MONGO_USER
+    inputType: Secret
+    multiline: false
+    defaultValue: MONGO_USER
+    required: true
+  - name: MONGO_PASSWORD
+    inputType: Secret
+    multiline: false
+    defaultValue: MONGO_PASSWORD
+    required: true
+  - name: MONGO_HOST
+    inputType: FreeText
+    multiline: false
+    defaultValue: mongodb
+    required: true
+  - name: CONFIG_API_URL
+    inputType: FreeText
+    multiline: false
+    required: true
+  - name: MEASUREMENTS_URL
+    inputType: FreeText
+    multiline: false
+    defaultValue: https://query-ui-quixers-testrigdemodatawarehouse-prod.az-france-0.app.quix.io/
+    required: true
+  - name: DATA_LAKE_V2_TOPIC_NAME
+    inputType: FreeText
+    multiline: false
+    defaultValue: config-enriched-data
+    required: true
+  - name: ANALYTICS_URL
+    inputType: FreeText
+    multiline: false
+    defaultValue: ""
+    required: true
+dockerfile: dockerfile
+runEntryPoint: main.py
+defaultFile: main.py

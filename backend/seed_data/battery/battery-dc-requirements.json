@@ -1,0 +1,360 @@
+{
+  "created_by": "battery-dc intake from stakeholder brief 2026-09-21",
+  "created_utc": "2026-09-21T00:00:00+00:00",
+  "item_count": 10,
+  "item_ids": [
+    "BAT-SYS-FUN-001",
+    "BAT-SYS-FUN-002",
+    "BAT-SYS-FUN-003",
+    "BAT-SYS-FUN-004",
+    "BAT-SYS-FUN-005",
+    "BAT-SYS-PRF-001",
+    "BAT-SYS-PRF-002",
+    "BAT-SYS-SAF-001",
+    "BAT-SYS-SAF-002",
+    "BAT-SYS-SAF-003"
+  ],
+  "items": [
+    {
+      "chapter": "Performance",
+      "ears_pattern": "StateDriven",
+      "figure_refs": [],
+      "id": "BAT-SYS-PRF-001",
+      "measurand": [
+        {
+          "name": "i_dc_chg",
+          "unit": "A"
+        }
+      ],
+      "rationale": "I_current_Chr_Max bounds the charge acceptance of the cell chemistry and the current rating of the DC contactors and busbars.",
+      "related_reqs": [],
+      "revision": "0.1",
+      "schema_version": "1.0.0",
+      "source": [
+        "STAKEHOLDER:battery-dc-brief-2026-09-21",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Draft",
+      "system_states": [
+        "Charging"
+      ],
+      "text": "While the battery system is in the Charging state, the battery system shall limit the DC charging current to not more than 300 A.",
+      "title": "Maximum DC charging current",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Functional",
+      "ears_pattern": "Ubiquitous",
+      "figure_refs": [],
+      "id": "BAT-SYS-FUN-001",
+      "measurand": [
+        {
+          "name": "soc_technical",
+          "unit": "%"
+        },
+        {
+          "name": "i_dc",
+          "unit": "A"
+        },
+        {
+          "name": "t",
+          "unit": "s"
+        }
+      ],
+      "rationale": "Coulomb counting is the stakeholder-selected SOC mechanism. Fixing the estimator lets drift, reset and recalibration behaviour be specified against it.",
+      "related_reqs": [],
+      "revision": "0.1",
+      "schema_version": "1.0.0",
+      "source": [
+        "STAKEHOLDER:battery-dc-brief-2026-09-21",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Draft",
+      "system_states": [],
+      "text": "The battery system shall determine the technical state of charge by integrating the measured DC current over time.",
+      "title": "Technical state of charge by coulomb counting",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Functional",
+      "ears_pattern": "Ubiquitous",
+      "figure_refs": [],
+      "id": "BAT-SYS-FUN-002",
+      "measurand": [
+        {
+          "name": "soc_technical",
+          "unit": "%"
+        },
+        {
+          "name": "soc_customer",
+          "unit": "%"
+        }
+      ],
+      "rationale": "Reserving the lower 25 % and the upper 10 % of the technical window protects cell life and guarantees a reserve the customer cannot deplete. The clamp is required because the stakeholder mapping is undefined outside 25 % to 90 %.",
+      "related_reqs": [],
+      "revision": "0.1",
+      "schema_version": "1.0.0",
+      "source": [
+        "STAKEHOLDER:battery-dc-brief-2026-09-21",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Draft",
+      "system_states": [],
+      "text": "The battery system shall derive the customer state of charge from the technical state of charge by a linear mapping in which a technical state of charge of 25 % yields a customer state of charge of 0 % and a technical state of charge of 90 % yields a customer state of charge of 100 %, clamped to the range 0 % to 100 %.",
+      "title": "Customer state of charge derivation",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Performance",
+      "ears_pattern": "EventDriven",
+      "figure_refs": [],
+      "id": "BAT-SYS-PRF-002",
+      "measurand": [
+        {
+          "name": "u_dc",
+          "unit": "V"
+        },
+        {
+          "name": "u_ocv",
+          "unit": "V"
+        },
+        {
+          "name": "t",
+          "unit": "s"
+        }
+      ],
+      "rationale": "OCV-based SOC recalibration is valid only once diffusion transients have decayed. t_transient_Voltage_sec bounds how long the system must wait before trusting an OCV reading.",
+      "related_reqs": [],
+      "revision": "0.1",
+      "schema_version": "1.0.0",
+      "source": [
+        "STAKEHOLDER:battery-dc-brief-2026-09-21",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Draft",
+      "system_states": [
+        "Sleep",
+        "Standby"
+      ],
+      "text": "When the battery system enters the Sleep state, the battery terminal voltage shall converge to the open-circuit voltage within 600 s.",
+      "title": "Terminal voltage relaxation to open-circuit voltage",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Functional",
+      "ears_pattern": "StateDriven",
+      "figure_refs": [],
+      "id": "BAT-SYS-FUN-003",
+      "measurand": [
+        {
+          "name": "u_cell_min",
+          "unit": "V"
+        },
+        {
+          "name": "u_cell_max",
+          "unit": "V"
+        },
+        {
+          "name": "balancing_active",
+          "unit": "bool"
+        }
+      ],
+      "rationale": "Sleep is the only window in which no load current masks the cell-to-cell spread, and balancing there avoids spending traction energy on equalisation.",
+      "related_reqs": [],
+      "revision": "0.1",
+      "schema_version": "1.0.0",
+      "source": [
+        "STAKEHOLDER:battery-dc-brief-2026-09-21",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Draft",
+      "system_states": [
+        "Sleep",
+        "Balancing"
+      ],
+      "text": "While the battery system is in the Sleep state, the battery system shall equalise the cell voltages by the active discharge mechanism.",
+      "title": "Cell balancing while sleeping",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Safety-Fault-Handling",
+      "ears_pattern": "Ubiquitous",
+      "figure_refs": [],
+      "id": "BAT-SYS-SAF-001",
+      "measurand": [
+        {
+          "name": "u_dc",
+          "unit": "V"
+        }
+      ],
+      "rationale": "Udc_min and Udc_Max are the interface limits the inverter and the DC charger are rated for. Leaving the band risks both cell damage and downstream converter damage.",
+      "related_reqs": [],
+      "revision": "0.1",
+      "schema_version": "1.0.0",
+      "source": [
+        "STAKEHOLDER:battery-dc-brief-2026-09-21",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Draft",
+      "system_states": [],
+      "text": "The battery system shall maintain the battery terminal voltage within the range 720 V to 840 V.",
+      "title": "Terminal voltage operating range",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Safety-Fault-Handling",
+      "ears_pattern": "Ubiquitous",
+      "figure_refs": [],
+      "id": "BAT-SYS-SAF-002",
+      "measurand": [
+        {
+          "name": "t_batt",
+          "unit": "degC"
+        }
+      ],
+      "rationale": "T_batt_max is the onset of accelerated ageing and, beyond it, of thermal runaway risk. It is the ceiling every thermal mitigation is designed to hold.",
+      "related_reqs": [],
+      "revision": "0.1",
+      "schema_version": "1.0.0",
+      "source": [
+        "STAKEHOLDER:battery-dc-brief-2026-09-21",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Draft",
+      "system_states": [],
+      "text": "The battery system shall limit the battery temperature to not more than 60 degC.",
+      "title": "Battery temperature ceiling",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Safety-Fault-Handling",
+      "ears_pattern": "StateDriven",
+      "figure_refs": [],
+      "id": "BAT-SYS-SAF-003",
+      "measurand": [
+        {
+          "name": "t_batt",
+          "unit": "degC"
+        },
+        {
+          "name": "derating_factor",
+          "unit": "-"
+        },
+        {
+          "name": "i_dc_chg",
+          "unit": "A"
+        }
+      ],
+      "rationale": "Ramping current to zero across T_batt_safety_threshold approaches the ceiling asymptotically instead of tripping a hard cut-off, which would be both a drivability and a contactor-wear problem.",
+      "related_reqs": [],
+      "revision": "0.1",
+      "schema_version": "1.0.0",
+      "source": [
+        "STAKEHOLDER:battery-dc-brief-2026-09-21",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Draft",
+      "system_states": [
+        "Charging"
+      ],
+      "text": "While the battery temperature is not less than 55 degC and not more than 60 degC, the battery system shall apply to the actual charging current limit a derating factor that decreases linearly from 1,0 at 55 degC to 0,0 at 60 degC.",
+      "title": "Charging current derating near the temperature ceiling",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Functional",
+      "ears_pattern": "Ubiquitous",
+      "figure_refs": [],
+      "id": "BAT-SYS-FUN-004",
+      "measurand": [
+        {
+          "name": "heater_state",
+          "unit": "enum"
+        },
+        {
+          "name": "p_heater",
+          "unit": "W"
+        }
+      ],
+      "rationale": "A three-step heater is specified rather than a continuous one because the traction battery heater is switched by relays, so only discrete power levels are realisable.",
+      "related_reqs": [],
+      "revision": "0.1",
+      "schema_version": "1.0.0",
+      "source": [
+        "STAKEHOLDER:battery-dc-brief-2026-09-21",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Draft",
+      "system_states": [],
+      "text": "The battery system shall provide the heater states 0, 1 and 2, corresponding to the heater being off, the heater operating at 500 W and the heater operating at 2000 W.",
+      "title": "Heater power states",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    },
+    {
+      "chapter": "Functional",
+      "ears_pattern": "UnwantedBehaviour",
+      "figure_refs": [],
+      "id": "BAT-SYS-FUN-005",
+      "measurand": [
+        {
+          "name": "t_batt",
+          "unit": "degC"
+        },
+        {
+          "name": "heater_state",
+          "unit": "enum"
+        },
+        {
+          "name": "p_heater",
+          "unit": "W"
+        }
+      ],
+      "rationale": "Below T_batt_min the cells cannot accept charge without lithium plating, so the fastest available recovery to the permitted window takes precedence over heater energy use.",
+      "related_reqs": [],
+      "revision": "0.1",
+      "schema_version": "1.0.0",
+      "source": [
+        "STAKEHOLDER:battery-dc-brief-2026-09-21",
+        "PROJECT-CHOICE:systems-engineer"
+      ],
+      "status": "Draft",
+      "system_states": [
+        "Heating"
+      ],
+      "text": "If the battery temperature is below 5 degC, then the battery system shall command heater state 2.",
+      "title": "Heater at maximum power below the minimum temperature",
+      "verification_method": "Test",
+      "verification_tag": "DERIVED",
+      "verified_by": []
+    }
+  ],
+  "notes": "Hand-authored from the battery DC stakeholder brief, rewritten into EARS shall-form per ASPICE SYS.2. Not generated from acc_project and unrelated to vmodel_fixtures.",
+  "parent_version": null,
+  "schema_version": "1.0.0",
+  "set": "requirements",
+  "set_canonical_sha256": "6125ce2e806d9d87e32b06a9d9d8efdbdec2d7c49987f47bf46816a269502321",
+  "source_upload": null,
+  "validator_version": null,
+  "version": "v0001",
+  "warnings": [
+    "id pattern BAT-SYS-*, chapter 'Functional' and system_states Charging/Sleep/Balancing/Heating fall outside the ACC requirement schema enums"
+  ]
+}

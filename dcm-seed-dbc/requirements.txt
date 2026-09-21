@@ -1,0 +1,4 @@
+# cantools pinned to the same release mf4-replay uses on main, so a document
+# seeded here and a database rebuilt there are produced by identical code.
+cantools==42.0.3
+requests==2.32.3
