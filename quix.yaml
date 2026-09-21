@@ -162,12 +162,8 @@ deployments:
         - port: 27017
           targetPort: 27017
     variables:
-      - name: MONGO_INITDB_ROOT_USERNAME
-        description: The root username to initialize MongoDB with; must match the MONGO_USER secret
-      - name: MONGO_INITDB_ROOT_PASSWORD
-        description: The root password to initialize MongoDB with; must match the MONGO_PASSWORD secret
       - name: MONGO_DBPATH
-        description: WiredTiger data directory. Local disk (EPHEMERAL) because the Quix state mount on this cluster is network-backed and WiredTiger fails on it with EPERM. Only move this under /app/state if that mount becomes block storage.
+        value: /app/state
   - name: MongoDB Backup Manager
     group: Aux services
     application: mongodb-backup-manager
