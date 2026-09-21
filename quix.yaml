@@ -283,6 +283,19 @@ deployments:
         order: 0
     blobStorage:
       bind: true
+  - name: MongoDB
+    application: mongodb
+    version: latest
+    deploymentType: Service
+    resources:
+      limits:
+        cpu: 200
+        memory: 800
+    network:
+      serviceName: mongodb
+      ports:
+        - port: 27017
+          targetPort: 27017
 
 # This section describes the Topics of the data pipeline
 topics:
