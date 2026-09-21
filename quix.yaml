@@ -162,6 +162,8 @@ deployments:
         - port: 27017
           targetPort: 27017
     variables:
+      - name: MONGO_INITDB_ROOT_USERNAME
+        value: '*MONGO_USER*'
       - name: MONGO_DBPATH
         value: /app/state
   - name: MongoDB Backup Manager
