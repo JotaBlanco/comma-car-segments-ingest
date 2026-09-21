@@ -98,10 +98,6 @@ deployments:
       # when the deployment carries blobStorage.bind: true, which is impossible
       # while the gateway is down - so they are declared explicitly here, the
       # same way a BYOX environment has to declare them.
-      - name: Quix__Lakehouse__Query__Url
-        value: ""
-      - name: Quix__Lakehouse__Query__AuthToken
-        value: ""
     # blobStorage.bind disabled 2026-08-18: the testrig Storage Gateway is
     # unreachable, and any deploy carrying the bind is aborted by the gateway
     # admin ("Storage Gateway unreachable - deploy aborted"), leaving the
@@ -247,10 +243,6 @@ deployments:
       - name: COMMIT_EVERY
         value: "1"
       # Declared explicitly rather than relying on the blob bind to inject them.
-      - name: Quix__Lakehouse__Query__Url
-        value: ""
-      - name: Quix__Lakehouse__Query__AuthToken
-        value: ""
   - name: Mongo Writer
     application: mongo-writer
     version: latest
