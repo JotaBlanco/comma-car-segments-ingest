@@ -144,28 +144,6 @@ deployments:
         label: Test Manager
         icon: view_list
         order: 0
-  - name: MongoDB
-    group: Aux services
-    application: mongodb
-    version: latest
-    deploymentType: Service
-    resources:
-      limits:
-        cpu: 500
-        memory: 1500
-    state:
-      enabled: true
-      size: 5
-    network:
-      serviceName: mongodb
-      ports:
-        - port: 27017
-          targetPort: 27017
-    variables:
-      - name: MONGO_INITDB_ROOT_USERNAME
-        value: '*MONGO_USER*'
-      - name: MONGO_DBPATH
-        value: /app/state/mongodb-v2
   - name: MongoDB Backup Manager
     group: Aux services
     application: mongodb-backup-manager
