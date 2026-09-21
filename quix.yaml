@@ -309,3 +309,4 @@ topics:
   - name: mf4_metadata
   - name: mf4-to-msg
   - name: config-updates
+  - name: trace-ingest-requests
