@@ -165,7 +165,7 @@ deployments:
       - name: MONGO_INITDB_ROOT_USERNAME
         value: '*MONGO_USER*'
       - name: MONGO_DBPATH
-        value: /app/state
+        value: /app/state/mongodb-v2
   - name: MongoDB Backup Manager
     group: Aux services
     application: mongodb-backup-manager
