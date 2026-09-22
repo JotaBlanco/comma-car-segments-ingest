@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { sourced } from "@/types";
 import type { SourceTag, TestRun } from "@/types";
 import { AnomaliesTab } from "./anomalies-tab";
+import { DefinitionsPanel } from "./definitions-panel";
 import { EditRunDialog } from "./edit-run-dialog";
 import { ExploreTab } from "./explore-tab/explore-tab";
 import { FilesTab } from "./files-tab";
@@ -168,6 +169,9 @@ function runMetaFields(run: TestRun): RunMetaField[] {
   const operator = sourced(run, "operator");
   const benchSw = sourced(run, "bench_sw");
   const startedAt = sourced(run, "started_at");
+  // `definition_id` is the first of the covered set. The DefinitionsPanel lists
+  // the whole set, so this cell states how many it is not showing.
+  const otherDefinitions = Math.max((run.definition_ids ?? []).length - 1, 0);
   const embeddedFallback = (source: SourceTag | null, value: unknown): SourceTag | undefined =>
     source ?? (value !== null && value !== undefined ? "embedded" : undefined);
 
@@ -196,12 +200,17 @@ function runMetaFields(run: TestRun): RunMetaField[] {
       muted: definition.value === null,
       content:
         definition.value !== null ? (
-          <Link
-            href={`/definitions/${encodeURIComponent(definition.value)}`}
-            className="font-mono text-[0.78rem] hover:underline"
-          >
-            {definition.value}
-          </Link>
+          <>
+            <Link
+              href={`/definitions/${encodeURIComponent(definition.value)}`}
+              className="font-mono text-[0.78rem] hover:underline"
+            >
+              {definition.value}
+            </Link>
+            {otherDefinitions > 0 && (
+              <span className="ml-1.5 text-[0.72rem] text-ink-3">+{otherDefinitions} more</span>
+            )}
+          </>
         ) : (
           <AwaitingSync claimedId={run.claimed_definition_id} />
         ),
@@ -1072,6 +1081,10 @@ function StandardRunHeader({
       </div>
 
       <MetadataPanel run={run} onEdit={onEdit} />
+      {/* The definitions the run covers sit here and not in a tab: the tabs
+          hold the run's DATA, this is its planning identity, and the Explore
+          layout drops this header whole — metadata and definitions with it. */}
+      <DefinitionsPanel run={run} />
       {/* Pick a QuixLab, then open THIS run in it. The panel hides itself when
           no QuixLab resolves, the same rule the launch control above follows. */}
       <QuixLabPanel runId={run.run_id} signals={signals} />

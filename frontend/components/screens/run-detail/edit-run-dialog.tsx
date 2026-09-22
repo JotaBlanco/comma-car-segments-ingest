@@ -52,9 +52,11 @@ interface EditRunDialogProps {
  * The route also patches `work_order_id` and `definition_id`. `work_order_id`
  * gets the picker below, never a text box: the route checks the id against the
  * mirrored work orders and answers 422 `unknown_work_order` for the rest, and a
- * person cannot act on that refusal. `definition_id` stays out of this form for
- * the same reason and one more — no definition list route reaches the front end,
- * and a definition only means something inside its work order.
+ * person cannot act on that refusal. `definition_id` stays out of this form
+ * because that one id REPLACES the run's whole set (`_resolve_manual_links`,
+ * `api/api/services/queries_runs.py`), so a run covering three definitions
+ * would silently lose two. The run screen's "Test definitions this run covers"
+ * panel shows the set this form cannot edit.
  */
 const FIELDS = [
   { key: "description", label: "Description", placeholder: "E-machine efficiency map" },

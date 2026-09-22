@@ -46,7 +46,13 @@ interface NavEntry {
   href: string;
   icon: LucideIcon;
   count?: string | number;
+  /** Nesting level under the entry above it. Absent is a top-level entry. */
+  depth?: 1 | 2;
 }
+
+/** Left padding per nesting level. The rail has no room for one, so it indents
+    nothing and keeps the same order. */
+const INDENT: Record<number, string> = { 1: "pl-7", 2: "pl-11" };
 
 /* Proportions come from the Portal sidenav: a 232px panel collapses to a 56px
    icon rail, over 300ms on the Material standard easing curve. */
@@ -203,12 +209,15 @@ export function Sidebar({ counts }: SidebarProps) {
 
   const toggle = useCallback(() => storeCollapsed(!clientSnapshot()), []);
 
-  /* The three planning entries follow the domain chain that the README states:
-     a work order holds test definitions, and a test definition produces test
-     runs. The nav reads in that order, so the list teaches the model. */
+  /* The three planning entries nest the domain chain: a work order is a
+     campaign holding test runs, and a run covers test definitions. The indent
+     carries the chain, so the list teaches the model. Each entry still names
+     its own whole-registry list — the indent states what contains what, never
+     that a list is filtered by the entry above it. */
   const registry: NavEntry[] = [
     { label: "Home", href: "/", icon: Home },
     { label: "Work orders", href: "/work-orders", icon: ClipboardList, count: resolved.workOrders },
+    { label: "Test runs", href: "/runs", icon: Timer, count: resolved.runs, depth: 1 },
     /* The definitions list and the definition detail both ship. Without this
        entry the only way in is the Home "orphaned definitions" line. */
     {
@@ -216,8 +225,8 @@ export function Sidebar({ counts }: SidebarProps) {
       href: "/definitions",
       icon: FlaskConical,
       count: resolved.definitions,
+      depth: 2,
     },
-    { label: "Test runs", href: "/runs", icon: Timer, count: resolved.runs },
     { label: "Files", href: "/files", icon: FileText, count: resolved.files },
     { label: "Signals", href: "/signals", icon: Activity, count: resolved.signals },
     /* The lake's findings across every run. No count: the home summary reads the
@@ -275,6 +284,7 @@ export function Sidebar({ counts }: SidebarProps) {
         className={cn(
           navItemClass,
           rowClass,
+          collapsed ? undefined : INDENT[entry.depth ?? 0],
           active && "bg-accent-soft font-semibold text-primary hover:bg-accent-soft hover:text-primary"
         )}
       >

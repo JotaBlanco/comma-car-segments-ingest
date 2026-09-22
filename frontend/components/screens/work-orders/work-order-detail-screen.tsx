@@ -165,63 +165,6 @@ export function WorkOrderDetailScreen({ woId }: WorkOrderDetailScreenProps) {
 
       <Panel className="mb-3">
         <PanelHead
-          title="Test definitions"
-          action={
-            <span className="font-mono text-[0.68rem] text-ink-3">
-              {workOrder.definitions.length} mirrored
-            </span>
-          }
-        />
-        <Table aria-label="Test definitions of this work order">
-          <TableHeader>
-            <TableRow>
-              <TableHead>Definition</TableHead>
-              <TableHead>Title</TableHead>
-              <TableHead className="text-right!">Planned runs</TableHead>
-              <TableHead className="text-right!">Actual runs</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="w-10">
-                <span className="sr-only">Open in</span>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {workOrder.definitions.length === 0 && (
-              <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={5} className="p-0!">
-                  <EmptyState message="No definitions mirrored for this work order." />
-                </TableCell>
-              </TableRow>
-            )}
-            {workOrder.definitions.map((definition) => (
-              <TableRow key={definition.td_id} className="hover:bg-transparent">
-                <TableCell>
-                  <Link
-                    href={`/definitions/${encodeURIComponent(definition.td_id)}`}
-                    className="font-mono text-[0.78rem] text-primary hover:underline"
-                  >
-                    {definition.td_id}
-                  </Link>{" "}
-                  <SourceBadge source="api:planning" />
-                </TableCell>
-                <TableCell className="whitespace-normal">{definition.title}</TableCell>
-                <TableCell className="text-right font-mono text-[0.78rem]">
-                  {definition.planned_runs}
-                </TableCell>
-                <TableCell className="text-right font-mono text-[0.78rem]">
-                  {definition.actual_runs}
-                </TableCell>
-                <TableCell>
-                  <DefinitionStatusBadge status={definition.status} />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Panel>
-
-      <Panel className="mb-3">
-        <PanelHead
           title="Test runs under this work order"
           action={
             <Link href="/runs" className="text-[0.75rem] font-semibold text-primary">
@@ -299,6 +242,63 @@ export function WorkOrderDetailScreen({ woId }: WorkOrderDetailScreenProps) {
                   <WorkbookMenu run={run.run_id} explore={{ run: run.run_id }} iconOnly />
                 </TableCell>
               </RowLink>
+            ))}
+          </TableBody>
+        </Table>
+      </Panel>
+
+      <Panel className="mb-3">
+        <PanelHead
+          title="Test definitions in this work order"
+          action={
+            <span className="font-mono text-[0.68rem] text-ink-3">
+              {workOrder.definitions.length} mirrored
+            </span>
+          }
+        />
+        <Table aria-label="Test definitions of this work order">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Definition</TableHead>
+              <TableHead>Title</TableHead>
+              <TableHead className="text-right!">Planned runs</TableHead>
+              <TableHead className="text-right!">Actual runs</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="w-10">
+                <span className="sr-only">Open in</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {workOrder.definitions.length === 0 && (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={5} className="p-0!">
+                  <EmptyState message="No definitions mirrored for this work order." />
+                </TableCell>
+              </TableRow>
+            )}
+            {workOrder.definitions.map((definition) => (
+              <TableRow key={definition.td_id} className="hover:bg-transparent">
+                <TableCell>
+                  <Link
+                    href={`/definitions/${encodeURIComponent(definition.td_id)}`}
+                    className="font-mono text-[0.78rem] text-primary hover:underline"
+                  >
+                    {definition.td_id}
+                  </Link>{" "}
+                  <SourceBadge source="api:planning" />
+                </TableCell>
+                <TableCell className="whitespace-normal">{definition.title}</TableCell>
+                <TableCell className="text-right font-mono text-[0.78rem]">
+                  {definition.planned_runs}
+                </TableCell>
+                <TableCell className="text-right font-mono text-[0.78rem]">
+                  {definition.actual_runs}
+                </TableCell>
+                <TableCell>
+                  <DefinitionStatusBadge status={definition.status} />
+                </TableCell>
+              </TableRow>
             ))}
           </TableBody>
         </Table>
