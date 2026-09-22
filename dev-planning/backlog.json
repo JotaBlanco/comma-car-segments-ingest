@@ -181,6 +181,20 @@
       "status": "to do",
       "notes": "3 models gained fields, 2 routes added — contract-snapshot test red until refreshed",
       "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-26",
+      "title": "Requirements page in the Test Manager (list + detail)",
+      "status": "to do",
+      "notes": "new screen; needs BL-23 (requirements as entities) and the BL-22 derived fields",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-27",
+      "title": "Requirement attribute columns per the Miro SYS.2 board",
+      "status": "to do",
+      "notes": "authored: status, verification_method, verification_criteria, asil(optional); system-assigned: version (mints on content_sha256 change); derived/never stored: baseline (view), verified_by, covering_run_ids, verification_state. Suspect marker on normative_sha256 fields",
+      "updated": "2026-09-22"
     }
   ]
 }
