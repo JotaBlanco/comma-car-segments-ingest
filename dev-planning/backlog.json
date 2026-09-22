@@ -227,8 +227,8 @@
     {
       "id": "BL-32",
       "title": "Review page — review a requirement or a test definition",
-      "status": "in progress",
-      "notes": "user 2026-09-22: one review surface over both entity kinds. Board: Draft -> Ready for Review -> In Review -> Reviewed, and 'a second person is required' on accept and on any edit of a Reviewed item (DCM policy, pinned by policy_sha256). Spec: dev-planning/review-page",
+      "status": "to do",
+      "notes": "spec done: dev-planning/review-page/spec.md; build pending",
       "updated": "2026-09-22"
     },
     {
@@ -248,15 +248,15 @@
     {
       "id": "BL-35",
       "title": "Authoring controls on every page: add / edit / remove",
-      "status": "in progress",
-      "notes": "user 2026-09-22: Review, Requirements, Test definitions, Work orders, Test runs. Collides with planning ownership — work orders and definitions are mirrored read-only today (planning_sync), and the board says a Reviewed item needs a second person to edit. Spec: dev-planning/authoring-controls",
+      "status": "to do",
+      "notes": "spec done: dev-planning/authoring-controls/spec.md; build pending",
       "updated": "2026-09-22"
     },
     {
       "id": "BL-36",
       "title": "Review window functional — not just a queue",
-      "status": "in progress",
-      "notes": "accept / reject / request changes / claim, with the four-eyes rule; part of dev-planning/review-page",
+      "status": "to do",
+      "notes": "spec done: dev-planning/review-page/spec.md; build pending",
       "updated": "2026-09-22"
     },
     {
@@ -341,6 +341,20 @@
       "title": "Six run-detail tests mock @/lib/hooks wholesale and now throw on useWorkOrder",
       "status": "to do",
       "notes": "new-tab-marks, no-would-toasts, null-fields, quixlab-launch-context, signals-selection, signals-tab-filters — each needs useWorkOrder in its mock factory",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-49",
+      "title": "Battery sim UI: pedals plus DC charging up to 250 kW",
+      "status": "to do",
+      "notes": "spec dev-planning/battery-sim-ui. Plant already accepts +-250 kW; charging is a third input mode at standstill with the plug in. 250 kW at ~780 V is ~320 A, above I_current_Chr_Max 300 A, so the UI must show commanded vs achieved and the derating band",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-50",
+      "title": "Spec contradiction: requirements page says not editable, authoring-controls gives full CRUD",
+      "status": "discuss",
+      "notes": "requirements-page/spec.md vs authoring-controls/spec.md; the user asked for add/edit/remove on that page",
       "updated": "2026-09-22"
     }
   ]

@@ -444,3 +444,20 @@ template, extracted by the architect, differs in two ways that change §4.2:
 `GET /battery/data` at 5–10 Hz is what the template already does and needs no extra
 dependency; a WebSocket under Flask + waitress needs one. Recommend adopting the template's
 polling shape for phase 1 and recording the WebSocket as the rejected alternative.
+
+## Charging — decided by the user
+
+DC fast charging up to **250 kW** is in scope for the UI, alongside the pedals.
+
+* The plant already accepts it: `requested_power_w` ranges ±250 000 W in `signals.json`, and
+  positive power charges (input convention, powertrain-sign). No plant change is needed.
+* It is a **third input mode**, not a pedal: charging happens at standstill with the plug in,
+  so `VCU_Charge_Plug` is set, both pedals read 0 %, and the charge rate is its own control
+  (a slider or preset steps up to 250 kW). This matches the trace generator, where pedals are
+  0 while plug-charging.
+* At 250 kW and ~780 V the current is roughly 320 A, which exceeds `I_current_Chr_Max`
+  (300 A). The BMS controller's charge limit and its thermal derating are what hold it — so
+  the UI must render the *commanded* rate against the *achieved* current, or a viewer will
+  read the clamp as a bug. Show both, and label the derating band.
+* Phase 1 scope therefore becomes: accelerator, brake, **charge rate**, ambient, heater,
+  chiller — with the charge control disabled unless the plug is in.
