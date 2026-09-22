@@ -32,17 +32,43 @@ def list_requirements(
     status: Annotated[list[str] | None, Query()] = None,
     state: Annotated[list[str] | None, Query()] = None,
     method: Annotated[list[str] | None, Query()] = None,
+    ears_pattern: Annotated[list[str] | None, Query()] = None,
+    system_state: Annotated[list[str] | None, Query()] = None,
+    measurand: Annotated[list[str] | None, Query()] = None,
+    source: Annotated[list[str] | None, Query()] = None,
+    revision: str | None = None,
+    related_req: str | None = None,
+    has_verified_by: bool | None = None,
+    has_latest_run: bool | None = None,
     q: str | None = None,
 ) -> RequirementPage:
     """List the mirrored requirements, `req_id` ascending — no sort param.
 
-    `chapter`, `status`, `state` (`verification_state`) and `method`
-    (`verification_method`) take repeated params, like `GET /test-runs`.
-    `q` searches `req_id`, `title` and `text`. `view_counts` is whole-table
-    and filter-independent.
+    `chapter`, `status`, `state` (`verification_state`), `method`
+    (`verification_method`), `ears_pattern`, `system_state` (matches
+    `system_states`), `measurand` (matches a measurand's `name`) and `source`
+    take repeated params, like `GET /test-runs`. `revision` (exact) and
+    `related_req` (membership in `related_reqs`) take one value. `has_verified_by`
+    and `has_latest_run` are presence/absence booleans over the derived
+    `verified_by`/`latest_run_id`. `q` searches `req_id`, `title` and `text`.
+    `view_counts` is whole-table and filter-independent.
     """
     return queries_requirements.list_requirements(
-        db, pagination, chapter=chapter, status=status, state=state, method=method, q=q
+        db,
+        pagination,
+        chapter=chapter,
+        status=status,
+        state=state,
+        method=method,
+        ears_pattern=ears_pattern,
+        system_state=system_state,
+        measurand=measurand,
+        source=source,
+        revision=revision,
+        related_req=related_req,
+        has_verified_by=has_verified_by,
+        has_latest_run=has_latest_run,
+        q=q,
     )
 
 

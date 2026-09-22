@@ -270,8 +270,24 @@ def _matches(
     status: list[str] | None,
     state: list[str] | None,
     method: list[str] | None,
+    ears_pattern: list[str] | None,
+    system_state: list[str] | None,
+    measurand: list[str] | None,
+    source: list[str] | None,
+    revision: str | None,
+    related_req: str | None,
+    has_verified_by: bool | None,
+    has_latest_run: bool | None,
     q: str | None,
 ) -> bool:
+    """Every filter `GET /requirements` accepts, applied to one projected row.
+
+    All thirteen run here, over the already-`_project`ed table — including
+    `has_verified_by`/`has_latest_run`, which test `verified_by`/
+    `latest_run_id` and so cannot be pushed into the Mongo `find()`: those two
+    fields exist only after `_project` computes them, never on the stored
+    document.
+    """
     if chapter and row.get("chapter") not in chapter:
         return False
     if status and row.get("status") not in status:
@@ -279,6 +295,24 @@ def _matches(
     if state and row.get("verification_state") not in state:
         return False
     if method and row.get("verification_method") not in method:
+        return False
+    if ears_pattern and row.get("ears_pattern") not in ears_pattern:
+        return False
+    if system_state and not set(row.get("system_states") or []) & set(system_state):
+        return False
+    if measurand:
+        names = {entry.get("name") for entry in row.get("measurand") or []}
+        if not names & set(measurand):
+            return False
+    if source and not set(row.get("source") or []) & set(source):
+        return False
+    if revision and row.get("revision") != revision:
+        return False
+    if related_req and related_req not in (row.get("related_reqs") or []):
+        return False
+    if has_verified_by is not None and bool(row.get("verified_by")) != has_verified_by:
+        return False
+    if has_latest_run is not None and (row.get("latest_run_id") is not None) != has_latest_run:
         return False
     if q:
         needle = q.strip().lower()
@@ -298,11 +332,21 @@ def list_requirements(
     status: list[str] | None = None,
     state: list[str] | None = None,
     method: list[str] | None = None,
+    ears_pattern: list[str] | None = None,
+    system_state: list[str] | None = None,
+    measurand: list[str] | None = None,
+    source: list[str] | None = None,
+    revision: str | None = None,
+    related_req: str | None = None,
+    has_verified_by: bool | None = None,
+    has_latest_run: bool | None = None,
     q: str | None = None,
 ) -> dict:
     """Page the requirement mirror, `req_id` ascending — no sort param (§6).
 
-    Every visible column filters server-side. `view_counts` is whole-table:
+    Every visible column filters server-side, all thirteen in `_matches`
+    over the whole projected table (`requirements-page/spec.md`'s widened
+    filter set, beyond the four §11.2 names). `view_counts` is whole-table:
     it is built from every row before the filters narrow the set, so a quick
     view's badge never disagrees with what clearing the filters would show.
     """
@@ -310,7 +354,26 @@ def list_requirements(
     rows = _project(db, docs)
     view_counts = _view_counts(rows)
 
-    filtered = [row for row in rows if _matches(row, chapter, status, state, method, q)]
+    filtered = [
+        row
+        for row in rows
+        if _matches(
+            row,
+            chapter,
+            status,
+            state,
+            method,
+            ears_pattern,
+            system_state,
+            measurand,
+            source,
+            revision,
+            related_req,
+            has_verified_by,
+            has_latest_run,
+            q,
+        )
+    ]
     total = len(filtered)
     start = (pagination.page - 1) * pagination.page_size
     page_rows = filtered[start : start + pagination.page_size]
@@ -448,7 +511,13 @@ def create_requirement(db: Database, body: RequirementCreateRequest, actor: str)
 def patch_requirement(
     db: Database, req_id: str, body: RequirementPatchRequest, actor: str
 ) -> dict:
-    """PATCH /requirements/{req_id}. Refuses `stale_parent` and `no_op_mint`."""
+    """PATCH /requirements/{req_id}. Refuses `stale_parent` and `no_op_mint`.
+
+    `status` is authored but sits outside `CONTENT_FIELDS`/`content_sha256`
+    (§4.6, `no_op_mint` above): a status-only edit changes no content byte, so
+    `no_op_mint` is decided over content-changed-or-status-changed, not the
+    hash alone. `item_version` mints for either kind of change.
+    """
     stored = _requirement_or_404(db, req_id)
     if body.parent_version != stored.get("item_version"):
         raise ApiError(
@@ -457,13 +526,16 @@ def patch_requirement(
             "stale_parent",
         )
 
-    stated = body.model_dump(exclude={"parent_version", "actor", "second_actor", "note"})
+    stated = body.model_dump(
+        exclude={"parent_version", "actor", "second_actor", "note", "status"}
+    )
     merged = {
         field: (stated[field] if stated.get(field) is not None else stored.get(field))
         for field in CONTENT_FIELDS
     }
     digest = content_sha256(merged)
-    if digest == stored.get("content_sha256"):
+    status_changed = body.status is not None and body.status != stored.get("status")
+    if digest == stored.get("content_sha256") and not status_changed:
         raise ApiError(
             409,
             "nothing changed, so the registry stored nothing",
@@ -471,10 +543,11 @@ def patch_requirement(
         )
 
     update: dict = {}
+    entries: list[dict] = []
     for field in CONTENT_FIELDS:
         if stated.get(field) is None or stated[field] == stored.get(field):
             continue
-        set_field(
+        entry = set_field(
             update,
             field,
             stated[field],
@@ -486,6 +559,24 @@ def patch_requirement(
             entity_id=req_id,
             field_label=f"requirement.{field}",
         )
+        if entry is not None:
+            entries.append(entry)
+    if status_changed:
+        entry = set_field(
+            update,
+            "status",
+            body.status,
+            Source.MANUAL,
+            actor,
+            note=body.note,
+            current_doc=stored,
+            entity_type="requirement",
+            entity_id=req_id,
+            field_label="requirement.status",
+        )
+        if entry is not None:
+            entries.append(entry)
+
     update["content_sha256"] = digest
     update["item_version"] = (stored.get("item_version") or 1) + 1
     fresh_normative = normative_sha256(merged)
@@ -494,6 +585,8 @@ def patch_requirement(
         update["normative_changed_at"] = datetime.now(UTC)
 
     db["requirements"].update_one({"_id": req_id}, {"$set": update})
+    if entries:
+        db["journal_entries"].insert_many(entries)
     return get_requirement_detail(db, req_id)
 
 

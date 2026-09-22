@@ -64,6 +64,24 @@ so the two paths can never define "changed" differently. `status` is
 excluded from both: a Draft → Reviewed move is a person's act and must never
 look like a content change (`authoring-controls` §12 OQ5).
 
+`PATCH /requirements/{id}` accepts `status` alongside `CONTENT_FIELDS`
+(a later round; it was omitted from the first cut, leaving `retire` — a
+one-way move to `Obsolete` — as the only way to move a requirement out of
+`Draft`). Because `status` sits outside `content_sha256`, `patch_requirement`
+decides `no_op_mint` from "the content hash changed OR the stated status
+differs from the stored one," not the hash alone — a status-only edit
+otherwise hashes identical to what is stored and would be wrongly refused.
+`item_version` mints for either kind of change. No transition table and no
+four-eyes gate live here; any status value the collection holds today is
+accepted, matching the four refusals' own rule of validating nothing beyond
+themselves — `dev-planning/review-page/spec.md` owns the policy. A status
+change, like every other accepted field, now writes a journal entry through
+the same `set_field` return value the five other content fields already
+produced; `patch_requirement` previously computed but dropped that return
+value, so no edit through this route journalled — closed in the same change
+since "status must appear in the journal" needs it for every field, not only
+`status`.
+
 **Verdicts ride on the existing result, not a new collection.**
 `processed_results` already supplies a version chain per `(run_id,
 result_key)`, mandatory six-key provenance, the journal, lineage and
@@ -204,11 +222,18 @@ latest attempt (`processed_results.version` DESC).
 ## Known deviations from the specs (flag for the frontend agent / Buddy)
 
 1. **`GET /requirements/facets` is not built.** `requirements-page/spec.md`
-   §10.2 names it; this build instead accepts `chapter`/`status`/`state`/
-   `method` as repeated query params directly on `GET /requirements` and
-   filters server-side in Python over the whole (small) projected table. A
-   facets route is a cheap follow-up if the frontend wants a distinct-values
-   endpoint instead of deriving options from the page's own rows.
+   §10.2 names it; this build instead accepts twelve query params directly on
+   `GET /requirements` and filters server-side in `_matches`, over the whole
+   (small) projected table: the original four repeated-list filters
+   (`chapter`/`status`/`state`/`method`), and eight more added in a later
+   round — `ears_pattern`/`system_state`/`measurand`/`source` (also repeated
+   lists; `measurand` matches an entry's `name`), `revision`/`related_req`
+   (one value; `related_req` tests membership in `related_reqs`), and
+   `has_verified_by`/`has_latest_run` (presence/absence booleans over the two
+   derived fields, so they cannot move into the Mongo query without
+   `_project` running first). A facets route is a cheap follow-up if the
+   frontend wants a distinct-values endpoint instead of deriving options from
+   the page's own rows.
 2. **`asil`, `no_evidence` view count and the `verification_criteria`-vs-
    `pass_criteria` sweep are not built** — out of this build's explicit scope
    (`requirements-page/spec.md` §8's phase-2 list).

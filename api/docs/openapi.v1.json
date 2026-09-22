@@ -3110,7 +3110,7 @@
           "requirements"
         ],
         "summary": "List Requirements",
-        "description": "List the mirrored requirements, `req_id` ascending — no sort param.\n\n`chapter`, `status`, `state` (`verification_state`) and `method`\n(`verification_method`) take repeated params, like `GET /test-runs`.\n`q` searches `req_id`, `title` and `text`. `view_counts` is whole-table\nand filter-independent.",
+        "description": "List the mirrored requirements, `req_id` ascending — no sort param.\n\n`chapter`, `status`, `state` (`verification_state`), `method`\n(`verification_method`), `ears_pattern`, `system_state` (matches\n`system_states`), `measurand` (matches a measurand's `name`) and `source`\ntake repeated params, like `GET /test-runs`. `revision` (exact) and\n`related_req` (membership in `related_reqs`) take one value. `has_verified_by`\nand `has_latest_run` are presence/absence booleans over the derived\n`verified_by`/`latest_run_id`. `q` searches `req_id`, `title` and `text`.\n`view_counts` is whole-table and filter-independent.",
         "operationId": "list_requirements_api_v1_requirements_get",
         "security": [
           {
@@ -3192,6 +3192,146 @@
                 }
               ],
               "title": "Method"
+            }
+          },
+          {
+            "name": "ears_pattern",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ears Pattern"
+            }
+          },
+          {
+            "name": "system_state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "System State"
+            }
+          },
+          {
+            "name": "measurand",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Measurand"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          },
+          {
+            "name": "revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Revision"
+            }
+          },
+          {
+            "name": "related_req",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Related Req"
+            }
+          },
+          {
+            "name": "has_verified_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Has Verified By"
+            }
+          },
+          {
+            "name": "has_latest_run",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Has Latest Run"
             }
           },
           {
@@ -13325,6 +13465,17 @@
             ],
             "title": "Verification Criteria"
           },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
           "parent_version": {
             "type": "integer",
             "title": "Parent Version"
@@ -13363,7 +13514,7 @@
           "actor"
         ],
         "title": "RequirementPatchRequest",
-        "description": "Body of PATCH /requirements/{req_id}. Every authored field, all optional.\n\n`parent_version` guards the edit: it must equal the stored `item_version`\nor the write is refused `stale_parent`. An edit that changes no field's\nbytes is refused `no_op_mint`."
+        "description": "Body of PATCH /requirements/{req_id}. Every authored field, all optional.\n\n`parent_version` guards the edit: it must equal the stored `item_version`\nor the write is refused `stale_parent`. An edit that changes no field's\nbytes is refused `no_op_mint`.\n\n`status` is authored but excluded from `content_sha256`/`normative_sha256`\n(`requirement-status-from-runs/spec.md` §4.6, `authoring-controls/spec.md`\n§12 OQ5): a status-only edit still mints `item_version`, but is judged for\n`no_op_mint` against its own prior value rather than the content hash.\nNo transition table or four-eyes gate is enforced here — any value the\ncollection accepts today is allowed; `dev-planning/review-page/spec.md`\nowns the policy."
       },
       "RequirementRetireRequest": {
         "properties": {

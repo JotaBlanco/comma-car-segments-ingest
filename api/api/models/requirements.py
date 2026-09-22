@@ -149,6 +149,14 @@ class RequirementPatchRequest(RequestModel):
     `parent_version` guards the edit: it must equal the stored `item_version`
     or the write is refused `stale_parent`. An edit that changes no field's
     bytes is refused `no_op_mint`.
+
+    `status` is authored but excluded from `content_sha256`/`normative_sha256`
+    (`requirement-status-from-runs/spec.md` §4.6, `authoring-controls/spec.md`
+    §12 OQ5): a status-only edit still mints `item_version`, but is judged for
+    `no_op_mint` against its own prior value rather than the content hash.
+    No transition table or four-eyes gate is enforced here — any value the
+    collection accepts today is allowed; `dev-planning/review-page/spec.md`
+    owns the policy.
     """
 
     title: str | None = None
@@ -164,6 +172,7 @@ class RequirementPatchRequest(RequestModel):
     related_reqs: list[str] | None = None
     figure_refs: list[str] | None = None
     verification_criteria: str | None = None
+    status: str | None = None
     parent_version: int
     actor: Actor
     second_actor: str | None = None
