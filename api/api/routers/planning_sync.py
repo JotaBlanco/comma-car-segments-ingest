@@ -175,6 +175,7 @@ def receive_planning_push(
             work_orders=_rows(body.work_orders),
             definitions=_rows(body.test_definitions),
             links=[link.model_dump() for link in body.links],
+            requirements=_rows(body.requirements),
         )
     )
 

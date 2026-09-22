@@ -763,7 +763,24 @@ def with_counts(db: Database, run: dict) -> dict:
         "journal_count": db["journal_entries"].count_documents(
             {"$or": [{"entity_type": "run", "entity_id": run_id}, {"context_run_id": run_id}]}
         ),
+        "covers_req_ids": covered_requirement_ids(db, run.get("definition_ids") or []),
     }
+
+
+def covered_requirement_ids(db: Database, definition_ids: list[str]) -> list[str]:
+    """The union of `covers_req_ids` over a set of definitions, sorted.
+
+    Detail-only (`dev-planning/requirement-status-from-runs/spec.md` §7.2):
+    one extra query on a run detail read, and the runs list stays untouched.
+    """
+    if not definition_ids:
+        return []
+    covered: set[str] = set()
+    for definition in db["test_definitions"].find(
+        {"_id": {"$in": definition_ids}}, {"covers_req_ids": 1}
+    ):
+        covered.update(definition.get("covers_req_ids") or [])
+    return sorted(covered)
 
 
 def run_lineage(db: Database, run_id: str) -> dict:
@@ -910,6 +927,7 @@ def home_summary(db: Database) -> dict:
             "work_orders": db["work_orders"].count_documents({}),
             # The whole definition mirror, the set the /definitions list pages.
             "test_definitions": db["test_definitions"].count_documents({}),
+            "requirements": db["requirements"].count_documents({}),
             "runs_today": runs.count_documents({"first_data_at": today}),
             "files_today": files.count_documents({"registered_at": today}),
             "rig_count": len(runs.distinct("rig_id")),

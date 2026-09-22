@@ -42,9 +42,6 @@
       "title": "Maximum DC charging current",
       "verification_method": "Test",
       "verification_tag": "DERIVED",
-      "verified_by": [
-        "BAT-SYS-TC-001"
-      ],
       "parameters": [
         "I_current_Chr_Max"
       ]
@@ -82,9 +79,6 @@
       "title": "Technical state of charge by coulomb counting",
       "verification_method": "Test",
       "verification_tag": "DERIVED",
-      "verified_by": [
-        "BAT-SYS-TC-004"
-      ],
       "parameters": []
     },
     {
@@ -116,9 +110,6 @@
       "title": "Customer state of charge derivation",
       "verification_method": "Test",
       "verification_tag": "DERIVED",
-      "verified_by": [
-        "BAT-SYS-TC-006"
-      ],
       "parameters": [
         "SOC_tech_at_cust_0pct",
         "SOC_tech_at_cust_100pct"
@@ -160,9 +151,6 @@
       "title": "Terminal voltage relaxation to open-circuit voltage",
       "verification_method": "Test",
       "verification_tag": "DERIVED",
-      "verified_by": [
-        "BAT-SYS-TC-008"
-      ],
       "parameters": [
         "t_transient_Voltage_sec"
       ]
@@ -203,9 +191,6 @@
       "title": "Cell balancing while sleeping",
       "verification_method": "Test",
       "verification_tag": "DERIVED",
-      "verified_by": [
-        "BAT-SYS-TC-007"
-      ],
       "parameters": []
     },
     {
@@ -233,9 +218,6 @@
       "title": "Terminal voltage operating range",
       "verification_method": "Test",
       "verification_tag": "DERIVED",
-      "verified_by": [
-        "BAT-SYS-TC-005"
-      ],
       "parameters": [
         "Udc_Max",
         "Udc_min"
@@ -266,9 +248,6 @@
       "title": "Battery temperature ceiling",
       "verification_method": "Test",
       "verification_tag": "DERIVED",
-      "verified_by": [
-        "BAT-SYS-TC-003"
-      ],
       "parameters": [
         "T_batt_max"
       ]
@@ -308,9 +287,6 @@
       "title": "Charging current derating near the temperature ceiling",
       "verification_method": "Test",
       "verification_tag": "DERIVED",
-      "verified_by": [
-        "BAT-SYS-TC-002"
-      ],
       "parameters": [
         "T_batt_max",
         "T_batt_safety_threshold"
@@ -345,9 +321,6 @@
       "title": "Heater power states",
       "verification_method": "Test",
       "verification_tag": "DERIVED",
-      "verified_by": [
-        "BAT-SYS-TC-009"
-      ],
       "parameters": [
         "P_heater_max",
         "P_heater_middle"
@@ -388,15 +361,12 @@
       "title": "Heater at maximum power below the minimum temperature",
       "verification_method": "Test",
       "verification_tag": "DERIVED",
-      "verified_by": [
-        "BAT-SYS-TC-010"
-      ],
       "parameters": [
         "T_batt_min"
       ]
     }
   ],
-  "notes": "Hand-authored from the battery DC stakeholder brief, rewritten into EARS shall-form per ASPICE SYS.2. Requirement text carries {parameter} tokens resolved against the battery-dc-parameters set; rendering substitutes 'name (value unit)'.",
+  "notes": "Hand-authored from the battery DC stakeholder brief, rewritten into EARS shall-form per ASPICE SYS.2. Requirement text carries {parameter} tokens resolved against the battery-dc-parameters set; rendering substitutes 'name (value unit)'. verified_by is not authored here (BP5 / defect D1): it is derived from specs/battery-dc-test-specs.json's covers_req_ids, inverted at read time by the Test Manager and, in this seed, by seed/sources.py.",
   "parent_version": null,
   "schema_version": "1.0.0",
   "set": "requirements",

@@ -235,6 +235,9 @@ class RunDetail(RunListItem):
     # Free key and value pairs a person types. Defaulted, because a run
     # document written before this field existed simply carries none.
     custom_properties: dict[str, str] = Field(default_factory=dict)
+    # Derived, detail-only: the union of `covers_req_ids` over this run's
+    # definitions. The list stays untouched — one extra query per detail read.
+    covers_req_ids: list[str] = Field(default_factory=list)
 
 
 class RunPatchRequest(RequestModel):
@@ -376,6 +379,7 @@ class HomeCounts(ApiModel):
     signals: int
     work_orders: int
     test_definitions: int
+    requirements: int
     runs_today: int
     files_today: int
     rig_count: int

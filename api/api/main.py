@@ -39,6 +39,7 @@ from api.routers import (
     journal,
     mcp,
     planning_sync,
+    requirements,
     results,
     search,
     searches,
@@ -291,10 +292,24 @@ ROUTE_ERRORS: dict[str, tuple[tuple[int, str], ...]] = {
         (404, "wo_not_found"),
         (404, "result_not_found"),
         (404, "td_not_found"),
+        (404, "requirement_not_found"),
     ),
     "POST /api/v1/assistant/chat": (
         (403, "assistant_disabled"),
         (403, "ai_unavailable"),
+    ),
+    "GET /api/v1/requirements/{req_id}": ((404, "requirement_not_found"),),
+    "GET /api/v1/requirements/{req_id}/journal": ((404, "requirement_not_found"),),
+    "POST /api/v1/requirements": ((409, "id_reuse"),),
+    "PATCH /api/v1/requirements/{req_id}": (
+        (404, "requirement_not_found"),
+        (409, "stale_parent"),
+        (409, "no_op_mint"),
+    ),
+    "POST /api/v1/requirements/{req_id}/retire": (
+        (404, "requirement_not_found"),
+        (409, "stale_parent"),
+        (409, "already_obsolete"),
     ),
 }
 
@@ -574,6 +589,7 @@ def create_app() -> FastAPI:
         test_runs,
         work_orders,
         test_definitions,
+        requirements,
         files,
         signals,
         results,

@@ -81,6 +81,34 @@ class ProvenanceOut(ApiModel):
     produced_at: UtcDatetime | None = None
 
 
+class Verdict(RequestModel):
+    """The verdict block a run's evaluator writes (dev-planning/requirement-
+    status-from-runs/spec.md §6). Optional on every result; absent on every
+    one that is not a verdict. `BL-11` writes this; this build only reads it.
+
+    `result_key` should be `"verdict/<definition_id>"` by convention, but the
+    projection reads `definition_id` here, never the key.
+    """
+
+    definition_id: str
+    outcome: Literal["pass", "fail", "error"]
+    evidence: dict = Field(default_factory=dict)
+    # 64 hex, the full sha256 of the implementation `.py` that decided this
+    # outcome — the artefact `test_definitions.implementation.sha256` names.
+    implementation_sha256: str
+
+
+class VerdictOut(ApiModel):
+    """The response view of the verdict block. Never refuses a document."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    definition_id: str = ""
+    outcome: Literal["pass", "fail", "error"] = "error"
+    evidence: dict = Field(default_factory=dict)
+    implementation_sha256: str = ""
+
+
 class ResultEdit(ApiModel):
     """A person edited this result. Read from the journal, never stored twice.
 
@@ -110,6 +138,8 @@ class ResultBody(ApiModel):
     # Null until a person edits the result through PATCH /results/{result_id}.
     # The router reads the mark from the journal. No route stores it.
     edited: ResultEdit | None = None
+    # Null on every result but a verdict. See `Verdict`.
+    verdict: VerdictOut | None = None
 
 
 class ResultCreateRequest(RequestModel):
@@ -125,6 +155,7 @@ class ResultCreateRequest(RequestModel):
     description: str | None = None
     storage_ref: str | None = None
     provenance: Provenance | None = None
+    verdict: Verdict | None = None
 
     @model_validator(mode="before")
     @classmethod

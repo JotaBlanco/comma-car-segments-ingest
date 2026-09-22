@@ -30,6 +30,7 @@ SCHEMA = "battery-trace-manifest/1"
 TOOL_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = TOOL_ROOT.parent
 REQUIREMENTS_PATH = TOOL_ROOT / "data" / "battery-dc-requirements.json"
+SPECS_PATH = TOOL_ROOT / "specs" / "battery-dc-test-specs.json"
 PARAMETERS_PATH = TOOL_ROOT / "data" / "battery-dc-parameters.json"
 
 
@@ -196,9 +197,18 @@ CHECKS: dict[str, Check] = {
 
 
 def test_case_ids() -> dict[str, str]:
-    """``{requirement id: test case id}`` from the requirement set's ``verified_by``."""
-    document = json.loads(REQUIREMENTS_PATH.read_text(encoding="utf-8"))
-    return {item["id"]: item["verified_by"][0] for item in document["items"]}
+    """``{requirement id: test case id}``, inverted from the specs' ``covers_req_ids``.
+
+    The derived direction (board BP5 / defect D1): a requirement never authors
+    ``verified_by``, so this inverts the authored link the same way the Test
+    Manager does at read time.
+    """
+    document = json.loads(SPECS_PATH.read_text(encoding="utf-8"))
+    return {
+        req_id: item["tc_id"]
+        for item in document["items"]
+        for req_id in item.get("covers_req_ids") or []
+    }
 
 
 def _expectations(run: TraceRun, tc_ids: dict[str, str]) -> list[dict[str, Any]]:

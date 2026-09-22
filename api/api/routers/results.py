@@ -495,6 +495,7 @@ def _store_result(
             "storage_ref": body.storage_ref,
             "provenance": body.provenance.model_dump(),
             "provenance_status": "verified" if verified else "flagged",
+            "verdict": body.verdict.model_dump() if body.verdict else None,
             "body_hash": body_hash,
             "checksum_sha256": checksum,
             "created_at": datetime.now(UTC),

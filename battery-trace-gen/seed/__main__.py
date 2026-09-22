@@ -42,7 +42,10 @@ def _render() -> None:
     ):
         path = OUT_DIR / name
         path.write_text(json.dumps(body, indent=2) + "\n", encoding="utf-8")
-        print(f"{path}  {len(body['test_definitions'])} definitions  {len(body['links'])} links")
+        print(
+            f"{path}  {len(body['requirements'])} requirements  "
+            f"{len(body['test_definitions'])} definitions  {len(body['links'])} links"
+        )
     for tc_id, path in implementations.write_all().items():
         print(f"{tc_id}  {path}")
 

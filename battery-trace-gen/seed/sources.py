@@ -46,6 +46,21 @@ def test_specs() -> dict[str, dict]:
     return {item["tc_id"]: item for item in _items(SPECS_PATH)}
 
 
+def covers_index() -> dict[str, list[str]]:
+    """`{req_id: [tc_id, ...]}`, inverted from the test specs' `covers_req_ids`.
+
+    This is the derived direction (BP5 / defect D1): `verified_by` is never
+    authored on a requirement, so the seed computes it here the same way the
+    Test Manager computes it at read time — by inverting the test cases'
+    authored `covers_req_ids`.
+    """
+    index: dict[str, list[str]] = {}
+    for tc_id, spec in test_specs().items():
+        for req_id in spec.get("covers_req_ids") or []:
+            index.setdefault(req_id, []).append(tc_id)
+    return {req_id: sorted(tc_ids) for req_id, tc_ids in index.items()}
+
+
 def verdicts() -> dict[str, dict]:
     """The expected verdict and measured evidence of each test case, by `tc_id`.
 
@@ -70,12 +85,10 @@ def traces() -> list[dict]:
 
     `{"trace_id", "file", "run_key", "definitions"}`. A scenario claims only its
     run key; the definitions are DERIVED from the requirements it evaluates,
-    through `requirement.verified_by`. The trace states none of them — a run is
-    assigned its definitions in the Test Manager.
+    through the inverted `covers_req_ids` (`covers_index`). The trace states
+    none of them — a run is assigned its definitions in the Test Manager.
     """
-    test_case_of = {
-        req_id: item["verified_by"][0] for req_id, item in requirements().items()
-    }
+    test_case_of = {req_id: tc_ids[0] for req_id, tc_ids in covers_index().items()}
     rows = []
     for path in sorted(SCENARIO_DIR.glob("T*.json")):
         document = json.loads(path.read_text(encoding="utf-8"))

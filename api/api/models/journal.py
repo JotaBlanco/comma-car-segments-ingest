@@ -28,7 +28,7 @@ from api.models.common import ApiModel, RequestModel, Source, UtcDatetime
 # export against. A body that names `export` therefore answers 422, and the
 # routes keep the one table they check against.
 WritableEntityType = Literal[
-    "run", "file", "signal", "work_order", "result", "test_definition"
+    "run", "file", "signal", "work_order", "result", "test_definition", "requirement"
 ]
 EntityType = Literal[WritableEntityType, "export"]
 JournalKind = Literal["change", "event", "note"]

@@ -29,7 +29,7 @@ def _decimal_comma(value: float | int) -> str:
 
 
 def resolve_tokens(text: str, parameters: dict[str, dict]) -> str:
-    """Replace each `{parameter}` token with `name (value unit)`.
+    """Replace each `{parameter}` token with `name = value unit`, bolded.
 
     A token naming no parameter stays as it is: the requirement set is the
     statement of record, and silently dropping a token would hide the gap.
@@ -43,6 +43,23 @@ def resolve_tokens(text: str, parameters: dict[str, dict]) -> str:
             f"**{parameter['name']} = {_decimal_comma(parameter['value'])} "
             f"{parameter['unit']}**"
         )
+
+    return _TOKEN.sub(replace, text)
+
+
+def resolve_display(text: str, parameters: dict[str, dict]) -> str:
+    """Replace each `{parameter}` token with `name (value unit)`, plain text.
+
+    This is `text_rendered`, the mirrored display string the requirements
+    page renders (dev-planning/requirements-page/spec.md §7B) — no markdown,
+    unlike `resolve_tokens`, which is the `.md` document's own house style.
+    """
+
+    def replace(match: re.Match[str]) -> str:
+        parameter = parameters.get(match.group(1))
+        if parameter is None:
+            return match.group(0)
+        return f"{parameter['name']} ({_decimal_comma(parameter['value'])} {parameter['unit']})"
 
     return _TOKEN.sub(replace, text)
 
@@ -147,7 +164,8 @@ def render(tc_id: str) -> str:
         f"| Verification method | {requirement['verification_method']} |",
         f"| Source | {'; '.join(requirement['source'])} |",
         f"| Rationale | {requirement['rationale']} |",
-        f"| Verified by | {', '.join(requirement['verified_by'])} |",
+        f"| Verified by (derived) | "
+        f"{', '.join(sources.covers_index().get(requirement['id'], []))} |",
         "",
         *_parameter_table(requirement, parameters),
         "## Test case",

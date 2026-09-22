@@ -36,6 +36,7 @@ from api import config_push
 from api.models.common import Source
 from api.models.journal import EMPTY
 from api.provenance import add_event, derive_status, mirror_tags, plain_values, set_field
+from api.services import queries_requirements
 from api.services.queries_runs import CLAIM_RETAINED
 from api.settings import get_settings
 
@@ -421,6 +422,10 @@ def _mirror_definitions(db: Database, rows: list[dict], now: datetime) -> None:
     that list wholesale: a pass replaces it, and a pass that sends none empties
     it. A document a person uploaded lives in `manual_requirements_files`, so
     no sync pass ever reaches it.
+
+    `covers_req_ids` is the authored direction of the requirement link (BP5):
+    planning states which requirements a test case verifies, and it too is
+    replaced wholesale on every pass.
     """
     for row in rows:
         values = {
@@ -428,8 +433,107 @@ def _mirror_definitions(db: Database, rows: list[dict], now: datetime) -> None:
             "title": row.get("title") or "",
             "planned_runs": row.get("planned_runs"),
             "requirements_files": _requirements_files(db, row, now),
+            "covers_req_ids": row.get("covers_req_ids") or [],
         }
         _write_mirror(db, "test_definitions", "test_definition", row["id"], values, row, now)
+
+
+def _mirror_requirements(db: Database, rows: list[dict], now: datetime) -> None:
+    """Mirror the requirement catalog, one field write per field (BL-35 §9.1).
+
+    **This is the one departure from `_write_mirror`.** A manual edit
+    (`dev-planning/authoring-controls/spec.md`) can coexist with a planning
+    push on the same row, so the wholesale overwrite every other mirror uses
+    would let a push erase a person's edit outright. `set_field` decides per
+    field instead: `manual` outranks `api:planning`, so a push naming a field
+    a person already edited skips that field only and lands every other one —
+    the precedence `_write_link` already holds for a run.
+
+    `normative_sha256` is computed off the MERGED state (the fields this pass
+    actually wrote, layered over what was already stored), never off the raw
+    push, so a field a manual edit blocked keeps its manual value in the hash.
+    It moves, and `normative_changed_at` stamps the moment, only when the
+    digest actually differs from the one stored (§4.6).
+    """
+    collection = db["requirements"]
+    for row in rows:
+        req_id = row["id"]
+        stored = collection.find_one({"_id": req_id})
+        values = {
+            "title": row.get("title") or "",
+            "text": row.get("text") or "",
+            "text_rendered": row.get("text_rendered"),
+            "status": row.get("status") or "",
+            "chapter": row.get("chapter"),
+            "ears_pattern": row.get("ears_pattern"),
+            "revision": row.get("revision"),
+            "measurand": row.get("measurand") or [],
+            "system_states": row.get("system_states") or [],
+            "verification_method": row.get("verification_method"),
+            "verification_criteria": row.get("verification_criteria"),
+            "rationale": row.get("rationale"),
+            "source": row.get("source") or [],
+            "related_reqs": row.get("related_reqs") or [],
+            "figure_refs": row.get("figure_refs") or [],
+        }
+
+        update: dict = {}
+        entries: list[dict] = []
+        for field, value in values.items():
+            entry = set_field(
+                update,
+                field,
+                value,
+                Source.API_PLANNING,
+                SYNC_ACTOR,
+                note="Mirrored from planning.",
+                current_doc=stored,
+                entity_type="requirement",
+                entity_id=req_id,
+                field_label=f"requirement.{field}",
+            )
+            if entry is not None:
+                entries.append(entry)
+
+        if stored is None:
+            entries = [
+                add_event(
+                    "requirement",
+                    req_id,
+                    "requirement.mirrored",
+                    Source.API_PLANNING,
+                    SYNC_ACTOR,
+                    note="Mirrored from planning.",
+                )
+            ]
+
+        merged = {**(stored or {}), **plain_values(update)}
+        fresh_normative = queries_requirements.normative_sha256(merged)
+        if (stored or {}).get("normative_sha256") != fresh_normative:
+            update["normative_sha256"] = fresh_normative
+            update["normative_changed_at"] = now
+
+        # `content_sha256`/`item_version` are the authoring API's concurrency
+        # guard (dev-planning/authoring-controls/spec.md §6), and they apply
+        # here too: a planning push is a content change like any other, so it
+        # mints the same way an authored edit does — one hash, one rule,
+        # whichever side wrote it. A brand new row always mints version 1
+        # here, because `stored` carries no `content_sha256` to match.
+        fresh_content = queries_requirements.content_sha256(merged)
+        if (stored or {}).get("content_sha256") != fresh_content:
+            update["content_sha256"] = fresh_content
+            update["item_version"] = ((stored or {}).get("item_version") or 0) + 1
+
+        update["raw"] = row
+        update["synced_at"] = now
+
+        collection.update_one(
+            {"_id": req_id},
+            {"$set": update, "$setOnInsert": {"mirrored_at": now}},
+            upsert=True,
+        )
+        if entries:
+            db["journal_entries"].insert_many(entries)
 
 
 def _write_link(
@@ -602,6 +706,7 @@ def apply_planning_push(
     work_orders: list[dict],
     definitions: list[dict],
     links: list[dict],
+    requirements: list[dict] | None = None,
 ) -> dict:
     """Take a planning push: mirror the catalog, then apply the links it decided.
 
@@ -609,6 +714,10 @@ def apply_planning_push(
     mirror helpers are the same ones, so a pushed row and a fetched row are
     byte-identical, and every link lands through `_write_link`, so planning
     still corrects an `embedded` claim and still never overwrites a person.
+
+    Requirements mirror FIRST, so a definition naming one in `covers_req_ids`
+    lands after its target exists (order matters for the journal reading
+    sensibly, not for correctness — the projection tolerates either order).
 
     Several links may name one run. Each states one definition, `_write_link`
     unions them onto the run's set, and a re-post of the same links counts
@@ -626,6 +735,8 @@ def apply_planning_push(
     retained claims — and this is the idempotent net under it.
     """
     now = datetime.now(UTC)
+    requirements = requirements or []
+    _mirror_requirements(db, requirements, now)
     _mirror_work_orders(db, work_orders, now)
     _mirror_definitions(db, definitions, now)
 
@@ -685,6 +796,7 @@ def apply_planning_push(
     )
 
     return {
+        "requirements_mirrored": len(requirements),
         "work_orders_mirrored": len(work_orders),
         "definitions_mirrored": len(definitions),
         "links_applied": applied,
@@ -730,6 +842,11 @@ def demo_reset(db: Database) -> dict:
     created_by_sync = {"mirrored_at": {"$gt": watermark}}
     mirrors = db["work_orders"].delete_many(created_by_sync)
     definitions = db["test_definitions"].delete_many(created_by_sync)
+    # A requirement can also be born manually (`queries_requirements.
+    # create_requirement`), which stamps no `mirrored_at` at all — the same
+    # rule that keeps a merely-refreshed seeded row out of this clause keeps a
+    # manual row out of it too.
+    requirements = db["requirements"].delete_many(created_by_sync)
 
     runs_reverted = 0
     for run in db["test_runs"].find({}):
@@ -778,7 +895,9 @@ def demo_reset(db: Database) -> dict:
     )
 
     return {
-        "mirrors_removed": mirrors.deleted_count + definitions.deleted_count,
+        "mirrors_removed": (
+            mirrors.deleted_count + definitions.deleted_count + requirements.deleted_count
+        ),
         "runs_reverted": runs_reverted,
         "entries_removed": entries.deleted_count,
     }

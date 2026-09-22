@@ -2960,6 +2960,677 @@
         }
       }
     },
+    "/api/v1/test-definitions/{td_id}/implementation": {
+      "post": {
+        "tags": [
+          "test-definitions"
+        ],
+        "summary": "Upload Implementation",
+        "description": "Attach the executable test implementation of one definition.\n\nThe request is `multipart/form-data`. `file` carries the module. A second\nupload REPLACES the pointer; the bytes of the previous one stay in the\nstore under their own digest, so a verdict that cited them still resolves.\n\nThe order of the checks copies the binary requirements route:\n\n1. the stated body length, before Starlette spools it - 413 `file_too_large`;\n2. the filename - 422 `name_required`;\n3. the exact size cap and the digest over the chunks - 413 `file_too_large`;\n4. an empty file - 422 `content_required`;\n5. the definition - 404 `td_not_found`, and no byte is stored;\n6. the store answers - 503 `storage_unreachable`, and **no** journal entry;\n7. the bytes;\n8. the audit entry - 503 `not_ready`;\n9. the pointer.\n\nEach subfield is written through `set_field` as `implementation.<key>`, so\nthe pointer carries the `manual` tag and the journal names who uploaded it.",
+        "operationId": "upload_implementation_api_v1_test_definitions__td_id__implementation_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "td_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Td Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_implementation_api_v1_test_definitions__td_id__implementation_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DefinitionImplementation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity — code: validation_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — code: unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable — code: platform_unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/test-definitions/{td_id}/implementation/download": {
+      "get": {
+        "tags": [
+          "test-definitions"
+        ],
+        "summary": "Download Implementation",
+        "description": "Stream the stored bytes of one definition's implementation.\n\nIt keeps **audit-before-bytes**, exactly as the requirements download does:\nthe journal entry lands before the first byte leaves, and a refused entry\nanswers 503 and moves nothing.\n\nErrors:\n\n* ``404 td_not_found`` - the mirror holds no such definition.\n* ``404 implementation_not_found`` - the definition carries no `.py`.\n* ``503 storage_unreachable`` - the store did not answer, or it holds no\n  object under the reference. No journal entry is written.\n* ``503 not_ready`` - the audit journal write failed. No bytes move.",
+        "operationId": "download_implementation_api_v1_test_definitions__td_id__implementation_download_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "td_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Td Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity — code: validation_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — code: unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable — code: platform_unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/requirements": {
+      "get": {
+        "tags": [
+          "requirements"
+        ],
+        "summary": "List Requirements",
+        "description": "List the mirrored requirements, `req_id` ascending — no sort param.\n\n`chapter`, `status`, `state` (`verification_state`) and `method`\n(`verification_method`) take repeated params, like `GET /test-runs`.\n`q` searches `req_id`, `title` and `text`. `view_counts` is whole-table\nand filter-independent.",
+        "operationId": "list_requirements_api_v1_requirements_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "chapter",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Chapter"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "name": "method",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Method"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "title": "Page Size",
+              "enum": [
+                10,
+                20,
+                50,
+                100,
+                200,
+                500
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequirementPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity — code: validation_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — code: unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable — code: platform_unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "requirements"
+        ],
+        "summary": "Create Requirement",
+        "description": "Create a manual requirement. Refuses `id_reuse` (409).\n\nThe id is typed by the author and checked against the whole collection,\nany status: a retired id is never reused\n(`dev-planning/authoring-controls/spec.md` §5, §6).",
+        "operationId": "create_requirement_api_v1_requirements_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequirementCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequirementDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity — code: validation_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — code: unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — code: id_reuse.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable — code: platform_unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/requirements/{req_id}": {
+      "get": {
+        "tags": [
+          "requirements"
+        ],
+        "summary": "Get Requirement",
+        "description": "Read one requirement, its authored fields and its covering evidence.\n\n404 `requirement_not_found` when the mirror holds no such id.",
+        "operationId": "get_requirement_api_v1_requirements__req_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "req_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Req Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequirementDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity — code: validation_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — code: unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found — code: requirement_not_found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable — code: platform_unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "requirements"
+        ],
+        "summary": "Patch Requirement",
+        "description": "Edit a requirement's authored fields.\n\n`parent_version` must match the stored `item_version` or the write is\nrefused `stale_parent` (409). Bytes identical to what is stored are\nrefused `no_op_mint` (409) — nothing is written, nothing is journalled.",
+        "operationId": "patch_requirement_api_v1_requirements__req_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "req_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Req Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequirementPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequirementDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity — code: validation_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — code: unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found — code: requirement_not_found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — code: stale_parent, no_op_mint.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable — code: platform_unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/requirements/{req_id}/retire": {
+      "post": {
+        "tags": [
+          "requirements"
+        ],
+        "summary": "Retire Requirement",
+        "description": "Retire a requirement: `status` moves to `Obsolete`, the row is kept.\n\nWorks on either origin (a planning-mirrored row or a manual one).\nRefuses `stale_parent` (409) and `already_obsolete` (409).",
+        "operationId": "retire_requirement_api_v1_requirements__req_id__retire_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "req_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Req Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequirementRetireRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequirementDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity — code: validation_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — code: unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found — code: requirement_not_found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — code: stale_parent, already_obsolete.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable — code: platform_unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/files": {
       "get": {
         "tags": [
@@ -6790,6 +7461,134 @@
         }
       }
     },
+    "/api/v1/requirements/{req_id}/journal": {
+      "get": {
+        "tags": [
+          "journal"
+        ],
+        "summary": "List Requirement Journal",
+        "description": "Read one requirement's history, newest first.\n\nA planning mirror pass writes one `requirement.mirrored` event when the\nrow first arrives, and one `change` entry per field planning moves\nafterwards; an authored create, edit or retire writes its own entries the\nsame way.",
+        "operationId": "list_requirement_journal_api_v1_requirements__req_id__journal_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "req_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Req Id"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "change",
+                    "event",
+                    "note"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Page Size",
+              "enum": [
+                10,
+                20,
+                50,
+                100,
+                200,
+                500
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_JournalEntry_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity — code: validation_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — code: unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found — code: requirement_not_found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable — code: platform_unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/journal": {
       "get": {
         "tags": [
@@ -6818,6 +7617,7 @@
                     "work_order",
                     "result",
                     "test_definition",
+                    "requirement",
                     "export"
                   ],
                   "type": "string"
@@ -7137,7 +7937,7 @@
             }
           },
           "404": {
-            "description": "Not Found — code: run_not_found, file_not_found, signal_not_found, wo_not_found, result_not_found, td_not_found.",
+            "description": "Not Found — code: run_not_found, file_not_found, signal_not_found, wo_not_found, result_not_found, td_not_found, requirement_not_found.",
             "content": {
               "application/json": {
                 "schema": {
@@ -8344,7 +9144,8 @@
               "signal",
               "work_order",
               "result",
-              "test_definition"
+              "test_definition",
+              "requirement"
             ],
             "title": "Entity Type"
           },
@@ -8562,6 +9363,31 @@
         "title": "AttentionRunRow",
         "description": "One run the Needs-attention panel names.\n\n`reason` is the engineer's text on an invalid-flagged run. A run that\nwaits for a work order carries no reason."
       },
+      "Body_upload_implementation_api_v1_test_definitions__td_id__implementation_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "entrypoint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entrypoint"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_implementation_api_v1_test_definitions__td_id__implementation_post"
+      },
       "Body_upload_requirements_file_bytes_api_v1_test_definitions__td_id__requirements_files_upload_post": {
         "properties": {
           "file": {
@@ -8651,6 +9477,62 @@
         ],
         "title": "DefinitionCustomPropertiesRequest",
         "description": "Body of PATCH /test-definitions/{td_id}/custom-properties.\n\nThe whole map, never a merge. An empty object clears every property. The\nbody states no actor: the route reads the verified caller, exactly as the\ntwo requirements-document routes do."
+      },
+      "DefinitionImplementation": {
+        "properties": {
+          "blob_path": {
+            "type": "string",
+            "title": "Blob Path"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "language": {
+            "type": "string",
+            "title": "Language"
+          },
+          "entrypoint": {
+            "type": "string",
+            "title": "Entrypoint"
+          },
+          "uploaded_at": {
+            "type": "string",
+            "title": "Uploaded At"
+          },
+          "uploaded_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uploaded By"
+          }
+        },
+        "type": "object",
+        "required": [
+          "blob_path",
+          "filename",
+          "sha256",
+          "size_bytes",
+          "language",
+          "entrypoint",
+          "uploaded_at",
+          "uploaded_by"
+        ],
+        "title": "DefinitionImplementation",
+        "description": "The executable test implementation of one definition.\n\nOne `.py` in blob storage, named by path AND by the sha256 of its bytes, so\na verdict can state the exact bytes that produced it: the result provenance\ncarries `tool_version = \"sha256:<first 12 hex>\"`.\n\nIt is a MANUAL-side field, like `manual_requirements_files`. Planning names\nno such thing, so no sync pass reaches it.\n\n`entrypoint` is the module-level function a runner calls —\n`evaluate(run_id, table) -> {\"verdict\", \"evidence\"}`."
       },
       "DefinitionWorkOrder": {
         "properties": {
@@ -10028,6 +10910,10 @@
             "type": "integer",
             "title": "Test Definitions"
           },
+          "requirements": {
+            "type": "integer",
+            "title": "Requirements"
+          },
           "runs_today": {
             "type": "integer",
             "title": "Runs Today"
@@ -10048,6 +10934,7 @@
           "signals",
           "work_orders",
           "test_definitions",
+          "requirements",
           "runs_today",
           "files_today",
           "rig_count"
@@ -10176,6 +11063,7 @@
               "work_order",
               "result",
               "test_definition",
+              "requirement",
               "export"
             ],
             "title": "Entity Type"
@@ -10297,7 +11185,8 @@
               "signal",
               "work_order",
               "result",
-              "test_definition"
+              "test_definition",
+              "requirement"
             ],
             "title": "Entity Type"
           },
@@ -10481,6 +11370,13 @@
               }
             ]
           },
+          "definitions": {
+            "items": {
+              "$ref": "#/components/schemas/LineageDefinition"
+            },
+            "type": "array",
+            "title": "Definitions"
+          },
           "run": {
             "$ref": "#/components/schemas/LineageRun"
           },
@@ -10627,6 +11523,24 @@
         ],
         "title": "LineageWorkOrder"
       },
+      "Measurand": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "unit"
+        ],
+        "title": "Measurand"
+      },
       "NeedsAttention": {
         "properties": {
           "awaiting_work_order": {
@@ -10749,6 +11663,13 @@
       },
       "PlanningPushRequest": {
         "properties": {
+          "requirements": {
+            "items": {
+              "$ref": "#/components/schemas/PushedRequirement"
+            },
+            "type": "array",
+            "title": "Requirements"
+          },
           "work_orders": {
             "items": {
               "$ref": "#/components/schemas/PushedWorkOrder"
@@ -10778,6 +11699,10 @@
       },
       "PlanningPushResponse": {
         "properties": {
+          "requirements_mirrored": {
+            "type": "integer",
+            "title": "Requirements Mirrored"
+          },
           "work_orders_mirrored": {
             "type": "integer",
             "title": "Work Orders Mirrored"
@@ -10804,6 +11729,7 @@
         },
         "type": "object",
         "required": [
+          "requirements_mirrored",
           "work_orders_mirrored",
           "definitions_mirrored",
           "links_applied",
@@ -11187,6 +12113,13 @@
             },
             "type": "array",
             "title": "Requirements Files"
+          },
+          "covers_req_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Covers Req Ids"
           }
         },
         "additionalProperties": true,
@@ -11226,7 +12159,168 @@
           "work_order_id"
         ],
         "title": "PushedLink",
-        "description": "One run→work-order decision planning made.\n\n`definition_id` is optional: planning may know which work order a run\nfulfils without knowing which definition planned it."
+        "description": "One run→work-order decision planning made.\n\n`definition_id` is optional: planning may know which work order a run\nfulfils without knowing which definition planned it.\n\nOne link states one definition. A run that fulfils several takes several\nlinks, and `planning_sync._write_link` unions them, so a re-post of the\nsame links writes nothing."
+      },
+      "PushedRequirement": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "text_rendered": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text Rendered"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "chapter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapter"
+          },
+          "ears_pattern": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ears Pattern"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          },
+          "measurand": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Measurand"
+          },
+          "system_states": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "System States"
+          },
+          "verification_method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Method"
+          },
+          "verification_criteria": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Criteria"
+          },
+          "rationale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rationale"
+          },
+          "source": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source"
+          },
+          "related_reqs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Related Reqs"
+          },
+          "figure_refs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Figure Refs"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "PushedRequirement",
+        "description": "One requirement as planning states it (dev-planning/requirement-status-\nfrom-runs/spec.md §7.4). Only `id` is required; every other field is\noptional and an absent one reads null or an empty list, as it does for a\nwork order.\n\n`verified_by` is not declared. BP5 / defect D1: the reverse link is\nderived from the test cases' `covers_req_ids` and a pushed value under\nthis key is ignored — it rides into `raw` and nowhere else."
       },
       "PushedRequirementsFile": {
         "properties": {
@@ -11459,6 +12553,13 @@
             ],
             "title": "Definition Id"
           },
+          "definition_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Definition Ids"
+          },
           "work_order_id": {
             "anyOf": [
               {
@@ -11518,6 +12619,984 @@
         ],
         "title": "RejectedLink",
         "description": "One link the registry refused, and why."
+      },
+      "RequirementCreateRequest": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "ears_pattern": {
+            "type": "string",
+            "enum": [
+              "Ubiquitous",
+              "StateDriven",
+              "EventDriven",
+              "OptionalFeature",
+              "UnwantedBehaviour",
+              "Complex"
+            ],
+            "title": "Ears Pattern"
+          },
+          "chapter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapter"
+          },
+          "system_states": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "System States"
+          },
+          "rationale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rationale"
+          },
+          "source": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source"
+          },
+          "verification_method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Method"
+          },
+          "measurand": {
+            "items": {
+              "$ref": "#/components/schemas/Measurand"
+            },
+            "type": "array",
+            "title": "Measurand"
+          },
+          "revision": {
+            "type": "string",
+            "title": "Revision",
+            "default": "0.1"
+          },
+          "related_reqs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Related Reqs"
+          },
+          "figure_refs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Figure Refs"
+          },
+          "verification_criteria": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Criteria"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "NEW",
+              "Draft"
+            ],
+            "title": "Status",
+            "default": "Draft"
+          },
+          "actor": {
+            "type": "string",
+            "title": "Actor"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "text",
+          "ears_pattern",
+          "actor"
+        ],
+        "title": "RequirementCreateRequest",
+        "description": "Body of POST /requirements. A manual row only — planning never posts here."
+      },
+      "RequirementDetail": {
+        "properties": {
+          "req_id": {
+            "type": "string",
+            "title": "Req Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "chapter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapter"
+          },
+          "ears_pattern": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "Ubiquitous",
+                  "StateDriven",
+                  "EventDriven",
+                  "OptionalFeature",
+                  "UnwantedBehaviour",
+                  "Complex"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ears Pattern"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          },
+          "verification_method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Method"
+          },
+          "verification_state": {
+            "type": "string",
+            "enum": [
+              "not_covered",
+              "covered",
+              "exercised",
+              "failed",
+              "tested"
+            ],
+            "title": "Verification State"
+          },
+          "evidence_stale": {
+            "type": "boolean",
+            "title": "Evidence Stale"
+          },
+          "verified_by": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Verified By"
+          },
+          "covering_run_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Covering Run Ids"
+          },
+          "covering_run_count": {
+            "type": "integer",
+            "title": "Covering Run Count"
+          },
+          "latest_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Run Id"
+          },
+          "tested_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tested At"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "text_rendered": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text Rendered"
+          },
+          "measurand": {
+            "items": {
+              "$ref": "#/components/schemas/Measurand"
+            },
+            "type": "array",
+            "title": "Measurand"
+          },
+          "system_states": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "System States"
+          },
+          "rationale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rationale"
+          },
+          "source": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source"
+          },
+          "related_reqs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Related Reqs"
+          },
+          "figure_refs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Figure Refs"
+          },
+          "verification_criteria": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Criteria"
+          },
+          "normative_sha256": {
+            "type": "string",
+            "title": "Normative Sha256"
+          },
+          "normative_changed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Normative Changed At"
+          },
+          "item_version": {
+            "type": "integer",
+            "title": "Item Version"
+          },
+          "content_sha256": {
+            "type": "string",
+            "title": "Content Sha256"
+          },
+          "field_sources": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/FieldSource"
+            },
+            "type": "object",
+            "title": "Field Sources"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/RequirementEvidence"
+            },
+            "type": "array",
+            "title": "Evidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "req_id",
+          "title",
+          "status",
+          "chapter",
+          "ears_pattern",
+          "revision",
+          "verification_method",
+          "verification_state",
+          "evidence_stale",
+          "covering_run_count",
+          "latest_run_id",
+          "tested_at",
+          "synced_at",
+          "text",
+          "text_rendered",
+          "rationale",
+          "verification_criteria",
+          "normative_sha256",
+          "normative_changed_at",
+          "item_version",
+          "content_sha256"
+        ],
+        "title": "RequirementDetail"
+      },
+      "RequirementEvidence": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "definition_id": {
+            "type": "string",
+            "title": "Definition Id"
+          },
+          "definition_title": {
+            "type": "string",
+            "title": "Definition Title"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "pass",
+                  "fail",
+                  "error"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "produced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Produced At"
+          },
+          "implementation_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Implementation Sha256"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current"
+          },
+          "evidence_values": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Evidence Values"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "definition_id",
+          "definition_title",
+          "outcome",
+          "produced_at",
+          "implementation_sha256",
+          "current"
+        ],
+        "title": "RequirementEvidence",
+        "description": "One `(run, definition)` pair covering a requirement, and its verdict.\n\nA covering run with no verdict still produces a row, with `outcome` and\n`current` both null — that is the state every requirement sits in until\n`BL-11` writes verdicts."
+      },
+      "RequirementPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RequirementRow"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          },
+          "total_pages": {
+            "type": "integer",
+            "title": "Total Pages"
+          },
+          "view_counts": {
+            "$ref": "#/components/schemas/RequirementViewCounts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size",
+          "total_pages",
+          "view_counts"
+        ],
+        "title": "RequirementPage"
+      },
+      "RequirementPatchRequest": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "ears_pattern": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "Ubiquitous",
+                  "StateDriven",
+                  "EventDriven",
+                  "OptionalFeature",
+                  "UnwantedBehaviour",
+                  "Complex"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ears Pattern"
+          },
+          "chapter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapter"
+          },
+          "system_states": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "System States"
+          },
+          "rationale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rationale"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "verification_method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Method"
+          },
+          "measurand": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Measurand"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measurand"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          },
+          "related_reqs": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Reqs"
+          },
+          "figure_refs": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Figure Refs"
+          },
+          "verification_criteria": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Criteria"
+          },
+          "parent_version": {
+            "type": "integer",
+            "title": "Parent Version"
+          },
+          "actor": {
+            "type": "string",
+            "title": "Actor"
+          },
+          "second_actor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Second Actor"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "parent_version",
+          "actor"
+        ],
+        "title": "RequirementPatchRequest",
+        "description": "Body of PATCH /requirements/{req_id}. Every authored field, all optional.\n\n`parent_version` guards the edit: it must equal the stored `item_version`\nor the write is refused `stale_parent`. An edit that changes no field's\nbytes is refused `no_op_mint`."
+      },
+      "RequirementRetireRequest": {
+        "properties": {
+          "parent_version": {
+            "type": "integer",
+            "title": "Parent Version"
+          },
+          "actor": {
+            "type": "string",
+            "title": "Actor"
+          },
+          "successor_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Successor Id"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "parent_version",
+          "actor"
+        ],
+        "title": "RequirementRetireRequest",
+        "description": "Body of POST /requirements/{req_id}/retire.\n\nRetirement sets `status: \"Obsolete\"`. The row and its id are kept forever\n(`dev-planning/authoring-controls/spec.md` §5); `successor_id`, when\ngiven, is prepended to `related_reqs`."
+      },
+      "RequirementRow": {
+        "properties": {
+          "req_id": {
+            "type": "string",
+            "title": "Req Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "chapter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapter"
+          },
+          "ears_pattern": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "Ubiquitous",
+                  "StateDriven",
+                  "EventDriven",
+                  "OptionalFeature",
+                  "UnwantedBehaviour",
+                  "Complex"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ears Pattern"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          },
+          "verification_method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Method"
+          },
+          "verification_state": {
+            "type": "string",
+            "enum": [
+              "not_covered",
+              "covered",
+              "exercised",
+              "failed",
+              "tested"
+            ],
+            "title": "Verification State"
+          },
+          "evidence_stale": {
+            "type": "boolean",
+            "title": "Evidence Stale"
+          },
+          "verified_by": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Verified By"
+          },
+          "covering_run_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Covering Run Ids"
+          },
+          "covering_run_count": {
+            "type": "integer",
+            "title": "Covering Run Count"
+          },
+          "latest_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Run Id"
+          },
+          "tested_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tested At"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "req_id",
+          "title",
+          "status",
+          "chapter",
+          "ears_pattern",
+          "revision",
+          "verification_method",
+          "verification_state",
+          "evidence_stale",
+          "covering_run_count",
+          "latest_run_id",
+          "tested_at",
+          "synced_at"
+        ],
+        "title": "RequirementRow",
+        "description": "One row of the requirements grid.\n\n`status` is authored — planning states it, or a person states it at\ncreation, and no machine ever writes it. Every other derived field below\nis computed at read time and never stored (`verified_by` is BP5 / D1)."
+      },
+      "RequirementViewCounts": {
+        "properties": {
+          "all": {
+            "type": "integer",
+            "title": "All"
+          },
+          "not_covered": {
+            "type": "integer",
+            "title": "Not Covered"
+          },
+          "covered": {
+            "type": "integer",
+            "title": "Covered"
+          },
+          "exercised": {
+            "type": "integer",
+            "title": "Exercised"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "tested": {
+            "type": "integer",
+            "title": "Tested"
+          }
+        },
+        "type": "object",
+        "required": [
+          "all",
+          "not_covered",
+          "covered",
+          "exercised",
+          "failed",
+          "tested"
+        ],
+        "title": "RequirementViewCounts",
+        "description": "Whole-table, filter-independent counts for /requirements."
       },
       "RequirementsFile": {
         "properties": {
@@ -11744,6 +13823,16 @@
                 "type": "null"
               }
             ]
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VerdictOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -11802,6 +13891,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Provenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Verdict"
               },
               {
                 "type": "null"
@@ -11990,6 +14089,13 @@
             ],
             "title": "Definition Id"
           },
+          "definition_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Definition Ids"
+          },
           "work_order_id": {
             "anyOf": [
               {
@@ -12157,6 +14263,13 @@
             },
             "type": "object",
             "title": "Custom Properties"
+          },
+          "covers_req_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Covers Req Ids"
           }
         },
         "type": "object",
@@ -12308,6 +14421,13 @@
               }
             ],
             "title": "Definition Id"
+          },
+          "definition_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Definition Ids"
           },
           "work_order_id": {
             "anyOf": [
@@ -12550,7 +14670,7 @@
           "actor"
         ],
         "title": "RunPatchRequest",
-        "description": "Body of PATCH /test-runs/{run_id}. Any subset of the five fields.\n\n`work_order_id` and `definition_id` let a person repair a link when\nplanning is offline, or when planning named the wrong row. The id must name\na mirrored row, and the write carries the `manual` tag, so the next sync\npass reads that tag and leaves the value alone."
+        "description": "Body of PATCH /test-runs/{run_id}. Any subset of the five fields.\n\n`work_order_id` and `definition_id` let a person repair a link when\nplanning is offline, or when planning named the wrong row. The id must name\na mirrored row, and the write carries the `manual` tag, so the next sync\npass reads that tag and leaves the value alone.\n\n`definition_id` sets the run's definitions to exactly that one id. It is\nthe only way to REMOVE a definition: a planning push unions its links."
       },
       "RunSignalAccepted": {
         "properties": {
@@ -12868,6 +14988,13 @@
               }
             ],
             "title": "Definition Id"
+          },
+          "definition_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Definition Ids"
           },
           "lake_table": {
             "anyOf": [
@@ -14008,6 +16135,13 @@
             "type": "boolean",
             "title": "Orphaned"
           },
+          "covers_req_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Covers Req Ids"
+          },
           "synced_at": {
             "type": "string",
             "title": "Synced At"
@@ -14035,6 +16169,16 @@
             },
             "type": "array",
             "title": "Requirements Files"
+          },
+          "implementation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DefinitionImplementation"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "custom_properties": {
             "additionalProperties": {
@@ -14138,6 +16282,13 @@
             "type": "boolean",
             "title": "Orphaned"
           },
+          "covers_req_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Covers Req Ids"
+          },
           "synced_at": {
             "type": "string",
             "title": "Synced At"
@@ -14210,6 +16361,73 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "Verdict": {
+        "properties": {
+          "definition_id": {
+            "type": "string",
+            "title": "Definition Id"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "error"
+            ],
+            "title": "Outcome"
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Evidence"
+          },
+          "implementation_sha256": {
+            "type": "string",
+            "title": "Implementation Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "definition_id",
+          "outcome",
+          "implementation_sha256"
+        ],
+        "title": "Verdict",
+        "description": "The verdict block a run's evaluator writes (dev-planning/requirement-\nstatus-from-runs/spec.md §6). Optional on every result; absent on every\none that is not a verdict. `BL-11` writes this; this build only reads it.\n\n`result_key` should be `\"verdict/<definition_id>\"` by convention, but the\nprojection reads `definition_id` here, never the key."
+      },
+      "VerdictOut": {
+        "properties": {
+          "definition_id": {
+            "type": "string",
+            "title": "Definition Id",
+            "default": ""
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "error"
+            ],
+            "title": "Outcome",
+            "default": "error"
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Evidence"
+          },
+          "implementation_sha256": {
+            "type": "string",
+            "title": "Implementation Sha256",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "VerdictOut",
+        "description": "The response view of the verdict block. Never refuses a document."
       },
       "WorkOrderDefinition": {
         "properties": {
@@ -14476,6 +16694,13 @@
               }
             ],
             "title": "Definition Id"
+          },
+          "definition_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Definition Ids"
           },
           "rig_id": {
             "type": "string",

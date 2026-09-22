@@ -70,6 +70,10 @@ class TestDefinitionRow(ApiModel):
     # True when the row names no work order, or names one the mirror does not
     # hold. The workbook asks the screen to flag exactly this row for review.
     orphaned: bool
+    # Authored, mirrored: the requirement ids the test case verifies. A
+    # requirement's `verified_by` is the inverse of this, computed at read
+    # time and never stored (BP5 / D1).
+    covers_req_ids: list[str] = Field(default_factory=list)
     synced_at: UtcDatetime
 
 
@@ -291,6 +295,37 @@ class ToggleRequest(RequestModel):
 # itself still forbids an unknown key, so a typo in our own shape is a 422.
 
 
+class PushedRequirement(ApiModel):
+    """One requirement as planning states it (dev-planning/requirement-status-
+    from-runs/spec.md §7.4). Only `id` is required; every other field is
+    optional and an absent one reads null or an empty list, as it does for a
+    work order.
+
+    `verified_by` is not declared. BP5 / defect D1: the reverse link is
+    derived from the test cases' `covers_req_ids` and a pushed value under
+    this key is ignored — it rides into `raw` and nowhere else.
+    """
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    id: str
+    title: str | None = None
+    text: str | None = None
+    text_rendered: str | None = None
+    status: str | None = None
+    chapter: str | None = None
+    ears_pattern: str | None = None
+    revision: str | None = None
+    measurand: list[dict] = Field(default_factory=list)
+    system_states: list[str] = Field(default_factory=list)
+    verification_method: str | None = None
+    verification_criteria: str | None = None
+    rationale: str | None = None
+    source: list[str] = Field(default_factory=list)
+    related_reqs: list[str] = Field(default_factory=list)
+    figure_refs: list[str] = Field(default_factory=list)
+
+
 class PushedWorkOrder(ApiModel):
     """One work order as planning states it."""
 
@@ -342,6 +377,10 @@ class PushedDefinition(ApiModel):
     title: str | None = None
     planned_runs: int | None = None
     requirements_files: list[PushedRequirementsFile] = Field(default_factory=list)
+    # The authored direction of the requirement link (BP5): the test case
+    # states which requirements it verifies, and `verified_by` inverts this
+    # at read time. Planning owns the list wholesale, like `requirements_files`.
+    covers_req_ids: list[str] = Field(default_factory=list)
 
 
 class PushedLink(RequestModel):
@@ -367,6 +406,9 @@ class PlanningPushRequest(RequestModel):
     says it, and the registry answers with three zeroes.
     """
 
+    # Mirrored FIRST (`planning_sync.apply_planning_push`), so a definition
+    # naming a requirement lands after its target exists.
+    requirements: list[PushedRequirement] = Field(default_factory=list)
     work_orders: list[PushedWorkOrder] = Field(default_factory=list)
     test_definitions: list[PushedDefinition] = Field(default_factory=list)
     links: list[PushedLink] = Field(default_factory=list)
@@ -419,6 +461,7 @@ class PlanningPushResponse(ApiModel):
     lands entirely here, and nothing is written or journalled.
     """
 
+    requirements_mirrored: int
     work_orders_mirrored: int
     definitions_mirrored: int
     links_applied: int

@@ -71,6 +71,7 @@ _ENTITIES: dict[str, tuple[str, str, str]] = {
     "work_order": ("work_orders", "Work order", "wo_not_found"),
     "result": ("processed_results", "Result", "result_not_found"),
     "test_definition": ("test_definitions", "Test definition", "td_not_found"),
+    "requirement": ("requirements", "Requirement", "requirement_not_found"),
 }
 
 
@@ -206,6 +207,23 @@ def list_test_definition_journal(
     this timeline reads as planning changing its mind.
     """
     return _page_entity_journal(db, "test_definition", td_id, pagination, kind)
+
+
+@router.get("/requirements/{req_id}/journal")
+def list_requirement_journal(
+    req_id: str,
+    db: Annotated[Database, Depends(get_db)],
+    pagination: Annotated[Pagination, Depends(pagination_params(50))],
+    kind: Annotated[JournalKind | None, Query()] = None,
+) -> Page[JournalEntry]:
+    """Read one requirement's history, newest first.
+
+    A planning mirror pass writes one `requirement.mirrored` event when the
+    row first arrives, and one `change` entry per field planning moves
+    afterwards; an authored create, edit or retire writes its own entries the
+    same way.
+    """
+    return _page_entity_journal(db, "requirement", req_id, pagination, kind)
 
 
 # `require_token` guards every `/api/v1` route from `main.py`. The read below

@@ -52,9 +52,10 @@ def test_definitions() -> list[dict]:
     """One definition per test case, each carrying its rendered requirements doc.
 
     The definition id IS the test case id. `CLAUDE.md` makes bidirectional
-    traceability the audited property — `requirement.verified_by` against
-    `test-spec.covers_req_ids` — and both already name `BAT-SYS-TC-NNN`, so a
-    third id form would put an unaudited indirection in the middle of the chain.
+    traceability the audited property — `covers_req_ids`, authored here, against
+    the requirement's `verified_by`, derived by the Test Manager from it — and
+    both already name `BAT-SYS-TC-NNN`, so a third id form would put an
+    unaudited indirection in the middle of the chain.
     """
     specs = sources.test_specs()
     documents = requirements_md.render_all()
@@ -67,8 +68,41 @@ def test_definitions() -> list[dict]:
             "requirements_files": [
                 {"name": f"{tc_id}.md", "content": documents[tc_id]}
             ],
+            "covers_req_ids": specs[tc_id]["covers_req_ids"],
         }
         for tc_id in sorted(specs)
+    ]
+
+
+def requirements() -> list[dict]:
+    """The ten requirements, each carrying `text_rendered` beside `text`.
+
+    `verified_by` is not sent (BL-17 / BP5 / defect D1): the reverse link is
+    derived by the Test Manager from `test_definitions()[*].covers_req_ids`,
+    never authored here.
+    """
+    parameters = sources.parameters()
+    items = sources.requirements()
+    return [
+        {
+            "id": item["id"],
+            "title": item["title"],
+            "text": item["text"],
+            "text_rendered": requirements_md.resolve_display(item["text"], parameters),
+            "status": item["status"],
+            "chapter": item["chapter"],
+            "ears_pattern": item["ears_pattern"],
+            "revision": item["revision"],
+            "measurand": item["measurand"],
+            "system_states": item["system_states"],
+            "verification_method": item["verification_method"],
+            "verification_criteria": item.get("verification_criteria"),
+            "rationale": item["rationale"],
+            "source": item["source"],
+            "related_reqs": item["related_reqs"],
+            "figure_refs": item["figure_refs"],
+        }
+        for item in sorted(items.values(), key=lambda item: item["id"])
     ]
 
 
@@ -87,8 +121,14 @@ def links() -> list[dict]:
 
 
 def catalog_body() -> dict:
-    """Step 2 of the seed: the catalog alone, before any trace has been uploaded."""
+    """Step 2 of the seed: the catalog alone, before any trace has been uploaded.
+
+    `requirements` rides first, so a definition naming one in `covers_req_ids`
+    lands after its target exists (`planning_sync.apply_planning_push` mirrors
+    in that order too).
+    """
     return {
+        "requirements": requirements(),
         "work_orders": work_orders(),
         "test_definitions": test_definitions(),
         "links": [],

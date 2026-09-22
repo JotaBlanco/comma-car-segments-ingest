@@ -63,6 +63,10 @@ def ensure_indexes(db: Database) -> None:
     definitions = db["test_definitions"]
     definitions.create_index([("work_order_id", ASCENDING)])
     definitions.create_index([("synced_at", ASCENDING)])
+    # Multikey: the requirement projection matches a page of requirement ids
+    # against every definition that names one (dev-planning/requirement-
+    # status-from-runs/spec.md §5.3).
+    definitions.create_index([("covers_req_ids", ASCENDING)])
 
     journal = db["journal_entries"]
     journal.create_index(
@@ -156,6 +160,9 @@ def ensure_indexes(db: Database) -> None:
     )
     results.create_index([("run_id", ASCENDING)])
     results.create_index([("created_at", ASCENDING)])
+    # The requirement fold's newest-verdict query (§5.3): one (run, definition)
+    # verdict chain, newest version first.
+    results.create_index([("verdict.definition_id", ASCENDING), ("version", DESCENDING)])
 
     # Saved and shared searches (FR-DM-017). Every read filters on the owner
     # key or on the visibility, and the list sorts newest first.
