@@ -1,0 +1,158 @@
+{
+  "updated": "2026-09-22",
+  "statuses": [
+    "to do",
+    "discuss",
+    "in progress",
+    "finished"
+  ],
+  "items": [
+    {
+      "id": "BL-01",
+      "title": "DBC BATTERY_DC_V1 in jamaui DCM (type=dbc), decoder DBC_PLATFORM set",
+      "status": "finished",
+      "notes": "d527f90a…, 0 dropped, decoder resolves it",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-02",
+      "title": "Battery trace generator: 4 deterministic MF4s, 10 TCs, 6 pass / 4 fail",
+      "status": "finished",
+      "notes": "battery-trace-gen/, Tester round 2 READY; commit pending in BL-10",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-03",
+      "title": "Requirements + parameters + test cases as the statement of record",
+      "status": "finished",
+      "notes": "CLAUDE.md tables generated from battery-trace-gen/data + specs",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-04",
+      "title": "Upstream plant polarity fix (dc-battery-sim, battery-sign current)",
+      "status": "in progress",
+      "notes": "verified 53/53 in C:/repos/quixstreams-tests-polarity; commit there, then re-vendor here",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-05",
+      "title": "QuixLab + Lakehouse framed inside Test Manager (no new window)",
+      "status": "in progress",
+      "notes": "gated READY; committed; deployed handshake check after push",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-06",
+      "title": "TM backend: one run covers several definitions (definition_ids), claims test.definitions, lake partitions platform/work_order/run_id",
+      "status": "in progress",
+      "notes": "spec dev-planning/tm-multi-definition-runs; ArchDev building",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-07",
+      "title": "One implementation .py per test case in blob (test-manager/implementations/<td>/), linked from the definition, opened via QuixLab",
+      "status": "in progress",
+      "notes": "part of BL-06; storage path = per-TD folder (user may flip to dated MF4 prefix)",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-08",
+      "title": "Seed the Test Manager: 1 work order, 10 definitions, 4 run links via POST /planning/sync",
+      "status": "to do",
+      "notes": "after BL-06; work order lands in DCM automatically",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-09",
+      "title": "Regenerate traces with test.* claims + new timestamps, upload, verify battery_data_v1 and registration",
+      "status": "to do",
+      "notes": "old 4 routes stay in legacy mf4_signals_v5",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-10",
+      "title": "Commit + push battery feature and TM adaptation; rebase onto Portal auto-commits",
+      "status": "to do",
+      "notes": "user authorised commit+push 2026-09-22",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-11",
+      "title": "Run the 10 implementations against the lake and write verdicts",
+      "status": "to do",
+      "notes": "explicitly out of scope of BL-06; next feature",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-12",
+      "title": "Wave 2: visualisation service (battery, gas/brake pedals) from uiservice.zip on Tomas's API",
+      "status": "to do",
+      "notes": "",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-13",
+      "title": "TM_RUN_KEY_PATTERN is an unbound project variable on decoder + connector (literal string)",
+      "status": "discuss",
+      "notes": "harmless for us (header rung); tell Tomas",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-14",
+      "title": "Legacy rows: 4 battery routes in mf4_signals_v5 (pre-marker decode)",
+      "status": "discuss",
+      "notes": "leave or delete",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-15",
+      "title": "Requirements seeding into the new TM model (requirements-files per definition)",
+      "status": "discuss",
+      "notes": "seed markdown covers it per definition; direct upload route exists",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-16",
+      "title": "Old backend/ Test Manager + DCM-source design",
+      "status": "finished",
+      "notes": "superseded by Tomas's api/; archived as archive/dcm-source-on-old-backend",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-17",
+      "title": "verified_by must be DERIVED from covers_req_ids, never authored (SYS.2 BP5, Miro)",
+      "status": "discuss",
+      "notes": "we currently WRITE verified_by into battery-dc-requirements.json — conflicts with the board's D1 rule",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-18",
+      "title": "verification_criteria: new mandatory authored field on requirements (Miro)",
+      "status": "discuss",
+      "notes": "today pass criteria live only on the test spec; board wants it on the requirement and agreeing with the spec",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-19",
+      "title": "Covered != Tested: TESTED needs a confirmed link at (R@v,TC@w) AND a pass pinned to TC version w",
+      "status": "to do",
+      "notes": "shapes BL-11 (running implementations -> verdicts)",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-20",
+      "title": "Status lifecycle NEW/Draft/Ready for Review/In Review/Reviewed/Implemented/Tested + Rejected/Obsolete",
+      "status": "discuss",
+      "notes": "our 10 reqs are all Draft; adopt the enum when the TM models it",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-21",
+      "title": "Parallel agents when code paths are disjoint; QA by the user in the Portal; no Tester round",
+      "status": "finished",
+      "notes": "working agreement 2026-09-22",
+      "updated": "2026-09-22"
+    }
+  ]
+}

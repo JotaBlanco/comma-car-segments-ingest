@@ -17,8 +17,8 @@ the pipeline consumes lives beside the generator and must stay identical to them
 | CAN database `BATTERY_DC_V1` (8 frames, 249 signals, 4 nodes) | `dcm-seed-dbc/dbc/BATTERY_DC_V1.dbc` |
 | Spec / architecture / test reports | `dev-planning/battery-can-traces/` |
 
-Regenerate this file with `scratchpad/gen_claude_md.py` after editing any of them; never
-edit the tables by hand.
+Regenerate this file with `battery-trace-gen/tools/gen_claude_md.py` after editing any
+of them; never edit the tables by hand.
 
 ### Requirements
 Requirement text carries `{parameter}` tokens; rendering substitutes `name (value unit)`.
@@ -76,7 +76,7 @@ at 20 % instead of 25 %; wrong relaxation time constant; heater threshold set at
 MF4 Import  --mf4_metadata-->  MF4 Decoder  --"samples" + ONE "file_complete" marker-->  mf4-to-msg
                                      |                                         |                 |
                      resolves run_id ONCE (ladder below)          DataLake Sink -> LAKE_TABLE   tm-connector -> POST /test-runs, /files
-                                                                  partitions platform/work_order/test_definition/run_id
+                                                                  partitions platform/work_order/run_id
 ```
 - **DBC comes from DCM**, not the file: `type=dbc`, `target_key=<platform>`; the decoder runs
   with `DBC_PLATFORM=BATTERY_DC_V1` because MF4 Import never emits `platform`. The DBC file
@@ -84,7 +84,9 @@ MF4 Import  --mf4_metadata-->  MF4 Decoder  --"samples" + ONE "file_complete" ma
 - **Run-id ladder** (`mf4-decoder/identity.py`, mirrored by `tm-connector`): `declared.run_id`
   → HD-comment `test.run_key` → `TAS-\d+` in the filename → minted `<platform>_<route>`.
   A batch with no run at all is dropped by the sink. HD-comment `test.*` properties feed the
-  run (`test.rig`, `test.work_order`, `test.definition`, `test.description`, …).
+  run (`test.rig`, `test.work_order`, `test.definitions`, `test.description`, …).
+  `test.definitions` is a COMMA-SEPARATED SET: one trace fulfils several test definitions,
+  and the run stores them as `test_runs.definition_ids`.
 - **Registration happens only on the `file_complete` marker.** Files decoded by an older
   decoder never register; the decoder dedups on file sha256, so re-uploading identical bytes
   is skipped — change the route timestamp to re-ingest.
@@ -105,8 +107,62 @@ their work order and definitions from the HD comment (`test.work_order`, `test.d
   requirements_files[{name, content}]}]`, `links[]`. Requirements files are markdown. There
   is no `POST /test-definitions`; the in-cluster `Planning Sync Mock` is not reachable from a
   workstation. A PAT authorises the write.
-- Uploaded traces link themselves to a definition through the HD-comment `test.*` claims;
-  `links[]` corrects the linkage afterwards and never overwrites a `manual` edit.
+- Uploaded traces link themselves to their definitions through the HD-comment `test.*`
+  claims; `links[]` confirms the linkage afterwards and never overwrites a `manual` edit.
+  Repeated `links[]` rows for one run are ADDITIVE, and a re-post answers `links_unchanged`.
+- Each definition also carries one executable implementation: `POST /api/v1/test-definitions/
+  {td}/implementation` (multipart) stores one `.py` in blob and records its sha256.
+  `python -m seed all` from `battery-trace-gen/` does the whole seed.
+
+## Backlog — everything we discuss lands here
+
+`dev-planning/backlog.json` is the ticket store; this table is generated from it. Every item
+carries one of **to do · discuss · in progress · finished**, and the status is updated in the
+same change that moves the work. Nothing agreed in conversation stays only in conversation.
+
+| ID | Status | Item | Notes |
+|---|---|---|---|
+| `BL-04` | **in progress** | Upstream plant polarity fix (dc-battery-sim, battery-sign current) | verified 53/53 in C:/repos/quixstreams-tests-polarity; commit there, then re-vendor here |
+| `BL-05` | **in progress** | QuixLab + Lakehouse framed inside Test Manager (no new window) | gated READY; committed; deployed handshake check after push |
+| `BL-06` | **in progress** | TM backend: one run covers several definitions (definition_ids), claims test.definitions, lake partitions platform/work_order/run_id | spec dev-planning/tm-multi-definition-runs; ArchDev building |
+| `BL-07` | **in progress** | One implementation .py per test case in blob (test-manager/implementations/<td>/), linked from the definition, opened via QuixLab | part of BL-06; storage path = per-TD folder (user may flip to dated MF4 prefix) |
+| `BL-08` | to do | Seed the Test Manager: 1 work order, 10 definitions, 4 run links via POST /planning/sync | after BL-06; work order lands in DCM automatically |
+| `BL-09` | to do | Regenerate traces with test.* claims + new timestamps, upload, verify battery_data_v1 and registration | old 4 routes stay in legacy mf4_signals_v5 |
+| `BL-10` | to do | Commit + push battery feature and TM adaptation; rebase onto Portal auto-commits | user authorised commit+push 2026-09-22 |
+| `BL-11` | to do | Run the 10 implementations against the lake and write verdicts | explicitly out of scope of BL-06; next feature |
+| `BL-12` | to do | Wave 2: visualisation service (battery, gas/brake pedals) from uiservice.zip on Tomas's API |  |
+| `BL-19` | to do | Covered != Tested: TESTED needs a confirmed link at (R@v,TC@w) AND a pass pinned to TC version w | shapes BL-11 (running implementations -> verdicts) |
+| `BL-13` | discuss | TM_RUN_KEY_PATTERN is an unbound project variable on decoder + connector (literal string) | harmless for us (header rung); tell Tomas |
+| `BL-14` | discuss | Legacy rows: 4 battery routes in mf4_signals_v5 (pre-marker decode) | leave or delete |
+| `BL-15` | discuss | Requirements seeding into the new TM model (requirements-files per definition) | seed markdown covers it per definition; direct upload route exists |
+| `BL-17` | discuss | verified_by must be DERIVED from covers_req_ids, never authored (SYS.2 BP5, Miro) | we currently WRITE verified_by into battery-dc-requirements.json — conflicts with the board's D1 rule |
+| `BL-18` | discuss | verification_criteria: new mandatory authored field on requirements (Miro) | today pass criteria live only on the test spec; board wants it on the requirement and agreeing with the spec |
+| `BL-20` | discuss | Status lifecycle NEW/Draft/Ready for Review/In Review/Reviewed/Implemented/Tested + Rejected/Obsolete | our 10 reqs are all Draft; adopt the enum when the TM models it |
+| `BL-01` | finished | DBC BATTERY_DC_V1 in jamaui DCM (type=dbc), decoder DBC_PLATFORM set | d527f90a…, 0 dropped, decoder resolves it |
+| `BL-02` | finished | Battery trace generator: 4 deterministic MF4s, 10 TCs, 6 pass / 4 fail | battery-trace-gen/, Tester round 2 READY; commit pending in BL-10 |
+| `BL-03` | finished | Requirements + parameters + test cases as the statement of record | CLAUDE.md tables generated from battery-trace-gen/data + specs |
+| `BL-16` | finished | Old backend/ Test Manager + DCM-source design | superseded by Tomas's api/; archived as archive/dcm-source-on-old-backend |
+| `BL-21` | finished | Parallel agents when code paths are disjoint; QA by the user in the Portal; no Tester round | working agreement 2026-09-22 |
+
+## Working agreement
+- **QA is the user's**, in the Quix Portal. No Tester round unless asked; the lint/type gate
+  still runs when a build touches code that has one.
+- **Parallel agents** whenever their file sets are disjoint; never two agents in one file.
+- **Code and comments stay aligned**: a comment that outlives the code it described is a defect.
+- Commit per feature, right after its gate. Push is authorised.
+
+## Requirements workflow (ASPICE SYS.2 — the Miro board)
+Board: `https://miro.com/app/board/uXjVHsQqWhY=/` · spec artifact linked from it.
+- **BP5 is what this system adds**: `verified_by` is **derived** from the test cases'
+  `covers_req_ids` and never authored; coverage is computed at baseline seal, not asserted.
+- **Covered != Tested.** TESTED needs a *confirmed* verifies link at `(R@v, TC@w)` **and** a pass
+  for that TC in a run whose manifest pinned TC at exactly version `w`. A suspect link blocks it.
+- A link goes **suspect** on a `normative_sha256` change only: `text`, `measurand`,
+  `system_states`, `verification_method`, `verification_criteria`, attachment refs. `status`,
+  `rationale` and `title` are excluded, so Draft -> Reviewed suspects nothing.
+- Lifecycle: NEW -> Draft -> Ready for Review -> In Review -> Reviewed -> Implemented -> *Tested*
+  (derived); Rejected from review; Obsolete never reuses an id.
+- Refusals: `identity_unavailable` (401), `no_op_mint`, `stale_parent`, `id_reuse`.
 
 ## Environment notes
 - Auto-injected Quix variables (`Quix__BlobStorage__Connection__Json`, `Quix__Lakehouse__*`)
