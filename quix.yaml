@@ -45,6 +45,8 @@ deployments:
         value: 5000
       - name: FORCE_REDECODE
         description: Escape hatch for the decode-once filter. "false" skips a file that was already decoded, so replaying mf4_metadata cannot stack another copy of it in the lake. "true" re-decodes everything, duplicates included. Force a single file instead with force_redecode=true on its mf4_metadata message.
+      - name: DBC_PLATFORM
+        value: BATTERY_DC_V1
     blobStorage:
       bind: true
   - name: MF4 DataLake Sink
