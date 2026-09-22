@@ -41,13 +41,12 @@ _TM_ID = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._-]{0,63}\Z")
 # The declared keys this app validates rather than merely carrying. Everything
 # else rides through untouched - mf4-to-blob cannot know the registry's whole
 # vocabulary, and tm-connector drops what the registry does not know
-# (`connector/identity.py::DECLARED_FIELDS`). These four become lake partition
+# (`connector/identity.py::DECLARED_FIELDS`). These three become lake partition
 # directories or a registry id, which is why their shape is checked HERE, at the
 # only door a caller can reach.
 _DECLARED_PATTERNS = {
     "run_id": _TM_ID,
     "work_order_id": _TM_ID,
-    "definition_id": _TM_ID,
     "rig_id": _TM_ID,
 }
 
@@ -61,7 +60,6 @@ _DECLARED_PATTERNS = {
 # nowhere, claimed silently. A whole token cannot be half an id.
 _FILENAME_CLAIM = {
     "work_order_id": "WO-",
-    "definition_id": "TD-",
 }
 
 
@@ -113,7 +111,7 @@ def _safe_stem(filename: str) -> str:
 def collect_declared(query_params) -> dict[str, str]:
     """Collect every `declared.*` query parameter into a bag, prefix stripped.
 
-    Values are carried, not interpreted — except the four ids that become a lake
+    Values are carried, not interpreted — except the ids that become a lake
     partition directory or a registry id, whose shape is checked here because
     this is the only door a caller reaches. A repeated parameter keeps the last
     value; a bare `declared.` is dropped, because it could only make an empty key.
@@ -147,12 +145,12 @@ def collect_declared(query_params) -> dict[str, str]:
 
 
 def claim_from_filename(filename: str) -> dict[str, str]:
-    """The work order and test definition a producer wrote into the name.
+    """The work order a producer wrote into the name.
 
     A generated recording can carry its own claim, so an upload needs no form
     filled in::
 
-        HYUNDAI_IONIQ_WO-2026-0851_TD-BAT-THERM_0000000e--053ec37492_20.mf4
+        HYUNDAI_IONIQ_WO-2026-0851_0000000e--053ec37492_20.mf4
 
     The RUN id is deliberately not read here. A filename-derived run id written
     into ``declared`` would outrank the file's own header, and the header is a
@@ -195,14 +193,14 @@ def build_payload(
     verbatim, which is why the registry's own field names are used inside it
     (``work_order_id``, not ``work_order``).
 
-    The claim also rides in a second, flat spelling — ``work_order`` /
-    ``test_definition`` — because those are the LAKE's partition column names,
-    and the decoder copies them onto every batch. One fact, two spellings, both
-    written here so the two readers cannot drift apart.
+    The claim also rides in a second, flat spelling — ``work_order`` — because
+    that is the LAKE's partition column name, and the decoder copies it onto
+    every batch. One fact, two spellings, both written here so the two readers
+    cannot drift apart.
 
     **A caller's claim always wins.** The filename is consulted only for a field
-    the uploader left blank: a person who typed a pair on the import page meant
-    it, and a name is only ever the fallback.
+    the uploader left blank: a person who typed a work order on the import page
+    meant it, and a name is only ever the fallback.
     """
     declared = dict(declared or {})
     for field, value in claim_from_filename(filename).items():
@@ -225,5 +223,4 @@ def build_payload(
         # nothing here can resolve it, and a key holding None would read as a
         # stated null rather than as the question the decoder answers.
         "work_order": declared.get("work_order_id"),
-        "test_definition": declared.get("definition_id"),
     }

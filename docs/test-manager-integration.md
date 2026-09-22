@@ -10,7 +10,7 @@ it was written for.
 ## The flow
 
 ```
-                   declared.work_order_id / definition_id / run_id (optional)
+                   declared.work_order_id / run_id / rig_id (optional)
                                         │
 browser ──POST bytes──▶ mf4-to-blob ──mf4_metadata──▶ mf4-decoder ──mf4-to-msg──▶ mf4-datalake-sink
                                           │                    │  kind:"samples"       │
@@ -23,11 +23,12 @@ browser ──POST bytes──▶ mf4-to-blob ──mf4_metadata──▶ mf4-de
 ```
 
 1. **mf4-to-blob** streams the bytes to blob storage and produces one `mf4_metadata` message.
-   The upload page's identity card takes an optional work order, test definition, run id and
-   rig; they travel as `declared.*` (the registry's own field names) and, for the lake, as
-   top-level `work_order` and `test_definition`. **A claim can ride in the filename** —
-   `HYUNDAI_IONIQ_WO-2026-0851_TD-BAT-THERM_<route>_20.mf4` — and a claim typed on the page
-   always wins.
+   The upload page's identity card takes an optional work order, run id and rig; they travel
+   as `declared.*` (the registry's own field names) and, for the lake, as top-level
+   `work_order`. **A claim can ride in the filename** —
+   `HYUNDAI_IONIQ_WO-2026-0851_<route>_20.mf4` — and a claim typed on the page always wins.
+   Test definitions are not claimed on import: a run fulfils a SET of them, assigned from the
+   Test Run page in the Test Manager.
 2. **mf4-decoder** copies the identity onto every batch, tags each one `kind:"samples"`, and
    after the last batch emits ONE `kind:"file_complete"` marker carrying the file's whole
    signal inventory — unit, dtype, rate and min/max/mean/std/rms per signal, measured in
@@ -71,10 +72,12 @@ like a real run and holds every unplaceable file in the estate.
 
 ## One table, one partition tree
 
-    platform / work_order / test_definition / run_id     (~channel_name ~sender_node ~frame_name ~signal virtual)
+    platform / work_order / run_id     (~channel_name ~sender_node ~frame_name ~signal virtual)
 
-`work_order` / `test_definition` are `unassigned` when nobody claimed the file — an absent
-claim is a fact, not a fault. `device`, `route`, `segment` and `dcm_config_id` are still on
+`work_order` is `unassigned` when nobody claimed the file — an absent
+claim is a fact, not a fault. There is no `test_definition` level: a run fulfils a SET of
+definitions and a row sits in one directory, so the registry answers run -> definitions.
+`device`, `route`, `segment` and `dcm_config_id` are still on
 every row and still queryable; they are no longer directory levels, because `run_id` is minted
 from platform and route and a level under it would only repeat what the level above says.
 
