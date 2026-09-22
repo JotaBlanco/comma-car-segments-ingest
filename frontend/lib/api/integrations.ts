@@ -67,8 +67,9 @@ function portalTokenReady(): Promise<void> {
  * only call, it is refused, and the Lakehouse item stays hidden for the whole
  * session. `listQuixLabs` below waits for the same reason.
  *
- * Do not remove the wait. An empty string means "show no Lakehouse link", and
- * so does a failed call — which is what a signed-out viewer gets, after
+ * Do not remove the wait. An empty string means "no Lakehouse page for this
+ * workspace" — the sidebar then shows no row and `/lakehouse` frames nothing —
+ * and so does a failed call, which is what a signed-out viewer gets after
  * `portalTokenReady` gives up.
  */
 export async function getLakehouseUrl(): Promise<string> {

@@ -1,20 +1,20 @@
 /**
- * The sidebar's Lakehouse item opens the Portal's own Lakehouse page.
+ * The sidebar's Lakehouse item leads to `/lakehouse`, which frames the
+ * Portal's own Lakehouse page.
  *
- * The link is `{portalWeb}/lakehouse?workspace={workspaceId}`. That page
- * resolves the Lakehouse itself and runs its own token handshake, so the link
- * carries a workspace id and nothing else. Three rules hold here:
+ * Validates architecture.md "What changed": the row stopped opening a tab and
+ * became an ordinary `<Link>` — same active state, same rail tooltip as every
+ * registry row. Two rules hold here:
  *
- *   1. the item shows the exact URL the API answered, in a new tab, with
- *      `rel="noreferrer"`;
- *   2. no URL means no item — an empty answer and a failed call both hide it;
- *   3. the URL carries no credential of any kind.
+ *   1. the row is a Link to `/lakehouse`, with no `target="_blank"`;
+ *   2. no URL means no row — an empty answer and a failed call both hide it.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, waitFor } from "@testing-library/react";
 
+const { usePathname } = vi.hoisted(() => ({ usePathname: vi.fn(() => "/runs") }));
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/runs",
+  usePathname,
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -36,6 +36,7 @@ const QUIXLAB = "https://quixlab-abc123.dev.quix.io";
 const LAKEHOUSE = "https://portal.dev.quix.io/lakehouse?workspace=quixdev-testmanagerdemo-dev";
 
 beforeEach(() => {
+  usePathname.mockReturnValue("/runs");
   listQuixLabs.mockReset();
   listQuixLabs.mockResolvedValue([]);
   getLakehouseUrl.mockReset();
@@ -50,16 +51,14 @@ afterEach(() => {
 });
 
 describe("the sidebar Lakehouse item", () => {
-  it("links the Portal Lakehouse page, in a new tab, with no referrer", async () => {
+  it("links to /lakehouse, not the Portal URL the API answered", async () => {
     getLakehouseUrl.mockResolvedValue(LAKEHOUSE);
 
     const view = render(<Sidebar />);
-    const link = await view.findByRole("link", { name: /Lakehouse/ });
+    const link = await view.findByRole("link", { name: "Lakehouse" });
 
-    expect(link.getAttribute("href")).toBe(LAKEHOUSE);
-    expect(link.getAttribute("target")).toBe("_blank");
-    expect(link.getAttribute("rel")).toContain("noreferrer");
-    expect(link.getAttribute("rel")).toContain("noopener");
+    expect(link.getAttribute("href")).toBe("/lakehouse");
+    expect(link.getAttribute("target")).toBeNull();
   });
 
   it("shows no item when the API answers no URL", async () => {
@@ -68,7 +67,7 @@ describe("the sidebar Lakehouse item", () => {
     const view = render(<Sidebar />);
     await waitFor(() => expect(getLakehouseUrl).toHaveBeenCalled());
 
-    expect(view.queryByRole("link", { name: /Lakehouse/ })).toBeNull();
+    expect(view.queryByRole("link", { name: "Lakehouse" })).toBeNull();
   });
 
   it("shows no item when the call fails", async () => {
@@ -77,18 +76,16 @@ describe("the sidebar Lakehouse item", () => {
     const view = render(<Sidebar />);
     await waitFor(() => expect(getLakehouseUrl).toHaveBeenCalled());
 
-    expect(view.queryByRole("link", { name: /Lakehouse/ })).toBeNull();
+    expect(view.queryByRole("link", { name: "Lakehouse" })).toBeNull();
   });
 
-  it("puts no credential in the link", async () => {
+  it("carries the active state on /lakehouse, the same rule every registry row follows", async () => {
+    usePathname.mockReturnValue("/lakehouse");
     getLakehouseUrl.mockResolvedValue(LAKEHOUSE);
 
     const view = render(<Sidebar />);
-    const link = await view.findByRole("link", { name: /Lakehouse/ });
+    const link = await view.findByRole("link", { name: "Lakehouse" });
 
-    const href = (link.getAttribute("href") ?? "").toLowerCase();
-    for (const secret of ["token", "secret", "password", "bearer", "@"]) {
-      expect(href).not.toContain(secret);
-    }
+    expect(link).toHaveAttribute("aria-current", "page");
   });
 });

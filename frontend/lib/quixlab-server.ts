@@ -1,7 +1,7 @@
 /**
  * Resolve the QuixLab URL on the server, from the registry API.
  *
- * **Why the API owns the value.** The four "Open in QuixLab" controls must not
+ * **Why the API owns the value.** No control that opens or frames QuixLab may
  * guess a host, and one value must not carry two names. The API deployment
  * holds `TM_QUIXLAB_URL` and answers `GET /api/v1/integrations/quixlab-url`.
  * This front end asks that route. So an operator sets one name, on one

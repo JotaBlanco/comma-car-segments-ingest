@@ -15,8 +15,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+const { usePathname } = vi.hoisted(() => ({ usePathname: vi.fn(() => "/runs") }));
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/runs",
+  usePathname,
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -71,6 +72,7 @@ let opened: string[];
 let open: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
+  usePathname.mockReturnValue("/runs");
   listQuixLabs.mockReset();
   listQuixLabs.mockResolvedValue([]);
   getLakehouseUrl.mockReset();
@@ -153,17 +155,38 @@ describe("openQuixLab", () => {
   });
 });
 
-describe("the sidebar QuixLab control", () => {
-  it("opens QuixLab on a click, and hides itself with no URL", async () => {
+describe("the sidebar QuixLab link", () => {
+  it("links to /quixlab, and hides itself with no URL", async () => {
     const hidden = render(<Sidebar />);
-    expect(hidden.queryByRole("button", { name: /QuixLab/ })).toBeNull();
+    expect(hidden.queryByRole("link", { name: "QuixLab" })).toBeNull();
     hidden.unmount();
 
     setQuixLabUrl(BASE);
     const shown = render(<Sidebar />);
-    await userEvent.setup().click(shown.getByRole("button", { name: /QuixLab/ }));
+    const link = await shown.findByRole("link", { name: "QuixLab" });
 
-    expect(opened).toEqual([`${BASE}${DEEP_LINK}`]);
+    expect(link.getAttribute("href")).toBe("/quixlab");
+  });
+
+  it("opens no tab on a click: the row frames the page, it does not leave it", async () => {
+    setQuixLabUrl(BASE);
+    const view = render(<Sidebar />);
+    const link = await view.findByRole("link", { name: "QuixLab" });
+
+    expect(link.getAttribute("target")).toBeNull();
+    await userEvent.setup().click(link);
+
+    expect(opened).toEqual([]);
+  });
+
+  it("carries the active state on /quixlab, the same rule every registry row follows", async () => {
+    usePathname.mockReturnValue("/quixlab");
+    setQuixLabUrl(BASE);
+
+    const view = render(<Sidebar />);
+    const link = await view.findByRole("link", { name: "QuixLab" });
+
+    expect(link).toHaveAttribute("aria-current", "page");
   });
 });
 
@@ -216,45 +239,38 @@ describe("the Portal embedded view", () => {
   });
 });
 
-describe("the sidebar QuixLab control opens the Portal", () => {
-  /* The route reads the viewer's own Portal token, so every case holds one.
-     The case below proves what happens while it is still missing. */
+describe("the sidebar QuixLab link ignores the Portal embedded view", () => {
+  /* Before this change the sidebar control opened `portal_embedded_url` in a
+     tab. Now the row is a plain Link to /quixlab, so a resolved Portal URL
+     changes nothing about the row: no tab opens, whatever `listQuixLabs`
+     answers. `/quixlab` itself resolves `embed_url` — see
+     `quixlab-screen.test.tsx`. */
   beforeEach(() => setActivePortalToken("viewer-token"));
   afterEach(() => setActivePortalToken(null));
 
-  it("opens the Portal embedded view of the QuixLab deployment", async () => {
+  it("stays a link to /quixlab when the Portal named a deployment", async () => {
     listQuixLabs.mockResolvedValue([quixLabRow()]);
     setQuixLabUrl(BASE);
 
     const view = render(<Sidebar />);
-    const item = await view.findByRole("button", { name: /QuixLab/ });
+    const link = await view.findByRole("link", { name: "QuixLab" });
     await waitFor(() => expect(listQuixLabs).toHaveBeenCalled());
-    await userEvent.setup().click(item);
+    await userEvent.setup().click(link);
 
-    expect(opened).toEqual([`${PORTAL_EMBEDDED}&open=analysis&kind=notebook`]);
+    expect(link.getAttribute("href")).toBe("/quixlab");
+    expect(opened).toEqual([]);
   });
 
-  it("keeps the direct link when the Portal names no deployment", async () => {
-    listQuixLabs.mockResolvedValue([quixLabRow({ portal_embedded_url: "" })]);
-    setQuixLabUrl(BASE);
-
-    const view = render(<Sidebar />);
-    const item = await view.findByRole("button", { name: /QuixLab/ });
-    await waitFor(() => expect(listQuixLabs).toHaveBeenCalled());
-    await userEvent.setup().click(item);
-
-    expect(opened).toEqual([`${BASE}${DEEP_LINK}`]);
-  });
-
-  it("keeps the direct link when the Portal call fails", async () => {
+  it("stays a link to /quixlab when the Portal call fails", async () => {
     listQuixLabs.mockRejectedValue(new Error("the platform did not answer"));
     setQuixLabUrl(BASE);
 
     const view = render(<Sidebar />);
-    const item = await view.findByRole("button", { name: /QuixLab/ });
+    const link = await view.findByRole("link", { name: "QuixLab" });
     await waitFor(() => expect(listQuixLabs).toHaveBeenCalled());
-    await userEvent.setup().click(item);
+    await userEvent.setup().click(link);
 
-    expect(opened).toEqual([`${BASE}${DEEP_LINK}`]);
+    expect(link.getAttribute("href")).toBe("/quixlab");
+    expect(opened).toEqual([]);
   });
 });

@@ -23,4 +23,4 @@ next-env.d.ts
 .tmp/
 
 # Internal planning notes - local only, not shared via the repo
-dev-planning/
+.playwright-mcp/

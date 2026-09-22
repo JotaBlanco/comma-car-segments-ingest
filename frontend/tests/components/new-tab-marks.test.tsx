@@ -1,5 +1,6 @@
 /**
- * Every control that opens a new tab carries the external-link mark.
+ * Every control that opens a new tab carries the external-link mark, and a
+ * control that stays in the page never does.
  *
  * The mark has two parts, and each part serves one audience:
  *
@@ -8,6 +9,12 @@
  *     identity icon;
  *   - the words serve the screen reader. The icon is `aria-hidden`, so the
  *     accessible name must say "(opens in a new tab)" in words.
+ *
+ * The sidebar's QuixLab and Lakehouse rows lead to `/quixlab` and `/lakehouse`
+ * now (architecture.md "What changed") and carry no mark: they frame their
+ * target in the content area, they do not leave it. The Swagger footer link
+ * still opens a tab and still carries the mark — it is the only `target=
+ * "_blank"` left in the sidebar.
  *
  * The file renders every screen that holds such a control, and it also proves
  * two negatives: a control that stays in the page gets no mark, and the
@@ -163,18 +170,6 @@ afterEach(() => {
 });
 
 describe("the sidebar new-tab controls", () => {
-  it("marks the QuixLab row, after the label", () => {
-    render(<Sidebar />);
-    const control = screen.getByRole("button", { name: `QuixLab ${SUFFIX}` });
-    expectMarked(control);
-  });
-
-  it("marks the Lakehouse row, after the label", async () => {
-    render(<Sidebar />);
-    const control = await screen.findByRole("link", { name: `Lakehouse ${SUFFIX}` });
-    expectMarked(control);
-  });
-
   it("marks the Swagger footer link, after the label", () => {
     render(<Sidebar />);
     const control = screen.getByRole("link", {
@@ -183,14 +178,29 @@ describe("the sidebar new-tab controls", () => {
     expectMarked(control);
   });
 
-  it("drops the icon on the collapsed rail, and keeps the words", async () => {
+  it("carries no mark on the QuixLab row: it frames the page, it does not leave it", async () => {
+    render(<Sidebar />);
+    const control = await screen.findByRole("link", { name: "QuixLab" });
+    expect(mark(control)).toBeNull();
+    expect(control.textContent).not.toContain(SUFFIX);
+  });
+
+  it("carries no mark on the Lakehouse row: it frames the page, it does not leave it", async () => {
+    render(<Sidebar />);
+    const control = await screen.findByRole("link", { name: "Lakehouse" });
+    expect(mark(control)).toBeNull();
+    expect(control.textContent).not.toContain(SUFFIX);
+  });
+
+  it("hides the Swagger footer link on the collapsed rail", async () => {
     render(<Sidebar />);
     await userEvent.setup().click(screen.getByRole("button", { name: "Collapse sidebar" }));
 
-    /* One icon per row on the rail. The fact still reaches a screen reader,
-       because the words live in the accessible name. */
-    const control = screen.getByRole("button", { name: `QuixLab ${SUFFIX}` });
-    expect(mark(control)).toBeNull();
+    // The footer has no room on the rail, so it disappears with it — the
+    // marked link never sits half-collapsed with just its icon showing.
+    expect(
+      screen.queryByRole("link", { name: `Swagger API reference v1 ${SUFFIX}` }),
+    ).toBeNull();
   });
 });
 

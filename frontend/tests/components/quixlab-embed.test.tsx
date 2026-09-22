@@ -18,7 +18,8 @@ import userEvent from "@testing-library/user-event";
 const { listQuixLabs } = vi.hoisted(() => ({ listQuixLabs: vi.fn() }));
 vi.mock("@/lib/api/integrations", () => ({ listQuixLabs }));
 
-import { QuixLabFrame, QuixLabPanel } from "@/components/screens/run-detail/quixlab-panel";
+import { QuixLabPanel } from "@/components/screens/run-detail/quixlab-panel";
+import { QuixLabFrame } from "@/components/shared/quixlab-frame";
 import { ApiError } from "@/lib/api/client";
 import { setActivePortalToken } from "@/lib/portal/token-store";
 import { setQuixLabUrl, type QuixLabInstance } from "@/lib/quixlab";
@@ -64,7 +65,9 @@ interface Posted {
 
 /** Mount the frame and watch every message it posts into the child window. */
 async function mountFrame(target = instance(), runId = RUN_ID) {
-  const view = render(<QuixLabFrame instance={target} runId={runId} />);
+  const view = render(
+    <QuixLabFrame embedUrl={target.embed_url} origin={target.origin} runId={runId} />,
+  );
   const frame = view.container.querySelector("iframe");
   if (frame === null) throw new Error("the frame did not render");
   // The effect sets the src, so the listener is mounted before the load.

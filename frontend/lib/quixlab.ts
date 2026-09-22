@@ -28,11 +28,13 @@ let configuredUrl: string | null = null;
  * Only the Portal knows the deployment id, so the API reads it from
  * `GET /workspaces/{id}/deployments` and hands it over as
  * `portal_embedded_url` on every deployment row. This is where that value
- * lands, so a control with no list of its own — the sidebar — can still open
- * the embedded view.
+ * lands, so a control with no list of its own — the run and file detail
+ * headers — can still open the embedded view. The sidebar fetches the list and
+ * fills it (`components/shell/sidebar.tsx`).
  *
- * Null means "nothing resolved one", and every control then opens the direct
- * QuixLab URL exactly as it did before.
+ * Null means "nothing resolved one", and every tab then opens the direct
+ * QuixLab URL exactly as it did before. No frame reads this value: a frame
+ * loads `embed_url` and relays the token itself.
  */
 let portalEmbeddedUrl: string | null = null;
 
@@ -95,9 +97,9 @@ export function quixLabConfigured(): boolean {
  * `noopener` keeps the new tab from reaching back through `window.opener`.
  */
 export function openQuixLab(url?: unknown, runId?: unknown): void {
-  // The four existing controls pass their click event here (`onClick={openQuixLab}`),
-  // so only a real string counts as a picked address. Anything else falls back
-  // to the configured value, which is the behavior those controls always had.
+  // Only a real string counts as a picked address: the run and file headers
+  // pass `undefined`, and the panel passes the URL its picker resolved.
+  // Anything else falls back to the configured value.
   const picked = typeof url === "string" ? url.trim() : "";
   const base = picked.length > 0 ? picked : (portalEmbeddedUrl ?? configuredUrl);
   if (base === null) return;
@@ -193,7 +195,8 @@ export interface QuixLabInstance {
   embed_url: string;
   origin: string;
   /**
-   * The Portal page that frames this instance, or absent.
+   * The Portal page that frames this instance, or absent. A TAB opens it, and
+   * a frame never does: `embed_url` is what a frame in this app loads.
    *
    * Empty for a dev session, which has no deployment id, and empty when the
    * API could not derive the Portal web host. A caller falls back to `url`.
@@ -208,10 +211,11 @@ export const KIND_DEVSESSION = "devsession";
 /**
  * The configured QuixLab as one pickable row, or null when there is none.
  *
- * This is the fallback of the dropdown. An empty list is an ordinary answer of
- * `GET /integrations/quixlabs`: it means this deployment cannot ask the Portal,
- * or the workspace holds none. The single `TM_QUIXLAB_URL` value still works,
- * so the panel offers it rather than showing nothing.
+ * This is the fallback of the dropdown and of `workspaceQuixLab` below. An
+ * empty list is an ordinary answer of `GET /integrations/quixlabs`: it means
+ * this deployment cannot ask the Portal, or the workspace holds none. The
+ * single `TM_QUIXLAB_URL` value still works, so the panel and the `/quixlab`
+ * page offer it rather than showing nothing.
  *
  * `status` is empty on purpose. The Portal said nothing about this value, so
  * this module invents no word. A caller treats an empty status as "unknown,
@@ -237,4 +241,28 @@ export function configuredQuixLab(): QuixLabInstance | null {
     embed_url: `${configuredUrl}?${EMBED_QUERY}`,
     origin,
   };
+}
+
+/**
+ * True when a person may open this instance.
+ *
+ * The Portal's own word decides it, compared in lower case. An **empty** status
+ * is the configured fallback, which the Portal never described: unknown stays
+ * pickable, because refusing it would hide the one QuixLab the local stack and
+ * the demo path have.
+ */
+export function selectable(item: QuixLabInstance): boolean {
+  const status = item.status.trim().toLowerCase();
+  return status.length === 0 || status === "running";
+}
+
+/**
+ * The QuixLab a control with no picker of its own opens: the shared
+ * deployment, else the configured value, else none.
+ *
+ * Never a dev session: it belongs to one person and it stops.
+ */
+export function workspaceQuixLab(items: readonly QuixLabInstance[]): QuixLabInstance | null {
+  const shared = items.find((item) => item.kind === KIND_DEPLOYMENT && selectable(item));
+  return shared ?? configuredQuixLab();
 }

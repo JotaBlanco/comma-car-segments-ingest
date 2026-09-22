@@ -73,8 +73,10 @@ describe("the sidebar Lakehouse item, with a late Portal token", () => {
     await new Promise((resolve) => setTimeout(resolve, 30));
     setActivePortalToken("viewer-token");
 
+    // The row leads to /lakehouse, not the URL the API answered — that URL
+    // only decides the row's VISIBILITY. See lakehouse-link.test.tsx.
     const link = await view.findByRole("link", { name: /Lakehouse/ }, { timeout: 5_000 });
-    expect(link.getAttribute("href")).toBe(LAKEHOUSE);
+    expect(link.getAttribute("href")).toBe("/lakehouse");
   });
 
   it("shows no item and holds up no other row when nobody signs in", async () => {

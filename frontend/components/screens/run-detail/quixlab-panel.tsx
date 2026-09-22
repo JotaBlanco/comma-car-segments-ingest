@@ -1,19 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { NewTabMark } from "@/components/shared/new-tab-mark";
 import { Panel, PanelHead } from "@/components/shared/panel";
+import { QuixLabFrame } from "@/components/shared/quixlab-frame";
 import { SingleSelect, type SingleSelectOption } from "@/components/shared/single-select";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api/client";
 import { listQuixLabs } from "@/lib/api/integrations";
-import { getActivePortalToken } from "@/lib/portal/token-store";
 import {
   configuredQuixLab,
   KIND_DEPLOYMENT,
-  MAX_QUIXLAB_SIGNALS,
   openQuixLab,
   type QuixLabInstance,
+  selectable,
 } from "@/lib/quixlab";
 import { cn } from "@/lib/utils";
 import { SHELL_BREAKOUT_CLASS } from "@/lib/shell-breakout";
@@ -28,27 +28,10 @@ import { SHELL_BREAKOUT_CLASS } from "@/lib/shell-breakout";
  *
  * **Why the frame, and not only the tab.** A tab has no parent, so nothing can
  * post it a run id, and the notebook then guesses the newest run. The frame is
- * the only path that opens the run on screen.
+ * the only path that opens the run on screen. The frame itself, and its
+ * handshake, live in `components/shared/quixlab-frame.tsx`, which the
+ * `/quixlab` page mounts too.
  */
-
-/** The two message names QuixLab sends up, and the two this panel sends down. */
-const REQUEST_AUTH_TOKEN = "REQUEST_AUTH_TOKEN";
-const AUTH_TOKEN = "AUTH_TOKEN";
-const REQUEST_TM_IMPORT = "REQUEST_TM_IMPORT";
-const TM_IMPORT = "TM_IMPORT";
-
-/**
- * True when a person may open this instance.
- *
- * The Portal's own word decides it, compared in lower case. An **empty** status
- * is the configured fallback, which the Portal never described: unknown stays
- * pickable, because refusing it would hide the one QuixLab the local stack and
- * the demo path have.
- */
-function selectable(item: QuixLabInstance): boolean {
-  const status = item.status.trim().toLowerCase();
-  return status.length === 0 || status === "running";
-}
 
 /** The word a person reads beside the name. A dev session is not a deployment. */
 function kindLabel(item: QuixLabInstance): string {
@@ -68,126 +51,6 @@ function toOption(item: QuixLabInstance): SingleSelectOption {
 
 /** The pick a caller passes nothing for. One constant, so it holds still. */
 const WHOLE_RUN: readonly string[] = [];
-
-/**
- * The QuixLab frame, and the handshake that gives it a session and a run.
- *
- * The whole message dance lives in one effect, so the listener and the `src`
- * start in one order and stop together.
- */
-export function QuixLabFrame({
-  instance,
-  runId,
-  signals = WHOLE_RUN,
-  expanded = false,
-}: {
-  instance: QuixLabInstance;
-  runId: string;
-  /** The signal names a person picked, or an empty list for the whole run. */
-  signals?: readonly string[];
-  /** True while the frame fills the content area. It changes classes only. */
-  expanded?: boolean;
-}) {
-  const frameRef = useRef<HTMLIFrameElement>(null);
-  /* True while QuixLab has asked for a token and this browser holds none. It is
-     not an error: QuixLab keeps asking, and it shows its own sign-in form. The
-     note below says so, instead of leaving a person with a blank frame. */
-  const [waitingForToken, setWaitingForToken] = useState(false);
-
-  const { origin, embed_url: embedUrl } = instance;
-
-  /* The pick lives in a ref, and the listener reads it when it answers.
-     The effect below sets `src`, so putting the pick in that effect's
-     dependencies would reload the frame on every tick of a checkbox and drop
-     the QuixLab session. This is the same rule the token already follows:
-     read at reply time, never capture at mount. */
-  const signalsRef = useRef(signals);
-  useEffect(() => {
-    signalsRef.current = signals;
-  }, [signals]);
-
-  useEffect(() => {
-    function onMessage(event: MessageEvent) {
-      // The origin check is first and it is the whole point. Any page can post
-      // a well-shaped message; only the browser sets `event.origin`.
-      if (event.origin !== origin) return;
-      const data = event.data as { type?: unknown } | null;
-      if (typeof data !== "object" || data === null) return;
-
-      if (data.type === REQUEST_AUTH_TOKEN) {
-        /* Read the token NOW, never at mount. QuixLab asks again 60 s before
-           each token expires, and every answer extends its 8-hour session. A
-           token captured at mount is the stale one, and a handler that answers
-           only the first request dies at the first expiry. */
-        const token = getActivePortalToken();
-        if (token === null || token.length === 0) {
-          // Stay silent. QuixLab retries on its own backoff.
-          setWaitingForToken(true);
-          return;
-        }
-        setWaitingForToken(false);
-        // `origin`, never "*": a "*" target hands the token to whatever page
-        // the frame navigated to.
-        frameRef.current?.contentWindow?.postMessage({ type: AUTH_TOKEN, token }, origin);
-        return;
-      }
-
-      if (data.type === REQUEST_TM_IMPORT) {
-        /* An empty pick means the whole run, and that is the message this
-           frame always sent. Only a real pick adds `signals`, so a person who
-           picks nothing gets exactly today's behavior.
-
-           An over-long list is dropped, never truncated: QuixLab answers 400
-           above the cap, and a silently shortened list would open the wrong
-           signals. The note below says the frame opened the whole run. */
-        const pick = signalsRef.current;
-        const picked = pick.length > 0 && pick.length <= MAX_QUIXLAB_SIGNALS ? [...pick] : null;
-        frameRef.current?.contentWindow?.postMessage(
-          picked === null ? { type: TM_IMPORT, runId } : { type: TM_IMPORT, runId, signals: picked },
-          origin,
-        );
-      }
-    }
-
-    window.addEventListener("message", onMessage);
-    /* The effect sets the address, and it sets it last. The element renders
-       with no `src`, so the frame starts loading only after the listener is
-       mounted. A listener mounted after the load loses the first
-       REQUEST_AUTH_TOKEN, and that first message is the one that gives the
-       frame its session. */
-    if (frameRef.current !== null) frameRef.current.src = embedUrl;
-    return () => window.removeEventListener("message", onMessage);
-  }, [origin, embedUrl, runId]);
-
-  return (
-    /* Expanding changes THIS element's classes, and nothing else. The iframe
-       keeps its place in the tree and its `key`, so it never remounts and the
-       QuixLab session survives a resize. */
-    <div className={cn("flex flex-1 flex-col", expanded ? "min-h-0" : "min-h-[600px]")}>
-      {signals.length > MAX_QUIXLAB_SIGNALS && (
-        <p role="alert" className="border-b border-line-2 px-4 py-2 text-[0.78rem] text-ink-3">
-          You picked {signals.length} signals, and QuixLab accepts at most{" "}
-          {MAX_QUIXLAB_SIGNALS}. This frame opens the whole run instead. Clear
-          some picks on the Signals tab to send a list.
-        </p>
-      )}
-      {waitingForToken && (
-        <p role="status" className="border-b border-line-2 px-4 py-2 text-[0.78rem] text-ink-3">
-          QuixLab asked for a sign-in token and this browser holds none yet. QuixLab
-          asks you to sign in, and the run opens once it has a session.
-        </p>
-      )}
-      <iframe
-        ref={frameRef}
-        // No `src` here, and no `sandbox` attribute. The effect above sets the
-        // address. QuixLab needs same-origin storage for its session cookie,
-        // and a sandbox without `allow-same-origin` kills it.
-        title={`QuixLab - ${instance.name}`}
-        className={cn("w-full flex-1 border-0", expanded ? "min-h-0" : "min-h-[600px]")}
-      />
-    </div>
-  );
-}
 
 /**
  * The panel: one picker and two actions, plus the frame once a person opens it.
@@ -376,7 +239,15 @@ export function QuixLabPanel({
       {embedded && picked !== null && (
         // The key resets the handshake with the pick: a new instance is a new
         // frame, never the old page with a new address.
-        <QuixLabFrame key={picked.id} instance={picked} runId={runId} signals={signals} expanded={expanded} />
+        <QuixLabFrame
+          key={picked.id}
+          embedUrl={picked.embed_url}
+          origin={picked.origin}
+          title={`QuixLab - ${picked.name}`}
+          runId={runId}
+          signals={signals}
+          fill={expanded}
+        />
       )}
     </Panel>
   );

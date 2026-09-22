@@ -26,12 +26,7 @@ import { formatCompact, formatInt } from "@/lib/format";
 import { useHomeSummary, usePlanningSyncStatus } from "@/lib/hooks";
 import { getLakehouseUrl, listQuixLabs } from "@/lib/api/integrations";
 import { ftsConfigured } from "@/lib/fts";
-import {
-  KIND_DEPLOYMENT,
-  openQuixLab,
-  quixLabConfigured,
-  setQuixLabPortalUrl,
-} from "@/lib/quixlab";
+import { KIND_DEPLOYMENT, quixLabConfigured, setQuixLabPortalUrl } from "@/lib/quixlab";
 import { cn } from "@/lib/utils";
 
 export interface SidebarCounts {
@@ -146,24 +141,7 @@ export function Sidebar({ counts }: SidebarProps) {
     );
   }, [collapsed]);
 
-  /* Resolve the Portal's embedded view of the workspace QuixLab, once.
-
-     The QuixLab item must land a person INSIDE the Portal, and the Portal
-     route names a DEPLOYMENT id. `TM_QUIXLAB_URL` carries no deployment id:
-     the demo value is `quixlab-cb331d0-...`, where `cb331d0` is the git commit
-     the deployment is pinned to. Only the Portal knows the deployment id, and
-     `GET /integrations/quixlabs` is the one call that asks it.
-
-     The sidebar mounts once for the whole app, above the router, so the call
-     happens once per session and never on the click. A browser blocks a
-     `window.open` that a fetch answer triggers, so the URL must already be
-     resolved when a person clicks.
-
-     `listQuixLabs` waits for the viewer's Portal token itself, so this effect
-     may fire on the mount. Every failure is silent: an empty list, a refusal
-     and an outage all leave the direct QuixLab URL in place, which is what
-     this item opened before. */
-  /* The Portal's Lakehouse page for this workspace. Empty means "no item".
+  /* The Portal's Lakehouse page for this workspace. Empty means "no row".
 
      `getLakehouseUrl` waits for the viewer's Portal token itself, the way
      `listQuixLabs` does, so this effect may fire on the mount. The route asks
@@ -171,12 +149,29 @@ export function Sidebar({ counts }: SidebarProps) {
      proxy lends no shared token on a deployed front end. See the comment on
      `getLakehouseUrl` in `lib/api/integrations.ts`.
 
-     The item's VISIBILITY depends on this async value, so it lives in React
+     The row's VISIBILITY depends on this async value, so it lives in React
      state and not in a module variable: the sidebar must render again when it
      lands. The effect runs once, and the answer arrives in the `then`, so a
-     token that lands late still shows the item. */
+     token that lands late still shows the row. `/lakehouse` asks for the URL
+     again, because a page that is opened directly has no sidebar answer to
+     read. */
   const [lakehouseUrl, setLakehouseUrl] = useState("");
 
+  /* Resolve the Portal's embedded view of the workspace QuixLab, once.
+
+     It is the module value the controls that open a TAB read (`openQuixLab`
+     and `openQuixLabNode` in `lib/quixlab.ts`), and a tab must land inside the
+     Portal rather than on the raw deployment host. The Portal route names a
+     DEPLOYMENT id and `TM_QUIXLAB_URL` carries none — the demo value is
+     `quixlab-cb331d0-...`, where `cb331d0` is the git commit the deployment is
+     pinned to — so `GET /integrations/quixlabs` is the one call that resolves
+     it.
+
+     The sidebar mounts once for the whole app, above the router, so the call
+     happens once per session and never on a click. `listQuixLabs` waits for
+     the viewer's Portal token itself, so this effect may fire on the mount.
+     Every failure is silent: an empty list, a refusal and an outage all leave
+     the direct QuixLab URL in place. */
   useEffect(() => {
     if (!quixLabConfigured()) return undefined;
     let live = true;
@@ -185,7 +180,7 @@ export function Sidebar({ counts }: SidebarProps) {
         if (live) setLakehouseUrl(url);
       },
       () => {
-        // No URL, so the item stays hidden.
+        // No URL, so the row stays hidden.
       },
     );
     listQuixLabs().then(
@@ -247,6 +242,19 @@ export function Sidebar({ counts }: SidebarProps) {
     { label: "Audit", href: "/audit", icon: ScrollText },
   ];
 
+  /* Both frame their target in the content area, so they are ordinary nav
+     rows: same active state, same tooltip on the rail. The Lakehouse row waits
+     for its URL — an empty answer means this workspace has no Lakehouse page,
+     and the row then never appears. */
+  const analysis: NavEntry[] = !quixLabConfigured()
+    ? []
+    : [
+        { label: "QuixLab", href: "/quixlab", icon: NotebookText },
+        ...(lakehouseUrl.length > 0
+          ? [{ label: "Lakehouse", href: "/lakehouse", icon: Database }]
+          : []),
+      ];
+
   const isActive = (href: string): boolean =>
     href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
 
@@ -255,6 +263,54 @@ export function Sidebar({ counts }: SidebarProps) {
      the same two facts back to a mouse or to a keyboard. */
   const hideText = collapsed ? "sr-only" : undefined;
   const rowClass = collapsed ? "justify-center px-0" : undefined;
+
+  const row = (entry: NavEntry) => {
+    const active = isActive(entry.href);
+    const Icon = entry.icon;
+    const link = (
+      <Link
+        key={entry.href}
+        href={entry.href}
+        aria-current={active ? "page" : undefined}
+        className={cn(
+          navItemClass,
+          rowClass,
+          active && "bg-accent-soft font-semibold text-primary hover:bg-accent-soft hover:text-primary"
+        )}
+      >
+        <Icon size={15} strokeWidth={2} className={cn("flex-none", active ? "opacity-100" : "opacity-65")} />
+        <span className={hideText}>{entry.label}</span>
+        {entry.count !== undefined && (
+          /* The space keeps the count off the label in the accessible
+             name ("Test runs 12", not "Test runs12"). Flexbox drops a
+             whitespace-only item, so it changes no pixel.
+             a11y: on the active row's accent-soft tint, ink-3 falls below
+             4.5:1 in the dark theme — step up to ink-2 there. */
+          <>
+          {" "}
+          <span
+            className={cn(
+              "ml-auto font-mono text-[0.7rem]",
+              hideText,
+              active ? "text-ink-2" : "text-ink-3"
+            )}
+          >
+            {entry.count}
+          </span>
+          </>
+        )}
+      </Link>
+    );
+    if (!collapsed) return link;
+    return (
+      <Tooltip key={entry.href}>
+        <TooltipTrigger render={link} />
+        <TooltipContent side="right">
+          {entry.count === undefined ? entry.label : `${entry.label} (${entry.count})`}
+        </TooltipContent>
+      </Tooltip>
+    );
+  };
 
   // aria-label: the page holds several navs (pagination, crumbs), and an
   // unnamed landmark reads as bare "navigation" in the rotor (FR-DM-091).
@@ -268,87 +324,15 @@ export function Sidebar({ counts }: SidebarProps) {
         className="flex flex-col gap-0.5 overflow-x-hidden overflow-y-auto border-r border-line bg-surface px-2.5 py-3.5 transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] motion-reduce:transition-none"
       >
         {!collapsed && <NavLabel>Registry</NavLabel>}
-        {registry.map((entry) => {
-          const active = isActive(entry.href);
-          const Icon = entry.icon;
-          const link = (
-            <Link
-              key={entry.href}
-              href={entry.href}
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                navItemClass,
-                rowClass,
-                active && "bg-accent-soft font-semibold text-primary hover:bg-accent-soft hover:text-primary"
-              )}
-            >
-              <Icon size={15} strokeWidth={2} className={cn("flex-none", active ? "opacity-100" : "opacity-65")} />
-              <span className={hideText}>{entry.label}</span>
-              {entry.count !== undefined && (
-                /* The space keeps the count off the label in the accessible
-                   name ("Test runs 12", not "Test runs12"). Flexbox drops a
-                   whitespace-only item, so it changes no pixel.
-                   a11y: on the active row's accent-soft tint, ink-3 falls below
-                   4.5:1 in the dark theme — step up to ink-2 there. */
-                <>
-                {" "}
-                <span
-                  className={cn(
-                    "ml-auto font-mono text-[0.7rem]",
-                    hideText,
-                    active ? "text-ink-2" : "text-ink-3"
-                  )}
-                >
-                  {entry.count}
-                </span>
-                </>
-              )}
-            </Link>
-          );
-          if (!collapsed) return link;
-          return (
-            <Tooltip key={entry.href}>
-              <TooltipTrigger render={link} />
-              <TooltipContent side="right">
-                {entry.count === undefined ? entry.label : `${entry.label} (${entry.count})`}
-              </TooltipContent>
-            </Tooltip>
-          );
-        })}
-        {quixLabConfigured() && (
+        {registry.map(row)}
+        {analysis.length > 0 && (
           <>
             {collapsed ? (
               <div aria-hidden className="mx-1.5 mt-3 mb-1 h-px bg-line-2" />
             ) : (
               <NavLabel className="mt-3">Analysis</NavLabel>
             )}
-            {/* The two Analysis rows open a new tab, and the trailing mark
-                says so. The leading slot holds the row's own icon, so the
-                mark sits at the row's end, where the counts sit. The rail
-                shows one icon per row, so the mark leaves with the label —
-                the words stay, so a screen reader still hears the fact. */}
-            <button type="button" className={cn(navItemClass, rowClass)} onClick={openQuixLab}>
-              <NotebookText size={15} strokeWidth={2} className="flex-none opacity-65" />
-              <span className={hideText}>QuixLab</span>
-              <NewTabMark icon={!collapsed} iconClassName="ml-auto opacity-65" />
-            </button>
-            {/* The Portal's own Lakehouse page for this workspace. That page
-                resolves the Lakehouse itself and runs its own token handshake,
-                so this link carries a workspace id and nothing else — never a
-                deployment host, never a token. Hidden until the API answers a
-                URL, and hidden for good when it answers none. */}
-            {lakehouseUrl.length > 0 && (
-              <a
-                href={lakehouseUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={cn(navItemClass, rowClass)}
-              >
-                <Database size={15} strokeWidth={2} className="flex-none opacity-65" />
-                <span className={hideText}>Lakehouse</span>
-                <NewTabMark icon={!collapsed} iconClassName="ml-auto opacity-65" />
-              </a>
-            )}
+            {analysis.map(row)}
           </>
         )}
         <div className="mt-auto border-t border-line-2 pt-2">

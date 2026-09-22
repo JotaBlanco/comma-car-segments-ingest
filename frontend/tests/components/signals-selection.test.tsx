@@ -67,8 +67,8 @@ vi.mock("@/lib/hooks", () => ({
   },
 }));
 
-import { QuixLabFrame } from "@/components/screens/run-detail/quixlab-panel";
 import { SignalsTab } from "@/components/screens/run-detail/signals-tab";
+import { QuixLabFrame } from "@/components/shared/quixlab-frame";
 import { setActivePortalToken } from "@/lib/portal/token-store";
 import type { QuixLabInstance } from "@/lib/quixlab";
 
@@ -96,7 +96,9 @@ function Harness({ withFrame = false }: { withFrame?: boolean }) {
         selected={picked}
         onSelectedChange={setPicked}
       />
-      {withFrame && <QuixLabFrame instance={lab} runId={RUN_ID} signals={picked} />}
+      {withFrame && (
+        <QuixLabFrame embedUrl={lab.embed_url} origin={lab.origin} runId={RUN_ID} signals={picked} />
+      )}
     </>
   );
 }
@@ -282,7 +284,9 @@ describe("the pick reaches the QuixLab frame", () => {
     // than post a list that answers 400, and it never truncates the list.
     const tooMany = Array.from({ length: 501 }, (_, index) => `Over_${index}`);
     setActivePortalToken("token-one");
-    const view = render(<QuixLabFrame instance={lab} runId={RUN_ID} signals={tooMany} />);
+    const view = render(
+      <QuixLabFrame embedUrl={lab.embed_url} origin={lab.origin} runId={RUN_ID} signals={tooMany} />,
+    );
     const frame = view.container.querySelector("iframe");
     if (frame === null) throw new Error("the frame did not render");
     await waitFor(() => expect(frame.getAttribute("src")).toBe(lab.embed_url));
