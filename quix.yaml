@@ -405,6 +405,57 @@ deployments:
       ports:
         - port: 27017
           targetPort: 27017
+  - name: Battery Sim
+    group: Battery
+    application: battery-sim-plant
+    version: latest
+    deploymentType: Service
+    resources:
+      limits:
+        cpu: 500
+        memory: 500
+    variables:
+      - name: input
+        inputType: InputTopic
+        required: true
+        value: ui-data
+      - name: output
+        inputType: OutputTopic
+        required: true
+        value: battery-data
+  - name: Battery Sim UI
+    group: Battery
+    application: battery-sim-ui
+    version: latest
+    deploymentType: Service
+    resources:
+      limits:
+        cpu: 500
+        memory: 500
+    variables:
+      - name: input
+        inputType: InputTopic
+        required: true
+        value: battery-data
+      - name: output
+        inputType: OutputTopic
+        required: true
+        value: ui-data
+      - name: PEDAL_DISCHARGE_MAX_W
+        value: "60000"
+      - name: PEDAL_CHARGE_REGEN_MAX_W
+        value: "20000"
+      - name: DC_CHARGE_MAX_W
+        value: "250000"
+    publicAccess:
+      enabled: true
+      urlPrefix: battery-sim
+    plugin:
+      sidebarItem:
+        show: true
+        label: Battery Sim
+        icon: battery_charging_full
+        order: 1
 
 # This section describes the Topics of the data pipeline
 topics:
@@ -412,3 +463,9 @@ topics:
   - name: mf4-to-msg
   - name: config-updates
   - name: trace-ingest-requests
+  - name: battery-data
+    configuration:
+      partitions: 1
+  - name: ui-data
+    configuration:
+      partitions: 1

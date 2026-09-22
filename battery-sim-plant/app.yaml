@@ -1,0 +1,16 @@
+name: Battery Sim
+language: python
+variables:
+  - name: input
+    inputType: InputTopic
+    description: Live signal writes (pedals, ambient, heater, chiller) from Battery Sim UI
+    defaultValue: ui-data
+    required: true
+  - name: output
+    inputType: OutputTopic
+    description: Pack state, one message per SAMPLE_TIME (0.1 s / 10 Hz)
+    defaultValue: battery-data
+    required: true
+dockerfile: dockerfile
+runEntryPoint: main.py
+defaultFile: main.py
