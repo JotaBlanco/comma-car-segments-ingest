@@ -1,0 +1,69 @@
+{
+  "trace_id": "T2",
+  "title": "Full discharge sweep — 250 A from 100 % SOC with the chiller holding the pack",
+  "route": "a3f1c07d9b4e2610--2026-09-23--10-00-00",
+  "start_time_utc": "2026-09-23T10:00:00Z",
+  "duration_s": 1440,
+  "test": {
+    "run_key": "TAS-1002",
+    "definitions": [
+      "BAT-SYS-TC-004",
+      "BAT-SYS-TC-005",
+      "BAT-SYS-TC-006"
+    ],
+    "description": "T2 discharge sweep — 250 A from a full pack with the chiller holding it"
+  },
+  "plant_initial_state": {
+    "soc_pct": 100.0,
+    "t_batt_c": 25.0
+  },
+  "plant_param_overrides": {},
+  "controller_param_overrides": {
+    "SOC_tech_at_cust_0pct": 20.0
+  },
+  "defects": [
+    {
+      "target": "controller",
+      "parameter": "SOC_tech_at_cust_0pct",
+      "nominal": 25.0,
+      "value": 20.0,
+      "breaks": "BAT-SYS-FUN-002",
+      "mechanism": "customer SOC map anchored five points low at the bottom of the window"
+    }
+  ],
+  "setpoints": [
+    {
+      "t_s": 0.0,
+      "charge_plug": 0,
+      "kl15": 1,
+      "veh_state": 3,
+      "ambient_c": 25.0,
+      "chiller_setting": 2,
+      "obc_i_avail_a": 0.0,
+      "i_demand_a": 250.0
+    }
+  ],
+  "evaluates": [
+    {
+      "req_id": "BAT-SYS-FUN-001",
+      "measurand": "soc_technical",
+      "signal": "BMS_Soc_Tech",
+      "limit": "|BMS_Soc_Tech drop - integral of BMS_I_Dc / Q_max| <= 0,2 % over the sweep",
+      "check": "coulomb_counting"
+    },
+    {
+      "req_id": "BAT-SYS-SAF-001",
+      "measurand": "u_dc",
+      "signal": "BMS_U_Dc",
+      "limit": "Udc_min (720 V) <= BMS_U_Dc <= Udc_Max (840 V) at every sample",
+      "check": "terminal_voltage_window"
+    },
+    {
+      "req_id": "BAT-SYS-FUN-002",
+      "measurand": "soc_customer",
+      "signal": "BMS_Soc_Cust",
+      "limit": "|BMS_Soc_Cust - the clamped map of BMS_Soc_Tech over 25 % .. 90 %| <= 0,5 %",
+      "check": "customer_soc_map"
+    }
+  ]
+}

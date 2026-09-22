@@ -191,7 +191,7 @@ def _planning_for(run_id: str) -> list[dict]:
     work_order_id, definition_id, project = link
     return [
         _tag("work_order_id", work_order_id, Source.API_PLANNING, PLANNING_ACTOR),
-        _tag("definition_id", definition_id, Source.API_PLANNING, PLANNING_ACTOR),
+        _tag("definition_ids", [definition_id], Source.API_PLANNING, PLANNING_ACTOR),
         _tag("project", project, Source.API_PLANNING, PLANNING_ACTOR),
     ]
 

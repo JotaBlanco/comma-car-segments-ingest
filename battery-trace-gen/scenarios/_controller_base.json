@@ -1,0 +1,14 @@
+{
+  "T_FILT_TAU": 2.0,
+  "R_INT_EST": 0.15,
+  "I_DIS_MAX": 400.0,
+  "I_CHG_MAX": 300.0,
+  "HEAT2_ON": null,
+  "HEAT_HYST_1": 7.0,
+  "HEAT_HYST_2": 3.0,
+  "TAU_BAL": 300.0,
+  "N_CELLS": 200,
+  "BAL_ON_DELTA": 0.030,
+  "BAL_OFF_DELTA": 0.010,
+  "CELL_SPREAD": 0.020
+}

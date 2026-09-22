@@ -16,10 +16,12 @@ The registry cannot break the tie for us: a resolved claim is tagged
 never states the authority"), so both channels are equal-ranked there. The tie
 MUST therefore be broken here, and the rule splits by KIND of field:
 
-* identity & linkage (`run_id`, `rig_id`, `work_order_id`, `definition_id`)
+* identity & linkage (`run_id`, `rig_id`, `work_order_id`, `definition_ids`)
   — **declared wins**. These are assignments an operator makes, not properties
   of the bytes. Header-wins would make a re-upload with a corrected id
-  impossible without editing the file.
+  impossible without editing the file. The definition SET wins or loses
+  wholesale: a partial merge of two disagreeing assignments is what
+  `_refuse_foreign_record` exists to prevent.
 * measured facts (`started_at`, `ended_at`) — **header wins**. The file
   measured them; the form typed them.
 * free-text context (`description`, `test_cell`, `operator`, `bench_sw`)
@@ -61,6 +63,7 @@ DECLARED_FIELDS = frozenset(
         "rig_id",
         "work_order_id",
         "definition_id",
+        "definition_ids",
         "description",
         "test_cell",
         "operator",
@@ -78,7 +81,6 @@ HEADER_RUN_FIELDS = {
     "test.run_key": "run_id",
     "test.rig": "rig_id",
     "test.work_order": "work_order_id",
-    "test.definition": "definition_id",
     "test.cell": "test_cell",
     "test.operator": "operator",
     "test.bench_sw": "bench_sw",
@@ -87,8 +89,20 @@ HEADER_RUN_FIELDS = {
     "test.ended_at": "ended_at",
 }
 
+# One trace answers several test cases, so the run's definitions are a SET.
+# `<common_properties>` is a name->value map and `clean_header` builds a dict, so
+# a repeated `<e name="test.definition">` cannot express one — only the last
+# would survive. The set therefore rides in ONE comma-separated value.
+#
+# `test.definition` (singular) stays accepted and reads as a one-element list,
+# and `test.definitions` wins when a file states both.
+HEADER_LIST_FIELDS = {
+    "test.definition": "definition_ids",
+    "test.definitions": "definition_ids",
+}
+
 # Fields the operator assigns. Declared beats header.
-LINKAGE_FIELDS = ("run_id", "rig_id", "work_order_id", "definition_id")
+LINKAGE_FIELDS = ("run_id", "rig_id", "work_order_id", "definition_ids")
 # Fields the person typed. Declared beats header.
 CONTEXT_FIELDS = ("description", "test_cell", "operator", "bench_sw")
 # Fields the recording measured. Header beats declared.
@@ -128,30 +142,53 @@ def _clean(value: object) -> str | None:
     return stripped or None
 
 
-def clean_declared(declared: object) -> dict[str, str]:
+def split_ids(value: object) -> list[str]:
+    """Read a comma-separated id list. Blanks and surrounding space drop out."""
+    cleaned = _clean(value)
+    if cleaned is None:
+        return []
+    return [part.strip() for part in cleaned.split(",") if part.strip()]
+
+
+def clean_declared(declared: object) -> dict[str, object]:
     """Keep the declared keys the registry knows, drop the rest.
 
     mf4-import forwards an unrecognised `declared.*` key rather than rejecting
     it, because it cannot know this vocabulary. Dropping happens here.
+
+    An operator's form states the definitions the way the header does: one
+    comma-separated value. `definition_id` reads as a one-element set, and the
+    scalar never reaches the run body.
     """
     if not isinstance(declared, dict):
         return {}
-    return {
-        name: cleaned
+    cleaned: dict[str, object] = {
+        name: value
         for name, raw in declared.items()
-        if name in DECLARED_FIELDS and (cleaned := _clean(raw)) is not None
+        if name in DECLARED_FIELDS and (value := _clean(raw)) is not None
     }
+    stated = split_ids(cleaned.pop("definition_ids", None))
+    scalar = split_ids(cleaned.pop("definition_id", None))
+    if stated or scalar:
+        cleaned["definition_ids"] = stated or scalar
+    return cleaned
 
 
-def clean_header(header_properties: object) -> dict[str, str]:
+def clean_header(header_properties: object) -> dict[str, object]:
     """Map the `test.*` header block onto run field names."""
     if not isinstance(header_properties, dict):
         return {}
-    mapped: dict[str, str] = {}
+    mapped: dict[str, object] = {}
     for key, target in HEADER_RUN_FIELDS.items():
         cleaned = _clean(header_properties.get(key))
         if cleaned is not None:
             mapped[target] = cleaned
+    # `test.definitions` is stated after `test.definition` in HEADER_LIST_FIELDS,
+    # so a file carrying both keeps the set.
+    for key, target in HEADER_LIST_FIELDS.items():
+        ids = split_ids(header_properties.get(key))
+        if ids:
+            mapped[target] = ids
     return mapped
 
 
@@ -244,8 +281,8 @@ class Identity:
 
 
 def resolve_run_key(
-    declared: dict[str, str],
-    header: dict[str, str],
+    declared: dict[str, object],
+    header: dict[str, object],
     filename: str,
     run_key_pattern: str,
 ) -> tuple[str | None, bool]:
@@ -267,8 +304,8 @@ def resolve_run_key(
 
 
 def _refuse_foreign_record(
-    record: dict[str, str], run_id: str | None, label: str, conflicts: list[str]
-) -> dict[str, str]:
+    record: dict[str, object], run_id: str | None, label: str, conflicts: list[str]
+) -> dict[str, object]:
     """Drop what a record asserts when the record names a different run.
 
     "The folder names one run and the body names another. Never guess a field."
@@ -298,7 +335,9 @@ def resolve_identity(
     header = clean_header(header_raw)
     conflicts: list[str] = []
 
-    def pick(name: str, winner: dict[str, str], loser: dict[str, str], label: str) -> str | None:
+    def pick(
+        name: str, winner: dict[str, object], loser: dict[str, object], label: str
+    ) -> object | None:
         won, lost = winner.get(name), loser.get(name)
         if won is not None and lost is not None and won != lost:
             conflicts.append(f"{label} stated {name}={lost}; {won} won")

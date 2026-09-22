@@ -630,7 +630,7 @@ def signal_run_stats(
 
     query: dict = {"_id": {"$in": list(by_run)}}
     if definition:
-        query["definition_id"] = definition
+        query["definition_ids"] = definition
     if rig:
         query["rig_id"] = rig
 
@@ -646,7 +646,7 @@ def signal_run_stats(
         rows.append(
             {
                 "run_id": run["_id"],
-                "definition_id": run.get("definition_id"),
+                "definition_id": next(iter(run.get("definition_ids") or []), None),
                 "rig_id": run.get("rig_id"),
                 "run_date": run_date.date(),
                 "status": status,

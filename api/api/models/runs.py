@@ -100,12 +100,33 @@ class InvalidFlag(ApiModel):
     at: UtcDatetime | None
 
 
+def primary_definition(data):
+    """Normalise a run's definition set and derive the legacy scalar from it.
+
+    `test_runs.definition_ids` is the stored truth and `definition_id` is its
+    first element. The rule runs on the raw input of every model that carries
+    both, so whichever service built the dict, the two agree.
+
+    A null list reads as an empty one: `planning_sync.demo_reset` clears a
+    planning field to null.
+    """
+    if not isinstance(data, dict) or "definition_ids" not in data:
+        return data
+    ids = list(data["definition_ids"] or [])
+    return {**data, "definition_ids": ids, "definition_id": ids[0] if ids else None}
+
+
 class RunListItem(ApiModel):
     # The collection stores the run id in _id. The alias lets a lane
     # validate a Mongo document directly. The wire keeps "run_id".
     run_id: str = Field(validation_alias="_id")
     description: str | None
+    # The whole set of test definitions this run fulfils, sorted ascending, and
+    # the first of them. One trace answers several test cases, so the set is
+    # what the registry stores; the scalar stays on the wire for every reader
+    # written against it.
     definition_id: str | None
+    definition_ids: list[str] = Field(default_factory=list)
     work_order_id: str | None
     project: str | None
     rig_id: str
@@ -131,6 +152,11 @@ class RunListItem(ApiModel):
     # written before these existed simply made no claim.
     claimed_work_order_id: str | None = None
     claimed_definition_id: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _primary_definition(cls, data):
+        return primary_definition(data)
 
 
 class RunViewCounts(ApiModel):
@@ -218,6 +244,9 @@ class RunPatchRequest(RequestModel):
     planning is offline, or when planning named the wrong row. The id must name
     a mirrored row, and the write carries the `manual` tag, so the next sync
     pass reads that tag and leaves the value alone.
+
+    `definition_id` sets the run's definitions to exactly that one id. It is
+    the only way to REMOVE a definition: a planning push unions its links.
     """
 
     description: str | None = None
@@ -321,7 +350,11 @@ class RunUpsertRequest(RequestModel):
     started_at: UtcDatetime | None = None
     ended_at: UtcDatetime | None = None
     work_order_id: str | None = None
+    # Both are claims on one field, and `_resolve_claims` unions them: a
+    # producer that knows one definition states the scalar, and a bench that
+    # ticked off three states the list.
     definition_id: str | None = None
+    definition_ids: list[str] = Field(default_factory=list)
     # Which lakehouse table holds this run's samples. Stated by the ingestion
     # path: tm-connector reads it from the LAKE_TABLE project variable - the
     # same value mf4-sink's TABLE_NAME references, which is what keeps the claim
@@ -407,10 +440,16 @@ class RecentRun(ApiModel):
     run_id: str = Field(validation_alias="_id")
     description: str | None
     definition_id: str | None
+    definition_ids: list[str] = Field(default_factory=list)
     work_order_id: str | None
     rig_id: str
     first_data_at: UtcDatetime
     status: RunStatus
+
+    @model_validator(mode="before")
+    @classmethod
+    def _primary_definition(cls, data):
+        return primary_definition(data)
 
 
 class SourceCount(ApiModel):
@@ -484,7 +523,9 @@ class LineageResult(ApiModel):
 
 class LineageResponse(ApiModel):
     work_order: LineageWorkOrder | None
+    # The first of `definitions`, kept for every reader written against it.
     definition: LineageDefinition | None
+    definitions: list[LineageDefinition] = Field(default_factory=list)
     run: LineageRun
     files: list[LineageFile]
     results: list[LineageResult]

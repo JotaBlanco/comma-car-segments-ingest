@@ -1,0 +1,10 @@
+# asammdf and cantools are pinned to the versions mf4-decoder and dcm-seed-dbc run
+# against, so a frame this tool encodes and a frame the decoder reads are produced by
+# identical code. numpy is pinned rather than ranged because the seeded cell offsets
+# come from numpy.random.default_rng and a generator change would move them.
+asammdf==8.8.9
+cantools==42.0.3
+numpy==2.2.6
+quixstreams==3.23.1
+python-dotenv
+requests==2.32.3

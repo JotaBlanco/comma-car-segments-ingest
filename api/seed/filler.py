@@ -264,7 +264,7 @@ def build_runs(
                 "_id": run_id,
                 "description": description,
                 "work_order_id": wo_ids[wo_index],
-                "definition_id": None,
+                "definition_ids": [],
                 "project": project,
                 "rig_id": _RIGS[index % len(_RIGS)],
                 "test_cell": cell,

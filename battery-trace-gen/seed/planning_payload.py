@@ -1,0 +1,103 @@
+"""Build the `POST /planning/sync` body: one work order, ten definitions, ten links.
+
+The registry's inbound push (`api/api/models/planning.py`,
+`PlanningPushRequest`) takes three lists. This module fills them from the seed's
+inputs and nothing else, so a re-run against unchanged inputs produces a
+byte-identical body and the push answers `links_unchanged`.
+
+**The work order also lands in Dynamic Configuration**, as a side effect of the
+registry's mirror write (`api/api/planning_sync._mirror_work_orders` ->
+`config_push.push_work_orders`). The seed therefore makes no second push: a
+competing writer on the same `(type, target_key)` pair would desynchronise the
+version counter there.
+
+`project` is the PLATFORM id, not a programme name. It doubles as the lake's
+platform fallback for a file whose own header named none, and a partition
+directory holding a space would be the cost of reading better on a list.
+"""
+
+from __future__ import annotations
+
+from seed import requirements_md, sources
+
+WORK_ORDER_ID = "WO-BAT-2026-001"
+WORK_ORDER_TITLE = "Battery DC system qualification — BATTERY_DC_V1"
+WORK_ORDER_PROJECT = "BATTERY_DC_V1"
+WORK_ORDER_STATUS = "active"
+WORK_ORDER_REQUESTOR = "ludvik@quix.io"
+WORK_ORDER_DEPARTMENT = "Battery Systems Validation"
+WORK_ORDER_PRIORITY = "High"
+WORK_ORDER_CREATED_AT = "2026-09-23T08:00:00Z"
+
+#: Every definition is exercised by one trace. The manifest declares the split.
+PLANNED_RUNS = 1
+
+
+def work_orders() -> list[dict]:
+    return [
+        {
+            "id": WORK_ORDER_ID,
+            "title": WORK_ORDER_TITLE,
+            "project": WORK_ORDER_PROJECT,
+            "status": WORK_ORDER_STATUS,
+            "requestor": WORK_ORDER_REQUESTOR,
+            "department": WORK_ORDER_DEPARTMENT,
+            "priority": WORK_ORDER_PRIORITY,
+            "created_at": WORK_ORDER_CREATED_AT,
+        }
+    ]
+
+
+def test_definitions() -> list[dict]:
+    """One definition per test case, each carrying its rendered requirements doc.
+
+    The definition id IS the test case id. `CLAUDE.md` makes bidirectional
+    traceability the audited property — `requirement.verified_by` against
+    `test-spec.covers_req_ids` — and both already name `BAT-SYS-TC-NNN`, so a
+    third id form would put an unaudited indirection in the middle of the chain.
+    """
+    specs = sources.test_specs()
+    documents = requirements_md.render_all()
+    return [
+        {
+            "id": tc_id,
+            "work_order_id": WORK_ORDER_ID,
+            "title": specs[tc_id]["title"],
+            "planned_runs": PLANNED_RUNS,
+            "requirements_files": [
+                {"name": f"{tc_id}.md", "content": documents[tc_id]}
+            ],
+        }
+        for tc_id in sorted(specs)
+    ]
+
+
+def links() -> list[dict]:
+    """One link per (run, definition) pair — ten of them over four runs.
+
+    `_write_link` unions the definitions of the links naming one run, so the
+    three links of `TAS-1001` leave it holding all three.
+    """
+    return [
+        {
+            "run_id": trace["run_key"],
+            "work_order_id": WORK_ORDER_ID,
+            "definition_id": tc_id,
+        }
+        for trace in sources.traces()
+        for tc_id in trace["definitions"]
+    ]
+
+
+def catalog_body() -> dict:
+    """Step 2 of the seed: the catalog alone, before any trace has been uploaded."""
+    return {
+        "work_orders": work_orders(),
+        "test_definitions": test_definitions(),
+        "links": [],
+    }
+
+
+def full_body() -> dict:
+    """Step 5 of the seed: the same catalog, plus the links planning decided."""
+    return {**catalog_body(), "links": links()}

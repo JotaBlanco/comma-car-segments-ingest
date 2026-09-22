@@ -74,7 +74,7 @@ def checksum_facts(file_block: dict) -> tuple[str, str, str | None]:
 def run_body(identity: Identity, actor: str, lake_table: str | None = None) -> dict:
     """The `POST /test-runs` body (api/api/models/runs.py:131-156).
 
-    Only `run_id` and `rig_id` are required. `work_order_id` and `definition_id`
+    Only `run_id` and `rig_id` are required. `work_order_id` and `definition_ids`
     ride through as CLAIMS: the connector never pre-validates one against
     planning, never drops an unresolvable one and never retries on it. A claim
     the mirror cannot answer links nothing, is remembered on the run, and the run

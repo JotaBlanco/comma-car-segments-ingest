@@ -93,14 +93,19 @@ field the backlog cannot carry.
 
 PARTITIONED BY THE TRACEABILITY CHAIN
 -------------------------------------
-    HIVE_COLUMNS = platform,work_order,test_definition,run_id,
+    HIVE_COLUMNS = platform,work_order,run_id,
                    ~channel_name,~sender_node,~frame_name,~signal
 
-``work_order`` / ``test_definition`` are ``unassigned`` when nobody claimed the
-file — an absent claim is a fact, not a fault. ``run_id`` has no such default:
-a batch that names no run is DROPPED, with a warning, because ``run_id=unknown/``
-would merge every unplaceable file in the estate into one partition that reads
-like a real run.
+``work_order`` is ``unassigned`` when nobody claimed the file — an absent claim
+is a fact, not a fault. ``run_id`` has no such default: a batch that names no
+run is DROPPED, with a warning, because ``run_id=unknown/`` would merge every
+unplaceable file in the estate into one partition that reads like a real run.
+
+**There is no ``test_definition`` level, and no such column.** One trace fulfils
+a SET of test definitions, and a row sits in exactly one directory, so the level
+could only be honest by triplicating rows or by reading ``unassigned`` for every
+shared run. The registry is the system of record for run -> definitions, and
+every row here carries ``run_id``, which joins to it.
 
 ``device``, ``route``, ``segment`` and ``dcm_config_id`` are still on every row
 and still queryable; they are no longer directory levels. ``run_id`` is minted

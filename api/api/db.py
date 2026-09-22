@@ -36,14 +36,17 @@ def ensure_indexes(db: Database) -> None:
     runs.create_index([("status", ASCENDING)])
     runs.create_index([("rig_id", ASCENDING)])
     runs.create_index([("work_order_id", ASCENDING)])
-    runs.create_index([("definition_id", ASCENDING)])
+    # Multikey: a run holds a SET of definitions, and the definition detail,
+    # the definition list's run count and the `definition` filter all match one
+    # id against it.
+    runs.create_index([("definition_ids", ASCENDING)])
     runs.create_index([("project", ASCENDING)])
     # Stated caller: the `test_cell` filter and the `group_by=test_cell` stage
     # of GET /test-runs/groups (contract §2, §2c).
     runs.create_index([("test_cell", ASCENDING)])
     runs.create_index([("invalid.flagged", ASCENDING)])
     runs.create_index([("first_data_at", DESCENDING)])
-    runs.create_index([("definition_id", ASCENDING), ("first_data_at", DESCENDING)])
+    runs.create_index([("definition_ids", ASCENDING), ("first_data_at", DESCENDING)])
     # Filter + default-sort compounds for the multi-select filter popovers
     # (§3.2). Demo scale needs none of these, but a runs table of 10^7 rows
     # would collection-scan without them. Every one is a write cost — never

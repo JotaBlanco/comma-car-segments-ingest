@@ -14,7 +14,7 @@
  * tree itself says where the cut is — `run_id` is a folder like any other —
  * so the operator states it:
  *
- *     TM_LAKE_SESSION_PARTITIONS=platform,work_order,test_definition,run_id
+ *     TM_LAKE_SESSION_PARTITIONS=platform,work_order,run_id
  *     TM_LAKE_DATA_PARTITIONS=protocol,~bus,~stream,~fcc,~signal
  *
  * The LAST session column is the session itself (`run_id` here): everything
@@ -38,7 +38,6 @@
 export const DEFAULT_SESSION_PARTITIONS: readonly string[] = [
   "platform",
   "work_order",
-  "test_definition",
   "run_id",
 ];
 

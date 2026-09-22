@@ -8,12 +8,14 @@ click (FR-DM-074).
 The mirror is read-only for every planning field. Planning owns the title, the
 work order and the plan, so no route here writes one.
 
-**Two fields bend that rule, on purpose: the requirements documents and the
-custom properties.** A person writes both through the routes at the foot of
-this file. Both live in their own store beside the planning fields, so a sync
-pass replaces what planning owns and never touches a person's work.
+**Three fields bend that rule, on purpose: the requirements documents, the
+custom properties and the test implementation.** A person writes all three
+through the routes at the foot of this file. Each lives in its own store beside
+the planning fields, so a sync pass replaces what planning owns and never
+touches a person's work.
 """
 
+import hashlib
 import re
 from collections.abc import Iterator
 from datetime import UTC, datetime
@@ -32,6 +34,7 @@ from api.models.common import Pagination, Source, pagination_params
 from api.models.planning import (
     DefinitionCustomProperties,
     DefinitionCustomPropertiesRequest,
+    DefinitionImplementation,
     RequirementsFile,
     RequirementsFileEdit,
     RequirementsFileUpload,
@@ -52,6 +55,7 @@ from api.services.file_bytes import (
 from api.services.file_writes import (
     FileBytesWriter,
     get_file_writer,
+    implementation_blob_key,
     requirements_blob_key,
 )
 
@@ -81,8 +85,8 @@ MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 # route allows the same margin.
 MULTIPART_OVERHEAD_BYTES = 64 * 1024
 
-# The tail of the multipart upload path. The route class matches on it.
-_UPLOAD_SUFFIX = "/requirements-files/upload"
+# The tails of the two multipart upload paths. The route class matches on them.
+_UPLOAD_SUFFIXES = ("/requirements-files/upload", "/implementation")
 
 # A media type is `type/subtype` with optional `; parameter=value` parts. The
 # route stores a value that matches, and `application/octet-stream` otherwise.
@@ -127,7 +131,7 @@ class _CappedUploadRoute(APIRoute):
         original = super().get_route_handler()
 
         async def handler(request: Request) -> Response:
-            if request.url.path.endswith(_UPLOAD_SUFFIX):
+            if request.url.path.endswith(_UPLOAD_SUFFIXES):
                 _refuse_an_oversized_body(request)
             return await original(request)
 
@@ -772,6 +776,222 @@ def download_requirements_file(
         media_type=document.get("content_type") or DEFAULT_CONTENT_TYPE,
         headers={
             "Content-Disposition": content_disposition(name),
+            "Content-Length": str(size),
+            "X-Content-Type-Options": "nosniff",
+            "X-Journal-Id": entry["_id"],
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+# --- the test implementation --------------------------------------------------
+#
+# The third artefact of the chain: requirement -> test case -> implementation.
+# One `.py` per definition, stored in blob beside the requirements documents and
+# the results, and named by the sha256 of its own bytes so a verdict can cite
+# the exact code that produced it (`tool_version = "sha256:<12 hex>"`).
+#
+# The field lives on the MANUAL side, like `manual_requirements_files`: planning
+# names no such thing, so no sync pass reaches it. The two routes copy the
+# binary requirements routes above, gate for gate.
+
+# The field the definition document stores the pointer under.
+IMPLEMENTATION_FIELD = "implementation"
+
+# What a runner calls inside the module: `evaluate(run_id, table) -> dict`.
+IMPLEMENTATION_ENTRYPOINT = "evaluate"
+
+IMPLEMENTATION_LANGUAGE = "python"
+
+IMPLEMENTATION_CONTENT_TYPE = "text/x-python"
+
+
+def _read_digest_within_cap(upload: UploadFile) -> tuple[int, str]:
+    """Read the upload in chunks. Return the byte count and the sha256.
+
+    The digest is taken over the same chunks `_chunks` then writes, so the
+    recorded hash and the stored object can never describe different bytes.
+    """
+    digest = hashlib.sha256()
+    size = 0
+    upload.file.seek(0)
+    while True:
+        chunk = upload.file.read(CHUNK_BYTES)
+        if not chunk:
+            break
+        size += len(chunk)
+        digest.update(chunk)
+        if size > MAX_UPLOAD_BYTES:
+            raise ApiError(
+                413,
+                f"the file is larger than the {MAX_UPLOAD_BYTES} byte cap",
+                "file_too_large",
+            )
+    upload.file.seek(0)
+    return size, digest.hexdigest()
+
+
+@router.post("/test-definitions/{td_id}/implementation", status_code=201)
+def upload_implementation(
+    td_id: str,
+    db: Annotated[Database, Depends(get_db)],
+    identity: Annotated[Identity, Depends(require_token)],
+    writer: Annotated[FileBytesWriter, Depends(get_file_writer)],
+    file: Annotated[UploadFile, File()],
+    entrypoint: Annotated[str | None, Form()] = None,
+) -> DefinitionImplementation:
+    """Attach the executable test implementation of one definition.
+
+    The request is `multipart/form-data`. `file` carries the module. A second
+    upload REPLACES the pointer; the bytes of the previous one stay in the
+    store under their own digest, so a verdict that cited them still resolves.
+
+    The order of the checks copies the binary requirements route:
+
+    1. the stated body length, before Starlette spools it - 413 `file_too_large`;
+    2. the filename - 422 `name_required`;
+    3. the exact size cap and the digest over the chunks - 413 `file_too_large`;
+    4. an empty file - 422 `content_required`;
+    5. the definition - 404 `td_not_found`, and no byte is stored;
+    6. the store answers - 503 `storage_unreachable`, and **no** journal entry;
+    7. the bytes;
+    8. the audit entry - 503 `not_ready`;
+    9. the pointer.
+
+    Each subfield is written through `set_field` as `implementation.<key>`, so
+    the pointer carries the `manual` tag and the journal names who uploaded it.
+    """
+    filename = (file.filename or "").strip()
+    if not filename:
+        raise ApiError(422, "the implementation needs a filename", "name_required")
+
+    size, digest = _read_digest_within_cap(file)
+    if size == 0:
+        raise ApiError(422, "the implementation needs content", "content_required")
+
+    definition = _definition(db, td_id)
+
+    try:
+        writer.check_ready()
+    except FileBytesUnavailable as error:
+        raise ApiError(503, error.detail, "storage_unreachable") from error
+
+    key = implementation_blob_key(td_id, filename, digest)
+    try:
+        writer.write(key, _chunks(file))
+    except FileBytesUnavailable as error:
+        raise ApiError(503, error.detail, "storage_unreachable") from error
+
+    actor = journal_actor_or_id(identity, identity.display_name)
+    implementation = {
+        "blob_path": f"blob://{key}",
+        "filename": filename,
+        "sha256": digest,
+        "size_bytes": size,
+        "language": IMPLEMENTATION_LANGUAGE,
+        "entrypoint": (entrypoint or "").strip() or IMPLEMENTATION_ENTRYPOINT,
+        "uploaded_at": datetime.now(UTC),
+        "uploaded_by": str(actor),
+    }
+
+    # One journal line names the whole upload; the per-subfield writes carry
+    # the `manual` source tag `stored_source` reads back off the dotted path.
+    update: dict = {}
+    for name, value in implementation.items():
+        set_field(
+            update,
+            f"{IMPLEMENTATION_FIELD}.{name}",
+            value,
+            Source.MANUAL,
+            actor,
+            current_doc=definition,
+            entity_type="test_definition",
+            entity_id=td_id,
+        )
+
+    entry = add_event(
+        "test_definition",
+        td_id,
+        "test_definition.implementation_uploaded",
+        Source.MANUAL,
+        actor,
+        note=f"Uploaded the implementation {filename} ({size} bytes, sha256 {digest}).",
+    )
+    try:
+        db["journal_entries"].insert_one(entry)
+    except PyMongoError as error:
+        # The bytes are in the store and nothing points at them. That is the
+        # safe end, the same one the binary requirements upload takes.
+        raise ApiError(
+            503,
+            "the upload event could not be recorded - refusing to store the implementation",
+            "not_ready",
+        ) from error
+    db["test_definitions"].update_one({"_id": td_id}, {"$set": update})
+    return implementation
+
+
+@router.get("/test-definitions/{td_id}/implementation/download")
+def download_implementation(
+    td_id: str,
+    db: Annotated[Database, Depends(get_db)],
+    identity: Annotated[Identity, Depends(require_token)],
+    bytes_provider: Annotated[FileBytesProvider, Depends(get_file_bytes_provider)],
+) -> Response:
+    """Stream the stored bytes of one definition's implementation.
+
+    It keeps **audit-before-bytes**, exactly as the requirements download does:
+    the journal entry lands before the first byte leaves, and a refused entry
+    answers 503 and moves nothing.
+
+    Errors:
+
+    * ``404 td_not_found`` - the mirror holds no such definition.
+    * ``404 implementation_not_found`` - the definition carries no `.py`.
+    * ``503 storage_unreachable`` - the store did not answer, or it holds no
+      object under the reference. No journal entry is written.
+    * ``503 not_ready`` - the audit journal write failed. No bytes move.
+    """
+    definition = _definition(db, td_id)
+    implementation = definition.get(IMPLEMENTATION_FIELD) or {}
+    blob_path = (implementation.get("blob_path") or "").strip()
+    if not blob_path:
+        raise ApiError(
+            404,
+            f"Test definition {td_id} carries no implementation",
+            "implementation_not_found",
+        )
+
+    try:
+        stream, size = bytes_provider.open(blob_path)
+    except FileBytesUnavailable as error:
+        raise ApiError(503, error.detail, "storage_unreachable") from error
+
+    filename = implementation.get("filename") or f"{td_id}.py"
+    actor = journal_actor_or_id(identity, identity.display_name)
+    entry = add_event(
+        "test_definition",
+        td_id,
+        "test_definition.implementation_downloaded",
+        Source.MANUAL,
+        actor,
+        note=f"Downloaded the implementation {filename} ({size} bytes).",
+    )
+    try:
+        db["journal_entries"].insert_one(entry)
+    except PyMongoError as error:
+        stream.close()
+        raise ApiError(
+            503,
+            "the download event could not be recorded - refusing to serve bytes",
+            "not_ready",
+        ) from error
+
+    return StreamingResponse(
+        stream,
+        media_type=IMPLEMENTATION_CONTENT_TYPE,
+        headers={
+            "Content-Disposition": content_disposition(filename),
             "Content-Length": str(size),
             "X-Content-Type-Options": "nosniff",
             "X-Journal-Id": entry["_id"],

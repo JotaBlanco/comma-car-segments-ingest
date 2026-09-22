@@ -1,0 +1,1827 @@
+{
+  "created_by": "ArchDev (dev-planning/battery-can-traces/spec.md section 10)",
+  "created_utc": "2026-09-22T00:00:00+00:00",
+  "item_count": 10,
+  "item_ids": [
+    "BAT-SYS-TC-001",
+    "BAT-SYS-TC-002",
+    "BAT-SYS-TC-003",
+    "BAT-SYS-TC-004",
+    "BAT-SYS-TC-005",
+    "BAT-SYS-TC-006",
+    "BAT-SYS-TC-007",
+    "BAT-SYS-TC-008",
+    "BAT-SYS-TC-009",
+    "BAT-SYS-TC-010"
+  ],
+  "items": [
+    {
+      "covers_req_ids": [
+        "BAT-SYS-PRF-001"
+      ],
+      "data_requirements": {
+        "min_traces": 1,
+        "required_channel_groups": [
+          "BMS_01"
+        ],
+        "required_signals": [
+          "BMS_I_Dc",
+          "BMS_State"
+        ],
+        "trace_required": true
+      },
+      "entry_criteria": "The run's BMS_01 group decodes and carries BMS_I_Dc and BMS_State.",
+      "exit_criteria": "Both criteria PASS and the achieved charge-current minimum is reported together with its margin to -300 A.",
+      "impl_ref": null,
+      "last_change": "2026-09-22T00:00:00+00:00",
+      "mnemonic": "TC-PRF-001-01",
+      "notes": "EXPECTED VERDICT: PASS. The controller's charge branch takes -min(I_current_Chr_Max * derating, OBC_I_Avail, |demand|), so the magnitude is bounded by the parameter by construction; the test verifies that the bound survives the derating ramp and the 100 ms actuation delay. Every current criterion in this set is written in battery sign: positive = discharge, negative = charge, as stated in the BMS_I_Dc channel comment.",
+      "objective": "Show that while the battery system is Charging the DC charging current never exceeds I_current_Chr_Max = 300 A in magnitude, under the battery sign convention in which a charging current is negative.",
+      "pass_criteria": [
+        {
+          "channel_group": "BMS_01",
+          "criterion_id": "C1",
+          "description": "Battery perspective: a charging current is negative, so I_current_Chr_Max is a lower bound on BMS_I_Dc. The most negative sample inside the Charging residency is not below -300 A. The 0,05 A tolerance is the BMS_I_Dc quantisation step.",
+          "min_samples": 6000,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "min"
+          },
+          "requirement_ref": "BAT-SYS-PRF-001",
+          "rule": {
+            "op": "ge",
+            "value": -300.0
+          },
+          "signal": "BMS_I_Dc",
+          "tolerance": {
+            "abs": 0.05,
+            "rel": null
+          },
+          "unit": "A",
+          "window": {
+            "in": [
+              3
+            ],
+            "signal": "BMS_State",
+            "type": "state_mask",
+            "settle_s": 0.5
+          }
+        },
+        {
+          "channel_group": "BMS_01",
+          "criterion_id": "C2",
+          "description": "Every sample inside the Charging residency is a charge current: BMS_I_Dc is not positive. This pins the direction, without which a lower bound on a signed current says nothing.",
+          "min_samples": 6000,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "max"
+          },
+          "requirement_ref": "BAT-SYS-PRF-001",
+          "rule": {
+            "op": "le",
+            "value": 0.0
+          },
+          "signal": "BMS_I_Dc",
+          "tolerance": {
+            "abs": 0.05,
+            "rel": null
+          },
+          "unit": "A",
+          "window": {
+            "in": [
+              3
+            ],
+            "signal": "BMS_State",
+            "type": "state_mask",
+            "settle_s": 0.5
+          }
+        }
+      ],
+      "pass_criteria_logic": "all",
+      "preconditions": {
+        "gates": [
+          {
+            "channel_group": "BMS_01",
+            "criterion_id": "C1",
+            "description": "A Charging residency of at least 60 s exists, so the charge-current criteria are evaluated over a real charge and not over an empty window.",
+            "min_samples": 6000,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "none"
+            },
+            "requirement_ref": "BAT-SYS-PRF-001",
+            "rule": {
+              "op": "eq",
+              "quantifier": "all",
+              "value": 3
+            },
+            "signal": "BMS_State",
+            "tolerance": null,
+            "unit": "1",
+            "window": {
+              "in": [
+                3
+              ],
+              "signal": "BMS_State",
+              "type": "state_mask",
+              "min_duration_s": 60.0
+            }
+          }
+        ],
+        "prose": "The run must occupy BMS_State 3 (Charging) for at least 60 s with the charge plug in and the OBC active; without a charge residency there is nothing to bound and a PASS would be vacuous."
+      },
+      "priority": "high",
+      "regression_flag": true,
+      "revision": "1.0",
+      "schema_version": "1.0.0",
+      "status": "Draft",
+      "steps": [
+        {
+          "action": "Decode the run's BMS_01 frame and read BMS_I_Dc and BMS_State at 100 Hz.",
+          "expected": "Both signals are present with the units of BATTERY_DC_V1; BMS_I_Dc is signed with positive = discharge.",
+          "step_no": 1
+        },
+        {
+          "action": "Window the run on BMS_State == 3 and take the minimum of BMS_I_Dc.",
+          "expected": "The minimum is not below -300 A.",
+          "step_no": 2
+        },
+        {
+          "action": "Take the maximum of BMS_I_Dc over the same window.",
+          "expected": "The maximum is not above 0 A, so every sample in the residency is a charge current and not a discharge.",
+          "step_no": 3
+        }
+      ],
+      "stimulus": {
+        "config_ref": "afa977422bf2",
+        "notes": "300 A charge into a 35 degC pack at 35 degC ambient from 20 % SOC with the chiller off for the whole 900 s. The uncommanded cooling loop is the scenario's stated condition, not a defect: 2 500 W of cooling against 2 502 W of I2R heating would pin the pack near 55 degC and suppress the excursion entirely. The plant clamp MAX_BATTERY_TEMP is lifted to 65 degC in every scenario so the model no longer holds the 60 degC ceiling the BMS is supposed to hold.",
+        "scenario_ref": "T1",
+        "variant_id": "nominal"
+      },
+      "tc_id": "BAT-SYS-TC-001",
+      "technique": "SIL",
+      "test_environment": "SIL: dc-battery-sim plant vendored from quixstreams-tests@cae68bd710a247d7fbbd7174bebdcfd593219315:dc-battery-sim with the current-sign polarity patch (three statements, battery perspective: positive = discharge), driven headlessly by battery-trace-gen 0.1.0 with its BMS controller. Device a3f1c07d9b4e2610, platform BATTERY_DC_V1, one bus channel 1=battery_hs_can1. Evaluated offline from the run's MF4; signal names, units and enum legends are pinned to BATTERY_DC_V1 (sha256 1f86e4f5eb14), resolved from DCM as type=dbc target_key=BATTERY_DC_V1 config_id=d527f90a80a9bcc8e81133a8d808f82679778a9d.",
+      "title": "DC charging current held at or below I_current_Chr_Max",
+      "verification_method": "Test"
+    },
+    {
+      "covers_req_ids": [
+        "BAT-SYS-SAF-003"
+      ],
+      "data_requirements": {
+        "min_traces": 1,
+        "required_channel_groups": [
+          "BMS_01",
+          "BMS_03"
+        ],
+        "required_signals": [
+          "BMS_Derating_Fct",
+          "BMS_I_Chg_Lim",
+          "BMS_I_Dc",
+          "BMS_State",
+          "BMS_T_Derate_Ref"
+        ],
+        "trace_required": true
+      },
+      "entry_criteria": "The run's BMS_01 and BMS_03 groups decode; both are on the same trace and BMS_03 is zero-order-hold alignable onto the 100 Hz BMS_01 raster.",
+      "exit_criteria": "All five criteria PASS and the achieved factor at the band midpoint is reported together with the 0,1 degC quantisation of its input.",
+      "impl_ref": null,
+      "last_change": "2026-09-22T00:00:00+00:00",
+      "mnemonic": "TC-SAF-003-01",
+      "notes": "EXPECTED VERDICT: PASS. VOCABULARY LIMITATION: rule.value is a number, so the criterion vocabulary cannot assert BMS_Derating_Fct == clamp((60 - BMS_T_Derate_Ref) / 5, 0, 1) directly, nor BMS_I_Dc >= -BMS_I_Chg_Lim. Both are decomposed into numeric bounds over windows keyed on the other signal, which pins the law at three points of the band and the limit at two points of its range rather than universally. C4 and C5 window on BMS_I_Chg_Lim rather than on temperature deliberately: BMS_03 reports the derating triple one tick late, so the published limit and the current on the bus describe the same instant, while a window on BMS_T_Derate_Ref would straddle the 100 ms actuation delay and see up to 3 A of apparent excess during the steep part of the ramp.",
+      "objective": "Show that the published derating factor follows clamp((T_batt_max - T_ref) / T_batt_safety_threshold, 0, 1) across the 55 degC to 60 degC band, and that the derated charge-current limit is the bound the charging current actually respects.",
+      "pass_criteria": [
+        {
+          "channel_group": "BMS_03",
+          "criterion_id": "C1",
+          "description": "Below the safety band the factor is unity: every sample where BMS_T_Derate_Ref is at or below T_batt_max minus T_batt_safety_threshold carries a factor of 1,0. The 0,02 tolerance is the 0,1 degC quantisation of BMS_T_Derate_Ref propagated through the 1/5 slope, plus the factor's own 0,001 step.",
+          "min_samples": 100,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "min"
+          },
+          "requirement_ref": "BAT-SYS-SAF-003",
+          "rule": {
+            "op": "ge",
+            "value": 1.0
+          },
+          "signal": "BMS_Derating_Fct",
+          "tolerance": {
+            "abs": 0.02,
+            "rel": null
+          },
+          "unit": "1",
+          "window": {
+            "op": "le",
+            "signal": "BMS_T_Derate_Ref",
+            "type": "signal_threshold",
+            "value": 55.0
+          }
+        },
+        {
+          "channel_group": "BMS_03",
+          "criterion_id": "C2",
+          "description": "At and above the ceiling the factor is zero: every sample where BMS_T_Derate_Ref is at or above T_batt_max carries a factor of 0,0.",
+          "min_samples": 100,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "max"
+          },
+          "requirement_ref": "BAT-SYS-SAF-003",
+          "rule": {
+            "op": "le",
+            "value": 0.0
+          },
+          "signal": "BMS_Derating_Fct",
+          "tolerance": {
+            "abs": 0.02,
+            "rel": null
+          },
+          "unit": "1",
+          "window": {
+            "op": "ge",
+            "signal": "BMS_T_Derate_Ref",
+            "type": "signal_threshold",
+            "value": 60.0
+          }
+        },
+        {
+          "channel_group": "BMS_03",
+          "criterion_id": "C3",
+          "description": "The ramp is linear, pinned at the midpoint of the band: over the 57,0 degC to 58,0 degC slice of BMS_T_Derate_Ref the mean factor is 0,50, which is what (60 - 57,5) / 5 gives.",
+          "min_samples": 10,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "mean"
+          },
+          "requirement_ref": "BAT-SYS-SAF-003",
+          "rule": {
+            "op": "within",
+            "value": 0.45,
+            "value2": 0.55
+          },
+          "signal": "BMS_Derating_Fct",
+          "tolerance": null,
+          "unit": "1",
+          "window": {
+            "parts": [
+              {
+                "op": "ge",
+                "signal": "BMS_T_Derate_Ref",
+                "type": "signal_threshold",
+                "value": 57.0
+              },
+              {
+                "op": "le",
+                "signal": "BMS_T_Derate_Ref",
+                "type": "signal_threshold",
+                "value": 58.0
+              }
+            ],
+            "type": "all_of"
+          }
+        },
+        {
+          "channel_group": "BMS_01",
+          "criterion_id": "C4",
+          "description": "The derated limit is the bound the current respects: wherever the published BMS_I_Chg_Lim is at or below 30 A, BMS_I_Dc is not below -30 A. The 0,15 A tolerance is the sum of the two signals' quantisation steps.",
+          "min_samples": 100,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "min"
+          },
+          "requirement_ref": "BAT-SYS-SAF-003",
+          "rule": {
+            "op": "ge",
+            "value": -30.0
+          },
+          "signal": "BMS_I_Dc",
+          "tolerance": {
+            "abs": 0.15,
+            "rel": null
+          },
+          "unit": "A",
+          "window": {
+            "parts": [
+              {
+                "in": [
+                  3
+                ],
+                "signal": "BMS_State",
+                "type": "state_mask"
+              },
+              {
+                "op": "le",
+                "signal": "BMS_I_Chg_Lim",
+                "type": "signal_threshold",
+                "value": 30.0
+              }
+            ],
+            "type": "all_of"
+          }
+        },
+        {
+          "channel_group": "BMS_01",
+          "criterion_id": "C5",
+          "description": "A fully derated limit stops the charge: wherever BMS_I_Chg_Lim is zero, no charging current flows.",
+          "min_samples": 100,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "abs_max"
+          },
+          "requirement_ref": "BAT-SYS-SAF-003",
+          "rule": {
+            "op": "le",
+            "value": 0.0
+          },
+          "signal": "BMS_I_Dc",
+          "tolerance": {
+            "abs": 0.05,
+            "rel": null
+          },
+          "unit": "A",
+          "window": {
+            "parts": [
+              {
+                "in": [
+                  3
+                ],
+                "signal": "BMS_State",
+                "type": "state_mask"
+              },
+              {
+                "op": "le",
+                "signal": "BMS_I_Chg_Lim",
+                "type": "signal_threshold",
+                "value": 0.0
+              }
+            ],
+            "type": "all_of"
+          }
+        }
+      ],
+      "pass_criteria_logic": "all",
+      "preconditions": {
+        "gates": [
+          {
+            "channel_group": "BMS_01",
+            "criterion_id": "C1",
+            "description": "A Charging residency of at least 60 s exists, so the charge-current criteria are evaluated over a real charge and not over an empty window.",
+            "min_samples": 6000,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "none"
+            },
+            "requirement_ref": "BAT-SYS-SAF-003",
+            "rule": {
+              "op": "eq",
+              "quantifier": "all",
+              "value": 3
+            },
+            "signal": "BMS_State",
+            "tolerance": null,
+            "unit": "1",
+            "window": {
+              "in": [
+                3
+              ],
+              "signal": "BMS_State",
+              "type": "state_mask",
+              "min_duration_s": 60.0
+            }
+          },
+          {
+            "channel_group": "BMS_03",
+            "criterion_id": "C2",
+            "description": "The derating band is actually entered: the reference temperature reaches at least T_batt_max minus T_batt_safety_threshold.",
+            "min_samples": 1,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "max"
+            },
+            "requirement_ref": "BAT-SYS-SAF-003",
+            "rule": {
+              "op": "ge",
+              "value": 55.0
+            },
+            "signal": "BMS_T_Derate_Ref",
+            "tolerance": null,
+            "unit": "degC",
+            "window": {
+              "type": "full"
+            }
+          }
+        ],
+        "prose": "The run must charge for at least 60 s and must drive the derating reference temperature into the 55 degC to 60 degC band; below the band the law is indistinguishable from no derating at all."
+      },
+      "priority": "high",
+      "regression_flag": true,
+      "revision": "1.0",
+      "schema_version": "1.0.0",
+      "status": "Draft",
+      "steps": [
+        {
+          "action": "Decode BMS_03 and read BMS_T_Derate_Ref, BMS_Derating_Fct and BMS_I_Chg_Lim at 10 Hz.",
+          "expected": "All three are present with the units of BATTERY_DC_V1.",
+          "step_no": 1
+        },
+        {
+          "action": "Window the run on BMS_T_Derate_Ref at or below 55 degC and read the minimum derating factor.",
+          "expected": "The factor is 1,0 over the whole window.",
+          "step_no": 2
+        },
+        {
+          "action": "Window the run on BMS_T_Derate_Ref at or above 60 degC and read the maximum derating factor.",
+          "expected": "The factor is 0,0 over the whole window.",
+          "step_no": 3
+        },
+        {
+          "action": "Window the run on the 57,0 degC to 58,0 degC slice of the band and read the mean derating factor.",
+          "expected": "The mean is 0,50, the value the linear law gives at the midpoint of the band.",
+          "step_no": 4
+        },
+        {
+          "action": "Window the run on the published charge-current limit and read the charging current against it.",
+          "expected": "Wherever the limit is at or below 30 A the current magnitude is too, and wherever the limit is zero no current flows.",
+          "step_no": 5
+        }
+      ],
+      "stimulus": {
+        "config_ref": "afa977422bf2",
+        "notes": "300 A charge into a 35 degC pack at 35 degC ambient from 20 % SOC with the chiller off for the whole 900 s. The uncommanded cooling loop is the scenario's stated condition, not a defect: 2 500 W of cooling against 2 502 W of I2R heating would pin the pack near 55 degC and suppress the excursion entirely. The plant clamp MAX_BATTERY_TEMP is lifted to 65 degC in every scenario so the model no longer holds the 60 degC ceiling the BMS is supposed to hold.",
+        "scenario_ref": "T1",
+        "variant_id": "nominal"
+      },
+      "tc_id": "BAT-SYS-TC-002",
+      "technique": "SIL",
+      "test_environment": "SIL: dc-battery-sim plant vendored from quixstreams-tests@cae68bd710a247d7fbbd7174bebdcfd593219315:dc-battery-sim with the current-sign polarity patch (three statements, battery perspective: positive = discharge), driven headlessly by battery-trace-gen 0.1.0 with its BMS controller. Device a3f1c07d9b4e2610, platform BATTERY_DC_V1, one bus channel 1=battery_hs_can1. Evaluated offline from the run's MF4; signal names, units and enum legends are pinned to BATTERY_DC_V1 (sha256 1f86e4f5eb14), resolved from DCM as type=dbc target_key=BATTERY_DC_V1 config_id=d527f90a80a9bcc8e81133a8d808f82679778a9d.",
+      "title": "Charging current derating ramps linearly to zero across the safety band",
+      "verification_method": "Test"
+    },
+    {
+      "covers_req_ids": [
+        "BAT-SYS-SAF-002"
+      ],
+      "data_requirements": {
+        "min_traces": 1,
+        "required_channel_groups": [
+          "BMS_01",
+          "BMS_03"
+        ],
+        "required_signals": [
+          "BMS_State",
+          "BMS_T_Batt"
+        ],
+        "trace_required": true
+      },
+      "entry_criteria": "The run's BMS_01 and BMS_03 groups decode.",
+      "exit_criteria": "The peak temperature and the dwell above 60 degC are reported whether the criterion passes or fails.",
+      "impl_ref": null,
+      "last_change": "2026-09-22T00:00:00+00:00",
+      "mnemonic": "TC-SAF-002-01",
+      "notes": "EXPECTED TO FAIL. That is deliberate. The derating law itself is correct and BAT-SYS-TC-002 passes against BMS_T_Derate_Ref; its input is stale. The controller calibration T_FILT_TAU, the time constant of the cell-temperature averaging the derating path uses, is rigged from 2 s to 9 s, so the BMS derates on a lagged temperature and the current falls behind the heating. The true pack temperature crosses 60 degC and stays above it for roughly 150 s to 200 s. The plant's own MAX_BATTERY_TEMP clamp is lifted to 65 degC in every scenario so the model no longer hides the excursion, and it leaves a backstop that would catch a runaway. The verdict is the ceiling breach, not the dwell.",
+      "objective": "Show that the battery system holds the pack temperature at or below T_batt_max = 60 degC through a 300 A charge that drives the pack into the derating band.",
+      "pass_criteria": [
+        {
+          "channel_group": "BMS_03",
+          "criterion_id": "C1",
+          "description": "No sample of the true pack temperature exceeds T_batt_max. The 0,05 degC tolerance is half the BMS_T_Batt quantisation step.",
+          "min_samples": 9000,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "max"
+          },
+          "requirement_ref": "BAT-SYS-SAF-002",
+          "rule": {
+            "op": "le",
+            "value": 60.0
+          },
+          "signal": "BMS_T_Batt",
+          "tolerance": {
+            "abs": 0.05,
+            "rel": null
+          },
+          "unit": "degC",
+          "window": {
+            "type": "full"
+          }
+        }
+      ],
+      "pass_criteria_logic": "all",
+      "preconditions": {
+        "gates": [
+          {
+            "channel_group": "BMS_01",
+            "criterion_id": "C1",
+            "description": "A Charging residency of at least 60 s exists, so the charge-current criteria are evaluated over a real charge and not over an empty window.",
+            "min_samples": 6000,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "none"
+            },
+            "requirement_ref": "BAT-SYS-SAF-002",
+            "rule": {
+              "op": "eq",
+              "quantifier": "all",
+              "value": 3
+            },
+            "signal": "BMS_State",
+            "tolerance": null,
+            "unit": "1",
+            "window": {
+              "in": [
+                3
+              ],
+              "signal": "BMS_State",
+              "type": "state_mask",
+              "min_duration_s": 60.0
+            }
+          },
+          {
+            "channel_group": "BMS_03",
+            "criterion_id": "C2",
+            "description": "The run is thermally loaded: the pack reaches at least T_batt_max minus T_batt_safety_threshold, so the ceiling is actually approached.",
+            "min_samples": 1,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "max"
+            },
+            "requirement_ref": "BAT-SYS-SAF-002",
+            "rule": {
+              "op": "ge",
+              "value": 55.0
+            },
+            "signal": "BMS_T_Batt",
+            "tolerance": null,
+            "unit": "degC",
+            "window": {
+              "type": "full"
+            }
+          }
+        ],
+        "prose": "The pack must be driven to within the safety band of the ceiling. A run that never approaches 60 degC verifies nothing about the ceiling."
+      },
+      "priority": "high",
+      "regression_flag": true,
+      "revision": "1.0",
+      "schema_version": "1.0.0",
+      "status": "Draft",
+      "steps": [
+        {
+          "action": "Decode BMS_03 and read BMS_T_Batt over the whole run.",
+          "expected": "The signal is present at 10 Hz in degC.",
+          "step_no": 1
+        },
+        {
+          "action": "Take the maximum of BMS_T_Batt over the whole run.",
+          "expected": "The maximum is not above T_batt_max = 60 degC.",
+          "step_no": 2
+        }
+      ],
+      "stimulus": {
+        "config_ref": "afa977422bf2",
+        "notes": "300 A charge into a 35 degC pack at 35 degC ambient from 20 % SOC with the chiller off for the whole 900 s. The uncommanded cooling loop is the scenario's stated condition, not a defect: 2 500 W of cooling against 2 502 W of I2R heating would pin the pack near 55 degC and suppress the excursion entirely. The plant clamp MAX_BATTERY_TEMP is lifted to 65 degC in every scenario so the model no longer holds the 60 degC ceiling the BMS is supposed to hold.",
+        "scenario_ref": "T1",
+        "variant_id": "T_FILT_TAU"
+      },
+      "tc_id": "BAT-SYS-TC-003",
+      "technique": "SIL",
+      "test_environment": "SIL: dc-battery-sim plant vendored from quixstreams-tests@cae68bd710a247d7fbbd7174bebdcfd593219315:dc-battery-sim with the current-sign polarity patch (three statements, battery perspective: positive = discharge), driven headlessly by battery-trace-gen 0.1.0 with its BMS controller. Device a3f1c07d9b4e2610, platform BATTERY_DC_V1, one bus channel 1=battery_hs_can1. Evaluated offline from the run's MF4; signal names, units and enum legends are pinned to BATTERY_DC_V1 (sha256 1f86e4f5eb14), resolved from DCM as type=dbc target_key=BATTERY_DC_V1 config_id=d527f90a80a9bcc8e81133a8d808f82679778a9d.",
+      "title": "Battery temperature held at or below T_batt_max",
+      "verification_method": "Test"
+    },
+    {
+      "covers_req_ids": [
+        "BAT-SYS-FUN-001"
+      ],
+      "data_requirements": {
+        "min_traces": 1,
+        "required_channel_groups": [
+          "BMS_01",
+          "BMS_02"
+        ],
+        "required_signals": [
+          "BMS_I_Dc",
+          "BMS_Soc_Tech"
+        ],
+        "trace_required": true
+      },
+      "entry_criteria": "The run's BMS_01 and BMS_02 groups decode and BMS_02 is zero-order-hold alignable onto the 100 Hz BMS_01 raster.",
+      "exit_criteria": "All three criteria PASS and the SOC drop is reported beside the integrated charge throughput.",
+      "impl_ref": null,
+      "last_change": "2026-09-22T00:00:00+00:00",
+      "mnemonic": "TC-FUN-001-01",
+      "notes": "EXPECTED VERDICT: PASS. VOCABULARY LIMITATION: the closed criterion vocabulary has no integral reduction, so |SOC drop - integral of BMS_I_Dc / Q_max| <= 0,2 % cannot be written directly. It is decomposed into the initial value, the value after a window of known constant current where the integral is an exact product, and a direction criterion over the whole run. The requirement is therefore verified at this operating point rather than universally. The generator's manifest carries the full trapezoidal integral against the SOC delta for the record.",
+      "objective": "Show that the technical state of charge is the time integral of the measured DC current over the pack capacity, by pinning its value at the start of a constant-current sweep, after a known charge throughput, and by its direction throughout.",
+      "pass_criteria": [
+        {
+          "channel_group": "BMS_02",
+          "criterion_id": "C1",
+          "description": "The sweep starts from a full pack: the technical SOC over the first second is 100 %.",
+          "min_samples": 10,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "mean"
+          },
+          "requirement_ref": "BAT-SYS-FUN-001",
+          "rule": {
+            "op": "within",
+            "value": 99.9,
+            "value2": 100.1
+          },
+          "signal": "BMS_Soc_Tech",
+          "tolerance": null,
+          "unit": "%",
+          "window": {
+            "t_end_s": 1.0,
+            "t_start_s": 0.0,
+            "type": "time_range"
+          }
+        },
+        {
+          "channel_group": "BMS_02",
+          "criterion_id": "C2",
+          "description": "After 540 s at a constant 250 A the technical SOC has fallen by 37,5 points to 62,5 %: 250 A x 540 s = 135 000 As against the 360 000 As pack. The 0,5 point band is 1 800 As, five times the 72 As the 0,05 A current quantisation can accumulate over the window.",
+          "min_samples": 10,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "mean"
+          },
+          "requirement_ref": "BAT-SYS-FUN-001",
+          "rule": {
+            "op": "within",
+            "value": 62.0,
+            "value2": 63.0
+          },
+          "signal": "BMS_Soc_Tech",
+          "tolerance": null,
+          "unit": "%",
+          "window": {
+            "t_end_s": 540.0,
+            "t_start_s": 539.0,
+            "type": "time_range"
+          }
+        },
+        {
+          "channel_group": "BMS_02",
+          "criterion_id": "C3",
+          "description": "The estimator integrates rather than drifts: the technical SOC is never increasing on a run that only discharges.",
+          "min_samples": 10000,
+          "on_missing_signal": "error",
+          "reduce": {
+            "method": "central",
+            "op": "derivative"
+          },
+          "requirement_ref": "BAT-SYS-FUN-001",
+          "rule": {
+            "op": "le",
+            "quantifier": "all",
+            "value": 0.0
+          },
+          "signal": "BMS_Soc_Tech",
+          "tolerance": {
+            "abs": 0.02,
+            "rel": null
+          },
+          "unit": "%",
+          "window": {
+            "type": "full"
+          }
+        }
+      ],
+      "pass_criteria_logic": "all",
+      "preconditions": {
+        "gates": [
+          {
+            "channel_group": "BMS_01",
+            "criterion_id": "C1",
+            "description": "The sweep really runs at a constant 250 A discharge over the window the throughput criterion uses.",
+            "min_samples": 50000,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "mean"
+            },
+            "requirement_ref": "BAT-SYS-FUN-001",
+            "rule": {
+              "op": "within",
+              "value": 249.5,
+              "value2": 250.5
+            },
+            "signal": "BMS_I_Dc",
+            "tolerance": null,
+            "unit": "A",
+            "window": {
+              "t_end_s": 539.0,
+              "t_start_s": 10.0,
+              "type": "time_range"
+            }
+          }
+        ],
+        "prose": "The charge throughput criterion is only meaningful if the current over the window really is the constant 250 A the scenario commands; the gate asserts that before the SOC drop is read."
+      },
+      "priority": "medium",
+      "regression_flag": true,
+      "revision": "1.0",
+      "schema_version": "1.0.0",
+      "status": "Draft",
+      "steps": [
+        {
+          "action": "Decode BMS_01 and BMS_02 and read BMS_I_Dc and BMS_Soc_Tech.",
+          "expected": "Both are present; BMS_Soc_Tech is in per cent at 10 Hz.",
+          "step_no": 1
+        },
+        {
+          "action": "Read the technical SOC over the first second of the run.",
+          "expected": "It is 100 %, the scenario's initial charge state.",
+          "step_no": 2
+        },
+        {
+          "action": "Read the technical SOC over the second ending at t = 540 s, after 250 A has flowed for 540 s, which is 135 000 As of the 360 000 As pack.",
+          "expected": "It has fallen by 37,5 points, to 62,5 %.",
+          "step_no": 3
+        },
+        {
+          "action": "Take the sample-to-sample derivative of the technical SOC.",
+          "expected": "It is never positive: a discharge-only run never gains charge.",
+          "step_no": 4
+        }
+      ],
+      "stimulus": {
+        "config_ref": "42791c737691",
+        "notes": "250 A discharge from 100 % SOC at 25 degC with the chiller on stage 2 for the whole 1 440 s. The chiller is mandatory: 1 738 W of I2R heating against KE = 1,6 W/degC would otherwise pin the pack at the MAX_BATTERY_TEMP backstop.",
+        "scenario_ref": "T2",
+        "variant_id": "nominal"
+      },
+      "tc_id": "BAT-SYS-TC-004",
+      "technique": "SIL",
+      "test_environment": "SIL: dc-battery-sim plant vendored from quixstreams-tests@cae68bd710a247d7fbbd7174bebdcfd593219315:dc-battery-sim with the current-sign polarity patch (three statements, battery perspective: positive = discharge), driven headlessly by battery-trace-gen 0.1.0 with its BMS controller. Device a3f1c07d9b4e2610, platform BATTERY_DC_V1, one bus channel 1=battery_hs_can1. Evaluated offline from the run's MF4; signal names, units and enum legends are pinned to BATTERY_DC_V1 (sha256 1f86e4f5eb14), resolved from DCM as type=dbc target_key=BATTERY_DC_V1 config_id=d527f90a80a9bcc8e81133a8d808f82679778a9d.",
+      "title": "Technical state of charge tracks the integrated DC current",
+      "verification_method": "Test"
+    },
+    {
+      "covers_req_ids": [
+        "BAT-SYS-SAF-001"
+      ],
+      "data_requirements": {
+        "min_traces": 1,
+        "required_channel_groups": [
+          "BMS_01",
+          "BMS_02"
+        ],
+        "required_signals": [
+          "BMS_Soc_Tech",
+          "BMS_U_Dc"
+        ],
+        "trace_required": true
+      },
+      "entry_criteria": "The run's BMS_01 and BMS_02 groups decode.",
+      "exit_criteria": "Both criteria PASS and the achieved voltage extremes are reported with their margins to the two rails.",
+      "impl_ref": null,
+      "last_change": "2026-09-22T00:00:00+00:00",
+      "mnemonic": "TC-SAF-001-01",
+      "notes": "EXPECTED VERDICT: PASS. The plant's open-circuit curve is exactly the SAF-001 window - 720 V at 0 % SOC, 840 V at 100 % - so the window is unsatisfiable under load unless the BMS backs the current off first. The controller uses the resistance-based discharge limit (U_dc - Udc_min) / R_INT_EST with R_INT_EST = 0,15 ohm, whose quasi-steady state is U_dc = (OCV + Udc_min) / 2; that approaches 720 V asymptotically and never crosses it, which is what this case verifies.",
+      "objective": "Show that the terminal voltage stays within 720 V to 840 V through a full 250 A discharge sweep that takes the pack from 100 % SOC to roughly 23 %.",
+      "pass_criteria": [
+        {
+          "channel_group": "BMS_01",
+          "criterion_id": "C1",
+          "description": "No sample falls below Udc_min. The 0,01 V tolerance is the BMS_U_Dc quantisation step.",
+          "min_samples": 100000,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "min"
+          },
+          "requirement_ref": "BAT-SYS-SAF-001",
+          "rule": {
+            "op": "ge",
+            "value": 720.0
+          },
+          "signal": "BMS_U_Dc",
+          "tolerance": {
+            "abs": 0.01,
+            "rel": null
+          },
+          "unit": "V",
+          "window": {
+            "type": "full"
+          }
+        },
+        {
+          "channel_group": "BMS_01",
+          "criterion_id": "C2",
+          "description": "No sample rises above Udc_Max. The first sample sits exactly on 840 V, the open-circuit voltage of a full pack at rest, which is inside the closed interval the requirement states.",
+          "min_samples": 100000,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "max"
+          },
+          "requirement_ref": "BAT-SYS-SAF-001",
+          "rule": {
+            "op": "le",
+            "value": 840.0
+          },
+          "signal": "BMS_U_Dc",
+          "tolerance": {
+            "abs": 0.01,
+            "rel": null
+          },
+          "unit": "V",
+          "window": {
+            "type": "full"
+          }
+        }
+      ],
+      "pass_criteria_logic": "all",
+      "preconditions": {
+        "gates": [
+          {
+            "channel_group": "BMS_02",
+            "criterion_id": "C1",
+            "description": "The sweep really approaches the bottom of the window: the technical SOC falls to 30 % or below, so the lower rail is actually approached under load.",
+            "min_samples": 1,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "min"
+            },
+            "requirement_ref": "BAT-SYS-SAF-001",
+            "rule": {
+              "op": "le",
+              "value": 30.0
+            },
+            "signal": "BMS_Soc_Tech",
+            "tolerance": null,
+            "unit": "%",
+            "window": {
+              "type": "full"
+            }
+          }
+        ],
+        "prose": "The lower limit is only exercised if the sweep runs deep enough that the open-circuit voltage approaches Udc_min; a shallow discharge would pass trivially."
+      },
+      "priority": "high",
+      "regression_flag": true,
+      "revision": "1.0",
+      "schema_version": "1.0.0",
+      "status": "Draft",
+      "steps": [
+        {
+          "action": "Decode BMS_01 and read BMS_U_Dc over the whole run.",
+          "expected": "The signal is present at 100 Hz in volts.",
+          "step_no": 1
+        },
+        {
+          "action": "Take the minimum and the maximum of BMS_U_Dc over the run.",
+          "expected": "Both lie inside 720 V to 840 V.",
+          "step_no": 2
+        }
+      ],
+      "stimulus": {
+        "config_ref": "42791c737691",
+        "notes": "250 A discharge from 100 % SOC at 25 degC with the chiller on stage 2 for the whole 1 440 s. The chiller is mandatory: 1 738 W of I2R heating against KE = 1,6 W/degC would otherwise pin the pack at the MAX_BATTERY_TEMP backstop.",
+        "scenario_ref": "T2",
+        "variant_id": "nominal"
+      },
+      "tc_id": "BAT-SYS-TC-005",
+      "technique": "SIL",
+      "test_environment": "SIL: dc-battery-sim plant vendored from quixstreams-tests@cae68bd710a247d7fbbd7174bebdcfd593219315:dc-battery-sim with the current-sign polarity patch (three statements, battery perspective: positive = discharge), driven headlessly by battery-trace-gen 0.1.0 with its BMS controller. Device a3f1c07d9b4e2610, platform BATTERY_DC_V1, one bus channel 1=battery_hs_can1. Evaluated offline from the run's MF4; signal names, units and enum legends are pinned to BATTERY_DC_V1 (sha256 1f86e4f5eb14), resolved from DCM as type=dbc target_key=BATTERY_DC_V1 config_id=d527f90a80a9bcc8e81133a8d808f82679778a9d.",
+      "title": "Terminal voltage stays inside the Udc_min to Udc_Max window",
+      "verification_method": "Test"
+    },
+    {
+      "covers_req_ids": [
+        "BAT-SYS-FUN-002"
+      ],
+      "data_requirements": {
+        "min_traces": 1,
+        "required_channel_groups": [
+          "BMS_02"
+        ],
+        "required_signals": [
+          "BMS_Soc_Cust",
+          "BMS_Soc_Tech"
+        ],
+        "trace_required": true
+      },
+      "entry_criteria": "The run's BMS_02 group decodes and carries both SOC signals.",
+      "exit_criteria": "The customer SOC at all three operating points is reported against the map the requirement states, whether the criteria pass or fail.",
+      "impl_ref": null,
+      "last_change": "2026-09-22T00:00:00+00:00",
+      "mnemonic": "TC-FUN-002-01",
+      "notes": "EXPECTED TO FAIL, on C2 and C3. The controller parameter SOC_tech_at_cust_0pct is rigged from 25 % to 20 %, so the customer map is anchored five points low: at a technical SOC of 25 % the BMS reports 7,14 % where the requirement says 0 %, and at 57,5 % it reports 53,57 % where the requirement says 50 %. The upper anchor still clamps to 100 % and C1 passes, which is what makes the failure a map error rather than a dead signal. VOCABULARY LIMITATION: rule.value is a number, so |BMS_Soc_Cust - map(BMS_Soc_Tech)| <= 0,5 % cannot be written as a signal-versus-signal comparison; it is pinned at the two anchors and the midpoint instead, which is exactly enough to determine a clamped linear map.",
+      "objective": "Show that the customer state of charge is the clamped linear map of the technical state of charge that puts 0 % at SOC_tech_at_cust_0pct = 25 % and 100 % at SOC_tech_at_cust_100pct = 90 %.",
+      "pass_criteria": [
+        {
+          "channel_group": "BMS_02",
+          "criterion_id": "C1",
+          "description": "Upper anchor: at a technical SOC of 90 % the customer SOC is 100 %. The 0,5 point band is the requirement's own accuracy criterion.",
+          "min_samples": 10,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "mean"
+          },
+          "requirement_ref": "BAT-SYS-FUN-002",
+          "rule": {
+            "op": "ge",
+            "value": 99.5
+          },
+          "signal": "BMS_Soc_Cust",
+          "tolerance": {
+            "abs": 0.01,
+            "rel": null
+          },
+          "unit": "%",
+          "window": {
+            "parts": [
+              {
+                "op": "ge",
+                "signal": "BMS_Soc_Tech",
+                "type": "signal_threshold",
+                "value": 89.9
+              },
+              {
+                "op": "le",
+                "signal": "BMS_Soc_Tech",
+                "type": "signal_threshold",
+                "value": 90.1
+              }
+            ],
+            "type": "all_of"
+          }
+        },
+        {
+          "channel_group": "BMS_02",
+          "criterion_id": "C2",
+          "description": "Midpoint: at a technical SOC of 57,5 %, halfway between the two anchors, the customer SOC is 50 %.",
+          "min_samples": 10,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "mean"
+          },
+          "requirement_ref": "BAT-SYS-FUN-002",
+          "rule": {
+            "op": "within",
+            "value": 49.5,
+            "value2": 50.5
+          },
+          "signal": "BMS_Soc_Cust",
+          "tolerance": {
+            "abs": 0.01,
+            "rel": null
+          },
+          "unit": "%",
+          "window": {
+            "parts": [
+              {
+                "op": "ge",
+                "signal": "BMS_Soc_Tech",
+                "type": "signal_threshold",
+                "value": 57.4
+              },
+              {
+                "op": "le",
+                "signal": "BMS_Soc_Tech",
+                "type": "signal_threshold",
+                "value": 57.6
+              }
+            ],
+            "type": "all_of"
+          }
+        },
+        {
+          "channel_group": "BMS_02",
+          "criterion_id": "C3",
+          "description": "Lower anchor: at a technical SOC of 25 % the customer SOC is 0 %, so the reserve below the anchor is not handed to the customer.",
+          "min_samples": 10,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "mean"
+          },
+          "requirement_ref": "BAT-SYS-FUN-002",
+          "rule": {
+            "op": "le",
+            "value": 0.5
+          },
+          "signal": "BMS_Soc_Cust",
+          "tolerance": {
+            "abs": 0.01,
+            "rel": null
+          },
+          "unit": "%",
+          "window": {
+            "parts": [
+              {
+                "op": "ge",
+                "signal": "BMS_Soc_Tech",
+                "type": "signal_threshold",
+                "value": 24.9
+              },
+              {
+                "op": "le",
+                "signal": "BMS_Soc_Tech",
+                "type": "signal_threshold",
+                "value": 25.1
+              }
+            ],
+            "type": "all_of"
+          }
+        }
+      ],
+      "pass_criteria_logic": "all",
+      "preconditions": {
+        "gates": [
+          {
+            "channel_group": "BMS_02",
+            "criterion_id": "C1",
+            "description": "The sweep crosses the whole mapped band: the technical SOC reaches 25 % or below, so both anchors and the midpoint are inside the run.",
+            "min_samples": 1,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "min"
+            },
+            "requirement_ref": "BAT-SYS-FUN-002",
+            "rule": {
+              "op": "le",
+              "value": 25.0
+            },
+            "signal": "BMS_Soc_Tech",
+            "tolerance": null,
+            "unit": "%",
+            "window": {
+              "type": "full"
+            }
+          }
+        ],
+        "prose": "Both anchors of the map and its midpoint must be swept, or the map is pinned at fewer points than it has degrees of freedom."
+      },
+      "priority": "medium",
+      "regression_flag": true,
+      "revision": "1.0",
+      "schema_version": "1.0.0",
+      "status": "Draft",
+      "steps": [
+        {
+          "action": "Decode BMS_02 and read BMS_Soc_Tech and BMS_Soc_Cust.",
+          "expected": "Both are present at 10 Hz in per cent.",
+          "step_no": 1
+        },
+        {
+          "action": "Window the run on the technical SOC slice 89,9 % to 90,1 % and read the mean customer SOC.",
+          "expected": "It is 100 %, the upper anchor.",
+          "step_no": 2
+        },
+        {
+          "action": "Window the run on the technical SOC slice 57,4 % to 57,6 % and read the mean customer SOC.",
+          "expected": "It is 50 %, the midpoint of the linear map.",
+          "step_no": 3
+        },
+        {
+          "action": "Window the run on the technical SOC slice 24,9 % to 25,1 % and read the mean customer SOC.",
+          "expected": "It is 0 %, the lower anchor.",
+          "step_no": 4
+        }
+      ],
+      "stimulus": {
+        "config_ref": "42791c737691",
+        "notes": "250 A discharge from 100 % SOC at 25 degC with the chiller on stage 2 for the whole 1 440 s. The chiller is mandatory: 1 738 W of I2R heating against KE = 1,6 W/degC would otherwise pin the pack at the MAX_BATTERY_TEMP backstop.",
+        "scenario_ref": "T2",
+        "variant_id": "SOC_tech_at_cust_0pct"
+      },
+      "tc_id": "BAT-SYS-TC-006",
+      "technique": "SIL",
+      "test_environment": "SIL: dc-battery-sim plant vendored from quixstreams-tests@cae68bd710a247d7fbbd7174bebdcfd593219315:dc-battery-sim with the current-sign polarity patch (three statements, battery perspective: positive = discharge), driven headlessly by battery-trace-gen 0.1.0 with its BMS controller. Device a3f1c07d9b4e2610, platform BATTERY_DC_V1, one bus channel 1=battery_hs_can1. Evaluated offline from the run's MF4; signal names, units and enum legends are pinned to BATTERY_DC_V1 (sha256 1f86e4f5eb14), resolved from DCM as type=dbc target_key=BATTERY_DC_V1 config_id=d527f90a80a9bcc8e81133a8d808f82679778a9d.",
+      "title": "Customer state of charge maps linearly from the technical value",
+      "verification_method": "Test"
+    },
+    {
+      "covers_req_ids": [
+        "BAT-SYS-FUN-003"
+      ],
+      "data_requirements": {
+        "min_traces": 1,
+        "required_channel_groups": [
+          "BMS_01",
+          "BMS_04"
+        ],
+        "required_signals": [
+          "BMS_Balancing_Act",
+          "BMS_State",
+          "BMS_U_Cell_Delta",
+          "BMS_U_Cell_Max",
+          "BMS_U_Cell_Min"
+        ],
+        "trace_required": true
+      },
+      "entry_criteria": "The run's BMS_01 and BMS_04 groups decode; BMS_04 is zero-order-hold alignable onto the 100 Hz BMS_01 raster.",
+      "exit_criteria": "All four criteria PASS and the entry and exit spreads are reported with their ratio.",
+      "impl_ref": null,
+      "last_change": "2026-09-22T00:00:00+00:00",
+      "mnemonic": "TC-FUN-003-01",
+      "notes": "EXPECTED VERDICT: PASS. The criteria are written on BMS_U_Cell_Delta rather than on the u_cell_min and u_cell_max measurands because the delta carries 0,1 mV resolution against the 1 mV of the two cell voltages, and it is computed from the same 200-cell array the multiplexed BMS_Cell_01 frame transmits, so the two frames cannot disagree. Per-cell bleed current is around 100 mA and invisible at pack level, so balancing draws no pack current; that is declared, not modelled.",
+      "objective": "Show that active balancing runs inside the Sleep residency and drives the cell-to-cell spread monotonically down to at most half its starting value.",
+      "pass_criteria": [
+        {
+          "channel_group": "BMS_01",
+          "criterion_id": "C1",
+          "description": "Balancing runs only in Sleep: every sample where BMS_Balancing_Act is asserted carries BMS_State == 1. This is the ASPICE mapping of the requirement's Balancing system state.",
+          "min_samples": 6000,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "none"
+          },
+          "requirement_ref": "BAT-SYS-FUN-003",
+          "rule": {
+            "op": "eq",
+            "quantifier": "all",
+            "value": 1
+          },
+          "signal": "BMS_State",
+          "tolerance": null,
+          "unit": "1",
+          "window": {
+            "in": [
+              1
+            ],
+            "signal": "BMS_Balancing_Act",
+            "type": "state_mask",
+            "min_duration_s": 60.0
+          }
+        },
+        {
+          "channel_group": "BMS_04",
+          "criterion_id": "C2",
+          "description": "The spread never exceeds the 40 mV it starts from: the balancing window opens at the seeded 39,6 mV spread and nothing widens it.",
+          "min_samples": 6000,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "max"
+          },
+          "requirement_ref": "BAT-SYS-FUN-003",
+          "rule": {
+            "op": "le",
+            "value": 0.04
+          },
+          "signal": "BMS_U_Cell_Delta",
+          "tolerance": {
+            "abs": 0.0001,
+            "rel": null
+          },
+          "unit": "V",
+          "window": {
+            "in": [
+              1
+            ],
+            "signal": "BMS_Balancing_Act",
+            "type": "state_mask",
+            "min_duration_s": 60.0
+          }
+        },
+        {
+          "channel_group": "BMS_04",
+          "criterion_id": "C3",
+          "description": "The spread closes to at most half its starting value: the minimum inside the balancing window is at or below 19,8 mV, half of the 39,6 mV entry spread.",
+          "min_samples": 6000,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "min"
+          },
+          "requirement_ref": "BAT-SYS-FUN-003",
+          "rule": {
+            "op": "le",
+            "value": 0.0198
+          },
+          "signal": "BMS_U_Cell_Delta",
+          "tolerance": {
+            "abs": 0.0001,
+            "rel": null
+          },
+          "unit": "V",
+          "window": {
+            "in": [
+              1
+            ],
+            "signal": "BMS_Balancing_Act",
+            "type": "state_mask",
+            "min_duration_s": 60.0
+          }
+        },
+        {
+          "channel_group": "BMS_04",
+          "criterion_id": "C4",
+          "description": "The spread is non-increasing while balancing is active: the equaliser never lets a cell diverge.",
+          "min_samples": 6000,
+          "on_missing_signal": "error",
+          "reduce": {
+            "method": "central",
+            "op": "derivative"
+          },
+          "requirement_ref": "BAT-SYS-FUN-003",
+          "rule": {
+            "op": "le",
+            "quantifier": "all",
+            "value": 0.0
+          },
+          "signal": "BMS_U_Cell_Delta",
+          "tolerance": {
+            "abs": 0.0002,
+            "rel": null
+          },
+          "unit": "V",
+          "window": {
+            "in": [
+              1
+            ],
+            "signal": "BMS_Balancing_Act",
+            "type": "state_mask",
+            "min_duration_s": 60.0
+          }
+        }
+      ],
+      "pass_criteria_logic": "all",
+      "preconditions": {
+        "gates": [
+          {
+            "channel_group": "BMS_01",
+            "criterion_id": "C1",
+            "description": "A Sleep residency of at least 300 s exists, so there is a window in which no load current masks the cell spread.",
+            "min_samples": 30000,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "none"
+            },
+            "requirement_ref": "BAT-SYS-FUN-003",
+            "rule": {
+              "op": "eq",
+              "quantifier": "all",
+              "value": 1
+            },
+            "signal": "BMS_State",
+            "tolerance": null,
+            "unit": "1",
+            "window": {
+              "in": [
+                1
+              ],
+              "signal": "BMS_State",
+              "type": "state_mask",
+              "min_duration_s": 300.0
+            }
+          },
+          {
+            "channel_group": "BMS_04",
+            "criterion_id": "C2",
+            "description": "Balancing is asserted at least once in the run.",
+            "min_samples": 1,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "max"
+            },
+            "requirement_ref": "BAT-SYS-FUN-003",
+            "rule": {
+              "op": "eq",
+              "value": 1
+            },
+            "signal": "BMS_Balancing_Act",
+            "tolerance": null,
+            "unit": "1",
+            "window": {
+              "type": "full"
+            }
+          }
+        ],
+        "prose": "The run must enter Sleep and must assert BMS_Balancing_Act inside it. The requirement's system state Balancing maps onto BMS_State == 1 with BMS_Balancing_Act == 1; balancing is a flag rather than a top-level state so that the Sleep residency is not ended mid-relaxation."
+      },
+      "priority": "medium",
+      "regression_flag": true,
+      "revision": "1.0",
+      "schema_version": "1.0.0",
+      "status": "Draft",
+      "steps": [
+        {
+          "action": "Decode BMS_01 and BMS_04 and read BMS_State, BMS_Balancing_Act and BMS_U_Cell_Delta.",
+          "expected": "All three are present; BMS_U_Cell_Delta has 0,1 mV resolution.",
+          "step_no": 1
+        },
+        {
+          "action": "Window the run on BMS_Balancing_Act == 1 and check the battery state over that window.",
+          "expected": "The state is Sleep throughout.",
+          "step_no": 2
+        },
+        {
+          "action": "Take the maximum and the minimum of the spread over the window.",
+          "expected": "The maximum is the value at balancing entry, about 39,6 mV; the minimum is at most half of it.",
+          "step_no": 3
+        },
+        {
+          "action": "Take the sample-to-sample derivative of the spread.",
+          "expected": "It is never positive: the spread only closes.",
+          "step_no": 4
+        }
+      ],
+      "stimulus": {
+        "config_ref": "964fb79f0a17",
+        "notes": "150 A discharge from 80 % SOC for 900 s, then terminal 15 off and the plug out for a 900 s Sleep residency with no current. The plant's diffusion time constant TAU2 is rigged to 900 s against the 600 s relaxation budget.",
+        "scenario_ref": "T3",
+        "variant_id": "nominal"
+      },
+      "tc_id": "BAT-SYS-TC-007",
+      "technique": "SIL",
+      "test_environment": "SIL: dc-battery-sim plant vendored from quixstreams-tests@cae68bd710a247d7fbbd7174bebdcfd593219315:dc-battery-sim with the current-sign polarity patch (three statements, battery perspective: positive = discharge), driven headlessly by battery-trace-gen 0.1.0 with its BMS controller. Device a3f1c07d9b4e2610, platform BATTERY_DC_V1, one bus channel 1=battery_hs_can1. Evaluated offline from the run's MF4; signal names, units and enum legends are pinned to BATTERY_DC_V1 (sha256 1f86e4f5eb14), resolved from DCM as type=dbc target_key=BATTERY_DC_V1 config_id=d527f90a80a9bcc8e81133a8d808f82679778a9d.",
+      "title": "Cell voltages equalise while the battery system sleeps",
+      "verification_method": "Test"
+    },
+    {
+      "covers_req_ids": [
+        "BAT-SYS-PRF-002"
+      ],
+      "data_requirements": {
+        "min_traces": 1,
+        "required_channel_groups": [
+          "BMS_01",
+          "BMS_02"
+        ],
+        "required_signals": [
+          "BMS_State",
+          "BMS_U_Dc",
+          "BMS_U_Ocv_Est"
+        ],
+        "trace_required": true
+      },
+      "entry_criteria": "The run's BMS_01 and BMS_02 groups decode and the Sleep entry is identifiable from BMS_State.",
+      "exit_criteria": "The terminal-to-open-circuit difference at the budget is reported together with the time at which it crosses the 2,0 V tolerance.",
+      "impl_ref": null,
+      "last_change": "2026-09-22T00:00:00+00:00",
+      "mnemonic": "TC-PRF-002-01",
+      "notes": "EXPECTED TO FAIL, on C1. The plant's slow diffusion time constant TAU2 is rigged from 600 s to 900 s, which is longer than the relaxation budget the requirement allows. At the Sleep entry the RC2 branch carries 0,05 ohm x 150 A x (1 - e^-1) = 4,74 V; 600 s later it still carries 4,74 x e^(-600/900) = 2,43 V against the 2,0 V tolerance, and it does not cross that tolerance until 777 s. The fast RC1 branch has a 1 s time constant and is gone within 5 s of the entry, so it contributes nothing. VOCABULARY LIMITATION: |BMS_U_Dc - BMS_U_Ocv_Est| <= 2,0 V is a signal-versus-signal comparison the vocabulary cannot express; gate C2 pins the open-circuit estimate at 771,0 V over the evaluation window, which turns the difference into the absolute bound C1 uses.",
+      "objective": "Show that after the battery system enters Sleep the terminal voltage converges to the open-circuit estimate within t_transient_Voltage_sec = 600 s.",
+      "pass_criteria": [
+        {
+          "channel_group": "BMS_01",
+          "criterion_id": "C1",
+          "description": "At the Sleep entry plus t_transient_Voltage_sec, the terminal voltage is within 2,0 V of the 771,0 V open-circuit estimate, so it is at or above 769,0 V. The 2,0 V tolerance is 0,24 % of the 840 V rail and one sixtieth of the 120 V open-circuit span, which is 1,7 points of SOC if the reading were used to recalibrate.",
+          "min_samples": 10,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "mean"
+          },
+          "requirement_ref": "BAT-SYS-PRF-002",
+          "rule": {
+            "op": "ge",
+            "value": 769.0
+          },
+          "signal": "BMS_U_Dc",
+          "tolerance": {
+            "abs": 0.01,
+            "rel": null
+          },
+          "unit": "V",
+          "window": {
+            "t_end_s": 1501.0,
+            "t_start_s": 1499.0,
+            "type": "time_range"
+          }
+        },
+        {
+          "channel_group": "BMS_01",
+          "criterion_id": "C2",
+          "description": "The relaxation is monotone: the terminal voltage never falls during the Sleep residency, which pins the direction of the decay as well as its size.",
+          "min_samples": 80000,
+          "on_missing_signal": "error",
+          "reduce": {
+            "method": "central",
+            "op": "derivative"
+          },
+          "requirement_ref": "BAT-SYS-PRF-002",
+          "rule": {
+            "op": "ge",
+            "quantifier": "all",
+            "value": 0.0
+          },
+          "signal": "BMS_U_Dc",
+          "tolerance": {
+            "abs": 0.02,
+            "rel": null
+          },
+          "unit": "V",
+          "window": {
+            "t_end_s": 1800.0,
+            "t_start_s": 910.0,
+            "type": "time_range"
+          }
+        }
+      ],
+      "pass_criteria_logic": "all",
+      "preconditions": {
+        "gates": [
+          {
+            "channel_group": "BMS_01",
+            "criterion_id": "C1",
+            "description": "The Sleep residency starts at t = 900 s and lasts to the end of the run, so the relaxation budget fits inside it.",
+            "min_samples": 89000,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "none"
+            },
+            "requirement_ref": "BAT-SYS-PRF-002",
+            "rule": {
+              "op": "eq",
+              "quantifier": "all",
+              "value": 1
+            },
+            "signal": "BMS_State",
+            "tolerance": null,
+            "unit": "1",
+            "window": {
+              "t_end_s": 1800.0,
+              "t_start_s": 901.0,
+              "type": "time_range"
+            }
+          },
+          {
+            "channel_group": "BMS_02",
+            "criterion_id": "C2",
+            "description": "The open-circuit estimate is constant at 771,0 V through the relaxation, because no current flows and the technical SOC therefore does not move. This is what licenses writing the 2,0 V tolerance as an absolute bound on BMS_U_Dc.",
+            "min_samples": 10,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "mean"
+            },
+            "requirement_ref": "BAT-SYS-PRF-002",
+            "rule": {
+              "op": "within",
+              "value": 770.9,
+              "value2": 771.1
+            },
+            "signal": "BMS_U_Ocv_Est",
+            "tolerance": null,
+            "unit": "V",
+            "window": {
+              "t_end_s": 1501.0,
+              "t_start_s": 1499.0,
+              "type": "time_range"
+            }
+          }
+        ],
+        "prose": "The run must enter Sleep at t = 900 s and stay there for the full 600 s budget, and the open-circuit estimate must be stationary over the evaluation window."
+      },
+      "priority": "medium",
+      "regression_flag": true,
+      "revision": "1.0",
+      "schema_version": "1.0.0",
+      "status": "Draft",
+      "steps": [
+        {
+          "action": "Decode BMS_01 and BMS_02 and read BMS_U_Dc, BMS_U_Ocv_Est and BMS_State.",
+          "expected": "All three are present with the units of BATTERY_DC_V1.",
+          "step_no": 1
+        },
+        {
+          "action": "Confirm the Sleep entry at t = 900 s and read the open-circuit estimate at t = 1 500 s.",
+          "expected": "The estimate is 771,0 V and has not moved since the entry.",
+          "step_no": 2
+        },
+        {
+          "action": "Read the terminal voltage over the second ending at t = 1 500 s, which is the Sleep entry plus the 600 s budget.",
+          "expected": "It is at or above 769,0 V, so it sits within 2,0 V of the open-circuit estimate.",
+          "step_no": 3
+        },
+        {
+          "action": "Take the sample-to-sample derivative of the terminal voltage over the relaxation.",
+          "expected": "It is never negative: under the battery convention the terminal voltage was depressed by the RC branches during discharge and rises toward the open-circuit voltage as they decay.",
+          "step_no": 4
+        }
+      ],
+      "stimulus": {
+        "config_ref": "964fb79f0a17",
+        "notes": "150 A discharge from 80 % SOC for 900 s, then terminal 15 off and the plug out for a 900 s Sleep residency with no current. The plant's diffusion time constant TAU2 is rigged to 900 s against the 600 s relaxation budget.",
+        "scenario_ref": "T3",
+        "variant_id": "TAU2"
+      },
+      "tc_id": "BAT-SYS-TC-008",
+      "technique": "SIL",
+      "test_environment": "SIL: dc-battery-sim plant vendored from quixstreams-tests@cae68bd710a247d7fbbd7174bebdcfd593219315:dc-battery-sim with the current-sign polarity patch (three statements, battery perspective: positive = discharge), driven headlessly by battery-trace-gen 0.1.0 with its BMS controller. Device a3f1c07d9b4e2610, platform BATTERY_DC_V1, one bus channel 1=battery_hs_can1. Evaluated offline from the run's MF4; signal names, units and enum legends are pinned to BATTERY_DC_V1 (sha256 1f86e4f5eb14), resolved from DCM as type=dbc target_key=BATTERY_DC_V1 config_id=d527f90a80a9bcc8e81133a8d808f82679778a9d.",
+      "title": "Terminal voltage relaxes to the open-circuit voltage within the budget",
+      "verification_method": "Test"
+    },
+    {
+      "covers_req_ids": [
+        "BAT-SYS-FUN-004"
+      ],
+      "data_requirements": {
+        "min_traces": 1,
+        "required_channel_groups": [
+          "BTMS_01"
+        ],
+        "required_signals": [
+          "BTMS_Heater_State",
+          "BTMS_P_Heater"
+        ],
+        "trace_required": true
+      },
+      "entry_criteria": "The run's BTMS_01 group decodes and carries both heater signals.",
+      "exit_criteria": "All three criteria PASS and the dwell in each heater state is reported.",
+      "impl_ref": null,
+      "last_change": "2026-09-22T00:00:00+00:00",
+      "mnemonic": "TC-FUN-004-01",
+      "notes": "EXPECTED VERDICT: PASS. The plant's HEATER_POWER_LOW and HEATER_POWER_HIGH are overridden to 500 W and 2 000 W in every scenario, so the heat the model actually injects and the BTMS_P_Heater value on the bus are the same number; publishing 500 / 2 000 while the plant heated with its stock 2 500 / 5 000 would make the temperature rise disagree with the published power, which is a failure indistinguishable from a bug. BTMS_Heater_State is the state the heater is running, one tick behind BTMS_Heater_Req, so the power and the state describe the same instant.",
+      "objective": "Show that the heater offers exactly the states 0, 1 and 2, that each delivers 0 W, P_heater_middle = 500 W and P_heater_max = 2000 W respectively, and that all three are occupied in the run.",
+      "pass_criteria": [
+        {
+          "channel_group": "BTMS_01",
+          "criterion_id": "C1",
+          "description": "State 0 is off: every sample of a heater-off residency of at least 1 s carries 0 W. The window's min_duration_s is what makes this criterion also assert that the state is occupied.",
+          "min_samples": 10,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "none"
+          },
+          "requirement_ref": "BAT-SYS-FUN-004",
+          "rule": {
+            "op": "eq",
+            "quantifier": "all",
+            "value": 0.0
+          },
+          "signal": "BTMS_P_Heater",
+          "tolerance": {
+            "abs": 1.0,
+            "rel": null
+          },
+          "unit": "W",
+          "window": {
+            "in": [
+              0
+            ],
+            "signal": "BTMS_Heater_State",
+            "type": "state_mask",
+            "min_duration_s": 1.0
+          }
+        },
+        {
+          "channel_group": "BTMS_01",
+          "criterion_id": "C2",
+          "description": "State 1 delivers P_heater_middle: every sample of a state-1 residency of at least 1 s carries 500 W.",
+          "min_samples": 10,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "none"
+          },
+          "requirement_ref": "BAT-SYS-FUN-004",
+          "rule": {
+            "op": "eq",
+            "quantifier": "all",
+            "value": 500.0
+          },
+          "signal": "BTMS_P_Heater",
+          "tolerance": {
+            "abs": 1.0,
+            "rel": null
+          },
+          "unit": "W",
+          "window": {
+            "in": [
+              1
+            ],
+            "signal": "BTMS_Heater_State",
+            "type": "state_mask",
+            "min_duration_s": 1.0
+          }
+        },
+        {
+          "channel_group": "BTMS_01",
+          "criterion_id": "C3",
+          "description": "State 2 delivers P_heater_max: every sample of a state-2 residency of at least 1 s carries 2 000 W.",
+          "min_samples": 10,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "none"
+          },
+          "requirement_ref": "BAT-SYS-FUN-004",
+          "rule": {
+            "op": "eq",
+            "quantifier": "all",
+            "value": 2000.0
+          },
+          "signal": "BTMS_P_Heater",
+          "tolerance": {
+            "abs": 1.0,
+            "rel": null
+          },
+          "unit": "W",
+          "window": {
+            "in": [
+              2
+            ],
+            "signal": "BTMS_Heater_State",
+            "type": "state_mask",
+            "min_duration_s": 1.0
+          }
+        }
+      ],
+      "pass_criteria_logic": "all",
+      "preconditions": {
+        "gates": [
+          {
+            "channel_group": "BTMS_01",
+            "criterion_id": "C1",
+            "description": "The heater state never leaves the three specified values: the maximum over the run is 2.",
+            "min_samples": 6000,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "max"
+            },
+            "requirement_ref": "BAT-SYS-FUN-004",
+            "rule": {
+              "op": "le",
+              "value": 2
+            },
+            "signal": "BTMS_Heater_State",
+            "tolerance": null,
+            "unit": "1",
+            "window": {
+              "type": "full"
+            }
+          }
+        ],
+        "prose": "The run must exercise a cold soak deep enough to occupy all three heater states; a run that never heats leaves two of the three mappings unverified."
+      },
+      "priority": "medium",
+      "regression_flag": true,
+      "revision": "1.0",
+      "schema_version": "1.0.0",
+      "status": "Draft",
+      "steps": [
+        {
+          "action": "Decode BTMS_01 and read BTMS_Heater_State and BTMS_P_Heater at 10 Hz.",
+          "expected": "Both are present; the power is in watts.",
+          "step_no": 1
+        },
+        {
+          "action": "Window the run on each heater state in turn, requiring at least 1 s of residency, and read the heater power over each window.",
+          "expected": "State 0 delivers 0 W, state 1 delivers 500 W and state 2 delivers 2 000 W, each within 1 W over every sample of its residency.",
+          "step_no": 2
+        }
+      ],
+      "stimulus": {
+        "config_ref": "6645a7bf9869",
+        "notes": "Cold soak at -10 degC ambient from a 20 degC pack with no traction current. The plant's KE is raised to 40 W/degC, the cold-soak loss coefficient of an uninsulated pack in a draught; with the stock 1,6 W/degC a 20 degC pack needs 2 166 s just to fall to 5 degC, longer than the whole trace.",
+        "scenario_ref": "T4",
+        "variant_id": "nominal"
+      },
+      "tc_id": "BAT-SYS-TC-009",
+      "technique": "SIL",
+      "test_environment": "SIL: dc-battery-sim plant vendored from quixstreams-tests@cae68bd710a247d7fbbd7174bebdcfd593219315:dc-battery-sim with the current-sign polarity patch (three statements, battery perspective: positive = discharge), driven headlessly by battery-trace-gen 0.1.0 with its BMS controller. Device a3f1c07d9b4e2610, platform BATTERY_DC_V1, one bus channel 1=battery_hs_can1. Evaluated offline from the run's MF4; signal names, units and enum legends are pinned to BATTERY_DC_V1 (sha256 1f86e4f5eb14), resolved from DCM as type=dbc target_key=BATTERY_DC_V1 config_id=d527f90a80a9bcc8e81133a8d808f82679778a9d.",
+      "title": "Heater provides the three specified power states",
+      "verification_method": "Test"
+    },
+    {
+      "covers_req_ids": [
+        "BAT-SYS-FUN-005"
+      ],
+      "data_requirements": {
+        "min_traces": 1,
+        "required_channel_groups": [
+          "BMS_03",
+          "BTMS_01"
+        ],
+        "required_signals": [
+          "BMS_T_Batt",
+          "BTMS_Heater_State",
+          "BTMS_P_Heater"
+        ],
+        "trace_required": true
+      },
+      "entry_criteria": "The run's BMS_03 and BTMS_01 groups decode and are on the same trace.",
+      "exit_criteria": "The time spent below T_batt_min in a heater state other than 2 is reported whether the criteria pass or fail.",
+      "impl_ref": null,
+      "last_change": "2026-09-22T00:00:00+00:00",
+      "mnemonic": "TC-FUN-005-01",
+      "notes": "EXPECTED TO FAIL. The controller calibration HEAT2_ON, the state-2 entry threshold, is rigged from T_batt_min = 5 degC to 3 degC, two kelvin too low. The pack therefore sits below 5 degC on the 500 W stage, which cannot hold it: against the 40 W/degC cold-soak loss at -10 degC ambient, 500 W settles at 2,5 degC. The violation lasts roughly 277 s of the 600 s run. Under the correct law the same scenario limit-cycles between 5 degC and 8 degC and never sits below 5 degC outside state 2, so the threshold is the only difference. BAT-SYS-TC-009 still passes on the same trace, because all three heater states are occupied and each delivers its specified power.",
+      "objective": "Show that whenever the battery temperature is below T_batt_min = 5 degC the battery system commands heater state 2, so the fastest available recovery to the permitted window is used.",
+      "pass_criteria": [
+        {
+          "channel_group": "BTMS_01",
+          "criterion_id": "C1",
+          "description": "Below the minimum temperature the heater is at maximum: every sample where BMS_T_Batt is at or below 4,9 degC carries heater state 2. The threshold is set one quantisation step inside T_batt_min so the window cannot straddle the 0,1 degC step at exactly 5,0 degC.",
+          "min_samples": 10,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "none"
+          },
+          "requirement_ref": "BAT-SYS-FUN-005",
+          "rule": {
+            "op": "eq",
+            "quantifier": "all",
+            "value": 2
+          },
+          "signal": "BTMS_Heater_State",
+          "tolerance": null,
+          "unit": "1",
+          "window": {
+            "op": "le",
+            "signal": "BMS_T_Batt",
+            "type": "signal_threshold",
+            "value": 4.9
+          }
+        },
+        {
+          "channel_group": "BTMS_01",
+          "criterion_id": "C2",
+          "description": "The commanded state is backed by the power: every sample below the minimum temperature carries P_heater_max = 2 000 W.",
+          "min_samples": 10,
+          "on_missing_signal": "error",
+          "reduce": {
+            "op": "none"
+          },
+          "requirement_ref": "BAT-SYS-FUN-005",
+          "rule": {
+            "op": "eq",
+            "quantifier": "all",
+            "value": 2000.0
+          },
+          "signal": "BTMS_P_Heater",
+          "tolerance": {
+            "abs": 1.0,
+            "rel": null
+          },
+          "unit": "W",
+          "window": {
+            "op": "le",
+            "signal": "BMS_T_Batt",
+            "type": "signal_threshold",
+            "value": 4.9
+          }
+        }
+      ],
+      "pass_criteria_logic": "all",
+      "preconditions": {
+        "gates": [
+          {
+            "channel_group": "BMS_03",
+            "criterion_id": "C1",
+            "description": "The pack really falls below T_batt_min, so the unwanted condition the requirement guards against actually occurs.",
+            "min_samples": 1,
+            "on_missing_signal": "error",
+            "reduce": {
+              "op": "min"
+            },
+            "requirement_ref": "BAT-SYS-FUN-005",
+            "rule": {
+              "op": "le",
+              "value": 4.9
+            },
+            "signal": "BMS_T_Batt",
+            "tolerance": null,
+            "unit": "degC",
+            "window": {
+              "type": "full"
+            }
+          }
+        ],
+        "prose": "The run must take the pack below 5 degC. A cold soak that never reaches the threshold leaves the requirement untested, and the 40 W/degC cold-soak loss coefficient is what makes that reachable inside 600 s."
+      },
+      "priority": "high",
+      "regression_flag": true,
+      "revision": "1.0",
+      "schema_version": "1.0.0",
+      "status": "Draft",
+      "steps": [
+        {
+          "action": "Decode BMS_03 and BTMS_01 and read BMS_T_Batt, BTMS_Heater_State and BTMS_P_Heater.",
+          "expected": "All three are present with the units of BATTERY_DC_V1.",
+          "step_no": 1
+        },
+        {
+          "action": "Window the run on BMS_T_Batt at or below 4,9 degC and read the heater state over that window.",
+          "expected": "It is 2 at every sample.",
+          "step_no": 2
+        },
+        {
+          "action": "Read the heater power over the same window.",
+          "expected": "It is 2 000 W at every sample.",
+          "step_no": 3
+        }
+      ],
+      "stimulus": {
+        "config_ref": "6645a7bf9869",
+        "notes": "Cold soak at -10 degC ambient from a 20 degC pack with no traction current. The plant's KE is raised to 40 W/degC, the cold-soak loss coefficient of an uninsulated pack in a draught; with the stock 1,6 W/degC a 20 degC pack needs 2 166 s just to fall to 5 degC, longer than the whole trace.",
+        "scenario_ref": "T4",
+        "variant_id": "HEAT2_ON"
+      },
+      "tc_id": "BAT-SYS-TC-010",
+      "technique": "SIL",
+      "test_environment": "SIL: dc-battery-sim plant vendored from quixstreams-tests@cae68bd710a247d7fbbd7174bebdcfd593219315:dc-battery-sim with the current-sign polarity patch (three statements, battery perspective: positive = discharge), driven headlessly by battery-trace-gen 0.1.0 with its BMS controller. Device a3f1c07d9b4e2610, platform BATTERY_DC_V1, one bus channel 1=battery_hs_can1. Evaluated offline from the run's MF4; signal names, units and enum legends are pinned to BATTERY_DC_V1 (sha256 1f86e4f5eb14), resolved from DCM as type=dbc target_key=BATTERY_DC_V1 config_id=d527f90a80a9bcc8e81133a8d808f82679778a9d.",
+      "title": "Heater commanded to maximum below the minimum battery temperature",
+      "verification_method": "Test"
+    }
+  ],
+  "notes": "Ten system test cases, one per BAT-SYS requirement, evaluated against the four MF4 bus-log traces battery-trace-gen produces: T1 carries TC-001, TC-002 and TC-003; T2 carries TC-004, TC-005 and TC-006; T3 carries TC-007 and TC-008; T4 carries TC-009 and TC-010. Four of the ten are EXPECTED TO FAIL - TC-003, TC-006, TC-008 and TC-010 - each for a declared, rigged parameter named in its own notes and in out/manifest.json, and each failure is a genuine violation of the stated limit in the trace content rather than a missing channel or a broken signal. Every current criterion is written in battery sign: positive = discharge, negative = charge, which is the convention the BMS_I_Dc channel comment states and the only place a reader of the decoded lake can recover it. channel_group carries CAN frame names rather than raster group names, because frame_name is what the lake holds for a bus-logging file. Three cases document a vocabulary limitation in their notes - TC-002, TC-004, TC-006 and TC-008 all need a signal-versus-signal comparison that rule.value, a number, cannot express - and are decomposed into numeric bounds valid at named operating points. No threshold appears in prose only; the description fields are display text and carry no bound the evaluator needs. impl_ref is null on all ten: the Python implementations are authored separately and the sha256 of a file this document has not seen must not be asserted here.",
+  "parent_version": null,
+  "schema_version": "1.0.0",
+  "set": "test-specs",
+  "set_canonical_sha256": "d85b4a97c9eac2702afa6191dd9f165262cdfa3d309df2dfaa8227af524afcfd",
+  "source_upload": null,
+  "validator_version": null,
+  "version": "v0001",
+  "warnings": [
+    "tc_id pattern BAT-SYS-TC-NNN and the CAN frame names in channel_group fall outside the ACC test-case schema enums"
+  ]
+}

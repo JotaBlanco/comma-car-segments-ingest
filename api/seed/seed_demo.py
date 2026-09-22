@@ -99,7 +99,7 @@ WATERMARK_ID = "demo_reset_watermark"
 # The journal shows a display path, not a document field (BE-PLAN §3.8).
 _FIELD_LABELS = {
     "work_order_id": "run.work_order",
-    "definition_id": "run.definition",
+    "definition_ids": "run.definition",
 }
 
 _HTTP_TIMEOUT_SECONDS = 60.0

@@ -19,13 +19,13 @@ x-sdk-token: &sdk_token "${Quix__Sdk__Token:-local-config-token}"
 # The lake table, written once. In the cloud this is the ONE LAKE_TABLE project variable the
 # sink writes and tm-connector, the API and the frontend read; compose has no project
 # variables, so this anchor plays that role and cannot drift apart.
-x-lake-table: &lake_table mf4_signals_local
+x-lake-table: &lake_table battery_data_local
 
 # The two halves of that table's partition tree. The sink writes ONE hive order
 # (`HIVE_COLUMNS`); the Test Manager's two pickers read it split in two — the sessions dialog
 # walks the address of a session, the Explorer walks what is inside one. Written here once so
 # the split cannot drift from the order the sink writes.
-x-lake-session-partitions: &lake_session_partitions platform,work_order,test_definition,run_id
+x-lake-session-partitions: &lake_session_partitions platform,work_order,run_id
 x-lake-data-partitions: &lake_data_partitions ~channel_name,~sender_node,~frame_name,~signal
 
 # Rung 3 of the run-key ladder. ONE value, read by the decoder and the connector: a difference
@@ -290,8 +290,8 @@ services:
       input: mf4-to-msg
       config: config-updates
       TABLE_NAME: *lake_table
-      HIVE_COLUMNS: platform,work_order,test_definition,run_id,~channel_name,~sender_node,~frame_name,~signal
-      CONSUMER_GROUP: mf4_signals_local_v1
+      HIVE_COLUMNS: platform,work_order,run_id,~channel_name,~sender_node,~frame_name,~signal
+      CONSUMER_GROUP: battery_data_local_v1
       BATCH_SIZE: "30"
       MAX_WRITE_WORKERS: "20"
       AUTO_DISCOVER: "false"

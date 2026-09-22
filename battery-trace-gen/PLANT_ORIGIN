@@ -1,0 +1,89 @@
+VENDORED PLANT — dc-battery-sim
+===============================
+
+repo        quixstreams-tests
+ref         origin/devDB
+commit      cae68bd710a247d7fbbd7174bebdcfd593219315
+source path dc-battery-sim/
+vendored    2026-09-22
+files       main.py, lexicon.py, signals.json, parameters.json
+            (tests/ are NOT vendored; run them at source. plant/tests/test_polarity.py
+             below is the one exception and is written by Tester.)
+
+Upstream is deliberately NOT changed. quixstreams-tests@devDB keeps powertrain sign
+for its dashboard; this copy diverges, and the divergence is the four edits below.
+
+
+WHY THE PATCH
+-------------
+`solve_dc_current` returns powertrain-sign current (P < 0 on discharge => I < 0),
+while `dc_voltage = ocv - R0*I - v_rc1 - v_rc2` and both RC updates assume battery-sign
+current (discharge positive). The two conventions meet with no conversion. Measured on
+the unpatched source: 60 s at I = -100 A with stock R1, R2, TAU1, TAU2 gives
+v_rc1 = -10,000 V, v_rc2 = -0,476 V, Udc = 790,5 V against OCV = 780 V — terminal
+voltage above OCV while discharging.
+
+The conversion is made once, immediately after the solver, so `dc_voltage`, both RC
+updates and the KT2*I**2 heating term are untouched and become correct by construction.
+
+
+THE FOUR EDITS
+--------------
+(1) main.py:374 — inserted immediately after `dc_current = solve_dc_current(...)`
+
+    +            # Battery perspective from here on: positive = discharge. See PLANT_ORIGIN.
+    +            dc_current = -dc_current
+
+(2) main.py:377,379 — the two saturation guards, comparisons flipped
+
+    -            if q_act <= 0.0 and dc_current < 0.0:
+    +            if q_act <= 0.0 and dc_current > 0.0:
+                     dc_current = 0.0
+    -            if q_act >= Q_MAX and dc_current > 0.0:
+    +            if q_act >= Q_MAX and dc_current < 0.0:
+                     dc_current = 0.0
+
+(3) main.py:390 — coulomb counting
+
+    -            q_act += dc_current * SAMPLE_TIME
+    +            q_act -= dc_current * SAMPLE_TIME
+
+(4) signals.json:143 — `dc_current_a` description
+
+    -      "description": "DC current after temperature derating. Negative = discharge, positive = charge.",
+    +      "description": "DC current after temperature derating. Positive = discharge, negative = charge (battery perspective).",
+
+Nothing else differs from the source. lexicon.py and parameters.json are byte-identical
+to the commit above.
+
+sha256 of the vendored copies
+    main.py         05d10db22d2a61a39f1ac8ff08df6b726529c08af9f9cbee72c652c46b325e3d
+    signals.json    9b207550631d89cb3d97b4f62bcf58bd560561255ed2700bed6805873033a86a
+    lexicon.py      0b708068e9a4ab2bf5568ce33b93ad7234eadfa2e3ca5a31a6ff0989c28ad5d0
+    parameters.json a8efb396140a5236ed937d41cfffba1cbaa3c519e07f0b9f71ff60bfa1a3fdb3
+
+
+CONSTRAINTS THE PATCH IMPOSES ON EVERY SCENARIO
+-----------------------------------------------
+R0 = 0.0    `solve_dc_current`'s quadratic branch for R0 > 0 still assumes the old
+            sign and is NOT converted. With R0 = 0 that branch is never taken.
+            `generate.py` refuses a scenario that sets R0 non-zero.
+
+KT1 = 0.0   The KT1*I heating term flips sign under the new convention. KT1 = 0 by
+            default, so nothing changes today; recorded as a known asymmetry rather
+            than left to bite a future scenario. `generate.py` refuses a non-zero
+            KT1 as well.
+
+Both are pinned in scenarios/_plant_base.json.
+
+
+RED-FIRST TEST (Tester writes it, not ArchDev)
+----------------------------------------------
+plant/tests/test_polarity.py must be RED against the unpatched vendored main.py and
+GREEN against this copy:
+
+    sustained discharge => dc_voltage_v < ocv_v  and  dc_current_a > 0
+    sustained charge    => dc_voltage_v > ocv_v  and  dc_current_a < 0
+
+The upstream suite never pins direction: tests/test_rc_circuit.py:54 asserts only `!=`,
+and battery_sim_spec.md states the RC dynamics "are ignored in this iteration".

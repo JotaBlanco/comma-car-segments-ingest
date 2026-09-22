@@ -207,9 +207,8 @@ def _query_body(sql: str, transport: httpx.BaseTransport | None) -> str:
 # run touches, and it would leave the folder behind.
 
 # The hive column that names the run. The lake-sink writes
-# `platform,work_order,test_definition,run_id,protocol,...`
-# (`tests/test_quix_yaml.py:120`), so the run folder sits four levels down and holds
-# every protocol beneath it.
+# `platform,work_order,run_id,~channel_name,...`, so the run folder sits three
+# levels down and holds every channel beneath it.
 RUN_COLUMN = "run_id"
 
 # The catalog caps a combinations answer at 1000 rows and says so with `truncated`.

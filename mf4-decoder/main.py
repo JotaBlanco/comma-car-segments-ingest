@@ -832,8 +832,11 @@ def process(metadata: dict, state: State):
             # resolved one instead of becoming a sentinel that would merge every
             # unplaceable file into one partition.
             "run_id": run_id,
+            # `work_order` stays: the lake sink joins its WorkOrder configuration
+            # on it for the platform fallback. There is no `test_definition`
+            # column — a run fulfils a SET of definitions, and a row can sit in
+            # only one directory, so the registry answers run -> definitions.
             "work_order": metadata.get("work_order") or declared.get("work_order_id"),
-            "test_definition": metadata.get("test_definition") or declared.get("definition_id"),
         }
 
         logger.info(

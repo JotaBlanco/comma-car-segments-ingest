@@ -25,6 +25,7 @@ import { ApiError } from "@/lib/api/client";
 import { formatArrival } from "@/lib/format";
 import { useTestDefinition, useTestDefinitionJournal } from "@/lib/hooks";
 import { CustomPropertiesPanel } from "./custom-properties-panel";
+import { ImplementationPanel } from "./implementation-panel";
 import { RequirementsPanel } from "./requirements-panel";
 
 /**
@@ -216,6 +217,14 @@ export function DefinitionDetailScreen({ tdId }: DefinitionDetailScreenProps) {
         className="mb-3"
         tdId={definition.td_id}
         files={definition.requirements_files ?? []}
+      />
+
+      {/* The `.py` that decides this definition's verdict, named by the sha256
+          of its own bytes. */}
+      <ImplementationPanel
+        className="mb-3"
+        tdId={definition.td_id}
+        implementation={definition.implementation}
       />
 
       {/* The pairs a person types. They sit in their own card, never in the

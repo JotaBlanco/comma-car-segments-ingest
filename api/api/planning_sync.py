@@ -42,7 +42,15 @@ from api.settings import get_settings
 log = logging.getLogger("api.planning_sync")
 
 # The fields planning owns on a run. The backfill writes these and nothing else.
-PLANNING_FIELDS = ("work_order_id", "definition_id", "project")
+PLANNING_FIELDS = ("work_order_id", "definition_ids", "project")
+
+# The journal label of each planning field (contract §A). `definition_ids` reads
+# `run.definition`, the label the timeline carried while the field was scalar.
+_LINK_LABELS = {
+    "work_order_id": "run.work_order",
+    "definition_ids": "run.definition",
+    "project": "run.project",
+}
 
 OFFLINE_REASON = "planning system offline"
 
@@ -428,7 +436,7 @@ def _write_link(
     db: Database,
     run: dict,
     work_order_id: str,
-    definition_id: str | None,
+    definition_ids: list[str],
     project: str | None,
     note: str,
 ) -> bool:
@@ -442,12 +450,19 @@ def _write_link(
     a `manual` value is never overwritten, and an `embedded` value — the
     ingestion pipeline's link claim — is corrected. A run that already holds
     the same value writes nothing and journals nothing, and this returns False.
+
+    The definitions MERGE. A run fulfils a set of them, planning states one per
+    link, and the union is what makes two links for one run additive and a
+    re-post of the same links a no-op. A definition leaves a run only through
+    `PATCH /test-runs/{run_id}`.
     """
     update: dict = {}
     entries: list[dict] = []
+    merged = sorted(set(run.get("definition_ids") or []) | set(definition_ids))
     values = {
         "work_order_id": work_order_id,
-        "definition_id": definition_id,
+        # An empty set states nothing, and the loop below skips a None.
+        "definition_ids": merged or None,
         "project": project,
     }
     for field, value in values.items():
@@ -461,7 +476,7 @@ def _write_link(
             SYNC_ACTOR,
             note=note,
             current_doc=run,
-            field_label=f"run.{'work_order' if field == 'work_order_id' else field}",
+            field_label=_LINK_LABELS[field],
         )
         if entry is not None:
             entries.append(entry)
@@ -498,7 +513,7 @@ def _backfill_runs(db: Database, definitions: list[dict]) -> int:
             run = db["test_runs"].find_one({"_id": run_id})
             if run is None:
                 continue
-            if _write_link(db, run, work_order_id, definition["id"], project, note):
+            if _write_link(db, run, work_order_id, [definition["id"]], project, note):
                 backfilled += 1
 
     return backfilled
@@ -528,10 +543,16 @@ def _link_retained_claims(db: Database) -> int:
     # run's definition hole, and the retained definition claim must still fill
     # it (pair-only planning, 24 Aug 2026). Each write stays rank-guarded, so
     # a filled field is never re-pointed.
+    #
+    # A run holds no definition when the array is empty, and a document written
+    # before the array existed holds no key at all — `$in` covers both.
     waiting = {
         "$or": [
             {"work_order_id": None, CLAIM_RETAINED["work_order_id"]: {"$ne": None}},
-            {"definition_id": None, CLAIM_RETAINED["definition_id"]: {"$ne": None}},
+            {
+                "definition_ids": {"$in": [None, []]},
+                CLAIM_RETAINED["definition_id"]: {"$ne": None},
+            },
         ],
     }
 
@@ -543,7 +564,8 @@ def _link_retained_claims(db: Database) -> int:
         work_order_id, definition_id, claimed = resolved
         project = (db["work_orders"].find_one({"_id": work_order_id}) or {}).get("project")
         note = f"Linked by planning — the run claimed {claimed}, now mirrored."
-        if _write_link(db, run, work_order_id, definition_id, project, note):
+        ids = [definition_id] if definition_id else []
+        if _write_link(db, run, work_order_id, ids, project, note):
             linked += 1
 
     return linked
@@ -587,6 +609,10 @@ def apply_planning_push(
     mirror helpers are the same ones, so a pushed row and a fetched row are
     byte-identical, and every link lands through `_write_link`, so planning
     still corrects an `embedded` claim and still never overwrites a person.
+
+    Several links may name one run. Each states one definition, `_write_link`
+    unions them onto the run's set, and a re-post of the same links counts
+    entirely in `links_unchanged`.
 
     A link the registry cannot honour is REFUSED, never guessed at: an unknown
     run, or an id naming a row planning did not send. That is the rule
@@ -632,7 +658,8 @@ def apply_planning_push(
             continue
 
         note = f"Linked by planning — work order {work_order_id}."
-        if _write_link(db, run, work_order_id, definition_id, projects[work_order_id], note):
+        ids = [definition_id] if definition_id else []
+        if _write_link(db, run, work_order_id, ids, projects[work_order_id], note):
             applied += 1
         else:
             unchanged += 1

@@ -1,0 +1,63 @@
+{
+  "trace_id": "T4",
+  "title": "Cold heater — cold soak at -10 degC ambient with the three-stage heater running",
+  "route": "a3f1c07d9b4e2610--2026-09-23--12-00-00",
+  "start_time_utc": "2026-09-23T12:00:00Z",
+  "duration_s": 600,
+  "test": {
+    "run_key": "TAS-1004",
+    "definitions": [
+      "BAT-SYS-TC-009",
+      "BAT-SYS-TC-010"
+    ],
+    "description": "T4 cold heater — cold soak at -10 degC with the three-stage heater running"
+  },
+  "plant_initial_state": {
+    "soc_pct": 50.0,
+    "t_batt_c": 20.0
+  },
+  "plant_param_overrides": {
+    "KE": 40.0
+  },
+  "controller_param_overrides": {
+    "HEAT2_ON": 3.0
+  },
+  "defects": [
+    {
+      "target": "controller",
+      "parameter": "HEAT2_ON",
+      "nominal": 5.0,
+      "value": 3.0,
+      "breaks": "BAT-SYS-FUN-005",
+      "mechanism": "state-2 entry threshold two kelvin below the minimum temperature, so the pack sits below T_batt_min on the 500 W stage"
+    }
+  ],
+  "setpoints": [
+    {
+      "t_s": 0.0,
+      "charge_plug": 0,
+      "kl15": 1,
+      "veh_state": 2,
+      "ambient_c": -10.0,
+      "chiller_setting": 0,
+      "obc_i_avail_a": 0.0,
+      "i_demand_a": 0.0
+    }
+  ],
+  "evaluates": [
+    {
+      "req_id": "BAT-SYS-FUN-004",
+      "measurand": "p_heater",
+      "signal": "BTMS_P_Heater",
+      "limit": "BTMS_P_Heater is 0 / P_heater_middle (500 W) / P_heater_max (2000 W) +-1 W per BTMS_Heater_State, and each of the three states is occupied for at least 1 s",
+      "check": "heater_power_mapping"
+    },
+    {
+      "req_id": "BAT-SYS-FUN-005",
+      "measurand": "heater_state",
+      "signal": "BTMS_Heater_State",
+      "limit": "BTMS_Heater_State == 2 at every sample where BMS_T_Batt < T_batt_min (5 degC)",
+      "check": "heater_below_minimum"
+    }
+  ]
+}

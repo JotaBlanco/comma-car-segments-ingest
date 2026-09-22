@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import ConfigDict, Field, model_validator
 
 from api.models.common import ApiModel, Page, RequestModel, UtcDatetime
-from api.models.runs import check_custom_properties
+from api.models.runs import check_custom_properties, primary_definition
 
 WorkOrderStatus = Literal["active", "closed"]
 DefinitionStatus = Literal["on_plan", "awaiting_data"]
@@ -84,12 +84,18 @@ class TestDefinitionPage(Page[TestDefinitionRow]):
 class WorkOrderRun(ApiModel):
     run_id: str = Field(validation_alias="_id")
     definition_id: str | None
+    definition_ids: list[str] = Field(default_factory=list)
     rig_id: str
     test_cell: str | None
     first_data_at: UtcDatetime
     file_count: int
     signal_count: int
     status: Literal["complete", "awaiting_work_order", "invalid"]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _primary_definition(cls, data):
+        return primary_definition(data)
 
 
 class DefinitionWorkOrder(ApiModel):
@@ -157,6 +163,30 @@ class RequirementsFile(ApiModel):
     size_bytes: int | None = None
 
 
+class DefinitionImplementation(ApiModel):
+    """The executable test implementation of one definition.
+
+    One `.py` in blob storage, named by path AND by the sha256 of its bytes, so
+    a verdict can state the exact bytes that produced it: the result provenance
+    carries `tool_version = "sha256:<first 12 hex>"`.
+
+    It is a MANUAL-side field, like `manual_requirements_files`. Planning names
+    no such thing, so no sync pass reaches it.
+
+    `entrypoint` is the module-level function a runner calls —
+    `evaluate(run_id, table) -> {"verdict", "evidence"}`.
+    """
+
+    blob_path: str
+    filename: str
+    sha256: str
+    size_bytes: int
+    language: str
+    entrypoint: str
+    uploaded_at: UtcDatetime
+    uploaded_by: str | None
+
+
 class TestDefinitionDetail(TestDefinitionRow):
     """One definition, with its work order and the runs that carry it.
 
@@ -171,6 +201,9 @@ class TestDefinitionDetail(TestDefinitionRow):
     work_order: DefinitionWorkOrder | None
     runs: list[WorkOrderRun]
     requirements_files: list[RequirementsFile] = Field(default_factory=list)
+    # The `.py` that decides this definition's verdict, or null until one is
+    # uploaded. Detail-only, the way `requirements_files` is.
+    implementation: DefinitionImplementation | None = None
     # Free key and value pairs a person types, the same map a run carries.
     # They live in their own store beside the mirror, so a sync pass never
     # reaches them. Defaulted, because a definition mirrored before this field
@@ -316,6 +349,10 @@ class PushedLink(RequestModel):
 
     `definition_id` is optional: planning may know which work order a run
     fulfils without knowing which definition planned it.
+
+    One link states one definition. A run that fulfils several takes several
+    links, and `planning_sync._write_link` unions them, so a re-post of the
+    same links writes nothing.
     """
 
     run_id: str

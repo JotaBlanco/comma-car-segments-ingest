@@ -1,0 +1,69 @@
+{
+  "trace_id": "T1",
+  "title": "Charge and thermal — 300 A charge into a warm pack with the chiller off",
+  "route": "a3f1c07d9b4e2610--2026-09-23--09-00-00",
+  "start_time_utc": "2026-09-23T09:00:00Z",
+  "duration_s": 900,
+  "test": {
+    "run_key": "TAS-1001",
+    "definitions": [
+      "BAT-SYS-TC-001",
+      "BAT-SYS-TC-002",
+      "BAT-SYS-TC-003"
+    ],
+    "description": "T1 charge and thermal — 300 A into a warm pack, chiller off"
+  },
+  "plant_initial_state": {
+    "soc_pct": 20.0,
+    "t_batt_c": 35.0
+  },
+  "plant_param_overrides": {},
+  "controller_param_overrides": {
+    "T_FILT_TAU": 9.0
+  },
+  "defects": [
+    {
+      "target": "controller",
+      "parameter": "T_FILT_TAU",
+      "nominal": 2.0,
+      "value": 9.0,
+      "breaks": "BAT-SYS-SAF-002",
+      "mechanism": "derating law correct, temperature input stale"
+    }
+  ],
+  "setpoints": [
+    {
+      "t_s": 0.0,
+      "charge_plug": 1,
+      "kl15": 0,
+      "veh_state": 4,
+      "ambient_c": 35.0,
+      "chiller_setting": 0,
+      "obc_i_avail_a": 300.0,
+      "i_demand_a": -300.0
+    }
+  ],
+  "evaluates": [
+    {
+      "req_id": "BAT-SYS-PRF-001",
+      "measurand": "i_dc_chg",
+      "signal": "BMS_I_Dc",
+      "limit": "BMS_I_Dc >= -I_current_Chr_Max (300 A) at every sample where BMS_State == 3",
+      "check": "charge_current_limit"
+    },
+    {
+      "req_id": "BAT-SYS-SAF-003",
+      "measurand": "derating_factor",
+      "signal": "BMS_Derating_Fct",
+      "limit": "BMS_Derating_Fct = clamp((T_batt_max - BMS_T_Derate_Ref) / T_batt_safety_threshold, 0, 1) and BMS_I_Dc >= -BMS_I_Chg_Lim while charging",
+      "check": "derating_law"
+    },
+    {
+      "req_id": "BAT-SYS-SAF-002",
+      "measurand": "t_batt",
+      "signal": "BMS_T_Batt",
+      "limit": "BMS_T_Batt <= T_batt_max (60 degC) at every sample",
+      "check": "temperature_ceiling"
+    }
+  ]
+}

@@ -33,7 +33,7 @@ _coerce_warned_signals: set[str] = set()
 # and must never be null. See the module docstring.
 UNKNOWN = "unknown"
 
-# What a claim column holds when nobody claimed the file. Distinct from UNKNOWN
+# What `work_order` holds when nobody claimed the file. Distinct from UNKNOWN
 # on purpose: "nobody assigned this file to a work order" is a different fact
 # from "the file states no platform", and the two must not share a directory.
 UNASSIGNED = "unassigned"
@@ -172,7 +172,6 @@ def _expand_columnar(value):
     if platform == UNKNOWN:
         platform = value.get(F_WORK_ORDER_PLATFORM) or UNKNOWN
     work_order = value.get("work_order") or UNASSIGNED
-    test_definition = value.get("test_definition") or UNASSIGNED
     device = value.get("device") or UNKNOWN
     route = value.get("route") or UNKNOWN
     segment = value.get("segment") or UNKNOWN
@@ -218,9 +217,8 @@ def _expand_columnar(value):
             "file_name":     file_name,
             "upload_id":     upload_id,
             "platform":      platform,
-            "work_order":      work_order,
-            "test_definition": test_definition,
-            "run_id":          run_id,
+            "work_order":    work_order,
+            "run_id":        run_id,
             "device":        device,
             "route":         route,
             "segment":       segment,

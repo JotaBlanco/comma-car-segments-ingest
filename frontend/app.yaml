@@ -39,8 +39,8 @@ variables:
     required: false
   - name: TM_LAKE_SESSION_PARTITIONS
     inputType: FreeText
-    description: The partition levels that ADDRESS a session, outermost first; the last one is the session itself. The sessions dialog walks these folders and lists the last level's values as the sessions. Unset, platform,work_order,test_definition,run_id applies — the order the lake sink writes.
-    defaultValue: platform,work_order,test_definition,run_id
+    description: The partition levels that ADDRESS a session, outermost first; the last one is the session itself. The sessions dialog walks these folders and lists the last level's values as the sessions. Unset, platform,work_order,run_id applies — the order the lake sink writes.
+    defaultValue: platform,work_order,run_id
     required: false
   - name: TM_LAKE_DATA_PARTITIONS
     inputType: FreeText

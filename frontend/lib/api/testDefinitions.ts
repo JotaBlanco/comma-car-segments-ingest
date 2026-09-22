@@ -87,4 +87,18 @@ export const testDefinitionsApi = {
       `${requirementsPath(tdId)}/${encodeURIComponent(name)}/download`,
       name,
     ),
+  /**
+   * Fetch the bytes of the definition's test implementation — the `.py` whose
+   * sha256 a verdict cites as the code that produced it.
+   *
+   * It goes through the same server-side proxy the requirements download uses,
+   * so no token reaches the URL, and the API writes the audit entry before the
+   * first byte leaves. `implementation_not_found` (404) when the definition
+   * carries none.
+   */
+  downloadImplementation: (tdId: string, filename: string): Promise<DownloadOutcome> =>
+    fetchDownload(
+      `/test-definitions/${encodeURIComponent(tdId)}/implementation/download`,
+      filename,
+    ),
 };

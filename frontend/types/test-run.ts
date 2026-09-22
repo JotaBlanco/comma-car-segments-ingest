@@ -16,7 +16,14 @@ export interface InvalidFlag {
 export interface TestRunListItem {
   run_id: string;
   description: string | null;
+  /** The FIRST of `definition_ids`. A run fulfils a set of definitions. */
   definition_id: string | null;
+  /**
+   * Every definition this run fulfils, sorted ascending. Optional here: the
+   * API always sends it, and a mock row written before it existed still
+   * compiles.
+   */
+  definition_ids?: string[];
   work_order_id: string | null;
   /** The work-order id the rig claimed at ingest, when the mirror could not
    *  honour it yet — what an awaiting_work_order run is actually waiting on. */

@@ -10,7 +10,7 @@ variables:
     inputType: FreeText
     multiline: false
     description: Iceberg table name; defaults to topic name if unset. A new name is required whenever HIVE_COLUMNS changes - the sink validates the partition spec of an existing table at setup() and refuses a mismatch.
-    defaultValue: mf4_signals_v6
+    defaultValue: battery_data_v1
   - name: HIVE_COLUMNS
     inputType: FreeText
     multiline: false
@@ -23,9 +23,10 @@ variables:
       (c888997ab65303a5565cef84da687eb3d6f98790) and by nothing older. Mirrors
       the reference can_signals_v13 table. The tree follows the Test Manager's
       traceability chain since the registry integration: platform / work order /
-      test definition / run. device, route and segment stay on every row as
-      ordinary columns.
-    defaultValue: platform,work_order,test_definition,run_id,~channel_name,~sender_node,~frame_name,~signal
+      run. There is no test-definition level: one run fulfils a SET of definitions
+      and a row sits in one directory. device, route and segment stay on every row
+      as ordinary columns.
+    defaultValue: platform,work_order,run_id,~channel_name,~sender_node,~frame_name,~signal
   - name: TIMESTAMP_COLUMN
     inputType: FreeText
     description: Column containing timestamp values to extract year/month/day/hour from
@@ -52,7 +53,7 @@ variables:
   - name: CONSUMER_GROUP
     inputType: FreeText
     description: Kafka consumer group name. Must change together with TABLE_NAME so AUTO_OFFSET_RESET=earliest replays the topic into the new table.
-    defaultValue: mf4_signals_v6_lake_v1
+    defaultValue: battery_data_v1_lake_v1
   - name: AUTO_OFFSET_RESET
     inputType: Options
     description: Where to start consuming if no offset exists

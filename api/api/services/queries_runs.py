@@ -57,8 +57,10 @@ def _real_start(value: datetime | None) -> datetime | None:
     return value
 
 
-# Journal display labels (contract §A). Most fields read as run.<field>.
-_FIELD_LABELS = {"work_order_id": "run.work_order", "definition_id": "run.definition"}
+# Journal display labels (contract §A). Most fields read as run.<field>. The
+# definition SET keeps the label the scalar carried, so the timeline of a run
+# written before the set existed still reads as one history.
+_FIELD_LABELS = {"work_order_id": "run.work_order", "definition_ids": "run.definition"}
 
 # The definition store a person writes custom properties into. Planning names
 # no such field, so `planning_sync._mirror_definitions` never writes it and no
@@ -98,6 +100,19 @@ CLAIM_RETAINED = {
 }
 
 
+def _claimed_ids(body, field: str) -> list[str]:
+    """The ids one claim field states, deduplicated and in a stable order.
+
+    `definition_id` and `definition_ids` are ONE claim on the wire: a producer
+    that knows a single test case states the scalar, and a bench that ticked off
+    three states the list. Both resolve against the same mirror.
+    """
+    values = [value for value in (getattr(body, field, None),) if value is not None]
+    if field == "definition_id":
+        values.extend(getattr(body, "definition_ids", None) or [])
+    return sorted(set(values))
+
+
 def _resolve_claims(db: Database, body) -> tuple[dict, list[tuple[str, str]]]:
     """Split the claimed links into the resolved values and the unknown ids.
 
@@ -105,22 +120,26 @@ def _resolve_claims(db: Database, body) -> tuple[dict, list[tuple[str, str]]]:
     holds that row. An unknown id links nothing and refuses nothing: the run
     stays amber, keeps the claim (`CLAIM_RETAINED`), and the next planning sync
     repairs it.
+
+    The resolved definitions land under `definition_ids`, the field the document
+    stores, whichever of the two wire fields carried them.
     """
     resolved: dict = {}
     unresolved: list[tuple[str, str]] = []
     for field, collection in _CLAIM_MIRRORS.items():
-        claimed = getattr(body, field, None)
-        if claimed is None:
-            continue
-        mirror = db[collection].find_one({"_id": claimed})
-        if mirror is None:
-            unresolved.append((field, claimed))
-            continue
-        resolved[field] = claimed
-        # `project` stays out of the body. It comes from the work order the
-        # claim resolved to, the same way `_backfill_runs` derives it.
-        if field == "work_order_id" and mirror.get("project") is not None:
-            resolved["project"] = mirror["project"]
+        for claimed in _claimed_ids(body, field):
+            mirror = db[collection].find_one({"_id": claimed})
+            if mirror is None:
+                unresolved.append((field, claimed))
+                continue
+            if field == "definition_id":
+                resolved["definition_ids"] = [*resolved.get("definition_ids", []), claimed]
+                continue
+            resolved[field] = claimed
+            # `project` stays out of the body. It comes from the work order the
+            # claim resolved to, the same way `_backfill_runs` derives it.
+            if mirror.get("project") is not None:
+                resolved["project"] = mirror["project"]
     return resolved, unresolved
 
 
@@ -164,11 +183,18 @@ def _retained_claims(unresolved: list[tuple[str, str]], current_doc: dict | None
     pipeline leaves the stored document untouched. A later, different claim
     replaces the remembered one: the bench's latest word is the one a repair
     should act on.
+
+    The memory is one id per field. A payload claiming several unknown
+    definitions remembers the first, and `_resolve_retained_claim` re-opens the
+    work order from it — enough to close the loop.
     """
+    first: dict[str, str] = {}
+    for field, claimed in unresolved:
+        first.setdefault(CLAIM_RETAINED[field], claimed)
     return {
-        CLAIM_RETAINED[field]: claimed
-        for field, claimed in unresolved
-        if (current_doc or {}).get(CLAIM_RETAINED[field]) != claimed
+        target: claimed
+        for target, claimed in first.items()
+        if (current_doc or {}).get(target) != claimed
     }
 
 
@@ -228,7 +254,7 @@ def _insert_run(db: Database, body) -> dict:
         "_id": body.run_id,
         "description": None,
         "work_order_id": None,
-        "definition_id": None,
+        "definition_ids": [],
         "claimed_work_order_id": None,
         "claimed_definition_id": None,
         "project": None,
@@ -494,7 +520,8 @@ def runs_query(
         if clause is not None:
             clauses.append(clause)
     if definition:
-        clauses.append({"definition_id": definition})
+        # Array containment: the clause matches a run whose set holds the id.
+        clauses.append({"definition_ids": definition})
     if work_order:
         clauses.append({"work_order_id": work_order})
     if signal:
@@ -508,7 +535,7 @@ def runs_query(
         clauses.append(
             every_word_matches(
                 q,
-                ("_id", "description", "rig_id", "definition_id", "work_order_id", "project"),
+                ("_id", "description", "rig_id", "definition_ids", "work_order_id", "project"),
             )
         )
     return {"$and": clauses} if clauses else {}
@@ -740,16 +767,18 @@ def with_counts(db: Database, run: dict) -> dict:
 
 
 def run_lineage(db: Database, run_id: str) -> dict:
-    """Build the chain a run sits in: work order, definition, files, results.
+    """Build the chain a run sits in: work order, definitions, files, results.
 
     The two blocks above the run are **null while the run is unsynced**. A run
     with no work order does not know its chain yet, and saying so is the amber
     state the screen draws dashed.
+
+    A run fulfils a set of definitions. `definitions` holds them all and
+    `definition` is the first, the field the chain read before the set existed.
     """
     run = with_facts(db, [_require_run(db, run_id)])[0]
 
     work_order = None
-    definition = None
     if run.get("work_order_id"):
         mirror = db["work_orders"].find_one({"_id": run["work_order_id"]})
         if mirror is not None:
@@ -759,14 +788,18 @@ def run_lineage(db: Database, run_id: str) -> dict:
                 "project": mirror.get("project") or "",
                 "source": Source.API_PLANNING.value,
             }
-    if run.get("definition_id"):
-        mirror = db["test_definitions"].find_one({"_id": run["definition_id"]})
+    definitions = []
+    for td_id in run.get("definition_ids") or []:
+        mirror = db["test_definitions"].find_one({"_id": td_id})
         if mirror is not None:
-            definition = {
-                "td_id": mirror["_id"],
-                "title": mirror.get("title") or "",
-                "source": Source.API_PLANNING.value,
-            }
+            definitions.append(
+                {
+                    "td_id": mirror["_id"],
+                    "title": mirror.get("title") or "",
+                    "source": Source.API_PLANNING.value,
+                }
+            )
+    definition = definitions[0] if definitions else None
 
     files = [
         {
@@ -792,6 +825,7 @@ def run_lineage(db: Database, run_id: str) -> dict:
     return {
         "work_order": work_order,
         "definition": definition,
+        "definitions": definitions,
         "run": {
             "run_id": run["_id"],
             "rig_id": run.get("rig_id") or "",
@@ -1117,7 +1151,12 @@ _LINK_ERRORS = {
 
 
 def _resolve_manual_links(db: Database, changes: dict) -> dict:
-    """Check each stated link. Return the values the edit writes."""
+    """Check each stated link. Return the values the edit writes.
+
+    A person states ONE `definition_id` and it REPLACES the run's set, so the
+    edit dialog is also the only way to take a definition off a run: a planning
+    push unions its links and never removes one.
+    """
     values = dict(changes)
     for field, (code, label) in _LINK_ERRORS.items():
         claimed = changes.get(field)
@@ -1130,6 +1169,8 @@ def _resolve_manual_links(db: Database, changes: dict) -> dict:
         # the project, so the edit derives it from the mirror row.
         if field == "work_order_id" and mirror.get("project") is not None:
             values["project"] = mirror["project"]
+    if "definition_id" in values:
+        values["definition_ids"] = [values.pop("definition_id")]
     return values
 
 
@@ -1388,7 +1429,7 @@ def list_test_definitions(
         .limit(pagination.page_size)
     )
 
-    actual_runs = _count_by(db, "test_runs", "definition_id", [row["_id"] for row in rows])
+    actual_runs = _count_by(db, "test_runs", "definition_ids", [row["_id"] for row in rows])
     linked = set(known)
     items = [
         {
@@ -1423,7 +1464,7 @@ def get_test_definition_detail(db: Database, td_id: str) -> dict:
 
     runs = with_facts(
         db,
-        list(db["test_runs"].find({"definition_id": td_id}).sort("first_data_at", DESCENDING)),
+        list(db["test_runs"].find({"definition_ids": td_id}).sort("first_data_at", DESCENDING)),
     )
     actual_runs = len(runs)
     return {
@@ -1544,11 +1585,23 @@ def list_work_orders(
 
 
 def _count_by(db: Database, collection: str, field: str, values: list[str]) -> dict[str, int]:
-    """Group-count one collection by a field, for the given values only."""
+    """Group-count one collection by a field, for the given values only.
+
+    `$unwind` turns an ARRAY field into one document per element, so a run
+    carrying three definitions counts once under each. On a scalar it yields
+    the document unchanged, so the one helper still serves `work_order_id`.
+    The second `$match` drops the elements of a matched array that the caller
+    did not ask about.
+    """
     if not values:
         return {}
     grouped = db[collection].aggregate(
-        [{"$match": {field: {"$in": values}}}, {"$group": {"_id": f"${field}", "n": {"$sum": 1}}}]
+        [
+            {"$match": {field: {"$in": values}}},
+            {"$unwind": f"${field}"},
+            {"$match": {field: {"$in": values}}},
+            {"$group": {"_id": f"${field}", "n": {"$sum": 1}}},
+        ]
     )
     return {row["_id"]: row["n"] for row in grouped}
 
@@ -1569,8 +1622,7 @@ def get_work_order_detail(db: Database, wo_id: str) -> dict:
     )
     actual_runs: dict[str, int] = {}
     for run in runs:
-        definition_id = run.get("definition_id")
-        if definition_id:
+        for definition_id in run.get("definition_ids") or []:
             actual_runs[definition_id] = actual_runs.get(definition_id, 0) + 1
 
     definitions = []

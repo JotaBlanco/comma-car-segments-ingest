@@ -1,0 +1,15 @@
+{
+  "platform": "BATTERY_DC_V1",
+  "device": "a3f1c07d9b4e2610",
+  "bus_name": "battery_hs_can1",
+  "bus_channel": 1,
+  "cell_seed": 20260922,
+  "route_template": "{device}--{date}--{time}",
+  "test": {
+    "work_order": "WO-BAT-2026-001",
+    "rig": "battery-sim-01",
+    "cell": "BENCH-DC-1",
+    "operator": "battery-trace-gen",
+    "bench_sw": "battery-trace-gen 0.1.0"
+  }
+}

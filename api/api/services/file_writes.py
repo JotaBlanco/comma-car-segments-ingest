@@ -47,6 +47,12 @@ RESULT_FOLDER = "test-manager/results"
 # document from a processed result.
 REQUIREMENTS_FOLDER = "test-manager/requirements"
 
+# The folder every test implementation lands in — one `.py` per test definition,
+# the executable third artefact of the chain beside the requirement and the test
+# case. A sibling of the two folders above, and never the importer's dated MF4
+# prefix: an implementation belongs to a definition, not to an upload day.
+IMPLEMENTATION_FOLDER = "test-manager/implementations"
+
 # A key segment keeps these characters. Anything else becomes an underscore, so
 # a filename can never carry a path, a scheme or a traversal into the key.
 _UNSAFE = re.compile(r"[^A-Za-z0-9._-]")
@@ -122,6 +128,23 @@ def requirements_blob_key(td_id: str, filename: str) -> str:
     definition = _safe_segment(td_id, "unknown-definition")
     name = _safe_segment(filename, "requirements.bin")
     return f"{prefix}/{definition}/{uuid.uuid4().hex}-{name}"
+
+
+def implementation_blob_key(td_id: str, filename: str, digest: str) -> str:
+    """Build the key one uploaded test implementation lands on.
+
+    The workspace folder leads the key, as it does on the two writers above.
+    The name carries the first 8 hex of the content DIGEST where those two
+    carry a uuid: the digest keeps two different uploads apart just as well,
+    and it makes the key name the exact bytes — which is the point of this
+    artefact, since a verdict cites `sha256:<digest>` as its `tool_version`.
+    Re-uploading identical bytes therefore lands on the same key.
+    """
+    workspace = os.environ.get(WORKSPACE_VARIABLE, "").strip().strip("/")
+    prefix = f"{workspace}/{IMPLEMENTATION_FOLDER}" if workspace else IMPLEMENTATION_FOLDER
+    definition = _safe_segment(td_id, "unknown-definition")
+    name = _safe_segment(filename, "implementation.py")
+    return f"{prefix}/{definition}/{digest[:8]}-{name}"
 
 
 @runtime_checkable
@@ -279,6 +302,7 @@ def get_file_writer() -> FileBytesWriter:
 
 
 __all__ = [
+    "IMPLEMENTATION_FOLDER",
     "REQUIREMENTS_FOLDER",
     "RESULT_FOLDER",
     "BlobFileWrites",
@@ -288,6 +312,7 @@ __all__ = [
     "build_blob_writer",
     "build_default_writer",
     "get_file_writer",
+    "implementation_blob_key",
     "requirements_blob_key",
     "result_blob_key",
     "result_filename_from_ref",

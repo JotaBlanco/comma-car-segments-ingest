@@ -1,0 +1,12 @@
+{
+  "plant_param_overrides": {
+    "MAX_BATTERY_TEMP": 65.0,
+    "HEATER_POWER_LOW": 500.0,
+    "HEATER_POWER_HIGH": 2000.0,
+    "R0": 0.0,
+    "KT1": 0.0
+  },
+  "plant_module_overrides": {
+    "DERATING_LUT": [[-40.0, 1.0], [200.0, 1.0]]
+  }
+}

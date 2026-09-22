@@ -25,7 +25,10 @@ export interface WorkOrderDefinition {
 
 export interface WorkOrderRunRollup {
   run_id: string;
+  /** The FIRST of `definition_ids`. A run fulfils a set of definitions. */
   definition_id: string | null;
+  /** Every definition this run fulfils, sorted ascending. Empty when none. */
+  definition_ids?: string[];
   rig_id: string;
   test_cell: string | null;
   first_data_at: string;
@@ -155,6 +158,27 @@ export interface RequirementsFileEdit {
 }
 
 /**
+ * The executable test implementation of one definition — one `.py` in blob.
+ *
+ * It is named by path AND by the sha256 of its bytes, so a verdict can state
+ * the exact code that produced it. `entrypoint` is the module-level function a
+ * runner calls: `evaluate(run_id, table) -> {verdict, evidence}`.
+ *
+ * The bytes come back from
+ * `GET /test-definitions/{td_id}/implementation/download`.
+ */
+export interface DefinitionImplementation {
+  blob_path: string;
+  filename: string;
+  sha256: string;
+  size_bytes: number;
+  language: string;
+  entrypoint: string;
+  uploaded_at: string;
+  uploaded_by: string | null;
+}
+
+/**
  * GET /test-definitions/{td_id}. The list row, plus the work order and the
  * runs that carry the definition. The detail extends the row, so no field
  * reads one way on the list and another way here.
@@ -164,6 +188,8 @@ export interface TestDefinitionDetail extends TestDefinitionListItem {
   runs: WorkOrderRunRollup[];
   /** The API sorts the list: manual first, then by name. Empty by default. */
   requirements_files: RequirementsFile[];
+  /** Null until a `.py` has been uploaded for this definition. */
+  implementation?: DefinitionImplementation | null;
   /**
    * Free name and value pairs a person types. They always carry the source
    * `manual`: they live in their own store beside the mirror, so a planning

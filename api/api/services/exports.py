@@ -117,7 +117,10 @@ def _text(value: object) -> str:
 RUN_COLUMNS: tuple[Column, ...] = (
     Column("Run", lambda row: row.get("_id")),
     Column("Description", lambda row: row.get("description")),
-    Column("Definition", lambda row: row.get("definition_id")),
+    # The PRIMARY definition, the value the screen's own column reads. A run
+    # carrying several is served whole on the wire (`definition_ids`); the file
+    # holds one cell per column, and the screen writes this one.
+    Column("Definition", lambda row: next(iter(row.get("definition_ids") or []), None)),
     Column("Work order", lambda row: row.get("work_order_id")),
     Column("Project", lambda row: row.get("project")),
     Column("Rig", lambda row: row.get("rig_id")),

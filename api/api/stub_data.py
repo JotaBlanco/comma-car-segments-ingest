@@ -79,7 +79,7 @@ def _battery_run(
     run = {
         "run_id": run_id,
         "description": description,
-        "definition_id": definition_id,
+        "definition_ids": [definition_id],
         "work_order_id": work_order_id,
         "project": "EX90",
         "rig_id": "RIG-04",
@@ -108,7 +108,7 @@ def _seed_runs() -> list[dict]:
         {
             "run_id": HERO_RUN_ID,
             "description": "HV battery thermal cycling",
-            "definition_id": None,
+            "definition_ids": [],
             "work_order_id": None,
             "project": None,
             "rig_id": "RIG-04",
@@ -132,7 +132,7 @@ def _seed_runs() -> list[dict]:
         {
             "run_id": "TAS-88213",
             "description": "E-machine efficiency map",
-            "definition_id": "TD-EM-201",
+            "definition_ids": ["TD-EM-201"],
             "work_order_id": HERO_WO_ID,
             "project": "EX90",
             "rig_id": "RIG-02",
@@ -155,7 +155,7 @@ def _seed_runs() -> list[dict]:
         {
             "run_id": "TAS-88209",
             "description": "Inverter derating sweep",
-            "definition_id": "TD-INV-077",
+            "definition_ids": ["TD-INV-077"],
             "work_order_id": "WO-2026-0843",
             "project": "EC40",
             "rig_id": "RIG-07",
@@ -202,7 +202,7 @@ def _seed_runs() -> list[dict]:
         {
             "run_id": "TAS-88201",
             "description": "E-machine efficiency map",
-            "definition_id": "TD-EM-201",
+            "definition_ids": ["TD-EM-201"],
             "work_order_id": HERO_WO_ID,
             "project": "EX90",
             "rig_id": "RIG-02",
