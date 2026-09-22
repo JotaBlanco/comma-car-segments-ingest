@@ -164,8 +164,8 @@
     {
       "id": "BL-23",
       "title": "Requirements are not entities in the TM — only markdown files on a definition",
-      "status": "discuss",
-      "notes": "decides BL-22: promote to entity, light registry, or derived-only view",
+      "status": "finished",
+      "notes": "answered 2026-09-22: requirements become entities with versions (BL-34), not a light registry — the user chose versioned links (BL-33)",
       "updated": "2026-09-22"
     },
     {
@@ -229,6 +229,20 @@
       "title": "Review page — review a requirement or a test definition",
       "status": "in progress",
       "notes": "user 2026-09-22: one review surface over both entity kinds. Board: Draft -> Ready for Review -> In Review -> Reviewed, and 'a second person is required' on accept and on any edit of a Reviewed item (DCM policy, pinned by policy_sha256). Spec: dev-planning/review-page",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-33",
+      "title": "Versioned verifies-link between requirement and test definition, stored in the database",
+      "status": "in progress",
+      "notes": "user 2026-09-22: hyperlinks both ways carrying the version of each side. Board model: link_id = link_type|from_id|to_id with NO version in the preimage, recording the confirmed pair (R@v, TC@w) separately from current versions; the difference is what makes a link suspect. Folded into dev-planning/review-page",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-34",
+      "title": "Requirements and test definitions need item_version + content_sha256 + normative_sha256",
+      "status": "to do",
+      "notes": "forced by BL-33: a versioned link needs versioned ends. Mints on content change, identical bytes refused (no_op_mint); normative projection decides suspicion",
       "updated": "2026-09-22"
     }
   ]
