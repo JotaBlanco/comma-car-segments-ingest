@@ -244,6 +244,20 @@
       "status": "to do",
       "notes": "forced by BL-33: a versioned link needs versioned ends. Mints on content change, identical bytes refused (no_op_mint); normative projection decides suspicion",
       "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-35",
+      "title": "Authoring controls on every page: add / edit / remove",
+      "status": "in progress",
+      "notes": "user 2026-09-22: Review, Requirements, Test definitions, Work orders, Test runs. Collides with planning ownership — work orders and definitions are mirrored read-only today (planning_sync), and the board says a Reviewed item needs a second person to edit. Spec: dev-planning/authoring-controls",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-36",
+      "title": "Review window functional — not just a queue",
+      "status": "in progress",
+      "notes": "accept / reject / request changes / claim, with the four-eyes rule; part of dev-planning/review-page",
+      "updated": "2026-09-22"
     }
   ]
 }
