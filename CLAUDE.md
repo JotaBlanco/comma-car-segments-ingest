@@ -95,6 +95,11 @@ MF4 Import  --mf4_metadata-->  MF4 Decoder  --"samples" + ONE "file_complete" ma
   `https://lh-query-3d7475f5-testrigorg-global.testrig-depl.dev.quix.io` with a PAT.
 
 ## Seeding the Test Manager (Tomas's `api/`)
+
+**Hierarchy (user's definition, 2026-09-22):** a **work order** is a test campaign and
+contains several **test runs**; one test run (one trace / one bench session) **covers several
+test definitions**; a **test definition** is one test case for one requirement. Runs claim
+their work order and definitions from the HD comment (`test.work_order`, `test.definitions`).
 - Definitions and work orders enter **only** via planning: `POST /api/v1/planning/sync` with
   `work_orders[]`, `test_definitions[{id, work_order_id, title, planned_runs,
   requirements_files[{name, content}]}]`, `links[]`. Requirements files are markdown. There
