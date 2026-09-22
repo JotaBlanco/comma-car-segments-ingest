@@ -127,23 +127,20 @@ same change that moves the work. Nothing agreed in conversation stays only in co
 | ID | Status | Item | Notes |
 |---|---|---|---|
 | `BL-04` | **in progress** | Upstream plant polarity fix (dc-battery-sim, battery-sign current) | verified 53/53 in C:/repos/quixstreams-tests-polarity; commit there, then re-vendor here |
-| `BL-22` | **in progress** | Requirement status moves automatically when a run covers it; covering run id visible on the requirement | spec dev-planning/requirement-status-from-runs; blocked on requirements not being entities in api/ |
+| `BL-22` | **in progress** | Requirement status moves automatically when a run covers it; covering run id visible on the requirement | SPEC DONE (dev-planning/requirement-status-from-runs/spec.md) — not built |
 | `BL-33` | **in progress** | Versioned verifies-link between requirement and test definition, stored in the database | user 2026-09-22: hyperlinks both ways carrying the version of each side. Board model: link_id = link_type|from_id|to_id with NO version in the preimage, recording the confirmed pair (R@v, TC@w) separately from current versions; the difference is what makes a link suspect. Folded into dev-planning/review-page |
-| `BL-08` | to do | Seed the Test Manager: 1 work order, 10 definitions, 4 run links via POST /planning/sync | after BL-06; work order lands in DCM automatically |
-| `BL-09` | to do | Regenerate traces with test.* claims + new timestamps, upload, verify battery_data_v1 and registration | old 4 routes stay in legacy mf4_signals_v5 |
 | `BL-11` | to do | Run the 10 implementations against the lake and write verdicts | explicitly out of scope of BL-06; next feature |
-| `BL-12` | to do | Wave 2: visualisation service (battery, gas/brake pedals) from uiservice.zip on Tomas's API |  |
 | `BL-19` | to do | Covered != Tested: TESTED needs a confirmed link at (R@v,TC@w) AND a pass pinned to TC version w | shapes BL-11 (running implementations -> verdicts) |
 | `BL-24` | to do | No verdict concept: results carry no pass/fail and name no definition | BL-22 defines the contract; BL-11 writes it |
 | `BL-25` | to do | Regenerate api/docs/openapi.v1.json (api/scripts/snapshot.sh) | 3 models gained fields, 2 routes added — contract-snapshot test red until refreshed |
-| `BL-26` | to do | Requirements page in the Test Manager (list + detail) | new screen; needs BL-23 (requirements as entities) and the BL-22 derived fields |
-| `BL-27` | to do | Requirement attribute columns per the Miro SYS.2 board | authored: status, verification_method, verification_criteria, asil(optional); system-assigned: version (mints on content_sha256 change); derived/never stored: baseline (view), verified_by, covering_run_ids, verification_state. Suspect marker on normative_sha256 fields |
+| `BL-26` | to do | Requirements page in the Test Manager (list + detail) | SPEC DONE (dev-planning/requirements-page/spec.md) — not built |
+| `BL-27` | to do | Requirement attribute columns per the Miro SYS.2 board | SPEC DONE (dev-planning/requirements-page/spec.md) — not built |
 | `BL-28` | to do | Work order carries the list of requirements to be tested in it | user 2026-09-22: a campaign states its requirement scope. Feeds the work-order page and the Covered/Tested rollup; interacts with BL-23 (requirements as entities) and requirement-status-from-runs OQ4 |
 | `BL-31` | to do | 5 red tests in tests/test_import_claim.py after the definition claim was dropped | test_a_path_unsafe_id_is_refused[definition_id] x5, test_a_claim_in_the_filename_is_read, test_a_typed_claim_beats_the_filename, test_the_claim_rides_in_both_spellings, test_the_declared_bag_survives_the_connector_s_filter; plus test_sink_partitioning.py::test_the_declared_tree_is_the_traceability_chain already red |
-| `BL-32` | to do | Review page — review a requirement or a test definition | spec done: dev-planning/review-page/spec.md; build pending |
+| `BL-32` | to do | Review page — review a requirement or a test definition | SPEC DONE (dev-planning/review-page/spec.md) — not built |
 | `BL-34` | to do | Requirements and test definitions need item_version + content_sha256 + normative_sha256 | forced by BL-33: a versioned link needs versioned ends. Mints on content change, identical bytes refused (no_op_mint); normative projection decides suspicion |
-| `BL-35` | to do | Authoring controls on every page: add / edit / remove | spec done: dev-planning/authoring-controls/spec.md; build pending |
-| `BL-36` | to do | Review window functional — not just a queue | spec done: dev-planning/review-page/spec.md; build pending |
+| `BL-35` | to do | Authoring controls on every page: add / edit / remove | SPEC DONE (dev-planning/authoring-controls/spec.md) — not built |
+| `BL-36` | to do | Review window functional — not just a queue | SPEC DONE (dev-planning/review-page/spec.md) — not built |
 | `BL-37` | to do | Evaluator: run a test case against a trace and produce a verdict | was tm-evaluator (criteria engine + readiness trigger, group_by(test_run_id)+State). Now nothing evaluates; BL-11 is its replacement for the battery set |
 | `BL-38` | to do | Coverage endpoint and matrix (GET /coverage) | existed on the old backend; the board computes coverage at baseline seal. Needed by the requirements page and the work-order rollup (BL-28) |
 | `BL-39` | to do | Baselines: seal a named set of requirement versions (GET/POST /baselines) | existed on the old backend; the board's model (members[] manifest owned by the baseline, member_index_sha256 diff, derived reverse index). Blocked on BL-34 versions |
@@ -154,7 +151,6 @@ same change that moves the work. Nothing agreed in conversation stays only in co
 | `BL-44` | to do | Parameter sets as DCM config events (/parameters, config-events) | the old chain turned parameter sets into DCM-shaped config events; our battery parameters are a DCM document but nothing consumes them at runtime |
 | `BL-47` | to do | No UI assigns a definition to a run | the only route replaces the whole set (_resolve_manual_links, api/api/services/queries_runs.py:1173). tm-multi-definition-runs/architecture.md claims the Test Run page does it — it does not. Needed now that traces no longer claim definitions |
 | `BL-48` | to do | Six run-detail tests mock @/lib/hooks wholesale and now throw on useWorkOrder | new-tab-marks, no-would-toasts, null-fields, quixlab-launch-context, signals-selection, signals-tab-filters — each needs useWorkOrder in its mock factory |
-| `BL-49` | to do | Battery sim UI: pedals plus DC charging up to 250 kW | spec dev-planning/battery-sim-ui. Plant already accepts +-250 kW; charging is a third input mode at standstill with the plug in. 250 kW at ~780 V is ~320 A, above I_current_Chr_Max 300 A, so the UI must show commanded vs achieved and the derating band |
 | `BL-13` | discuss | TM_RUN_KEY_PATTERN is an unbound project variable on decoder + connector (literal string) | harmless for us (header rung); tell Tomas |
 | `BL-14` | discuss | Legacy rows: 4 battery routes in mf4_signals_v5 (pre-marker decode) | leave or delete |
 | `BL-15` | discuss | Requirements seeding into the new TM model (requirements-files per definition) | seed markdown covers it per definition; direct upload route exists |
@@ -170,12 +166,16 @@ same change that moves the work. Nothing agreed in conversation stays only in co
 | `BL-05` | finished | QuixLab + Lakehouse framed inside Test Manager (no new window) | QA'd by the user in the Portal 2026-09-22: QuixLab and Lakehouse both frame correctly |
 | `BL-06` | finished | TM backend: one run covers several definitions (definition_ids), claims test.definitions, lake partitions platform/work_order/run_id | committed 8d7847e, pushed |
 | `BL-07` | finished | One implementation .py per test case in blob (test-manager/implementations/<td>/), linked from the definition, opened via QuixLab | committed 8d7847e, pushed |
+| `BL-08` | finished | Seed the Test Manager: 1 work order, 10 definitions, 4 run links via POST /planning/sync | seeded: WO-BAT-2026-001 + 10 definitions live in jamaui |
+| `BL-09` | finished | Regenerate traces with test.* claims + new timestamps, upload, verify battery_data_v1 and registration | 4 traces uploaded; runs TAS-1001..1004 registered; rows landing in battery_data_v1 |
 | `BL-10` | finished | Commit + push battery feature and TM adaptation; rebase onto Portal auto-commits | pushed 7a758ef..8d7847e |
+| `BL-12` | finished | Wave 2: visualisation service (battery, gas/brake pedals) from uiservice.zip on Tomas's API | superseded by BL-49 — built as battery-sim-plant + battery-sim-ui |
 | `BL-16` | finished | Old backend/ Test Manager + DCM-source design | superseded by Tomas's api/; archived as archive/dcm-source-on-old-backend |
 | `BL-21` | finished | Parallel agents when code paths are disjoint; QA by the user in the Portal; no Tester round | working agreement 2026-09-22 |
 | `BL-23` | finished | Requirements are not entities in the TM — only markdown files on a definition | answered 2026-09-22: requirements become entities with versions (BL-34), not a light registry — the user chose versioned links (BL-33) |
 | `BL-29` | finished | Test Runs nested under Work order; Test definitions under Test Run (nav + run detail) | sidebar indents runs under work orders and definitions under runs; run overview gained a Definitions panel |
 | `BL-30` | finished | Import form no longer claims a test definition | mf4-to-blob form: work order, run id, rig |
+| `BL-49` | finished | Battery sim UI: pedals plus DC charging up to 250 kW | built and deployed 06cda3d: pedals, plug + 250 kW charge slider, heater/chiller, 4 rolling charts |
 
 ## Working agreement
 - **QA is the user's**, in the Quix Portal. No Tester round unless asked; the lint/type gate

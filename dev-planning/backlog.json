@@ -59,15 +59,15 @@
     {
       "id": "BL-08",
       "title": "Seed the Test Manager: 1 work order, 10 definitions, 4 run links via POST /planning/sync",
-      "status": "to do",
-      "notes": "after BL-06; work order lands in DCM automatically",
+      "status": "finished",
+      "notes": "seeded: WO-BAT-2026-001 + 10 definitions live in jamaui",
       "updated": "2026-09-22"
     },
     {
       "id": "BL-09",
       "title": "Regenerate traces with test.* claims + new timestamps, upload, verify battery_data_v1 and registration",
-      "status": "to do",
-      "notes": "old 4 routes stay in legacy mf4_signals_v5",
+      "status": "finished",
+      "notes": "4 traces uploaded; runs TAS-1001..1004 registered; rows landing in battery_data_v1",
       "updated": "2026-09-22"
     },
     {
@@ -87,8 +87,8 @@
     {
       "id": "BL-12",
       "title": "Wave 2: visualisation service (battery, gas/brake pedals) from uiservice.zip on Tomas's API",
-      "status": "to do",
-      "notes": "",
+      "status": "finished",
+      "notes": "superseded by BL-49 — built as battery-sim-plant + battery-sim-ui",
       "updated": "2026-09-22"
     },
     {
@@ -158,7 +158,7 @@
       "id": "BL-22",
       "title": "Requirement status moves automatically when a run covers it; covering run id visible on the requirement",
       "status": "in progress",
-      "notes": "spec dev-planning/requirement-status-from-runs; blocked on requirements not being entities in api/",
+      "notes": "SPEC DONE (dev-planning/requirement-status-from-runs/spec.md) — not built",
       "updated": "2026-09-22"
     },
     {
@@ -186,14 +186,14 @@
       "id": "BL-26",
       "title": "Requirements page in the Test Manager (list + detail)",
       "status": "to do",
-      "notes": "new screen; needs BL-23 (requirements as entities) and the BL-22 derived fields",
+      "notes": "SPEC DONE (dev-planning/requirements-page/spec.md) — not built",
       "updated": "2026-09-22"
     },
     {
       "id": "BL-27",
       "title": "Requirement attribute columns per the Miro SYS.2 board",
       "status": "to do",
-      "notes": "authored: status, verification_method, verification_criteria, asil(optional); system-assigned: version (mints on content_sha256 change); derived/never stored: baseline (view), verified_by, covering_run_ids, verification_state. Suspect marker on normative_sha256 fields",
+      "notes": "SPEC DONE (dev-planning/requirements-page/spec.md) — not built",
       "updated": "2026-09-22"
     },
     {
@@ -228,7 +228,7 @@
       "id": "BL-32",
       "title": "Review page — review a requirement or a test definition",
       "status": "to do",
-      "notes": "spec done: dev-planning/review-page/spec.md; build pending",
+      "notes": "SPEC DONE (dev-planning/review-page/spec.md) — not built",
       "updated": "2026-09-22"
     },
     {
@@ -249,14 +249,14 @@
       "id": "BL-35",
       "title": "Authoring controls on every page: add / edit / remove",
       "status": "to do",
-      "notes": "spec done: dev-planning/authoring-controls/spec.md; build pending",
+      "notes": "SPEC DONE (dev-planning/authoring-controls/spec.md) — not built",
       "updated": "2026-09-22"
     },
     {
       "id": "BL-36",
       "title": "Review window functional — not just a queue",
       "status": "to do",
-      "notes": "spec done: dev-planning/review-page/spec.md; build pending",
+      "notes": "SPEC DONE (dev-planning/review-page/spec.md) — not built",
       "updated": "2026-09-22"
     },
     {
@@ -346,8 +346,8 @@
     {
       "id": "BL-49",
       "title": "Battery sim UI: pedals plus DC charging up to 250 kW",
-      "status": "to do",
-      "notes": "spec dev-planning/battery-sim-ui. Plant already accepts +-250 kW; charging is a third input mode at standstill with the plug in. 250 kW at ~780 V is ~320 A, above I_current_Chr_Max 300 A, so the UI must show commanded vs achieved and the derating band",
+      "status": "finished",
+      "notes": "built and deployed 06cda3d: pedals, plug + 250 kW charge slider, heater/chiller, 4 rolling charts",
       "updated": "2026-09-22"
     },
     {
