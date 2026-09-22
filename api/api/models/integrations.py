@@ -100,3 +100,29 @@ class QuixLabList(ApiModel):
     """
 
     items: list[QuixLabInstance]
+
+
+class RunQuixLab(ApiModel):
+    """Answer of POST /test-runs/{run_id}/quixlab — one person's lab for one run.
+
+    `status` is the Portal's own word, passed through unchanged, so the front
+    end can wait for a lab that is still building without this API inventing a
+    state machine. A lab the Portal has just accepted usually reads as building
+    or queued, and `url` is already its address: the page exists before the
+    container answers on it.
+
+    `created` is true only when THIS call made the deployment. A second click,
+    or a reload while the first one builds, answers the same lab with `false`,
+    which is how a caller can tell "yours, already running" from "just spun up
+    for you, give it a moment".
+
+    `notebook` is the `blob://` pointer the lab opens, and it names the run's
+    own folder. It carries no credential: a bucket-relative path is not one.
+    """
+
+    id: str
+    name: str
+    status: str
+    url: str
+    notebook: str
+    created: bool = False

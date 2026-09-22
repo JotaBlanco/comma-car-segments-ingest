@@ -110,6 +110,19 @@ const { listQuixLabs, getLakehouseUrl } = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/api/integrations", () => ({ listQuixLabs, getLakehouseUrl }));
 
+/* The run detail control no longer opens a shared QuixLab: it asks the API for
+   a lab of this viewer's own, for this run. The context it must carry is the
+   run id it asks with. */
+const { createRunQuixLab, getRunQuixLab } = vi.hoisted(() => ({
+  createRunQuixLab: vi.fn(),
+  getRunQuixLab: vi.fn(),
+}));
+vi.mock("@/lib/api/run-quixlab", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api/run-quixlab")>()),
+  createRunQuixLab,
+  getRunQuixLab,
+}));
+
 import { FileDetailScreen } from "@/components/screens/files/file-detail-screen";
 import { RunDetailScreen } from "@/components/screens/run-detail/run-detail-screen";
 import { SignalDetailScreen } from "@/components/screens/signals/signal-detail-screen";
@@ -130,6 +143,10 @@ let opened: string[];
 let open: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
+  createRunQuixLab.mockReset();
+  getRunQuixLab.mockReset();
+  // The ordinary "this viewer has no lab for this run yet".
+  getRunQuixLab.mockRejectedValue(new Error("no QuixLab for this run yet"));
   listQuixLabs.mockReset();
   listQuixLabs.mockResolvedValue([]);
   getLakehouseUrl.mockReset();
@@ -150,13 +167,35 @@ afterEach(() => {
 });
 
 describe("the run detail launch control", () => {
-  it("carries the run id of the run on screen", async () => {
+  it("asks for a lab for the run on screen, and sends the tab to it", async () => {
+    const win = {
+      opener: {} as unknown,
+      closed: false,
+      location: { replace: vi.fn() },
+      document: { open: vi.fn(), write: vi.fn(), close: vi.fn() },
+    };
+    open.mockImplementation((url?: string | URL) => {
+      opened.push(String(url));
+      return win as unknown as Window;
+    });
+    createRunQuixLab.mockResolvedValue({
+      id: "dep-lab",
+      name: "tm-lab-a",
+      status: "Running",
+      url: "https://tm-lab-a.dev.quix.io",
+      notebook: `blob://ws/quixlab-runs/${run.run_id}/analysis.py`,
+      created: true,
+    });
     render(<RunDetailScreen runId={run.run_id} />);
 
     await userEvent.setup().click(screen.getAllByRole("button", { name: LAUNCH })[0]);
 
-    expect(opened).toHaveLength(1);
-    expect(new URL(opened[0]).searchParams.get("run")).toBe(run.run_id);
+    await vi.waitFor(() => expect(win.location.replace).toHaveBeenCalled());
+    expect(createRunQuixLab).toHaveBeenCalledWith(run.run_id);
+    expect(win.location.replace).toHaveBeenCalledWith("https://tm-lab-a.dev.quix.io");
+    // The tab is claimed on the CLICK, with no address: the lab does not exist
+    // yet, and a `window.open` after the await would be blocked.
+    expect(opened).toEqual([""]);
   });
 });
 

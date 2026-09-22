@@ -23,11 +23,13 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
 import { SHELL_BREAKOUT_CLASS } from "@/lib/shell-breakout";
 import { formatArrival, formatInt } from "@/lib/format";
 import { usePageTitle, useRun, useRunJournal } from "@/lib/hooks";
-import { openQuixLab, quixLabConfigured } from "@/lib/quixlab";
+import { quixLabConfigured } from "@/lib/quixlab";
+import { claimTab, launchRunQuixLab } from "@/lib/run-quixlab";
 import { cn } from "@/lib/utils";
 import { sourced } from "@/types";
 import type { SourceTag, TestRun } from "@/types";
@@ -420,8 +422,26 @@ function RunActions({
       Delete
     </Button>
   );
+  /* A QuixLab of this viewer's own, for this run, made on the click.
+
+     The gate stays `quixLabConfigured()`: a deployment with no QuixLab wiring
+     has nothing to clone, and a control that answers 503 is worse than one
+     that is not there. The URL itself is no longer where a person is sent —
+     `lib/run-quixlab.ts` explains what happens to the tab instead. */
+  const openLab = () => {
+    const tab = claimTab();
+    if (tab === null) {
+      toast.error("Your browser blocked the new tab. Allow pop-ups for this site and try again.");
+      return;
+    }
+    void launchRunQuixLab(run.run_id, tab).catch((error: unknown) => {
+      const detail = error instanceof ApiError ? error.message : "QuixLab could not be started";
+      tab.say(detail);
+      toast.error(detail);
+    });
+  };
   const quixLab = quixLabConfigured() && (
-    <Button size="sm" className="font-semibold" onClick={() => openQuixLab(undefined, run.run_id)}>
+    <Button size="sm" className="font-semibold" onClick={openLab}>
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
         <path d="M5 3l14 9-14 9V3z" />
       </svg>

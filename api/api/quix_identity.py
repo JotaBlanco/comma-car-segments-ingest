@@ -299,6 +299,73 @@ def _get(client: httpx.Client, path: str, token: str, params: dict | None = None
 portal_get = _get
 
 
+# A write needs its own deadline. `TIMEOUT_SECONDS` is tuned for the identity
+# read every request makes; creating a deployment is a one-off the Portal takes
+# seconds over, and five would fail it for no reason.
+WRITE_TIMEOUT_SECONDS = 30.0
+
+
+class PlatformMissing(Exception):
+    """The Portal holds no such object.
+
+    Separated from an outage because a caller that REMOVES something must be
+    able to tell "already gone" (success) from "the platform did not answer"
+    (retry). `_get` folds 404 into `PlatformUnreachable`, which is right for
+    its callers: they read, and a read cannot act on the difference.
+    """
+
+
+def portal_send(
+    client: httpx.Client,
+    method: str,
+    path: str,
+    token: str,
+    payload: object | None = None,
+):
+    """Send one Portal WRITE. Refuse exactly the way `_get` refuses.
+
+    The refusal rules are deliberately identical to the read above — 401 and
+    403 are a decision about the caller, anything else at 400 or above is an
+    outage — with 404 lifted out as its own answer.
+
+    The Portal's own error body is kept in the message. A bare status hides
+    WHY a create was refused (a missing scope, a quota, a field the DTO would
+    not bind), and that is the first thing an operator needs.
+    """
+    try:
+        response = client.request(
+            method,
+            path,
+            json=payload,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "X-Version": PORTAL_API_VERSION,
+            },
+            timeout=WRITE_TIMEOUT_SECONDS,
+        )
+    except httpx.HTTPError as error:
+        raise PlatformUnreachable(
+            f"the Quix platform did not answer: {type(error).__name__}"
+        ) from error
+
+    if response.status_code in _REFUSED:
+        raise PlatformRefused("the Quix platform refused the token")
+    if response.status_code == 404:
+        raise PlatformMissing(f"the Quix platform has no {path}")
+    if response.status_code >= 400:
+        raise PlatformUnreachable(
+            f"the Quix platform answered {response.status_code} on "
+            f"{method} {path}: {_detail(response)}"
+        )
+    return response
+
+
+def _detail(response: httpx.Response) -> str:
+    """The Portal's own words about a refusal, trimmed. Never a credential."""
+    text = (response.text or "").strip()
+    return text[:400]
+
+
 def _check_workspace(client: httpx.Client, token: str) -> None:
     """Prove the caller may touch this workspace. Skip it when none is set.
 

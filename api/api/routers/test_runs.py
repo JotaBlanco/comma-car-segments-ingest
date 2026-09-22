@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
 
@@ -11,6 +12,7 @@ from pydantic import AfterValidator
 from pymongo.database import Database
 from pymongo.errors import DuplicateKeyError
 
+from api import quixlab_provision
 from api.auth import journal_actor, journal_actor_or_id, require_token
 from api.db import get_db
 from api.errors import ApiError
@@ -306,6 +308,7 @@ def patch_test_run(
 def delete_test_run(
     run_id: str,
     body: RunDeleteRequest,
+    request: Request,
     db: Annotated[Database, Depends(get_db)],
     identity: Annotated[Identity, Depends(require_token)],
 ) -> RunDeletionReport:
@@ -318,11 +321,33 @@ def delete_test_run(
 
     A lakehouse that will not answer stops the whole delete with 502 and leaves
     the run exactly as it was, so the caller may simply try again.
+
+    **The caller's QuixLab for this run goes too, and only theirs.** A lab is
+    created as the viewer (`api/quixlab_provision.py`), so this request holds
+    the credential for exactly one person's lab. Another person's lab for the
+    same run is not reachable from here and is left to the operator; deleting
+    it would need a service identity, which this product deliberately does not
+    use for QuixLab. It runs AFTER the delete and never fails it: a run that is
+    gone from the registry must not come back because a container would not
+    stop.
     """
     # The verified caller wins over the body actor. See auth.journal_actor.
-    return run_deletion.delete_run(
+    report = run_deletion.delete_run(
         db, run_id, actor=journal_actor(identity, body.actor)
     )
+    _drop_quixlab(request, run_id, identity)
+    return report
+
+
+def _drop_quixlab(request: Request, run_id: str, identity: Identity) -> None:
+    """Remove the caller's lab for a deleted run. Never raise."""
+    token = (request.headers.get("x-portal-token") or "").strip()
+    if not token:
+        return
+    try:
+        quixlab_provision.remove_lab(token, run_id=run_id, user_id=identity.user_id)
+    except Exception as error:  # noqa: BLE001 - a stuck container is not a failed delete
+        logger.warning("the QuixLab for run %s was not removed: %s", run_id, error)
 
 
 @router.post("/test-runs/{run_id}/invalid-flag")

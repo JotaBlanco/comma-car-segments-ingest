@@ -159,12 +159,13 @@ export function openQuixLabNode(nodeId: string | null, runId: string, url?: stri
 /**
  * The one query QuixLab reads on an embedded page.
  *
- * The API builds `embed_url` with the same flag (`api/api/quixlab.py`). This
- * copy exists for one caller only: the fallback below, which turns the single
- * configured URL into a row of the same shape. Every listed row uses the
- * `embed_url` the API already built, and no caller composes one.
+ * The API builds `embed_url` with the same flag (`api/api/quixlab.py`), and
+ * every row that API sends already carries one. Two callers compose their own
+ * because they have no such row: the fallback below, which turns the single
+ * configured URL into a row of the same shape, and the run detail panel, which
+ * frames a lab the run-scoped route answers with a bare `url`.
  */
-const EMBED_QUERY = "isIframe=true";
+export const EMBED_QUERY = "isIframe=true";
 
 /**
  * The longest signal list QuixLab accepts. It answers 400 for a longer one.

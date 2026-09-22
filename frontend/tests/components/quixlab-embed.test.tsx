@@ -15,18 +15,42 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const { listQuixLabs } = vi.hoisted(() => ({ listQuixLabs: vi.fn() }));
-vi.mock("@/lib/api/integrations", () => ({ listQuixLabs }));
+/* The panel no longer lists the workspace's QuixLabs: it asks for the one lab
+   this viewer has for this run, and offers to make it. */
+const { createRunQuixLab, getRunQuixLab } = vi.hoisted(() => ({
+  createRunQuixLab: vi.fn(),
+  getRunQuixLab: vi.fn(),
+}));
+vi.mock("@/lib/api/run-quixlab", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api/run-quixlab")>()),
+  createRunQuixLab,
+  getRunQuixLab,
+}));
 
 import { QuixLabPanel } from "@/components/screens/run-detail/quixlab-panel";
 import { QuixLabFrame } from "@/components/shared/quixlab-frame";
 import { ApiError } from "@/lib/api/client";
 import { setActivePortalToken } from "@/lib/portal/token-store";
+import type { RunQuixLab } from "@/lib/api/run-quixlab";
 import { setQuixLabUrl, type QuixLabInstance } from "@/lib/quixlab";
 
 const RUN_ID = "RUN-2026-0042";
-const SHARED_ORIGIN = "https://quixlab-dep1.dev.quix.io";
 const SESSION_ORIGIN = "https://quixlab-sess9.dev.quix.io";
+const LAB_ORIGIN = "https://tm-lab-ana-run42.dev.quix.io";
+
+/** This viewer's lab for this run, as the run-scoped route answers it. */
+function lab(over: Partial<RunQuixLab> = {}): RunQuixLab {
+  return {
+    id: "dep-lab",
+    name: "tm-lab-ana-run42",
+    status: "Running",
+    url: LAB_ORIGIN,
+    notebook: `blob://ws/quixlab-runs/${RUN_ID}/analysis.py`,
+    created: false,
+    ...over,
+  };
+}
+const SHARED_ORIGIN = "https://quixlab-dep1.dev.quix.io";
 
 function instance(over: Partial<QuixLabInstance> = {}): QuixLabInstance {
   const base: QuixLabInstance = {
@@ -40,16 +64,6 @@ function instance(over: Partial<QuixLabInstance> = {}): QuixLabInstance {
   };
   return { ...base, ...over };
 }
-
-const devSession = instance({
-  id: "sess-9",
-  name: "Ana's lab",
-  kind: "devsession",
-  status: "Running",
-  url: SESSION_ORIGIN,
-  embed_url: `${SESSION_ORIGIN}?isIframe=true`,
-  origin: SESSION_ORIGIN,
-});
 
 /** Post a message the way a browser posts one: the browser sets the origin. */
 function fire(origin: string, data: unknown): void {
@@ -85,7 +99,11 @@ async function mountFrame(target = instance(), runId = RUN_ID) {
 }
 
 beforeEach(() => {
-  listQuixLabs.mockReset();
+  createRunQuixLab.mockReset();
+  getRunQuixLab.mockReset();
+  // A panel that never resolves its lookup would leave every frame test racing
+  // a pending promise, so the default is the ordinary "you have none yet".
+  getRunQuixLab.mockRejectedValue(new ApiError(404, "no QuixLab for this run yet", "quixlab_not_found"));
   setActivePortalToken(null);
   setQuixLabUrl(null);
 });
@@ -187,162 +205,100 @@ describe("the frame opens one named run", () => {
   });
 });
 
-describe("the picker", () => {
-  it("names both kinds apart, and defaults to the shared deployment", async () => {
-    listQuixLabs.mockResolvedValue([instance(), devSession]);
+describe("the lab", () => {
+  it("offers to make one, and makes nothing on mount", async () => {
+    // A lab is a container. Opening a run to read its files must not bill for one.
+    getRunQuixLab.mockRejectedValue(new ApiError(404, "no QuixLab for this run yet", "quixlab_not_found"));
+
     const view = render(<QuixLabPanel runId={RUN_ID} />);
 
-    // The closed trigger shows the default pick: the shared deployment.
-    const trigger = await view.findByLabelText("QuixLab");
-    expect(trigger).toHaveTextContent("QuixLab shared (Deployment) - Running");
+    await waitFor(() => expect(getRunQuixLab).toHaveBeenCalledWith(RUN_ID));
+    expect(view.getByRole("button", { name: /Create my QuixLab/ })).toBeTruthy();
+    expect(createRunQuixLab).not.toHaveBeenCalled();
+    expect(view.container.querySelector("iframe")).toBeNull();
+  });
 
-    await userEvent.setup().click(trigger);
-    const groups = await view.findAllByRole("group");
-    expect(groups).toHaveLength(2);
-    expect(view.getByRole("group", { name: "Deployments" })).toHaveTextContent(
-      "(Deployment)",
+  it("shows the lab this viewer already has, and never makes a second", async () => {
+    getRunQuixLab.mockResolvedValue(lab());
+
+    const view = render(<QuixLabPanel runId={RUN_ID} />);
+
+    await waitFor(() => expect(view.getByText("tm-lab-ana-run42")).toBeTruthy());
+    expect(view.queryByRole("button", { name: /Create my QuixLab/ })).toBeNull();
+    expect(createRunQuixLab).not.toHaveBeenCalled();
+  });
+
+  it("makes one on the click, for the run on screen", async () => {
+    getRunQuixLab.mockRejectedValue(new ApiError(404, "none", "quixlab_not_found"));
+    createRunQuixLab.mockResolvedValue(lab());
+    const view = render(<QuixLabPanel runId={RUN_ID} />);
+    await waitFor(() => view.getByRole("button", { name: /Create my QuixLab/ }));
+
+    await userEvent.setup().click(view.getByRole("button", { name: /Create my QuixLab/ }));
+
+    await waitFor(() => expect(createRunQuixLab).toHaveBeenCalledWith(RUN_ID));
+    await waitFor(() => expect(view.getByText("tm-lab-ana-run42")).toBeTruthy());
+  });
+
+  it("will not embed a lab that is still building", async () => {
+    // Its address exists and nothing serves on it: a frame would show a 502
+    // that never refreshes itself.
+    getRunQuixLab.mockResolvedValue(lab({ status: "Building" }));
+
+    const view = render(<QuixLabPanel runId={RUN_ID} />);
+
+    await waitFor(() => expect(view.getByText(/Building/)).toBeTruthy());
+    expect(view.getByRole("button", { name: /Embed here/ }).hasAttribute("disabled")).toBe(true);
+    expect(view.getByRole("button", { name: /Open in a tab/ }).hasAttribute("disabled")).toBe(true);
+  });
+
+  it("says why, when a lab cannot be made", async () => {
+    getRunQuixLab.mockRejectedValue(new ApiError(404, "none", "quixlab_not_found"));
+    createRunQuixLab.mockRejectedValue(
+      new ApiError(503, "the workspace holds no QuixLab deployment to clone", "quixlab_no_template"),
     );
-    expect(view.getByRole("group", { name: "Dev sessions" })).toHaveTextContent(
-      "(Dev session)",
-    );
-  });
-
-  it("shows a stopped dev session, and refuses to let a person pick it", async () => {
-    listQuixLabs.mockResolvedValue([
-      instance(),
-      { ...devSession, status: "Stopped" },
-    ]);
     const view = render(<QuixLabPanel runId={RUN_ID} />);
-    const user = userEvent.setup();
+    await waitFor(() => view.getByRole("button", { name: /Create my QuixLab/ }));
 
-    const trigger = await view.findByLabelText("QuixLab");
-    await user.click(trigger);
-    const stopped = await view.findByRole("option", { name: /Ana's lab.*Stopped/ });
-    expect(stopped).toHaveAttribute("aria-disabled", "true");
+    await userEvent.setup().click(view.getByRole("button", { name: /Create my QuixLab/ }));
 
-    // A click on the stopped entry changes nothing: the pick stays put.
-    await user.click(stopped);
-    expect(trigger).toHaveTextContent("QuixLab shared (Deployment) - Running");
-  });
-
-  it("falls back to the configured QuixLab when the list is empty", async () => {
-    listQuixLabs.mockResolvedValue([]);
-    setQuixLabUrl(SHARED_ORIGIN);
-    const view = render(<QuixLabPanel runId={RUN_ID} />);
-
-    // The configured fallback has no status, so no state joins the label.
-    const trigger = await view.findByLabelText("QuixLab");
-    expect(trigger).toHaveTextContent("QuixLab (Deployment)");
-    // An empty list is an ordinary answer, so nothing on screen reads as a fault.
-    expect(view.queryByRole("alert")).toBeNull();
-  });
-
-  it("reads a 503 as an outage, and still offers the fallback", async () => {
-    listQuixLabs.mockRejectedValue(
-      new ApiError(503, "the Quix platform did not answer", "platform_unavailable"),
-    );
-    setQuixLabUrl(SHARED_ORIGIN);
-    const view = render(<QuixLabPanel runId={RUN_ID} />);
-
-    const alert = await view.findByRole("alert");
-    expect(alert.textContent).toContain("did not answer");
-    expect(view.getByLabelText("QuixLab")).toHaveTextContent("QuixLab (Deployment)");
-  });
-
-  it("shows nothing at all when no QuixLab resolves", async () => {
-    listQuixLabs.mockResolvedValue([]);
-    const view = render(<QuixLabPanel runId={RUN_ID} />);
-
-    await waitFor(() => expect(listQuixLabs).toHaveBeenCalled());
-    expect(view.container.textContent).toBe("");
+    const alert = await waitFor(() => view.getByRole("alert"));
+    expect(alert.textContent).toContain("no QuixLab deployment to clone");
   });
 });
 
 describe("the two actions", () => {
-  it("opens the picked QuixLab in a tab, with no credential and no opener", async () => {
-    const opened: string[] = [];
-    const open = vi.spyOn(window, "open").mockImplementation((url) => {
-      opened.push(String(url));
+  it("opens the lab in a tab, with no credential and no opener", async () => {
+    getRunQuixLab.mockResolvedValue(lab());
+    const opened: unknown[][] = [];
+    const open = vi.spyOn(window, "open").mockImplementation((...args: unknown[]) => {
+      opened.push(args);
       return null;
     });
-    listQuixLabs.mockResolvedValue([instance(), devSession]);
     const view = render(<QuixLabPanel runId={RUN_ID} />);
+    await waitFor(() => view.getByRole("button", { name: /Open in a tab/ }));
 
-    await view.findByLabelText("QuixLab");
-    await userEvent.setup().click(view.getByRole("button", { name: "Open in a tab (opens in a new tab)" }));
+    await userEvent.setup().click(view.getByRole("button", { name: /Open in a tab/ }));
 
-    expect(opened).toEqual([`${SHARED_ORIGIN}?open=analysis&kind=notebook&run=${RUN_ID}`]);
-    expect(open).toHaveBeenCalledWith(expect.any(String), "_blank", "noopener,noreferrer");
+    expect(opened).toHaveLength(1);
+    expect(opened[0][0]).toBe(LAB_ORIGIN);
+    expect(String(opened[0][2])).toContain("noopener");
+    expect(String(opened[0][0])).not.toContain("token");
+    open.mockRestore();
   });
 
-  it("opens the PORTAL embedded view when the Portal named the deployment", async () => {
-    /* The tab must land inside the Portal, not on the raw deployment host.
-       The Portal frames the deployment, sets `isIframe=true` itself and copies
-       every extra query parameter into the frame, so the deep link and the run
-       id survive the hop. */
-    const opened: string[] = [];
-    vi.spyOn(window, "open").mockImplementation((url) => {
-      opened.push(String(url));
-      return null;
+  it("embeds the lab, framing the address it was given", async () => {
+    getRunQuixLab.mockResolvedValue(lab());
+    const view = render(<QuixLabPanel runId={RUN_ID} />);
+    await waitFor(() => view.getByRole("button", { name: /Embed here/ }));
+
+    await userEvent.setup().click(view.getByRole("button", { name: /Embed here/ }));
+
+    const frame = await waitFor(() => {
+      const found = view.container.querySelector("iframe");
+      if (found === null) throw new Error("no frame");
+      return found;
     });
-    const portal =
-      "https://portal.dev.quix.io/pipeline/deployments/dep-1/embedded?workspace=ws-demo";
-    listQuixLabs.mockResolvedValue([instance({ portal_embedded_url: portal })]);
-    const view = render(<QuixLabPanel runId={RUN_ID} />);
-
-    await view.findByLabelText("QuixLab");
-    await userEvent.setup().click(view.getByRole("button", { name: "Open in a tab (opens in a new tab)" }));
-
-    expect(opened).toEqual([`${portal}&open=analysis&kind=notebook&run=${RUN_ID}`]);
-    const query = new URL(opened[0]).searchParams;
-    expect(query.get("workspace")).toBe("ws-demo");
-    expect(query.get("run")).toBe(RUN_ID);
-  });
-
-  it("keeps the direct URL for a dev session, which has no deployment page", async () => {
-    const opened: string[] = [];
-    vi.spyOn(window, "open").mockImplementation((url) => {
-      opened.push(String(url));
-      return null;
-    });
-    listQuixLabs.mockResolvedValue([devSession]);
-    const view = render(<QuixLabPanel runId={RUN_ID} />);
-
-    const trigger = await view.findByLabelText("QuixLab");
-    const user = userEvent.setup();
-    await user.click(trigger);
-    await user.click(await view.findByRole("option", { name: /Ana's lab/ }));
-    await user.click(view.getByRole("button", { name: "Open in a tab (opens in a new tab)" }));
-
-    expect(opened).toEqual([`${SESSION_ORIGIN}?open=analysis&kind=notebook&run=${RUN_ID}`]);
-  });
-
-  it("embeds the picked QuixLab, and follows the pick when it changes", async () => {
-    listQuixLabs.mockResolvedValue([instance(), devSession]);
-    const view = render(<QuixLabPanel runId={RUN_ID} />);
-    const user = userEvent.setup();
-
-    const trigger = await view.findByLabelText("QuixLab");
-    expect(view.container.querySelector("iframe")).toBeNull();
-
-    await user.click(view.getByRole("button", { name: "Embed here" }));
-    await waitFor(() =>
-      expect(view.container.querySelector("iframe")?.getAttribute("src")).toBe(
-        `${SHARED_ORIGIN}?isIframe=true`,
-      ),
-    );
-
-    // A new pick is a new handshake, so the frame closes rather than keeping a
-    // session that belongs to the old origin.
-    await user.click(trigger);
-    await user.click(await view.findByRole("option", { name: /Ana's lab/ }));
-    expect(view.container.querySelector("iframe")).toBeNull();
-
-    await user.click(view.getByRole("button", { name: "Embed here" }));
-    await waitFor(() =>
-      expect(view.container.querySelector("iframe")?.getAttribute("src")).toBe(
-        `${SESSION_ORIGIN}?isIframe=true`,
-      ),
-    );
+    await waitFor(() => expect(frame.getAttribute("src")).toBe(`${LAB_ORIGIN}?isIframe=true`));
   });
 });

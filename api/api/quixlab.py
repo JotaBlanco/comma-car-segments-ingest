@@ -358,6 +358,14 @@ def _dev_sessions(client: httpx.Client, token: str, workspace: str) -> list[Quix
     return out
 
 
+# `quixlab_provision` reads the same Portal rows this module reads, and it must
+# read a renamed field the same way: as empty, never as a wrong value. One
+# implementation keeps that true. The `portal_get = _get` line in
+# `quix_identity` is the same move for the same reason.
+read_text = _text
+read_rows = _rows
+
+
 def list_instances(token: str) -> list[QuixLabInstance]:
     """Every QuixLab in the workspace this viewer may open, both kinds.
 

@@ -13,29 +13,39 @@ import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const { listQuixLabs } = vi.hoisted(() => ({ listQuixLabs: vi.fn() }));
-vi.mock("@/lib/api/integrations", () => ({ listQuixLabs }));
+/* The panel frames this viewer's own lab for this run, not a picked instance. */
+const { createRunQuixLab, getRunQuixLab } = vi.hoisted(() => ({
+  createRunQuixLab: vi.fn(),
+  getRunQuixLab: vi.fn(),
+}));
+vi.mock("@/lib/api/run-quixlab", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api/run-quixlab")>()),
+  createRunQuixLab,
+  getRunQuixLab,
+}));
 
 import { QuixLabPanel } from "@/components/screens/run-detail/quixlab-panel";
+import type { RunQuixLab } from "@/lib/api/run-quixlab";
 import { setActivePortalToken } from "@/lib/portal/token-store";
-import { setQuixLabUrl, type QuixLabInstance } from "@/lib/quixlab";
+import { setQuixLabUrl } from "@/lib/quixlab";
 
 const RUN_ID = "RUN-2026-0042";
-const ORIGIN = "https://quixlab-dep1.dev.quix.io";
+const ORIGIN = "https://tm-lab-ana-run42.dev.quix.io";
+const EMBED_URL = `${ORIGIN}?isIframe=true`;
 
-const lab: QuixLabInstance = {
-  id: "dep-1",
-  name: "QuixLab shared",
-  kind: "deployment",
+const lab: RunQuixLab = {
+  id: "dep-lab",
+  name: "tm-lab-ana-run42",
   status: "Running",
   url: ORIGIN,
-  embed_url: `${ORIGIN}?isIframe=true`,
-  origin: ORIGIN,
+  notebook: `blob://ws/quixlab-runs/${RUN_ID}/analysis.py`,
+  created: false,
 };
 
 beforeEach(() => {
-  listQuixLabs.mockReset();
-  listQuixLabs.mockResolvedValue([lab]);
+  createRunQuixLab.mockReset();
+  getRunQuixLab.mockReset();
+  getRunQuixLab.mockResolvedValue(lab);
   setActivePortalToken("token-one");
   setQuixLabUrl(null);
 });
@@ -53,7 +63,7 @@ async function embed() {
   await user.click(await view.findByRole("button", { name: "Embed here" }));
   const frame = view.container.querySelector("iframe");
   if (frame === null) throw new Error("the frame did not render");
-  await waitFor(() => expect(frame.getAttribute("src")).toBe(lab.embed_url));
+  await waitFor(() => expect(frame.getAttribute("src")).toBe(EMBED_URL));
   return { user, view, frame };
 }
 
@@ -104,11 +114,11 @@ describe("the embedded frame takes more room", () => {
 
     await user.click(expandControl(view));
     expect(view.container.querySelector("iframe")).toBe(frame);
-    expect(frame.getAttribute("src")).toBe(lab.embed_url);
+    expect(frame.getAttribute("src")).toBe(EMBED_URL);
 
     await user.click(expandControl(view));
     expect(view.container.querySelector("iframe")).toBe(frame);
-    expect(frame.getAttribute("src")).toBe(lab.embed_url);
+    expect(frame.getAttribute("src")).toBe(EMBED_URL);
     // Never a sandbox: QuixLab needs same-origin storage for its session cookie.
     expect(frame.hasAttribute("sandbox")).toBe(false);
   });
@@ -121,7 +131,7 @@ describe("the embedded frame takes more room", () => {
     view.rerender(<QuixLabPanel runId={RUN_ID} signals={["Signal_003", "Signal_007"]} />);
 
     expect(view.container.querySelector("iframe")).toBe(frame);
-    expect(frame.getAttribute("src")).toBe(lab.embed_url);
+    expect(frame.getAttribute("src")).toBe(EMBED_URL);
     expect(view.container.textContent).toContain("“Open in a tab” opens the whole run");
   });
 

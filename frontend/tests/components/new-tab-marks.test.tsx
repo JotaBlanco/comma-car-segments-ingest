@@ -114,6 +114,20 @@ const { listQuixLabs, getLakehouseUrl } = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/api/integrations", () => ({ listQuixLabs, getLakehouseUrl }));
 
+/* The panel frames this viewer's own lab for this run. It needs one to have
+   an "Open in a tab" control at all. */
+const { createRunQuixLab, getRunQuixLab } = vi.hoisted(() => ({
+  createRunQuixLab: vi.fn(),
+  getRunQuixLab: vi.fn<() => Promise<unknown>>(() =>
+    Promise.reject(new Error("no QuixLab for this run yet")),
+  ),
+}));
+vi.mock("@/lib/api/run-quixlab", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api/run-quixlab")>()),
+  createRunQuixLab,
+  getRunQuixLab,
+}));
+
 import { FileDetailScreen } from "@/components/screens/files/file-detail-screen";
 import { QuixLabPanel } from "@/components/screens/run-detail/quixlab-panel";
 import { RunDetailScreen } from "@/components/screens/run-detail/run-detail-screen";
@@ -227,8 +241,16 @@ describe("the Open in QuixLab headers", () => {
 
 describe("the QuixLab panel", () => {
   it("marks Open in a tab, and leaves Embed here without a mark", async () => {
+    getRunQuixLab.mockResolvedValue({
+      id: "dep-lab",
+      name: "tm-lab-ana",
+      status: "Running",
+      url: "https://tm-lab-ana.dev.quix.io",
+      notebook: `blob://ws/quixlab-runs/${run.run_id}/analysis.py`,
+      created: false,
+    });
     const view = render(<QuixLabPanel runId={run.run_id} />);
-    await view.findByLabelText("QuixLab");
+    await view.findByRole("button", { name: `Open in a tab ${SUFFIX}` });
 
     expectMarked(view.getByRole("button", { name: `Open in a tab ${SUFFIX}` }));
 
