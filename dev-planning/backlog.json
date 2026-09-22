@@ -39,7 +39,7 @@
       "id": "BL-05",
       "title": "QuixLab + Lakehouse framed inside Test Manager (no new window)",
       "status": "finished",
-      "notes": "committed 43a6942, pushed; QA by the user in the Portal",
+      "notes": "QA'd by the user in the Portal 2026-09-22: QuixLab and Lakehouse both frame correctly",
       "updated": "2026-09-22"
     },
     {
@@ -194,6 +194,34 @@
       "title": "Requirement attribute columns per the Miro SYS.2 board",
       "status": "to do",
       "notes": "authored: status, verification_method, verification_criteria, asil(optional); system-assigned: version (mints on content_sha256 change); derived/never stored: baseline (view), verified_by, covering_run_ids, verification_state. Suspect marker on normative_sha256 fields",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-28",
+      "title": "Work order carries the list of requirements to be tested in it",
+      "status": "to do",
+      "notes": "user 2026-09-22: a campaign states its requirement scope. Feeds the work-order page and the Covered/Tested rollup; interacts with BL-23 (requirements as entities) and requirement-status-from-runs OQ4",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-29",
+      "title": "Test Runs nested under Work order; Test definitions under Test Run (nav + run detail)",
+      "status": "in progress",
+      "notes": "dev-planning/tm-hierarchy-nav",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-30",
+      "title": "Import form no longer claims a test definition",
+      "status": "finished",
+      "notes": "mf4-to-blob form: work order, run id, rig",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-31",
+      "title": "5 red tests in tests/test_import_claim.py after the definition claim was dropped",
+      "status": "to do",
+      "notes": "test_a_path_unsafe_id_is_refused[definition_id] x5, test_a_claim_in_the_filename_is_read, test_a_typed_claim_beats_the_filename, test_the_claim_rides_in_both_spellings, test_the_declared_bag_survives_the_connector_s_filter; plus test_sink_partitioning.py::test_the_declared_tree_is_the_traceability_chain already red",
       "updated": "2026-09-22"
     }
   ]
