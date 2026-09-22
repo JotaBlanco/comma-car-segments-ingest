@@ -12,17 +12,21 @@
  *      ever carries a credential to a page we did not frame.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
 import userEvent from "@testing-library/user-event";
 
 /* The panel no longer lists the workspace's QuixLabs: it asks for the one lab
    this viewer has for this run, and offers to make it. */
-const { createRunQuixLab, getRunQuixLab } = vi.hoisted(() => ({
+const { closeRunQuixLab, createRunQuixLab, getRunQuixLab } = vi.hoisted(() => ({
+  closeRunQuixLab: vi.fn(),
   createRunQuixLab: vi.fn(),
   getRunQuixLab: vi.fn(),
 }));
 vi.mock("@/lib/api/run-quixlab", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/run-quixlab")>()),
+  closeRunQuixLab,
   createRunQuixLab,
   getRunQuixLab,
 }));
@@ -98,7 +102,14 @@ async function mountFrame(target = instance(), runId = RUN_ID) {
   return { view, frame, posted };
 }
 
+/** The panel invalidates the results queries on Save and Close, so it needs a client. */
+function withClient(node: ReactElement): ReactElement {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return <QueryClientProvider client={client}>{node}</QueryClientProvider>;
+}
+
 beforeEach(() => {
+  closeRunQuixLab.mockReset();
   createRunQuixLab.mockReset();
   getRunQuixLab.mockReset();
   // A panel that never resolves its lookup would leave every frame test racing
@@ -205,100 +216,118 @@ describe("the frame opens one named run", () => {
   });
 });
 
-describe("the lab", () => {
-  it("offers to make one, and makes nothing on mount", async () => {
+describe("the notebook", () => {
+  it("offers to create one, and makes nothing on mount", async () => {
     // A lab is a container. Opening a run to read its files must not bill for one.
     getRunQuixLab.mockRejectedValue(new ApiError(404, "no QuixLab for this run yet", "quixlab_not_found"));
 
-    const view = render(<QuixLabPanel runId={RUN_ID} />);
+    const view = render(withClient(<QuixLabPanel runId={RUN_ID} />));
 
     await waitFor(() => expect(getRunQuixLab).toHaveBeenCalledWith(RUN_ID));
-    expect(view.getByRole("button", { name: /Create my QuixLab/ })).toBeTruthy();
+    expect(view.getByRole("button", { name: "Create QuixLab notebook" })).toBeTruthy();
     expect(createRunQuixLab).not.toHaveBeenCalled();
     expect(view.container.querySelector("iframe")).toBeNull();
   });
 
-  it("shows the lab this viewer already has, and never makes a second", async () => {
-    getRunQuixLab.mockResolvedValue(lab());
+  it("offers to open a saved one, and never makes a second", async () => {
+    getRunQuixLab.mockResolvedValue(lab({ status: "Stopped" }));
 
-    const view = render(<QuixLabPanel runId={RUN_ID} />);
+    const view = render(withClient(<QuixLabPanel runId={RUN_ID} />));
 
-    await waitFor(() => expect(view.getByText("tm-lab-ana-run42")).toBeTruthy());
-    expect(view.queryByRole("button", { name: /Create my QuixLab/ })).toBeNull();
+    await waitFor(() => expect(view.getByText(/tm-lab-ana-run42/)).toBeTruthy());
+    expect(view.getByRole("button", { name: "Open QuixLab notebook" })).toBeTruthy();
+    expect(view.queryByRole("button", { name: "Create QuixLab notebook" })).toBeNull();
     expect(createRunQuixLab).not.toHaveBeenCalled();
   });
 
-  it("makes one on the click, for the run on screen", async () => {
-    getRunQuixLab.mockRejectedValue(new ApiError(404, "none", "quixlab_not_found"));
-    createRunQuixLab.mockResolvedValue(lab());
-    const view = render(<QuixLabPanel runId={RUN_ID} />);
-    await waitFor(() => view.getByRole("button", { name: /Create my QuixLab/ }));
+  it("one click creates it, waits for it, and embeds it", async () => {
+    /* The button reports the progress itself: a deployment answers Building before
+       anything serves on its address, and a frame opened then shows a 502 that never
+       refreshes. */
+    getRunQuixLab
+      .mockRejectedValueOnce(new ApiError(404, "none", "quixlab_not_found"))
+      .mockResolvedValue(lab());
+    createRunQuixLab.mockResolvedValue(lab({ status: "Building", created: true }));
+    const view = render(withClient(<QuixLabPanel runId={RUN_ID} />));
+    await waitFor(() => view.getByRole("button", { name: "Create QuixLab notebook" }));
 
-    await userEvent.setup().click(view.getByRole("button", { name: /Create my QuixLab/ }));
+    await userEvent.setup().click(view.getByRole("button", { name: "Create QuixLab notebook" }));
 
     await waitFor(() => expect(createRunQuixLab).toHaveBeenCalledWith(RUN_ID));
-    await waitFor(() => expect(view.getByText("tm-lab-ana-run42")).toBeTruthy());
+    await waitFor(() => expect(view.getByRole("button", { name: /Starting/ })).toBeTruthy());
+    const frame = await waitFor(() => {
+      const found = view.container.querySelector("iframe");
+      if (found === null) throw new Error("no frame yet");
+      return found;
+    }, { timeout: 5000 });
+    await waitFor(() => expect(frame.getAttribute("src")).toBe(`${LAB_ORIGIN}?isIframe=true`));
+    expect(view.getByRole("button", { name: "Save and Close" })).toBeTruthy();
   });
 
-  it("will not embed a lab that is still building", async () => {
-    // Its address exists and nothing serves on it: a frame would show a 502
-    // that never refreshes itself.
-    getRunQuixLab.mockResolvedValue(lab({ status: "Building" }));
-
-    const view = render(<QuixLabPanel runId={RUN_ID} />);
-
-    await waitFor(() => expect(view.getByText(/Building/)).toBeTruthy());
-    expect(view.getByRole("button", { name: /Embed here/ }).hasAttribute("disabled")).toBe(true);
-    expect(view.getByRole("button", { name: /Open in a tab/ }).hasAttribute("disabled")).toBe(true);
-  });
-
-  it("says why, when a lab cannot be made", async () => {
+  it("says why, when it cannot be made", async () => {
     getRunQuixLab.mockRejectedValue(new ApiError(404, "none", "quixlab_not_found"));
     createRunQuixLab.mockRejectedValue(
       new ApiError(503, "the workspace holds no QuixLab deployment to clone", "quixlab_no_template"),
     );
-    const view = render(<QuixLabPanel runId={RUN_ID} />);
-    await waitFor(() => view.getByRole("button", { name: /Create my QuixLab/ }));
+    const view = render(withClient(<QuixLabPanel runId={RUN_ID} />));
+    await waitFor(() => view.getByRole("button", { name: "Create QuixLab notebook" }));
 
-    await userEvent.setup().click(view.getByRole("button", { name: /Create my QuixLab/ }));
+    await userEvent.setup().click(view.getByRole("button", { name: "Create QuixLab notebook" }));
 
     const alert = await waitFor(() => view.getByRole("alert"));
     expect(alert.textContent).toContain("no QuixLab deployment to clone");
   });
 });
 
-describe("the two actions", () => {
-  it("opens the lab in a tab, with no credential and no opener", async () => {
+describe("Save and Close", () => {
+  async function opened() {
     getRunQuixLab.mockResolvedValue(lab());
-    const opened: unknown[][] = [];
+    createRunQuixLab.mockResolvedValue(lab());
+    const view = render(withClient(<QuixLabPanel runId={RUN_ID} />));
+    await waitFor(() => view.getByRole("button", { name: "Open QuixLab notebook" }));
+    await userEvent.setup().click(view.getByRole("button", { name: "Open QuixLab notebook" }));
+    await waitFor(() => expect(view.container.querySelector("iframe")).not.toBeNull());
+    return view;
+  }
+
+  it("files the notebook under the run, stops the lab and closes the frame", async () => {
+    closeRunQuixLab.mockResolvedValue(lab({ status: "Stopping", saved_result_id: "res-1" }));
+    const view = await opened();
+
+    await userEvent.setup().click(view.getByRole("button", { name: "Save and Close" }));
+
+    await waitFor(() => expect(closeRunQuixLab).toHaveBeenCalledWith(RUN_ID));
+    await waitFor(() => expect(view.container.querySelector("iframe")).toBeNull());
+    expect(view.getByText(/Saved under this run/)).toBeTruthy();
+    expect(view.getByRole("button", { name: "Open QuixLab notebook" })).toBeTruthy();
+  });
+
+  it("keeps the frame when the save is refused, so nothing is lost", async () => {
+    closeRunQuixLab.mockRejectedValue(new ApiError(503, "the notebook could not be saved", "storage_unreachable"));
+    const view = await opened();
+
+    await userEvent.setup().click(view.getByRole("button", { name: "Save and Close" }));
+
+    const alert = await waitFor(() => view.getByRole("alert"));
+    expect(alert.textContent).toContain("could not be saved");
+    expect(view.container.querySelector("iframe")).not.toBeNull();
+  });
+
+  it("opens the whole run in a tab, with no credential and no opener", async () => {
+    getRunQuixLab.mockResolvedValue(lab());
+    const opens: unknown[][] = [];
     const open = vi.spyOn(window, "open").mockImplementation((...args: unknown[]) => {
-      opened.push(args);
+      opens.push(args);
       return null;
     });
-    const view = render(<QuixLabPanel runId={RUN_ID} />);
+    const view = render(withClient(<QuixLabPanel runId={RUN_ID} />));
     await waitFor(() => view.getByRole("button", { name: /Open in a tab/ }));
 
     await userEvent.setup().click(view.getByRole("button", { name: /Open in a tab/ }));
 
-    expect(opened).toHaveLength(1);
-    expect(opened[0][0]).toBe(LAB_ORIGIN);
-    expect(String(opened[0][2])).toContain("noopener");
-    expect(String(opened[0][0])).not.toContain("token");
+    expect(opens).toHaveLength(1);
+    expect(opens[0][0]).toBe(LAB_ORIGIN);
+    expect(String(opens[0][2])).toContain("noopener");
     open.mockRestore();
-  });
-
-  it("embeds the lab, framing the address it was given", async () => {
-    getRunQuixLab.mockResolvedValue(lab());
-    const view = render(<QuixLabPanel runId={RUN_ID} />);
-    await waitFor(() => view.getByRole("button", { name: /Embed here/ }));
-
-    await userEvent.setup().click(view.getByRole("button", { name: /Embed here/ }));
-
-    const frame = await waitFor(() => {
-      const found = view.container.querySelector("iframe");
-      if (found === null) throw new Error("no frame");
-      return found;
-    });
-    await waitFor(() => expect(frame.getAttribute("src")).toBe(`${LAB_ORIGIN}?isIframe=true`));
   });
 });

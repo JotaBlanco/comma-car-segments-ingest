@@ -1,4 +1,6 @@
+import type React from "react";
 import { describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import type {
   FileDetail,
@@ -157,6 +159,13 @@ function metaValue(label: string): string {
 /** The four letters "null" as a word, never a class name or an id. */
 const NULL_WORD = /\bnull\b/;
 
+/* The run screen's QuixLab panel invalidates the results queries on Save and Close,
+   so a render of the screen needs a client to invalidate against. */
+function withClient(node: React.ReactElement): React.ReactElement {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return <QueryClientProvider client={client}>{node}</QueryClientProvider>;
+}
+
 describe("a field the API sent as null", () => {
   it("prints an em dash on the file screen, and never a clock", () => {
     data.file = file;
@@ -174,7 +183,7 @@ describe("a field the API sent as null", () => {
 
   it("prints an em dash on the run screen, and never a clock", () => {
     data.run = run;
-    render(<RunDetailScreen runId={run.run_id} />);
+    render(withClient(<RunDetailScreen runId={run.run_id} />));
 
     expect(metaValue("Test cell")).toBe(DASH);
     expect(metaValue("Time range")).toBe(`${DASH} → ${DASH}`);
@@ -262,7 +271,7 @@ const signalStats: SignalRunStatsResponse = {
 describe("a description the API sent as null", () => {
   it("prints an em dash on the run screen", () => {
     data.run = { ...run, description: null };
-    render(<RunDetailScreen runId={run.run_id} />);
+    render(withClient(<RunDetailScreen runId={run.run_id} />));
 
     const page = document.body.textContent ?? "";
     expect(page).toContain(`${DASH} · registered automatically when data arrived`);

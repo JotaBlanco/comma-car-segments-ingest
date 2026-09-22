@@ -21,6 +21,7 @@
  * collapsed rail shows no second icon on a row.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -135,6 +136,11 @@ import { Sidebar } from "@/components/shell/sidebar";
 import { getDb, listFiles, listRuns } from "@/lib/mock/db";
 import { setQuixLabPortalUrl, setQuixLabUrl, type QuixLabInstance } from "@/lib/quixlab";
 
+function withClient(node: React.ReactElement): React.ReactElement {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return <QueryClientProvider client={client}>{node}</QueryClientProvider>;
+}
+
 const PAGE = { page: 1, pageSize: 100 };
 const db = getDb();
 const run = listRuns(db, {}, PAGE).items[0];
@@ -220,7 +226,7 @@ describe("the sidebar new-tab controls", () => {
 
 describe("the Open in QuixLab headers", () => {
   it("marks the run detail control", () => {
-    render(<RunDetailScreen runId={run.run_id} />);
+    render(withClient(<RunDetailScreen runId={run.run_id} />));
     const controls = screen.getAllByRole("button", { name: `Open in QuixLab ${SUFFIX}` });
     expect(controls.length).toBeGreaterThan(0);
     for (const control of controls) {
@@ -249,14 +255,14 @@ describe("the QuixLab panel", () => {
       notebook: `blob://ws/quixlab-runs/${run.run_id}/analysis.py`,
       created: false,
     });
-    const view = render(<QuixLabPanel runId={run.run_id} />);
+    const view = render(withClient(<QuixLabPanel runId={run.run_id} />));
     await view.findByRole("button", { name: `Open in a tab ${SUFFIX}` });
 
     expectMarked(view.getByRole("button", { name: `Open in a tab ${SUFFIX}` }));
 
-    /* "Embed here" frames QuixLab inside this screen. It opens no tab, so it
-       must not carry the mark — the mark has one meaning. */
-    const embed = view.getByRole("button", { name: "Embed here" });
+    /* "Open QuixLab notebook" frames QuixLab inside this screen. It opens no tab,
+       so it must not carry the mark — the mark has one meaning. */
+    const embed = view.getByRole("button", { name: "Open QuixLab notebook" });
     expect(mark(embed)).toBeNull();
     expect(embed.textContent).not.toContain(SUFFIX);
   });

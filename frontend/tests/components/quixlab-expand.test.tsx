@@ -10,16 +10,20 @@
  * away. So the test compares the iframe NODE across a toggle, not its markup.
  */
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
 import userEvent from "@testing-library/user-event";
 
 /* The panel frames this viewer's own lab for this run, not a picked instance. */
-const { createRunQuixLab, getRunQuixLab } = vi.hoisted(() => ({
+const { closeRunQuixLab, createRunQuixLab, getRunQuixLab } = vi.hoisted(() => ({
+  closeRunQuixLab: vi.fn(),
   createRunQuixLab: vi.fn(),
   getRunQuixLab: vi.fn(),
 }));
 vi.mock("@/lib/api/run-quixlab", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/run-quixlab")>()),
+  closeRunQuixLab,
   createRunQuixLab,
   getRunQuixLab,
 }));
@@ -42,10 +46,18 @@ const lab: RunQuixLab = {
   created: false,
 };
 
+function withClient(node: ReactElement): ReactElement {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return <QueryClientProvider client={client}>{node}</QueryClientProvider>;
+}
+
 beforeEach(() => {
   createRunQuixLab.mockReset();
   getRunQuixLab.mockReset();
   getRunQuixLab.mockResolvedValue(lab);
+  createRunQuixLab.mockResolvedValue(lab);
+  closeRunQuixLab.mockReset();
+  closeRunQuixLab.mockResolvedValue({ ...lab, status: "Stopping", saved_result_id: "res-1" });
   setActivePortalToken("token-one");
   setQuixLabUrl(null);
 });
@@ -59,8 +71,8 @@ afterEach(() => {
 /** Mount the panel and open the frame, the way a person opens it. */
 async function embed() {
   const user = userEvent.setup();
-  const view = render(<QuixLabPanel runId={RUN_ID} />);
-  await user.click(await view.findByRole("button", { name: "Embed here" }));
+  const view = render(withClient(<QuixLabPanel runId={RUN_ID} />));
+  await user.click(await view.findByRole("button", { name: "Open QuixLab notebook" }));
   const frame = view.container.querySelector("iframe");
   if (frame === null) throw new Error("the frame did not render");
   await waitFor(() => expect(frame.getAttribute("src")).toBe(EMBED_URL));
@@ -76,9 +88,9 @@ const panel = (view: ReturnType<typeof render>) =>
 
 describe("the embedded frame takes more room", () => {
   it("offers no expand control before a frame exists", async () => {
-    const view = render(<QuixLabPanel runId={RUN_ID} />);
+    const view = render(withClient(<QuixLabPanel runId={RUN_ID} />));
 
-    await view.findByRole("button", { name: "Embed here" });
+    await view.findByRole("button", { name: "Open QuixLab notebook" });
     expect(view.queryByRole("button", { name: /the QuixLab frame$/ })).toBeNull();
   });
 
@@ -128,7 +140,7 @@ describe("the embedded frame takes more room", () => {
     // frame's slot, so the node survives — a moved frame would reload QuixLab.
     const { view, frame } = await embed();
 
-    view.rerender(<QuixLabPanel runId={RUN_ID} signals={["Signal_003", "Signal_007"]} />);
+    view.rerender(withClient(<QuixLabPanel runId={RUN_ID} signals={["Signal_003", "Signal_007"]} />));
 
     expect(view.container.querySelector("iframe")).toBe(frame);
     expect(frame.getAttribute("src")).toBe(EMBED_URL);
@@ -151,7 +163,7 @@ describe("the embedded frame takes more room", () => {
     const { user, view } = await embed();
 
     await user.click(expandControl(view));
-    await user.click(view.getByRole("button", { name: "Close the frame" }));
+    await user.click(view.getByRole("button", { name: "Save and Close" }));
 
     expect(panel(view).className).not.toContain("fixed");
     expect(view.container.querySelector("iframe")).toBeNull();

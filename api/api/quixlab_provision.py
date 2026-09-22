@@ -110,6 +110,11 @@ WORKSPACE_FOLDER_VAR = "Quix__Workspace__Id"
 
 DEPLOYMENTS_PATH = "/deployments"
 DEPLOYMENT_PATH = "/deployments/{deployment_id}"
+
+# A deployment in one of these states is started by `ensure_lab`. The words are the Portal's;
+# anything else - Running, Building, Queued, Starting - is left alone, because starting a
+# deployment that is already coming up is at best a no-op and at worst a second container.
+STARTABLE_STATES = frozenset({"stopped", "failed", "completed", "crashed"})
 WORKSPACE_DEPLOYMENTS_PATH = "/workspaces/{workspace_id}/deployments"
 
 _UNSAFE = re.compile(r"[^a-z0-9]+")
@@ -381,6 +386,12 @@ def ensure_lab(
         rows = _deployment_rows(client, token, workspace)
         existing = _find(rows, name)
         if existing is not None:
+            if quixlab.read_text(existing, "status").lower() in STARTABLE_STATES:
+                # A lab that was saved and closed. Its notebook is where it left it, in the
+                # blob root, so a start is all it takes - no notebook is written over.
+                _action(client, token, quixlab.read_text(existing, "deploymentId"), "start")
+                logger.info("quixlab lab %s started again for run %s", name, run_id)
+                return _lab_from_row({**existing, "status": "Starting"}, pointer, name)
             logger.info("quixlab lab %s already exists for run %s", name, run_id)
             return _lab_from_row(existing, pointer, name)
 
@@ -408,6 +419,72 @@ def ensure_lab(
         return _lab_from_row(
             created if isinstance(created, dict) else {}, pointer, name, created=True
         )
+
+
+def _action(client: httpx.Client, token: str, deployment_id: str, action: str) -> None:
+    """Start or stop a deployment, probing the route shapes Portal versions use.
+
+    QuixLab's own client (`quix_platform.py`, `_action_route_candidates`) found that a 405
+    on `POST /deployments/{id}/start` means the flat path exists under another verb, and
+    that other Portal versions prefix the workspace. So this tries the same shapes in the
+    same order, and treats 404 and 405 as "next shape", never as an answer.
+    """
+    workspace = quix_identity.workspace_id()
+    flat = f"/deployments/{deployment_id}/{action}"
+    shapes = [("PUT", flat), ("POST", flat), ("PATCH", flat)]
+    if workspace:
+        prefixed = f"/{workspace}/deployments/{deployment_id}/{action}"
+        shapes += [("PUT", prefixed), ("POST", prefixed)]
+    tried: list[str] = []
+    for method, path in shapes:
+        try:
+            response = client.request(
+                method,
+                path,
+                json={},
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "X-Version": quix_identity.PORTAL_API_VERSION,
+                },
+                timeout=quix_identity.WRITE_TIMEOUT_SECONDS,
+            )
+        except httpx.HTTPError as error:
+            raise PlatformUnreachable(
+                f"the Quix platform did not answer: {type(error).__name__}"
+            ) from error
+        if response.status_code in (401, 403):
+            raise PlatformRefused("the Quix platform refused the token")
+        if response.status_code in (404, 405):
+            tried.append(f"{method} {path} -> {response.status_code}")
+            continue
+        if response.status_code >= 400:
+            raise PlatformUnreachable(
+                f"the Quix platform answered {response.status_code} on {method} {path}"
+            )
+        return
+    raise PlatformUnreachable(f"no {action} route accepted: {'; '.join(tried)}")
+
+
+def stop_lab(token: str, *, run_id: str, user_id: str) -> Lab | None:
+    """Stop this viewer's lab for this run, keeping the deployment. None when there is none.
+
+    Stopped, not removed: the notebook and everything the person did lives in the lab's
+    blob root, and a stopped deployment restarts on it in seconds where a new one builds.
+    """
+    workspace = quix_identity.workspace_id()
+    if not quix_identity.portal_url() or not workspace:
+        return None
+    name = lab_name(user_id, run_id)
+    pointer = notebook_pointer(notebook_key(run_id))
+    with _client() as client:
+        row = _find(_deployment_rows(client, token, workspace), name)
+        if row is None:
+            return None
+        deployment_id = quixlab.read_text(row, "deploymentId")
+        if quixlab.read_text(row, "status").lower() not in STARTABLE_STATES:
+            _action(client, token, deployment_id, "stop")
+    logger.info("quixlab lab %s stopped for run %s", name, run_id)
+    return _lab_from_row({**row, "status": "Stopping"}, pointer, name)
 
 
 def remove_lab(token: str, *, run_id: str, user_id: str) -> bool:
@@ -567,6 +644,7 @@ __all__ = [
     "remove_lab",
     "run_job_name",
     "sanitize",
+    "stop_lab",
     "template_row",
     "workspace",
 ]

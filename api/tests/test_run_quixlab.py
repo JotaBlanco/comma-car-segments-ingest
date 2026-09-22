@@ -255,6 +255,11 @@ def portal(monkeypatch):
 
     def handler(request: httpx.Request) -> httpx.Response:
         path = request.url.path
+        if path.endswith(("/start", "/stop")) and "/deployments/" in path:
+            # The flat path under PUT, which is the first shape probed; the rest are never
+            # reached, so a test that sees a POST here has a client probing in the wrong order.
+            state["calls"].append((request.method, path))
+            return httpx.Response(200, json={}) if request.method == "PUT" else httpx.Response(405)
         if request.method in ("POST", "DELETE") and "/deployments" in path:
             state["calls"].append((request.method, path))
             if request.method == "DELETE":
@@ -450,3 +455,139 @@ def test_removing_a_lab_answers_204_even_when_there_was_none(
     response = client.request("DELETE", PATH, headers=VIEWER)
 
     assert response.status_code == 204, response.text
+
+
+STOPPED_LAB = {
+    "deploymentId": "dep-lab",
+    "name": quixlab_provision.lab_name("user-a", RUN),
+    "libraryItemId": "quixlab",
+    "status": "Stopped",
+    "publicUrl": "https://tm-lab.dev.quix.io",
+}
+RUNNING_LAB = {**STOPPED_LAB, "status": "Running"}
+NOTEBOOK_TEXT = "import quixlab as ql\n# edited in the lab\n"
+
+
+@pytest.fixture
+def notebook_in_blob(monkeypatch, portal):
+    """A blob store holding the lab's notebook, and recording what is written."""
+    from api.main import app
+    from api.services import file_bytes, file_writes
+
+    store: dict[str, bytes] = {quixlab_provision.notebook_key(RUN): NOTEBOOK_TEXT.encode()}
+
+    class Reader:
+        def open(self, storage_ref):
+            key = storage_ref.removeprefix("blob://")
+            if key not in store:
+                raise file_bytes.FileBytesUnavailable("no such blob", reason="blob_missing")
+            return iter([store[key]]), len(store[key])
+
+    class Writer:
+        def check_ready(self):
+            return
+
+        def write(self, key, chunks):
+            store[key] = b"".join(chunks)
+            return len(store[key])
+
+    app.dependency_overrides[file_bytes.get_file_bytes_provider] = lambda: Reader()
+    app.dependency_overrides[file_writes.get_file_writer] = lambda: Writer()
+    yield store
+    app.dependency_overrides.pop(file_bytes.get_file_bytes_provider, None)
+    app.dependency_overrides.pop(file_writes.get_file_writer, None)
+
+
+def test_opening_a_saved_notebook_starts_the_stopped_lab_and_writes_nothing(
+    client, routed_db, portal, written
+) -> None:
+    """A lab that was saved and closed keeps its notebook in its blob root. Opening it is a
+    start, never a second create and never a notebook written over the person's work."""
+    _seed(routed_db)
+    portal["deployments"] = [TEMPLATE_ROW, STOPPED_LAB]
+
+    body = client.post(PATH, headers=VIEWER).json()
+
+    assert body["status"] == "Starting"
+    assert body["created"] is False
+    assert [kind for kind, _ in portal["calls"]] == ["PUT"], portal["calls"]
+    assert portal["calls"][0][1].endswith("/deployments/dep-lab/start")
+    assert written == [], "the saved notebook is not overwritten"
+
+
+def test_a_running_lab_is_not_started_again(client, routed_db, portal, written) -> None:
+    _seed(routed_db)
+    portal["deployments"] = [TEMPLATE_ROW, RUNNING_LAB]
+
+    body = client.post(PATH, headers=VIEWER).json()
+
+    assert body["status"] == "Running"
+    assert portal["calls"] == []
+
+
+def test_save_and_close_files_the_notebook_under_the_run_and_stops_the_lab(
+    client, routed_db, portal, notebook_in_blob
+) -> None:
+    _seed(routed_db)
+    portal["deployments"] = [TEMPLATE_ROW, RUNNING_LAB]
+
+    response = client.post(f"{PATH}/close", headers=VIEWER)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "Stopping"
+    assert [c for c in portal["calls"] if c[1].endswith("/stop")] == [
+        ("PUT", "/deployments/dep-lab/stop")
+    ]
+    # The notebook is a processed result of the run, its bytes copied out of the lab.
+    result = routed_db["processed_results"].find_one({"_id": body["saved_result_id"]})
+    assert result is not None
+    assert result["run_id"] == RUN
+    assert result["result_key"] == "quixlab-notebook"
+    assert result["provenance"]["tool"] == "QuixLab"
+    saved_key = result["storage_ref"].removeprefix("blob://")
+    assert saved_key != quixlab_provision.notebook_key(RUN), "a copy, not the live file"
+    assert notebook_in_blob[saved_key] == NOTEBOOK_TEXT.encode()
+    # And the run's journal knows: `_store_result` keeps the entry on the run's timeline.
+    assert routed_db["journal_entries"].find_one({"context_run_id": RUN}) is not None
+
+
+def test_saving_twice_is_the_next_version_of_one_result(
+    client, routed_db, portal, notebook_in_blob
+) -> None:
+    _seed(routed_db)
+    portal["deployments"] = [TEMPLATE_ROW, RUNNING_LAB]
+    first = client.post(f"{PATH}/close", headers=VIEWER).json()["saved_result_id"]
+    notebook_in_blob[quixlab_provision.notebook_key(RUN)] = b"# edited again\n"
+
+    second = client.post(f"{PATH}/close", headers=VIEWER).json()["saved_result_id"]
+
+    rows = {r["_id"]: r for r in routed_db["processed_results"].find({"run_id": RUN})}
+    assert rows[second]["version"] == 2
+    assert rows[second]["supersedes"] == first
+
+
+def test_a_notebook_that_cannot_be_read_saves_nothing_and_stops_nothing(
+    client, routed_db, portal, notebook_in_blob
+) -> None:
+    """Losing the lab before the copy landed would lose the work; a lab that keeps running
+    after a refused save costs a container, which is the cheaper mistake."""
+    _seed(routed_db)
+    portal["deployments"] = [TEMPLATE_ROW, RUNNING_LAB]
+    del notebook_in_blob[quixlab_provision.notebook_key(RUN)]
+
+    response = client.post(f"{PATH}/close", headers=VIEWER)
+
+    assert response.status_code == 503, response.text
+    assert routed_db["processed_results"].count_documents({"run_id": RUN}) == 0
+    assert not any(c[1].endswith("/stop") for c in portal["calls"])
+
+
+def test_closing_with_no_lab_is_a_404(client, routed_db, portal, notebook_in_blob) -> None:
+    _seed(routed_db)
+    portal["deployments"] = [TEMPLATE_ROW]
+
+    response = client.post(f"{PATH}/close", headers=VIEWER)
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "quixlab_not_found"

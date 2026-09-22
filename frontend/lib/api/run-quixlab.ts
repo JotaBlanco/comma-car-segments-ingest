@@ -22,6 +22,8 @@ export interface RunQuixLab {
   notebook: string;
   /** True only when THIS call made the deployment. */
   created: boolean;
+  /** Set by Save and Close: the processed result the notebook was saved as. */
+  saved_result_id?: string | null;
 }
 
 /**
@@ -48,6 +50,16 @@ export function createRunQuixLab(runId: string): Promise<RunQuixLab> {
 /** This viewer's lab for this run. It makes nothing, so a poll may call it. */
 export function getRunQuixLab(runId: string): Promise<RunQuixLab> {
   return api.get<RunQuixLab>(path(runId));
+}
+
+/**
+ * Save and Close: the notebook into the run's processed results, then the lab stopped.
+ *
+ * The answer carries `saved_result_id`. The lab is stopped, not removed, so the next
+ * `createRunQuixLab` starts it again on the same notebook in seconds.
+ */
+export function closeRunQuixLab(runId: string): Promise<RunQuixLab> {
+  return api.post<RunQuixLab>(`${path(runId)}/close`, {});
 }
 
 /** Remove this viewer's lab for this run. */

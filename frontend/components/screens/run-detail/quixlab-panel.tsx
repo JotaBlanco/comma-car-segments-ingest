@@ -5,12 +5,16 @@ import { NewTabMark } from "@/components/shared/new-tab-mark";
 import { Panel, PanelHead } from "@/components/shared/panel";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api/client";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
+  closeRunQuixLab,
   createRunQuixLab,
   getRunQuixLab,
   running,
   type RunQuixLab,
 } from "@/lib/api/run-quixlab";
+import { keys } from "@/lib/hooks/keys";
 import { getActivePortalToken } from "@/lib/portal/token-store";
 import {
   EMBED_QUERY,
@@ -39,7 +43,10 @@ import { SHELL_BREAKOUT_CLASS } from "@/lib/shell-breakout";
  *
  * **Why it creates on a click and never on mount.** A lab is a container. A
  * person who opens a run to read its files must not be billed for one, so the
- * panel asks whether they already have a lab and otherwise offers to make one.
+ * panel asks whether they already have a notebook and otherwise offers to make
+ * one. One click does the rest: create or start, wait, embed. Save and Close
+ * files the notebook under the run and stops the lab; opening it again is a
+ * start, not a build.
  */
 
 /** The two message names QuixLab sends up, and the two this panel sends down. */
@@ -206,8 +213,9 @@ export function QuixLabPanel({
   signals?: readonly string[];
 }) {
   const [lab, setLab] = useState<RunQuixLab | null>(null);
-  /** True while a lab is being created or waited for. */
-  const [busy, setBusy] = useState(false);
+  /** What the primary control is doing, while it is doing it. Null when idle. */
+  const [progress, setProgress] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [embedded, setEmbedded] = useState(false);
   /* Portal frames the Test Manager, and the Test Manager frames QuixLab, so
@@ -215,10 +223,11 @@ export function QuixLabPanel({
      area, the same recipe the Explore tab uses. That state belongs to Explore
      and stays there — this panel never renders on the Explore tab. */
   const [expanded, setExpanded] = useState(false);
+  const queryClient = useQueryClient();
 
-  /* Does this viewer already have a lab for this run? A 404 is the ordinary
-     "not yet" and never an error: the Create control is the answer to it. This
-     asks and never creates, so opening a run costs no deployment. */
+  /* Does this viewer already have a notebook for this run? A 404 is the ordinary
+     "not yet" and never an error. This asks and never creates, so opening a run
+     costs no deployment. */
   useEffect(() => {
     let live = true;
     getRunQuixLab(runId).then(
@@ -246,34 +255,67 @@ export function QuixLabPanel({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [expanded]);
 
-  /* Create the lab, then wait for the container. A deployment answers
-     `Building` before it answers anything on its address, so embedding it at
-     once would frame a 502 that never refreshes itself. */
-  const create = useCallback(() => {
-    setBusy(true);
+  /* ONE control does the whole thing: create the lab (or start a saved one), wait
+     for the container, then embed it. The button itself reports the progress. A
+     deployment answers `Building` or `Starting` before anything serves on its
+     address, so embedding at once would frame a 502 that never refreshes itself. */
+  const open = useCallback(() => {
     setError(null);
+    setProgress(lab === null ? "Creating…" : "Starting…");
     void (async () => {
       try {
         let made = await createRunQuixLab(runId);
         setLab(made);
         const giveUpAt = Date.now() + GIVE_UP_MS;
         while (!running(made) && Date.now() < giveUpAt) {
+          setProgress(`Starting… (${made.status.trim() || "queued"})`);
           await new Promise((resolve) => setTimeout(resolve, POLL_MS));
           made = await getRunQuixLab(runId);
           setLab(made);
+        }
+        if (running(made)) {
+          setEmbedded(true);
+          setExpanded(false);
+        } else {
+          setError("The QuixLab is still starting. Try again in a moment.");
         }
       } catch (caught: unknown) {
         setError(
           caught instanceof ApiError ? caught.message : "QuixLab could not be started",
         );
       } finally {
-        setBusy(false);
+        setProgress(null);
       }
     })();
-  }, [runId]);
+  }, [runId, lab]);
+
+  /* Save and Close: the notebook is filed under this run as a processed result and
+     the lab is stopped. The frame goes only once the server says both happened,
+     because a frame that closed on a save that then failed would have thrown
+     away the person's last view of their work. */
+  const saveAndClose = useCallback(() => {
+    setSaving(true);
+    setError(null);
+    void (async () => {
+      try {
+        const closed = await closeRunQuixLab(runId);
+        setLab(closed);
+        setEmbedded(false);
+        setExpanded(false);
+        void queryClient.invalidateQueries({ queryKey: keys.results.all });
+        void queryClient.invalidateQueries({ queryKey: keys.runs.detail(runId) });
+        toast.success("Notebook saved under this run's processed results; QuixLab stopped.");
+      } catch (caught: unknown) {
+        setError(caught instanceof ApiError ? caught.message : "The notebook could not be saved");
+      } finally {
+        setSaving(false);
+      }
+    })();
+  }, [runId, queryClient]);
 
   const ready = lab !== null && running(lab) && lab.url.length > 0;
   const instance = ready ? asInstance(lab) : null;
+  const primaryLabel = progress ?? (lab === null ? "Create QuixLab notebook" : "Open QuixLab notebook");
 
   return (
     <Panel
@@ -287,54 +329,40 @@ export function QuixLabPanel({
       )}
     >
       <PanelHead
-        title="Analyze in QuixLab"
+        title="QuixLab notebooks"
         action={
           <div className="flex items-center gap-2">
             {lab !== null && (
               <span className="text-[0.78rem] text-ink-3">
                 {lab.name}
-                {running(lab) ? "" : ` - ${lab.status.trim() || "starting"}`}
+                {running(lab) ? "" : ` - ${lab.status.trim() || "stopped"}`}
               </span>
             )}
-            {lab === null && (
-              <Button size="sm" className="font-semibold" disabled={busy} onClick={create}>
-                {busy ? "Creating…" : "Create my QuixLab"}
-              </Button>
-            )}
-            {lab !== null && (
+            {ready && (
               <Button
                 variant="outline"
                 size="sm"
                 className="font-semibold"
-                disabled={!ready}
                 /* No `await` in front of the open: the address is already
                    resolved, and a `window.open` a fetch answer triggers is
-                   blocked. A lab is this person's own deployment, so there is
-                   no instance to pick and no Portal hop to make. */
+                   blocked. */
                 onClick={() => window.open(lab.url, "_blank", "noopener,noreferrer")}
               >
                 <span>Open in a tab</span>
                 <NewTabMark iconClassName="size-3 opacity-80" />
               </Button>
             )}
-            {lab !== null && (
+            {!embedded && (
               <Button
                 size="sm"
                 className="font-semibold"
-                disabled={!ready}
-                onClick={() => {
-                  // Closing the frame leaves the expanded layout with it. An
-                  // expanded empty panel would cover the run for no reason.
-                  setEmbedded((on) => !on);
-                  setExpanded(false);
-                }}
+                disabled={progress !== null}
+                aria-busy={progress !== null}
+                onClick={open}
               >
-                {embedded ? "Close the frame" : "Embed here"}
+                {primaryLabel}
               </Button>
             )}
-            {/* The control appears with the frame, because there is nothing to
-                expand without it. It never touches the frame's place in the
-                tree, so the QuixLab session survives the toggle. */}
             {embedded && instance !== null && (
               <Button
                 variant="outline"
@@ -347,6 +375,17 @@ export function QuixLabPanel({
                 {expanded ? "Collapse" : "Expand"}
               </Button>
             )}
+            {embedded && (
+              <Button
+                size="sm"
+                className="font-semibold"
+                disabled={saving}
+                aria-busy={saving}
+                onClick={saveAndClose}
+              >
+                {saving ? "Saving…" : "Save and Close"}
+              </Button>
+            )}
           </div>
         }
       />
@@ -357,8 +396,15 @@ export function QuixLabPanel({
       )}
       {lab === null && error === null && (
         <p className="border-b border-line-2 px-4 py-2 text-[0.78rem] text-ink-3">
-          A QuixLab of your own, opened on a notebook written into this run&rsquo;s
-          own folder. Nobody else shares it, and what you add stays with the run.
+          A notebook that loads this run&rsquo;s data, opened in a QuixLab of your own.
+          Save and Close files it under the run&rsquo;s processed results and stops the
+          QuixLab; open it again any time.
+        </p>
+      )}
+      {lab !== null && !embedded && lab.saved_result_id && error === null && (
+        <p className="border-b border-line-2 px-4 py-2 text-[0.78rem] text-ink-3">
+          Saved under this run&rsquo;s processed results. The QuixLab is stopped; opening
+          the notebook starts it again where you left it.
         </p>
       )}
       {signals.length > 0 && (

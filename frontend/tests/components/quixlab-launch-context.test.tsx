@@ -1,3 +1,4 @@
+import type React from "react";
 /**
  * Every QuixLab launch control carries its context, or it does not exist.
  *
@@ -17,6 +18,7 @@
  * and the module fallback is its design.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -166,6 +168,13 @@ afterEach(() => {
   setQuixLabPortalUrl(null);
 });
 
+/* The run screen's QuixLab panel invalidates the results queries on Save and Close,
+   so a render of the screen needs a client to invalidate against. */
+function withClient(node: React.ReactElement): React.ReactElement {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return <QueryClientProvider client={client}>{node}</QueryClientProvider>;
+}
+
 describe("the run detail launch control", () => {
   it("asks for a lab for the run on screen, and sends the tab to it", async () => {
     const win = {
@@ -186,7 +195,7 @@ describe("the run detail launch control", () => {
       notebook: `blob://ws/quixlab-runs/${run.run_id}/analysis.py`,
       created: true,
     });
-    render(<RunDetailScreen runId={run.run_id} />);
+    render(withClient(<RunDetailScreen runId={run.run_id} />));
 
     await userEvent.setup().click(screen.getAllByRole("button", { name: LAUNCH })[0]);
 

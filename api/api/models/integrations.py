@@ -126,3 +126,5 @@ class RunQuixLab(ApiModel):
     url: str
     notebook: str
     created: bool = False
+    # Set by POST .../quixlab/close: the processed result the notebook was saved as.
+    saved_result_id: str | None = None

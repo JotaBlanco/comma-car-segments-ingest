@@ -15,16 +15,28 @@ a person who clicks twice, or reloads while the container is still building,
 gets the same deployment rather than a second one.
 """
 
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 from pymongo.database import Database
 
 from api import quix_identity, quixlab_provision
+from api.auth import require_token
 from api.db import get_db
 from api.errors import ApiError
 from api.models.integrations import RunQuixLab
-from api.services import file_writes, queries_runs, quixlab_notebook, run_deletion
+from api.models.results import ResultCreateRequest
+from api.quix_identity import Identity
+from api.routers.results import _store_result
+from api.services import file_bytes, file_writes, queries_runs, quixlab_notebook, run_deletion
+
+# What the saved notebook is registered as. One result key per run, so every Save and Close
+# mints the next VERSION of the same result rather than a new result each time - the chain
+# `supersedes` builds is the notebook's history.
+NOTEBOOK_RESULT_KEY = "quixlab-notebook"
+NOTEBOOK_RESULT_NAME = "QuixLab notebook"
+NOTEBOOK_TOOL = "QuixLab"
 
 router = APIRouter(tags=["integrations"])
 
@@ -153,6 +165,107 @@ def get_run_quixlab(run_id: str, request: Request) -> RunQuixLab:
         notebook=lab.notebook,
         created=False,
     )
+
+
+@router.post("/test-runs/{run_id}/quixlab/close", response_model=RunQuixLab)
+def close_run_quixlab(
+    run_id: str,
+    request: Request,
+    db: Annotated[Database, Depends(get_db)],
+    identity_static: Annotated[Identity, Depends(require_token)],
+    reader: Annotated[file_bytes.FileBytesProvider, Depends(file_bytes.get_file_bytes_provider)],
+    writer: Annotated[file_writes.FileBytesWriter, Depends(file_writes.get_file_writer)],
+) -> RunQuixLab:
+    """Save and Close: the notebook into the run's processed results, then the lab stopped.
+
+    **The save comes first, and a failed save stops nothing.** QuixLab writes the notebook a
+    person edits back into the lab's blob root, so what is copied here is their work as they
+    left it. Losing the lab before that copy landed would lose the work; a lab that keeps
+    running after a refused save costs a container, which is the cheaper mistake.
+
+    The notebook lands as the next version of ONE result per run (`NOTEBOOK_RESULT_KEY`), so
+    the run's results list shows a QuixLab notebook with a version history rather than a pile
+    of files. `_store_result` is the writer both result routes share, and it keeps every
+    rule they keep: the run must exist, the provenance is complete, the journal names it.
+
+    The lab is STOPPED, not removed. Its blob root keeps the notebook, and "Open QuixLab
+    notebook" later restarts it there in seconds where a new lab would build.
+    """
+    token = _viewer(request)
+    identity = _identity(token)
+    queries_runs.get_run(db, run_id)  # 404 before anything moves
+    lab = _find(token, run_id, identity.user_id)
+    if lab is None:
+        raise ApiError(404, "no QuixLab for this run yet", "quixlab_not_found")
+
+    key = quixlab_provision.notebook_key(run_id)
+    try:
+        reader.check_ready() if hasattr(reader, "check_ready") else None
+        chunks, _size = reader.open(f"blob://{key}")
+        text = b"".join(chunks)
+        writer.check_ready()
+        result_key = file_writes.result_blob_key(run_id, quixlab_provision.NOTEBOOK_NAME)
+        writer.write(result_key, iter([text]))
+    except file_bytes.FileBytesUnavailable as error:
+        raise ApiError(503, error.detail, "storage_unreachable") from error
+    except Exception as error:  # the store states its own failure type
+        raise ApiError(
+            503, f"the notebook could not be saved: {error}", "storage_unreachable"
+        ) from error
+
+    now = datetime.now(UTC)
+    # Through the same gate every result body passes (`_require_full_provenance` reads the
+    # raw dict), so a saved notebook can never be a result with less provenance than an
+    # uploaded one.
+    body = ResultCreateRequest.model_validate(
+        {
+            "run_id": run_id,
+            "name": NOTEBOOK_RESULT_NAME,
+            "result_key": NOTEBOOK_RESULT_KEY,
+            "description": f"Saved from {lab.name} on {now.strftime('%Y-%m-%d %H:%M')} UTC.",
+            "storage_ref": f"blob://{result_key}",
+            "provenance": {
+                "tool": NOTEBOOK_TOOL,
+                "tool_version": lab.name,
+                "parameters": lab.notebook,
+                "input_file_ids": [],
+                "produced_by": identity.display_name or identity.user_id or NOTEBOOK_TOOL,
+                "produced_at": now.isoformat(),
+            },
+        }
+    )
+    doc, _replayed = _store_result(db, body, identity_static)
+
+    try:
+        stopped = quixlab_provision.stop_lab(token, run_id=run_id, user_id=identity.user_id)
+    except quix_identity.PlatformRefused as error:
+        raise ApiError(403, str(error), "quixlab_refused") from error
+    except quix_identity.PlatformUnreachable as error:
+        # The notebook is saved; only the container is still up. Say exactly that.
+        raise ApiError(
+            503,
+            f"the notebook is saved as {doc['_id']}, but the lab did not stop: {error}",
+            "quixlab_unreachable",
+        ) from error
+    lab = stopped or lab
+    return RunQuixLab(
+        id=lab.id,
+        name=lab.name,
+        status=lab.status,
+        url=lab.url,
+        notebook=lab.notebook,
+        created=False,
+        saved_result_id=doc["_id"],
+    )
+
+
+def _find(token: str, run_id: str, user_id: str):
+    try:
+        return quixlab_provision.find_lab(token, run_id=run_id, user_id=user_id)
+    except quix_identity.PlatformRefused as error:
+        raise ApiError(403, str(error), "quixlab_refused") from error
+    except quix_identity.PlatformUnreachable as error:
+        raise ApiError(503, str(error), "quixlab_unreachable") from error
 
 
 @router.delete("/test-runs/{run_id}/quixlab", status_code=204)
