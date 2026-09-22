@@ -223,6 +223,13 @@
       "status": "to do",
       "notes": "test_a_path_unsafe_id_is_refused[definition_id] x5, test_a_claim_in_the_filename_is_read, test_a_typed_claim_beats_the_filename, test_the_claim_rides_in_both_spellings, test_the_declared_bag_survives_the_connector_s_filter; plus test_sink_partitioning.py::test_the_declared_tree_is_the_traceability_chain already red",
       "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-32",
+      "title": "Review page — review a requirement or a test definition",
+      "status": "in progress",
+      "notes": "user 2026-09-22: one review surface over both entity kinds. Board: Draft -> Ready for Review -> In Review -> Reviewed, and 'a second person is required' on accept and on any edit of a Reviewed item (DCM policy, pinned by policy_sha256). Spec: dev-planning/review-page",
+      "updated": "2026-09-22"
     }
   ]
 }

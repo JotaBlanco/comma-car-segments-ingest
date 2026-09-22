@@ -129,6 +129,7 @@ same change that moves the work. Nothing agreed in conversation stays only in co
 | `BL-04` | **in progress** | Upstream plant polarity fix (dc-battery-sim, battery-sign current) | verified 53/53 in C:/repos/quixstreams-tests-polarity; commit there, then re-vendor here |
 | `BL-22` | **in progress** | Requirement status moves automatically when a run covers it; covering run id visible on the requirement | spec dev-planning/requirement-status-from-runs; blocked on requirements not being entities in api/ |
 | `BL-29` | **in progress** | Test Runs nested under Work order; Test definitions under Test Run (nav + run detail) | dev-planning/tm-hierarchy-nav |
+| `BL-32` | **in progress** | Review page — review a requirement or a test definition | user 2026-09-22: one review surface over both entity kinds. Board: Draft -> Ready for Review -> In Review -> Reviewed, and 'a second person is required' on accept and on any edit of a Reviewed item (DCM policy, pinned by policy_sha256). Spec: dev-planning/review-page |
 | `BL-08` | to do | Seed the Test Manager: 1 work order, 10 definitions, 4 run links via POST /planning/sync | after BL-06; work order lands in DCM automatically |
 | `BL-09` | to do | Regenerate traces with test.* claims + new timestamps, upload, verify battery_data_v1 and registration | old 4 routes stay in legacy mf4_signals_v5 |
 | `BL-11` | to do | Run the 10 implementations against the lake and write verdicts | explicitly out of scope of BL-06; next feature |
