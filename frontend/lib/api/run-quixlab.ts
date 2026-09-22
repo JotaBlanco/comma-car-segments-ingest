@@ -1,16 +1,16 @@
 import { api } from "./client";
 
 /**
- * One person's QuixLab for one run.
+ * A run's QuixLab notebooks, and the lab of this viewer's own that opens each.
  *
  * The product used to send everybody to ONE shared QuixLab named by
- * `TM_QUIXLAB_URL`. These three calls replace that: the API clones the
- * workspace's QuixLab into a deployment of the viewer's own, opened on a
- * notebook written into the run's own folder. `api/quixlab_provision.py`
+ * `TM_QUIXLAB_URL`. Now a run holds any number of notebooks — each a file in a
+ * blob folder of its own — and opening one clones the workspace's QuixLab into
+ * a deployment of the viewer's own on that folder. `api/quixlab_provision.py`
  * carries the reasons.
  *
- * Every call runs as the viewer: `client.ts` adds the `x-portal-token` header,
- * and the API creates nothing without it.
+ * Every call but the list runs as the viewer: `client.ts` adds the
+ * `x-portal-token` header, and the API creates nothing without it.
  */
 export interface RunQuixLab {
   id: string;
@@ -18,12 +18,22 @@ export interface RunQuixLab {
   /** The Portal's own word, passed through. See `running()`. */
   status: string;
   url: string;
-  /** The `blob://` pointer the lab opens, naming the run's own folder. */
+  /** The `blob://` pointer the lab opens, naming the notebook's own folder. */
   notebook: string;
   /** True only when THIS call made the deployment. */
   created: boolean;
-  /** Set by Save and Close: the processed result the notebook was saved as. */
-  saved_result_id?: string | null;
+}
+
+export interface Notebook {
+  notebook_id: string;
+  run_id: string;
+  name: string;
+  created_by: string;
+  created_at: string;
+  /** The last Save and Close; null until the first. */
+  saved_at: string | null;
+  /** This viewer's lab on it, when the Portal knows one. Null for a notebook never opened here. */
+  lab: RunQuixLab | null;
 }
 
 /**
@@ -31,38 +41,48 @@ export interface RunQuixLab {
  *
  * The Portal spells a healthy service `Running`. Everything else — `Building`,
  * `Queued`, `Starting`, `Stopped` — means the address exists but nothing
- * answers on it yet, which is why the launch control waits rather than opening
- * a tab on a 502.
+ * answers on it yet, which is why the panel waits rather than framing a 502.
  */
 export function running(lab: RunQuixLab): boolean {
   return lab.status.trim().toLowerCase() === "running";
 }
 
-function path(runId: string): string {
-  return `/test-runs/${encodeURIComponent(runId)}/quixlab`;
+function path(runId: string, notebookId?: string): string {
+  const base = `/test-runs/${encodeURIComponent(runId)}/notebooks`;
+  return notebookId === undefined ? base : `${base}/${encodeURIComponent(notebookId)}`;
 }
 
-/** Make this viewer's lab for this run, or answer the one they have. */
-export function createRunQuixLab(runId: string): Promise<RunQuixLab> {
-  return api.post<RunQuixLab>(path(runId), {});
+/** The run's notebooks, oldest first, each with this viewer's lab when there is one. */
+export function listNotebooks(runId: string): Promise<Notebook[]> {
+  return api.get<Notebook[]>(path(runId));
 }
 
-/** This viewer's lab for this run. It makes nothing, so a poll may call it. */
-export function getRunQuixLab(runId: string): Promise<RunQuixLab> {
-  return api.get<RunQuixLab>(path(runId));
+/** A new notebook on this run, its starter file written, and this viewer's lab started on it. */
+export function createNotebook(runId: string, name?: string): Promise<Notebook> {
+  return api.post<Notebook>(path(runId), name === undefined ? {} : { name });
+}
+
+/** Start (or make) this viewer's lab on a saved notebook. The file is never written over. */
+export function openNotebook(runId: string, notebookId: string): Promise<Notebook> {
+  return api.post<Notebook>(`${path(runId, notebookId)}/open`, {});
+}
+
+/** This viewer's lab on the notebook. It makes nothing, so a poll may call it. */
+export function getNotebookLab(runId: string, notebookId: string): Promise<RunQuixLab> {
+  return api.get<RunQuixLab>(`${path(runId, notebookId)}/lab`);
 }
 
 /**
- * Save and Close: the notebook into the run's processed results, then the lab stopped.
+ * Save and Close: the notebook confirmed on disk and its save recorded, then the lab stopped.
  *
- * The answer carries `saved_result_id`. The lab is stopped, not removed, so the next
- * `createRunQuixLab` starts it again on the same notebook in seconds.
+ * The lab is stopped, not removed, so the next `openNotebook` starts it again on the
+ * same work in seconds.
  */
-export function closeRunQuixLab(runId: string): Promise<RunQuixLab> {
-  return api.post<RunQuixLab>(`${path(runId)}/close`, {});
+export function closeNotebook(runId: string, notebookId: string): Promise<Notebook> {
+  return api.post<Notebook>(`${path(runId, notebookId)}/close`, {});
 }
 
-/** Remove this viewer's lab for this run. */
-export function deleteRunQuixLab(runId: string): Promise<void> {
-  return api.deleteVoid(path(runId), {});
+/** Forget a notebook: this viewer's lab on it removed, then the row. */
+export function deleteNotebook(runId: string, notebookId: string): Promise<void> {
+  return api.deleteVoid(path(runId, notebookId), {});
 }

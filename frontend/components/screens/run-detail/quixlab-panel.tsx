@@ -5,13 +5,16 @@ import { NewTabMark } from "@/components/shared/new-tab-mark";
 import { Panel, PanelHead } from "@/components/shared/panel";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api/client";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  closeRunQuixLab,
-  createRunQuixLab,
-  getRunQuixLab,
+  closeNotebook,
+  createNotebook,
+  getNotebookLab,
+  listNotebooks,
+  openNotebook,
   running,
+  type Notebook,
   type RunQuixLab,
 } from "@/lib/api/run-quixlab";
 import { keys } from "@/lib/hooks/keys";
@@ -27,15 +30,16 @@ import { cn } from "@/lib/utils";
 import { SHELL_BREAKOUT_CLASS } from "@/lib/shell-breakout";
 
 /**
- * This viewer's own QuixLab for this run: make it, open it in a tab, embed it.
+ * The run's QuixLab notebooks: make one, open a saved one, embed it, save and close it.
  *
- * **Why there is no longer a picker.** The panel used to list every QuixLab in
- * the workspace and ask a person to choose. Everybody then landed on the same
- * canvas, and the run a notebook addressed lived in a per-viewer session
- * rather than in the notebook. Now the API clones the workspace's QuixLab into
- * a deployment of this viewer's own, opened on a notebook written into this
- * run's own folder — so there is exactly one lab this panel can mean, and
- * nothing to choose between. `api/quixlab_provision.py` carries the design.
+ * **Why notebooks, and not a picker of QuixLabs.** The panel used to list every
+ * QuixLab in the workspace and ask a person to choose. Everybody then landed on
+ * the same canvas, and the run a notebook addressed lived in a per-viewer session
+ * rather than in the notebook. Now a run holds its own notebooks — each a file in
+ * a blob folder of its own — and opening one clones the workspace's QuixLab into
+ * a deployment of this viewer's own on that folder. What is listed is the run's
+ * work, not the workspace's containers. `api/quixlab_provision.py` carries the
+ * design.
  *
  * **Why the frame, and not only the tab.** A tab has no parent, so nothing can
  * post it the signal pick from the Signals tab. The frame is the only path
@@ -43,10 +47,9 @@ import { SHELL_BREAKOUT_CLASS } from "@/lib/shell-breakout";
  *
  * **Why it creates on a click and never on mount.** A lab is a container. A
  * person who opens a run to read its files must not be billed for one, so the
- * panel asks whether they already have a notebook and otherwise offers to make
- * one. One click does the rest: create or start, wait, embed. Save and Close
- * files the notebook under the run and stops the lab; opening it again is a
- * start, not a build.
+ * panel lists the notebooks and starts nothing until a name is clicked. One
+ * click does the rest: create or start, wait, embed. Save and Close records the
+ * save and stops the lab; opening the notebook again is a start, not a build.
  */
 
 /** The two message names QuixLab sends up, and the two this panel sends down. */
@@ -198,11 +201,26 @@ export function QuixLabFrame({
   );
 }
 
+/** What one control is doing, while it is doing it. */
+interface Progress {
+  /** The notebook being started, or null while a new one is being created. */
+  notebookId: string | null;
+  text: string;
+}
+
+/** The notebook on screen and the lab that serves it. */
+interface Active {
+  notebook: Notebook;
+  lab: RunQuixLab;
+}
+
+function when(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
+}
+
 /**
- * The panel: one picker and two actions, plus the frame once a person opens it.
- *
- * The panel renders nothing at all when nothing resolves. A screen never
- * promises a destination we cannot reach.
+ * The panel: the run's notebooks, a Create control, and the frame once one is open.
  */
 export function QuixLabPanel({
   runId,
@@ -212,36 +230,22 @@ export function QuixLabPanel({
   /** The pick from the Signals tab. Empty means the whole run. */
   signals?: readonly string[];
 }) {
-  const [lab, setLab] = useState<RunQuixLab | null>(null);
-  /** What the primary control is doing, while it is doing it. Null when idle. */
-  const [progress, setProgress] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  /* The list asks and never creates, so opening a run costs no deployment. The labs
+     on it come with the answer when this browser holds a Portal token. */
+  const notebooks = useQuery({
+    queryKey: keys.runs.notebooks(runId),
+    queryFn: () => listNotebooks(runId),
+  });
+  const [active, setActive] = useState<Active | null>(null);
+  const [progress, setProgress] = useState<Progress | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [embedded, setEmbedded] = useState(false);
   /* Portal frames the Test Manager, and the Test Manager frames QuixLab, so
      QuixLab renders in a small box. Expanded lifts the panel over the content
      area, the same recipe the Explore tab uses. That state belongs to Explore
      and stays there — this panel never renders on the Explore tab. */
   const [expanded, setExpanded] = useState(false);
-  const queryClient = useQueryClient();
-
-  /* Does this viewer already have a notebook for this run? A 404 is the ordinary
-     "not yet" and never an error. This asks and never creates, so opening a run
-     costs no deployment. */
-  useEffect(() => {
-    let live = true;
-    getRunQuixLab(runId).then(
-      (found) => {
-        if (live) setLab(found);
-      },
-      () => {
-        if (live) setLab(null);
-      },
-    );
-    return () => {
-      live = false;
-    };
-  }, [runId]);
 
   // Escape leaves the expanded frame, the same key the Explore focus layout
   // answers. The frame keeps the keyboard while QuixLab has it, so the listener
@@ -255,67 +259,73 @@ export function QuixLabPanel({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [expanded]);
 
-  /* ONE control does the whole thing: create the lab (or start a saved one), wait
-     for the container, then embed it. The button itself reports the progress. A
-     deployment answers `Building` or `Starting` before anything serves on its
-     address, so embedding at once would frame a 502 that never refreshes itself. */
-  const open = useCallback(() => {
-    setError(null);
-    setProgress(lab === null ? "Creating…" : "Starting…");
-    void (async () => {
-      try {
-        let made = await createRunQuixLab(runId);
-        setLab(made);
-        const giveUpAt = Date.now() + GIVE_UP_MS;
-        while (!running(made) && Date.now() < giveUpAt) {
-          setProgress(`Starting… (${made.status.trim() || "queued"})`);
-          await new Promise((resolve) => setTimeout(resolve, POLL_MS));
-          made = await getRunQuixLab(runId);
-          setLab(made);
-        }
-        if (running(made)) {
-          setEmbedded(true);
-          setExpanded(false);
-        } else {
-          setError("The QuixLab is still starting. Try again in a moment.");
-        }
-      } catch (caught: unknown) {
-        setError(
-          caught instanceof ApiError ? caught.message : "QuixLab could not be started",
-        );
-      } finally {
-        setProgress(null);
-      }
-    })();
-  }, [runId, lab]);
+  const refresh = useCallback(
+    () => void queryClient.invalidateQueries({ queryKey: keys.runs.notebooks(runId) }),
+    [queryClient, runId],
+  );
 
-  /* Save and Close: the notebook is filed under this run as a processed result and
-     the lab is stopped. The frame goes only once the server says both happened,
-     because a frame that closed on a save that then failed would have thrown
-     away the person's last view of their work. */
+  /* ONE control does the whole thing: make the notebook (or start a saved one's lab),
+     wait for the container, then embed it. The control itself reports the progress.
+     A deployment answers `Building` or `Starting` before anything serves on its
+     address, so embedding at once would frame a 502 that never refreshes itself. */
+  const start = useCallback(
+    (notebookId: string | null) => {
+      setError(null);
+      setProgress({ notebookId, text: notebookId === null ? "Creating…" : "Starting…" });
+      void (async () => {
+        try {
+          const notebook =
+            notebookId === null ? await createNotebook(runId) : await openNotebook(runId, notebookId);
+          refresh();
+          let lab = notebook.lab ?? (await getNotebookLab(runId, notebook.notebook_id));
+          const giveUpAt = Date.now() + GIVE_UP_MS;
+          while (!running(lab) && Date.now() < giveUpAt) {
+            setProgress({ notebookId, text: `Starting… (${lab.status.trim() || "queued"})` });
+            await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+            lab = await getNotebookLab(runId, notebook.notebook_id);
+          }
+          if (running(lab)) {
+            setActive({ notebook, lab });
+            setExpanded(false);
+          } else {
+            setError("The QuixLab is still starting. Try again in a moment.");
+          }
+        } catch (caught: unknown) {
+          setError(caught instanceof ApiError ? caught.message : "QuixLab could not be started");
+        } finally {
+          setProgress(null);
+          refresh();
+        }
+      })();
+    },
+    [runId, refresh],
+  );
+
+  /* Save and Close: the save is recorded and the lab is stopped. The frame goes only
+     once the server says both happened, because a frame that closed on a save that
+     then failed would have thrown away the person's last view of their work. */
   const saveAndClose = useCallback(() => {
+    if (active === null) return;
     setSaving(true);
     setError(null);
     void (async () => {
       try {
-        const closed = await closeRunQuixLab(runId);
-        setLab(closed);
-        setEmbedded(false);
+        await closeNotebook(runId, active.notebook.notebook_id);
+        setActive(null);
         setExpanded(false);
-        void queryClient.invalidateQueries({ queryKey: keys.results.all });
-        void queryClient.invalidateQueries({ queryKey: keys.runs.detail(runId) });
-        toast.success("Notebook saved under this run's processed results; QuixLab stopped.");
+        refresh();
+        toast.success(`${active.notebook.name} saved; QuixLab stopped.`);
       } catch (caught: unknown) {
         setError(caught instanceof ApiError ? caught.message : "The notebook could not be saved");
       } finally {
         setSaving(false);
       }
     })();
-  }, [runId, queryClient]);
+  }, [runId, active, refresh]);
 
-  const ready = lab !== null && running(lab) && lab.url.length > 0;
-  const instance = ready ? asInstance(lab) : null;
-  const primaryLabel = progress ?? (lab === null ? "Create QuixLab notebook" : "Open QuixLab notebook");
+  const instance = active !== null && active.lab.url.length > 0 ? asInstance(active.lab) : null;
+  const rows = notebooks.data ?? [];
+  const busy = progress !== null;
 
   return (
     <Panel
@@ -329,16 +339,13 @@ export function QuixLabPanel({
       )}
     >
       <PanelHead
-        title="QuixLab notebooks"
+        title="Notebooks"
         action={
           <div className="flex items-center gap-2">
-            {lab !== null && (
-              <span className="text-[0.78rem] text-ink-3">
-                {lab.name}
-                {running(lab) ? "" : ` - ${lab.status.trim() || "stopped"}`}
-              </span>
+            {active !== null && (
+              <span className="text-[0.78rem] text-ink-3">{active.notebook.name}</span>
             )}
-            {ready && (
+            {active !== null && (
               <Button
                 variant="outline"
                 size="sm"
@@ -346,24 +353,13 @@ export function QuixLabPanel({
                 /* No `await` in front of the open: the address is already
                    resolved, and a `window.open` a fetch answer triggers is
                    blocked. */
-                onClick={() => window.open(lab.url, "_blank", "noopener,noreferrer")}
+                onClick={() => window.open(active.lab.url, "_blank", "noopener,noreferrer")}
               >
                 <span>Open in a tab</span>
                 <NewTabMark iconClassName="size-3 opacity-80" />
               </Button>
             )}
-            {!embedded && (
-              <Button
-                size="sm"
-                className="font-semibold"
-                disabled={progress !== null}
-                aria-busy={progress !== null}
-                onClick={open}
-              >
-                {primaryLabel}
-              </Button>
-            )}
-            {embedded && instance !== null && (
+            {instance !== null && (
               <Button
                 variant="outline"
                 size="sm"
@@ -375,7 +371,7 @@ export function QuixLabPanel({
                 {expanded ? "Collapse" : "Expand"}
               </Button>
             )}
-            {embedded && (
+            {active !== null && (
               <Button
                 size="sm"
                 className="font-semibold"
@@ -386,6 +382,19 @@ export function QuixLabPanel({
                 {saving ? "Saving…" : "Save and Close"}
               </Button>
             )}
+            {active === null && (
+              <Button
+                size="sm"
+                className="font-semibold"
+                disabled={busy}
+                aria-busy={busy}
+                onClick={() => start(null)}
+              >
+                {progress !== null && progress.notebookId === null
+                  ? progress.text
+                  : "Create QuixLab notebook"}
+              </Button>
+            )}
           </div>
         }
       />
@@ -394,18 +403,54 @@ export function QuixLabPanel({
           {error}
         </p>
       )}
-      {lab === null && error === null && (
+      {active === null && notebooks.isSuccess && rows.length === 0 && error === null && (
         <p className="border-b border-line-2 px-4 py-2 text-[0.78rem] text-ink-3">
-          A notebook that loads this run&rsquo;s data, opened in a QuixLab of your own.
-          Save and Close files it under the run&rsquo;s processed results and stops the
-          QuixLab; open it again any time.
+          No notebooks yet. Create one: it loads this run&rsquo;s data and opens in a QuixLab
+          of your own. Save and Close keeps it under the run and stops the QuixLab; open it
+          again any time, and make as many as the work needs.
         </p>
       )}
-      {lab !== null && !embedded && lab.saved_result_id && error === null && (
-        <p className="border-b border-line-2 px-4 py-2 text-[0.78rem] text-ink-3">
-          Saved under this run&rsquo;s processed results. The QuixLab is stopped; opening
-          the notebook starts it again where you left it.
-        </p>
+      {active === null && rows.length > 0 && (
+        <ul className="divide-y divide-line-2" aria-label="Notebooks">
+          {rows.map((notebook) => {
+            const mine = progress !== null && progress.notebookId === notebook.notebook_id;
+            const lab = notebook.lab;
+            const state =
+              lab === null
+                ? notebook.saved_at === null
+                  ? "never saved"
+                  : `saved ${when(notebook.saved_at)}`
+                : running(lab)
+                  ? "QuixLab running"
+                  : `QuixLab ${lab.status.trim().toLowerCase() || "stopped"}${
+                      notebook.saved_at === null ? "" : ` · saved ${when(notebook.saved_at)}`
+                    }`;
+            return (
+              <li
+                key={notebook.notebook_id}
+                className="flex items-center gap-3 px-4 py-2 text-[0.82rem]"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-semibold text-ink">{notebook.name}</div>
+                  <div className="truncate text-[0.74rem] text-ink-3">
+                    {notebook.created_by} · {when(notebook.created_at)} · {state}
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="font-semibold"
+                  disabled={busy}
+                  aria-busy={mine}
+                  aria-label={`Open ${notebook.name}`}
+                  onClick={() => start(notebook.notebook_id)}
+                >
+                  {mine ? progress.text : "Open"}
+                </Button>
+              </li>
+            );
+          })}
+        </ul>
       )}
       {signals.length > 0 && (
         <p className="border-b border-line-2 px-4 py-2 text-[0.78rem] text-ink-3">
@@ -415,7 +460,7 @@ export function QuixLabPanel({
           belong in a URL, where it gets logged, pasted and cut short.
         </p>
       )}
-      {embedded && instance !== null && (
+      {instance !== null && (
         // The key resets the handshake with the lab: a new deployment is a new
         // frame, never the old page with a new address.
         <QuixLabFrame

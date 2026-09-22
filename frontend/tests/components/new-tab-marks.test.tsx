@@ -115,18 +115,20 @@ const { listQuixLabs, getLakehouseUrl } = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/api/integrations", () => ({ listQuixLabs, getLakehouseUrl }));
 
-/* The panel frames this viewer's own lab for this run. It needs one to have
-   an "Open in a tab" control at all. */
-const { createRunQuixLab, getRunQuixLab } = vi.hoisted(() => ({
-  createRunQuixLab: vi.fn(),
-  getRunQuixLab: vi.fn<() => Promise<unknown>>(() =>
-    Promise.reject(new Error("no QuixLab for this run yet")),
-  ),
+/* The panel lists the run's notebooks and frames one in this viewer's own lab.
+   It needs an open one to have an "Open in a tab" control at all. */
+const { createNotebook, getNotebookLab, listNotebooks, openNotebook } = vi.hoisted(() => ({
+  createNotebook: vi.fn(),
+  getNotebookLab: vi.fn(),
+  listNotebooks: vi.fn<() => Promise<unknown[]>>(() => Promise.resolve([])),
+  openNotebook: vi.fn(),
 }));
 vi.mock("@/lib/api/run-quixlab", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/run-quixlab")>()),
-  createRunQuixLab,
-  getRunQuixLab,
+  createNotebook,
+  getNotebookLab,
+  listNotebooks,
+  openNotebook,
 }));
 
 import { FileDetailScreen } from "@/components/screens/files/file-detail-screen";
@@ -246,24 +248,39 @@ describe("the Open in QuixLab headers", () => {
 });
 
 describe("the QuixLab panel", () => {
-  it("marks Open in a tab, and leaves Embed here without a mark", async () => {
-    getRunQuixLab.mockResolvedValue({
+  it("marks Open in a tab, and leaves Open and Create without a mark", async () => {
+    const lab = {
       id: "dep-lab",
       name: "tm-lab-ana",
       status: "Running",
       url: "https://tm-lab-ana.dev.quix.io",
-      notebook: `blob://ws/quixlab-runs/${run.run_id}/analysis.py`,
+      notebook: `blob://ws/quixlab-runs/${run.run_id}/nb-1/analysis.py`,
       created: false,
-    });
+    };
+    const notebook = {
+      notebook_id: "nb-1",
+      run_id: run.run_id,
+      name: "Notebook 1",
+      created_by: "Ana",
+      created_at: "2026-09-22T09:00:00Z",
+      saved_at: null,
+      lab,
+    };
+    listNotebooks.mockResolvedValue([notebook]);
+    openNotebook.mockResolvedValue(notebook);
     const view = render(withClient(<QuixLabPanel runId={run.run_id} />));
+
+    /* "Open" and "Create" frame QuixLab inside this screen. They open no tab,
+       so they must not carry the mark — the mark has one meaning. */
+    const open = await view.findByRole("button", { name: "Open Notebook 1" });
+    expect(mark(open)).toBeNull();
+    expect(open.textContent).not.toContain(SUFFIX);
+    const create = view.getByRole("button", { name: "Create QuixLab notebook" });
+    expect(mark(create)).toBeNull();
+
+    await userEvent.setup().click(open);
     await view.findByRole("button", { name: `Open in a tab ${SUFFIX}` });
 
     expectMarked(view.getByRole("button", { name: `Open in a tab ${SUFFIX}` }));
-
-    /* "Open QuixLab notebook" frames QuixLab inside this screen. It opens no tab,
-       so it must not carry the mark — the mark has one meaning. */
-    const embed = view.getByRole("button", { name: "Open QuixLab notebook" });
-    expect(mark(embed)).toBeNull();
-    expect(embed.textContent).not.toContain(SUFFIX);
   });
 });

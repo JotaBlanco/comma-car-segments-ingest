@@ -17,40 +17,60 @@ import { act, render, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import userEvent from "@testing-library/user-event";
 
-/* The panel no longer lists the workspace's QuixLabs: it asks for the one lab
-   this viewer has for this run, and offers to make it. */
-const { closeRunQuixLab, createRunQuixLab, getRunQuixLab } = vi.hoisted(() => ({
-  closeRunQuixLab: vi.fn(),
-  createRunQuixLab: vi.fn(),
-  getRunQuixLab: vi.fn(),
-}));
+/* The panel no longer lists the workspace's QuixLabs: it lists the run's
+   notebooks, and opens each in a lab of this viewer's own. */
+const { closeNotebook, createNotebook, getNotebookLab, listNotebooks, openNotebook } = vi.hoisted(
+  () => ({
+    closeNotebook: vi.fn(),
+    createNotebook: vi.fn(),
+    getNotebookLab: vi.fn(),
+    listNotebooks: vi.fn(),
+    openNotebook: vi.fn(),
+  }),
+);
 vi.mock("@/lib/api/run-quixlab", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/run-quixlab")>()),
-  closeRunQuixLab,
-  createRunQuixLab,
-  getRunQuixLab,
+  closeNotebook,
+  createNotebook,
+  getNotebookLab,
+  listNotebooks,
+  openNotebook,
 }));
 
 import { QuixLabPanel } from "@/components/screens/run-detail/quixlab-panel";
 import { QuixLabFrame } from "@/components/shared/quixlab-frame";
 import { ApiError } from "@/lib/api/client";
 import { setActivePortalToken } from "@/lib/portal/token-store";
-import type { RunQuixLab } from "@/lib/api/run-quixlab";
+import type { Notebook, RunQuixLab } from "@/lib/api/run-quixlab";
 import { setQuixLabUrl, type QuixLabInstance } from "@/lib/quixlab";
 
 const RUN_ID = "RUN-2026-0042";
 const SESSION_ORIGIN = "https://quixlab-sess9.dev.quix.io";
 const LAB_ORIGIN = "https://tm-lab-ana-run42.dev.quix.io";
 
-/** This viewer's lab for this run, as the run-scoped route answers it. */
+/** This viewer's lab on a notebook, as the lab route answers it. */
 function lab(over: Partial<RunQuixLab> = {}): RunQuixLab {
   return {
     id: "dep-lab",
     name: "tm-lab-ana-run42",
     status: "Running",
     url: LAB_ORIGIN,
-    notebook: `blob://ws/quixlab-runs/${RUN_ID}/analysis.py`,
+    notebook: `blob://ws/quixlab-runs/${RUN_ID}/nb-1/analysis.py`,
     created: false,
+    ...over,
+  };
+}
+
+/** One of the run's notebooks, as the list answers it. */
+function notebook(over: Partial<Notebook> = {}): Notebook {
+  return {
+    notebook_id: "nb-1",
+    run_id: RUN_ID,
+    name: "Notebook 1",
+    created_by: "Ana",
+    created_at: "2026-09-22T09:00:00Z",
+    saved_at: null,
+    lab: null,
     ...over,
   };
 }
@@ -109,12 +129,14 @@ function withClient(node: ReactElement): ReactElement {
 }
 
 beforeEach(() => {
-  closeRunQuixLab.mockReset();
-  createRunQuixLab.mockReset();
-  getRunQuixLab.mockReset();
-  // A panel that never resolves its lookup would leave every frame test racing
-  // a pending promise, so the default is the ordinary "you have none yet".
-  getRunQuixLab.mockRejectedValue(new ApiError(404, "no QuixLab for this run yet", "quixlab_not_found"));
+  closeNotebook.mockReset();
+  createNotebook.mockReset();
+  getNotebookLab.mockReset();
+  listNotebooks.mockReset();
+  openNotebook.mockReset();
+  // A panel that never resolves its list would leave every frame test racing
+  // a pending promise, so the default is the ordinary "none yet".
+  listNotebooks.mockResolvedValue([]);
   setActivePortalToken(null);
   setQuixLabUrl(null);
 });
@@ -216,44 +238,49 @@ describe("the frame opens one named run", () => {
   });
 });
 
-describe("the notebook", () => {
+describe("the notebooks", () => {
   it("offers to create one, and makes nothing on mount", async () => {
     // A lab is a container. Opening a run to read its files must not bill for one.
-    getRunQuixLab.mockRejectedValue(new ApiError(404, "no QuixLab for this run yet", "quixlab_not_found"));
-
     const view = render(withClient(<QuixLabPanel runId={RUN_ID} />));
 
-    await waitFor(() => expect(getRunQuixLab).toHaveBeenCalledWith(RUN_ID));
+    await waitFor(() => expect(listNotebooks).toHaveBeenCalledWith(RUN_ID));
+    await waitFor(() => expect(view.getByText(/No notebooks yet/)).toBeTruthy());
     expect(view.getByRole("button", { name: "Create QuixLab notebook" })).toBeTruthy();
-    expect(createRunQuixLab).not.toHaveBeenCalled();
+    expect(createNotebook).not.toHaveBeenCalled();
+    expect(openNotebook).not.toHaveBeenCalled();
     expect(view.container.querySelector("iframe")).toBeNull();
   });
 
-  it("offers to open a saved one, and never makes a second", async () => {
-    getRunQuixLab.mockResolvedValue(lab({ status: "Stopped" }));
+  it("lists every saved one with an Open control, and still offers to create", async () => {
+    // The idea is several notebooks per run: each is its own file and its own lab.
+    listNotebooks.mockResolvedValue([
+      notebook({ saved_at: "2026-09-22T10:00:00Z", lab: lab({ status: "Stopped" }) }),
+      notebook({ notebook_id: "nb-2", name: "Flutter sweep", created_by: "Ben" }),
+    ]);
 
     const view = render(withClient(<QuixLabPanel runId={RUN_ID} />));
 
-    await waitFor(() => expect(view.getByText(/tm-lab-ana-run42/)).toBeTruthy());
-    expect(view.getByRole("button", { name: "Open QuixLab notebook" })).toBeTruthy();
-    expect(view.queryByRole("button", { name: "Create QuixLab notebook" })).toBeNull();
-    expect(createRunQuixLab).not.toHaveBeenCalled();
+    await waitFor(() => expect(view.getByRole("button", { name: "Open Notebook 1" })).toBeTruthy());
+    expect(view.getByRole("button", { name: "Open Flutter sweep" })).toBeTruthy();
+    expect(view.getByRole("button", { name: "Create QuixLab notebook" })).toBeTruthy();
+    expect(view.getByText(/QuixLab stopped/)).toBeTruthy();
+    expect(view.getByText(/never saved/)).toBeTruthy();
+    expect(createNotebook).not.toHaveBeenCalled();
+    expect(openNotebook).not.toHaveBeenCalled();
   });
 
-  it("one click creates it, waits for it, and embeds it", async () => {
+  it("one click creates one, waits for it, and embeds it", async () => {
     /* The button reports the progress itself: a deployment answers Building before
        anything serves on its address, and a frame opened then shows a 502 that never
        refreshes. */
-    getRunQuixLab
-      .mockRejectedValueOnce(new ApiError(404, "none", "quixlab_not_found"))
-      .mockResolvedValue(lab());
-    createRunQuixLab.mockResolvedValue(lab({ status: "Building", created: true }));
+    createNotebook.mockResolvedValue(notebook({ lab: lab({ status: "Building", created: true }) }));
+    getNotebookLab.mockResolvedValue(lab());
     const view = render(withClient(<QuixLabPanel runId={RUN_ID} />));
     await waitFor(() => view.getByRole("button", { name: "Create QuixLab notebook" }));
 
     await userEvent.setup().click(view.getByRole("button", { name: "Create QuixLab notebook" }));
 
-    await waitFor(() => expect(createRunQuixLab).toHaveBeenCalledWith(RUN_ID));
+    await waitFor(() => expect(createNotebook).toHaveBeenCalledWith(RUN_ID));
     await waitFor(() => expect(view.getByRole("button", { name: /Starting/ })).toBeTruthy());
     const frame = await waitFor(() => {
       const found = view.container.querySelector("iframe");
@@ -261,12 +288,25 @@ describe("the notebook", () => {
       return found;
     }, { timeout: 5000 });
     await waitFor(() => expect(frame.getAttribute("src")).toBe(`${LAB_ORIGIN}?isIframe=true`));
+    expect(getNotebookLab).toHaveBeenCalledWith(RUN_ID, "nb-1");
     expect(view.getByRole("button", { name: "Save and Close" })).toBeTruthy();
   });
 
+  it("opens a saved one where it was left, and writes no new file", async () => {
+    listNotebooks.mockResolvedValue([notebook({ saved_at: "2026-09-22T10:00:00Z" })]);
+    openNotebook.mockResolvedValue(notebook({ lab: lab() }));
+    const view = render(withClient(<QuixLabPanel runId={RUN_ID} />));
+    await waitFor(() => view.getByRole("button", { name: "Open Notebook 1" }));
+
+    await userEvent.setup().click(view.getByRole("button", { name: "Open Notebook 1" }));
+
+    await waitFor(() => expect(openNotebook).toHaveBeenCalledWith(RUN_ID, "nb-1"));
+    await waitFor(() => expect(view.container.querySelector("iframe")).not.toBeNull());
+    expect(createNotebook).not.toHaveBeenCalled();
+  });
+
   it("says why, when it cannot be made", async () => {
-    getRunQuixLab.mockRejectedValue(new ApiError(404, "none", "quixlab_not_found"));
-    createRunQuixLab.mockRejectedValue(
+    createNotebook.mockRejectedValue(
       new ApiError(503, "the workspace holds no QuixLab deployment to clone", "quixlab_no_template"),
     );
     const view = render(withClient(<QuixLabPanel runId={RUN_ID} />));
@@ -281,29 +321,34 @@ describe("the notebook", () => {
 
 describe("Save and Close", () => {
   async function opened() {
-    getRunQuixLab.mockResolvedValue(lab());
-    createRunQuixLab.mockResolvedValue(lab());
+    listNotebooks.mockResolvedValue([notebook({ lab: lab({ status: "Stopped" }) })]);
+    openNotebook.mockResolvedValue(notebook({ lab: lab() }));
     const view = render(withClient(<QuixLabPanel runId={RUN_ID} />));
-    await waitFor(() => view.getByRole("button", { name: "Open QuixLab notebook" }));
-    await userEvent.setup().click(view.getByRole("button", { name: "Open QuixLab notebook" }));
+    await waitFor(() => view.getByRole("button", { name: "Open Notebook 1" }));
+    await userEvent.setup().click(view.getByRole("button", { name: "Open Notebook 1" }));
     await waitFor(() => expect(view.container.querySelector("iframe")).not.toBeNull());
     return view;
   }
 
-  it("files the notebook under the run, stops the lab and closes the frame", async () => {
-    closeRunQuixLab.mockResolvedValue(lab({ status: "Stopping", saved_result_id: "res-1" }));
+  it("records the save, stops the lab and closes the frame, back to the list", async () => {
+    closeNotebook.mockResolvedValue(
+      notebook({ saved_at: "2026-09-22T11:00:00Z", lab: lab({ status: "Stopping" }) }),
+    );
     const view = await opened();
+    listNotebooks.mockResolvedValue([
+      notebook({ saved_at: "2026-09-22T11:00:00Z", lab: lab({ status: "Stopped" }) }),
+    ]);
 
     await userEvent.setup().click(view.getByRole("button", { name: "Save and Close" }));
 
-    await waitFor(() => expect(closeRunQuixLab).toHaveBeenCalledWith(RUN_ID));
+    await waitFor(() => expect(closeNotebook).toHaveBeenCalledWith(RUN_ID, "nb-1"));
     await waitFor(() => expect(view.container.querySelector("iframe")).toBeNull());
-    expect(view.getByText(/Saved under this run/)).toBeTruthy();
-    expect(view.getByRole("button", { name: "Open QuixLab notebook" })).toBeTruthy();
+    await waitFor(() => expect(view.getByRole("button", { name: "Open Notebook 1" })).toBeTruthy());
+    expect(view.getByRole("button", { name: "Create QuixLab notebook" })).toBeTruthy();
   });
 
   it("keeps the frame when the save is refused, so nothing is lost", async () => {
-    closeRunQuixLab.mockRejectedValue(new ApiError(503, "the notebook could not be saved", "storage_unreachable"));
+    closeNotebook.mockRejectedValue(new ApiError(503, "the notebook could not be saved", "storage_unreachable"));
     const view = await opened();
 
     await userEvent.setup().click(view.getByRole("button", { name: "Save and Close" }));
@@ -314,13 +359,12 @@ describe("Save and Close", () => {
   });
 
   it("opens the whole run in a tab, with no credential and no opener", async () => {
-    getRunQuixLab.mockResolvedValue(lab());
     const opens: unknown[][] = [];
     const open = vi.spyOn(window, "open").mockImplementation((...args: unknown[]) => {
       opens.push(args);
       return null;
     });
-    const view = render(withClient(<QuixLabPanel runId={RUN_ID} />));
+    const view = await opened();
     await waitFor(() => view.getByRole("button", { name: /Open in a tab/ }));
 
     await userEvent.setup().click(view.getByRole("button", { name: /Open in a tab/ }));

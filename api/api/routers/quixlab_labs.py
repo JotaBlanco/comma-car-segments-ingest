@@ -1,20 +1,25 @@
-"""One QuixLab per viewer per run: POST and DELETE /test-runs/{run_id}/quixlab.
+"""A run's QuixLab notebooks: /test-runs/{run_id}/notebooks and the labs that open them.
 
-The product used to point every person at ONE shared QuixLab. These two routes
-replace that with a lab of the viewer's own, opened on a notebook written into
-the run's own folder. `api/quixlab_provision.py` carries the design and the
-reasons; this module is the HTTP edge and the argument gathering.
+A notebook is a file in a blob folder of its own under the run, and a run holds as
+many as its people make. Opening one spins up a QuixLab of the VIEWER's own on that
+folder; Save and Close stops the lab and leaves the notebook where QuixLab wrote it,
+so the next Open starts the same lab on the same work. `api/quixlab_provision.py`
+carries the deployment recipe and its reasons; this module is the HTTP edge, the
+`notebooks` collection and the argument gathering.
 
-**It runs as the viewer, not as this service.** The Portal token arrives in
-`x-portal-token`, the header `explore_chat.py` and `integrations.py` already
-read, and no route here has a credential of its own. A viewer with no token
-gets 403 rather than a lab owned by the service identity.
+**Every lab runs as the viewer, not as this service.** The Portal token arrives in
+`x-portal-token`, the header `explore_chat.py` and `integrations.py` already read,
+and no route here has a credential of its own. A viewer with no token can LIST the
+notebooks - they are the run's - but gets 403 rather than a lab owned by the
+service identity.
 
-**A create is idempotent.** POST answers the existing lab when there is one, so
-a person who clicks twice, or reloads while the container is still building,
-gets the same deployment rather than a second one.
+**Open is idempotent.** It answers the existing lab when there is one, so a person
+who clicks twice, or reloads while the container is still building, gets the same
+deployment rather than a second one.
 """
 
+import logging
+import uuid
 from datetime import UTC, datetime
 from typing import Annotated
 
@@ -22,21 +27,14 @@ from fastapi import APIRouter, Depends, Request
 from pymongo.database import Database
 
 from api import quix_identity, quixlab_provision
-from api.auth import require_token
 from api.db import get_db
 from api.errors import ApiError
-from api.models.integrations import RunQuixLab
-from api.models.results import ResultCreateRequest
-from api.quix_identity import Identity
-from api.routers.results import _store_result
+from api.models.integrations import Notebook, NotebookCreateRequest, RunQuixLab
 from api.services import file_bytes, file_writes, queries_runs, quixlab_notebook, run_deletion
 
-# What the saved notebook is registered as. One result key per run, so every Save and Close
-# mints the next VERSION of the same result rather than a new result each time - the chain
-# `supersedes` builds is the notebook's history.
-NOTEBOOK_RESULT_KEY = "quixlab-notebook"
-NOTEBOOK_RESULT_NAME = "QuixLab notebook"
-NOTEBOOK_TOOL = "QuixLab"
+logger = logging.getLogger(__name__)
+
+COLLECTION = "notebooks"
 
 router = APIRouter(tags=["integrations"])
 
@@ -76,33 +74,44 @@ def _partitions(run: dict) -> dict[str, str]:
     }
 
 
-@router.post("/test-runs/{run_id}/quixlab", response_model=RunQuixLab)
-def create_run_quixlab(
-    run_id: str,
-    request: Request,
-    db: Annotated[Database, Depends(get_db)],
-    writer: Annotated[file_writes.FileBytesWriter, Depends(file_writes.get_file_writer)],
-) -> RunQuixLab:
-    """This viewer's QuixLab for this run, made if it is not there yet.
+def _lab_dto(lab: quixlab_provision.Lab) -> RunQuixLab:
+    return RunQuixLab(
+        id=lab.id,
+        name=lab.name,
+        status=lab.status,
+        url=lab.url,
+        notebook=lab.notebook,
+        created=lab.created,
+    )
 
-    404 when the registry has no such run — a lab for a run that does not
-    exist would open on an empty query. 503 when there is no QuixLab to clone
-    or no blob store to write the notebook into, because both are the
-    deployment's wiring and neither is the caller's mistake.
-    """
-    token = _viewer(request)
-    identity = _identity(token)
-    run = queries_runs.get_run(db, run_id)
-    # The one answer to "which table holds this run's samples", already written.
-    table = run_deletion.lake_table_of(run)
 
+def _portal(call, *args, **kwargs):
+    """One Portal call, its failures as this API's answers."""
     try:
-        source = quixlab_notebook.notebook_source(
-            run_id=run_id, table=table, parts=_partitions(run)
-        )
-    except quixlab_notebook.UnsafeValue as error:
-        raise ApiError(500, str(error), "quixlab_unsafe_value") from error
+        return call(*args, **kwargs)
+    except quixlab_provision.NoTemplate as error:
+        raise ApiError(503, str(error), "quixlab_no_template") from error
+    except quix_identity.PlatformRefused as error:
+        raise ApiError(403, str(error), "quixlab_refused") from error
+    except quix_identity.PlatformUnreachable as error:
+        raise ApiError(503, str(error), "quixlab_unreachable") from error
 
+
+def _notebook(db: Database, run_id: str, notebook_id: str) -> dict:
+    row = db[COLLECTION].find_one({"_id": notebook_id, "run_id": run_id})
+    if row is None:
+        raise ApiError(404, f"run {run_id} has no notebook {notebook_id}", "notebook_not_found")
+    return row
+
+
+def _ensure(
+    token: str,
+    identity,
+    run_id: str,
+    notebook_id: str,
+    source: str | None,
+    writer: file_writes.FileBytesWriter,
+) -> quixlab_provision.Lab:
     def write(key: str, text: str) -> None:
         try:
             writer.check_ready()
@@ -114,173 +123,242 @@ def create_run_quixlab(
                 "quixlab_storage_unavailable",
             ) from error
 
-    try:
-        lab = quixlab_provision.ensure_lab(
+    return _portal(
+        quixlab_provision.ensure_lab,
+        token,
+        run_id=run_id,
+        notebook_id=notebook_id,
+        user_id=identity.user_id,
+        notebook_source=source,
+        write_notebook=write,
+    )
+
+
+@router.get("/test-runs/{run_id}/notebooks", response_model=list[Notebook])
+def list_notebooks(
+    run_id: str, request: Request, db: Annotated[Database, Depends(get_db)]
+) -> list[Notebook]:
+    """The run's notebooks, oldest first, each with this viewer's lab on it when there is one.
+
+    The labs come from one Portal read, and only when the caller sent a token: the list is
+    the run's, and a person who is not signed in to the platform still sees what is there.
+    """
+    queries_runs.get_run(db, run_id)
+    rows = list(db[COLLECTION].find({"run_id": run_id}).sort("created_at", 1))
+    token = (request.headers.get("x-portal-token") or "").strip()
+    labs: dict[str, quixlab_provision.Lab] = {}
+    if token and rows:
+        identity = _identity(token)
+        labs = _portal(
+            quixlab_provision.find_labs,
             token,
             run_id=run_id,
+            notebook_ids=[row["_id"] for row in rows],
             user_id=identity.user_id,
-            notebook_source=source,
-            write_notebook=write,
         )
-    except quixlab_provision.NoTemplate as error:
-        raise ApiError(503, str(error), "quixlab_no_template") from error
-    except quix_identity.PlatformRefused as error:
-        raise ApiError(403, str(error), "quixlab_refused") from error
-    except quix_identity.PlatformUnreachable as error:
-        raise ApiError(503, str(error), "quixlab_unreachable") from error
-
-    return RunQuixLab(
-        id=lab.id,
-        name=lab.name,
-        status=lab.status,
-        url=lab.url,
-        notebook=lab.notebook,
-        created=lab.created,
-    )
+    return [
+        Notebook.model_validate(
+            {**row, "lab": _lab_dto(labs[row["_id"]]) if row["_id"] in labs else None}
+        )
+        for row in rows
+    ]
 
 
-@router.get("/test-runs/{run_id}/quixlab", response_model=RunQuixLab)
-def get_run_quixlab(run_id: str, request: Request) -> RunQuixLab:
-    """This viewer's lab for this run, or 404 when they have none yet.
-
-    The launch control polls this while a freshly created lab builds, so it
-    takes no database read and makes nothing: a poll must be cheap, and it must
-    never be the call that creates a second deployment.
-    """
-    token = _viewer(request)
-    identity = _identity(token)
-    try:
-        lab = quixlab_provision.find_lab(token, run_id=run_id, user_id=identity.user_id)
-    except quix_identity.PlatformRefused as error:
-        raise ApiError(403, str(error), "quixlab_refused") from error
-    except quix_identity.PlatformUnreachable as error:
-        raise ApiError(503, str(error), "quixlab_unreachable") from error
-    if lab is None:
-        raise ApiError(404, "no QuixLab for this run yet", "quixlab_not_found")
-    return RunQuixLab(
-        id=lab.id,
-        name=lab.name,
-        status=lab.status,
-        url=lab.url,
-        notebook=lab.notebook,
-        created=False,
-    )
-
-
-@router.post("/test-runs/{run_id}/quixlab/close", response_model=RunQuixLab)
-def close_run_quixlab(
+@router.post("/test-runs/{run_id}/notebooks", response_model=Notebook, status_code=201)
+def create_notebook(
     run_id: str,
+    body: NotebookCreateRequest,
     request: Request,
     db: Annotated[Database, Depends(get_db)],
-    identity_static: Annotated[Identity, Depends(require_token)],
-    reader: Annotated[file_bytes.FileBytesProvider, Depends(file_bytes.get_file_bytes_provider)],
     writer: Annotated[file_writes.FileBytesWriter, Depends(file_writes.get_file_writer)],
-) -> RunQuixLab:
-    """Save and Close: the notebook into the run's processed results, then the lab stopped.
+) -> Notebook:
+    """A new notebook on this run, its starter file written, and this viewer's lab started on it.
 
-    **The save comes first, and a failed save stops nothing.** QuixLab writes the notebook a
-    person edits back into the lab's blob root, so what is copied here is their work as they
-    left it. Losing the lab before that copy landed would lose the work; a lab that keeps
-    running after a refused save costs a container, which is the cheaper mistake.
-
-    The notebook lands as the next version of ONE result per run (`NOTEBOOK_RESULT_KEY`), so
-    the run's results list shows a QuixLab notebook with a version history rather than a pile
-    of files. `_store_result` is the writer both result routes share, and it keeps every
-    rule they keep: the run must exist, the provenance is complete, the journal names it.
-
-    The lab is STOPPED, not removed. Its blob root keeps the notebook, and "Open QuixLab
-    notebook" later restarts it there in seconds where a new lab would build.
+    404 when the registry has no such run — a notebook for a run that does not exist would
+    open on an empty query. 503 when there is no QuixLab to clone or no blob store to write
+    the notebook into, because both are the deployment's wiring and neither is the caller's
+    mistake. The row is written AFTER the lab exists: a notebook the list shows must have a
+    file behind it.
     """
     token = _viewer(request)
     identity = _identity(token)
-    queries_runs.get_run(db, run_id)  # 404 before anything moves
-    lab = _find(token, run_id, identity.user_id)
-    if lab is None:
-        raise ApiError(404, "no QuixLab for this run yet", "quixlab_not_found")
-
-    key = quixlab_provision.notebook_key(run_id)
+    run = queries_runs.get_run(db, run_id)
+    # The one answer to "which table holds this run's samples", already written.
+    table = run_deletion.lake_table_of(run)
     try:
-        reader.check_ready() if hasattr(reader, "check_ready") else None
+        source = quixlab_notebook.notebook_source(
+            run_id=run_id, table=table, parts=_partitions(run)
+        )
+    except quixlab_notebook.UnsafeValue as error:
+        raise ApiError(500, str(error), "quixlab_unsafe_value") from error
+
+    notebook_id = f"nb-{uuid.uuid4().hex[:12]}"
+    name = (
+        body.name or ""
+    ).strip() or f"Notebook {db[COLLECTION].count_documents({'run_id': run_id}) + 1}"
+    lab = _ensure(token, identity, run_id, notebook_id, source, writer)
+    row = {
+        "_id": notebook_id,
+        "run_id": run_id,
+        "name": name,
+        "created_by": identity.display_name or identity.user_id,
+        "created_at": datetime.now(UTC),
+        "saved_at": None,
+    }
+    db[COLLECTION].insert_one(row)
+    return Notebook.model_validate({**row, "lab": _lab_dto(lab)})
+
+
+@router.post("/test-runs/{run_id}/notebooks/{notebook_id}/open", response_model=Notebook)
+def open_notebook(
+    run_id: str,
+    notebook_id: str,
+    request: Request,
+    db: Annotated[Database, Depends(get_db)],
+    writer: Annotated[file_writes.FileBytesWriter, Depends(file_writes.get_file_writer)],
+) -> Notebook:
+    """This viewer's lab on a saved notebook, started or made, and the file NEVER written over.
+
+    The notebook is already in its folder - it was written when the notebook was made and
+    QuixLab has been keeping it since - so a stopped lab is started and a missing one (a
+    colleague's notebook, or a lab somebody removed) is created on the same folder.
+    """
+    token = _viewer(request)
+    identity = _identity(token)
+    row = _notebook(db, run_id, notebook_id)
+    lab = _ensure(token, identity, run_id, notebook_id, None, writer)
+    return Notebook.model_validate({**row, "lab": _lab_dto(lab)})
+
+
+@router.get("/test-runs/{run_id}/notebooks/{notebook_id}/lab", response_model=RunQuixLab)
+def get_notebook_lab(
+    run_id: str, notebook_id: str, request: Request, db: Annotated[Database, Depends(get_db)]
+) -> RunQuixLab:
+    """This viewer's lab for this notebook, or 404 when they have none.
+
+    The panel polls this while a freshly created lab builds, so it makes nothing: a poll
+    must be cheap, and it must never be the call that creates a second deployment.
+    """
+    token = _viewer(request)
+    identity = _identity(token)
+    _notebook(db, run_id, notebook_id)
+    lab = _portal(
+        quixlab_provision.find_lab,
+        token,
+        run_id=run_id,
+        notebook_id=notebook_id,
+        user_id=identity.user_id,
+    )
+    if lab is None:
+        raise ApiError(404, "no QuixLab on this notebook yet", "quixlab_not_found")
+    return _lab_dto(lab)
+
+
+@router.post("/test-runs/{run_id}/notebooks/{notebook_id}/close", response_model=Notebook)
+def close_notebook(
+    run_id: str,
+    notebook_id: str,
+    request: Request,
+    db: Annotated[Database, Depends(get_db)],
+    reader: Annotated[file_bytes.FileBytesProvider, Depends(file_bytes.get_file_bytes_provider)],
+) -> Notebook:
+    """Save and Close: the notebook confirmed on disk, its save recorded, then the lab stopped.
+
+    QuixLab writes the notebook a person edits back into its own folder as they go, so
+    there is nothing to copy: the save is the CHECK that the file is there and readable,
+    and the timestamp. **A failed check stops nothing.** Losing the lab before the work is
+    known to be on disk would lose the work; a lab that keeps running after a refused save
+    costs a container, which is the cheaper mistake.
+
+    The lab is STOPPED, not removed. Its blob root keeps the notebook, and Open later
+    restarts it there in seconds where a new lab would build.
+    """
+    token = _viewer(request)
+    identity = _identity(token)
+    row = _notebook(db, run_id, notebook_id)
+    lab = _portal(
+        quixlab_provision.find_lab,
+        token,
+        run_id=run_id,
+        notebook_id=notebook_id,
+        user_id=identity.user_id,
+    )
+    if lab is None:
+        raise ApiError(404, "no QuixLab on this notebook yet", "quixlab_not_found")
+
+    key = quixlab_provision.notebook_key(run_id, notebook_id)
+    try:
         chunks, _size = reader.open(f"blob://{key}")
-        text = b"".join(chunks)
-        writer.check_ready()
-        result_key = file_writes.result_blob_key(run_id, quixlab_provision.NOTEBOOK_NAME)
-        writer.write(result_key, iter([text]))
+        size = sum(len(chunk) for chunk in chunks)
     except file_bytes.FileBytesUnavailable as error:
         raise ApiError(503, error.detail, "storage_unreachable") from error
     except Exception as error:  # the store states its own failure type
         raise ApiError(
-            503, f"the notebook could not be saved: {error}", "storage_unreachable"
+            503, f"the notebook could not be read back: {error}", "storage_unreachable"
         ) from error
+    if size == 0:
+        raise ApiError(
+            503, "the notebook on disk is empty; not stopping the lab", "storage_unreachable"
+        )
 
     now = datetime.now(UTC)
-    # Through the same gate every result body passes (`_require_full_provenance` reads the
-    # raw dict), so a saved notebook can never be a result with less provenance than an
-    # uploaded one.
-    body = ResultCreateRequest.model_validate(
-        {
-            "run_id": run_id,
-            "name": NOTEBOOK_RESULT_NAME,
-            "result_key": NOTEBOOK_RESULT_KEY,
-            "description": f"Saved from {lab.name} on {now.strftime('%Y-%m-%d %H:%M')} UTC.",
-            "storage_ref": f"blob://{result_key}",
-            "provenance": {
-                "tool": NOTEBOOK_TOOL,
-                "tool_version": lab.name,
-                "parameters": lab.notebook,
-                "input_file_ids": [],
-                "produced_by": identity.display_name or identity.user_id or NOTEBOOK_TOOL,
-                "produced_at": now.isoformat(),
-            },
-        }
-    )
-    doc, _replayed = _store_result(db, body, identity_static)
-
+    db[COLLECTION].update_one({"_id": notebook_id}, {"$set": {"saved_at": now, "size_bytes": size}})
+    row = {**row, "saved_at": now}
     try:
-        stopped = quixlab_provision.stop_lab(token, run_id=run_id, user_id=identity.user_id)
+        stopped = quixlab_provision.stop_lab(
+            token, run_id=run_id, notebook_id=notebook_id, user_id=identity.user_id
+        )
     except quix_identity.PlatformRefused as error:
         raise ApiError(403, str(error), "quixlab_refused") from error
     except quix_identity.PlatformUnreachable as error:
         # The notebook is saved; only the container is still up. Say exactly that.
         raise ApiError(
-            503,
-            f"the notebook is saved as {doc['_id']}, but the lab did not stop: {error}",
-            "quixlab_unreachable",
+            503, f"the notebook is saved, but the lab did not stop: {error}", "quixlab_unreachable"
         ) from error
-    lab = stopped or lab
-    return RunQuixLab(
-        id=lab.id,
-        name=lab.name,
-        status=lab.status,
-        url=lab.url,
-        notebook=lab.notebook,
-        created=False,
-        saved_result_id=doc["_id"],
-    )
+    return Notebook.model_validate({**row, "lab": _lab_dto(stopped or lab)})
 
 
-def _find(token: str, run_id: str, user_id: str):
-    try:
-        return quixlab_provision.find_lab(token, run_id=run_id, user_id=user_id)
-    except quix_identity.PlatformRefused as error:
-        raise ApiError(403, str(error), "quixlab_refused") from error
-    except quix_identity.PlatformUnreachable as error:
-        raise ApiError(503, str(error), "quixlab_unreachable") from error
+@router.delete("/test-runs/{run_id}/notebooks/{notebook_id}", status_code=204)
+def delete_notebook(
+    run_id: str, notebook_id: str, request: Request, db: Annotated[Database, Depends(get_db)]
+) -> None:
+    """Forget a notebook: this viewer's lab on it removed, then the row. 204 either way.
 
-
-@router.delete("/test-runs/{run_id}/quixlab", status_code=204)
-def delete_run_quixlab(run_id: str, request: Request) -> None:
-    """Remove this viewer's lab for this run. 204 whether or not there was one.
-
-    It takes no database read: the lab is found by a name derived from the
-    viewer and the run id, so removing one for a run the registry has already
-    forgotten still works — which is exactly what run deletion needs.
+    The blob folder stays, as a deleted result's file does: a delete of a row is not a
+    delete of bytes. Without a Portal token the row goes and any lab is left to the
+    Portal's own housekeeping.
     """
-    token = _viewer(request)
-    identity = _identity(token)
-    try:
-        quixlab_provision.remove_lab(token, run_id=run_id, user_id=identity.user_id)
-    except quix_identity.PlatformRefused as error:
-        raise ApiError(403, str(error), "quixlab_refused") from error
-    except quix_identity.PlatformUnreachable as error:
-        raise ApiError(503, str(error), "quixlab_unreachable") from error
+    token = (request.headers.get("x-portal-token") or "").strip()
+    if token:
+        identity = _identity(token)
+        _portal(
+            quixlab_provision.remove_lab,
+            token,
+            run_id=run_id,
+            notebook_id=notebook_id,
+            user_id=identity.user_id,
+        )
+    db[COLLECTION].delete_one({"_id": notebook_id, "run_id": run_id})
+
+
+def drop_run_notebooks(db: Database, request: Request, run_id: str) -> None:
+    """Run deletion: the caller's labs on every notebook of the run removed, then the rows.
+
+    The labs are named for the PORTAL viewer, so the viewer is read from the Portal
+    token and never from the API's own token - the static identity a service token
+    carries names nobody's lab. Never raises: a stuck container is not a failed delete,
+    and a run gone from the registry must not come back because a container would not
+    stop.
+    """
+    rows = list(db[COLLECTION].find({"run_id": run_id}, {"_id": 1}))
+    token = (request.headers.get("x-portal-token") or "").strip()
+    if token and rows:
+        try:
+            user_id = quix_identity.identify(token).user_id
+            for row in rows:
+                quixlab_provision.remove_lab(
+                    token, run_id=run_id, notebook_id=row["_id"], user_id=user_id
+                )
+        except Exception as error:  # noqa: BLE001 - see the docstring
+            logger.warning("the QuixLabs on run %s were not all removed: %s", run_id, error)
+    db[COLLECTION].delete_many({"run_id": run_id})

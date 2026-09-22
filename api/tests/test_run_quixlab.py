@@ -1,11 +1,12 @@
-"""POST and DELETE /test-runs/{run_id}/quixlab — one QuixLab per viewer per run.
+"""/test-runs/{run_id}/notebooks — a run's QuixLab notebooks, one lab per viewer per notebook.
 
 The product used to send everybody to ONE shared QuixLab. These tests hold the
 three properties that replaced it:
 
-1. **The lab belongs to the viewer and the run.** Its name is a pure function
-   of the pair, so two people on one run, and one person on two runs, never
-   land on the same canvas.
+1. **The lab belongs to the viewer and the notebook.** Its name is a pure function
+   of the pair, so two people on one notebook, and one person on two notebooks,
+   never land on the same canvas - and a run holds as many notebooks as its
+   people make.
 2. **The notebook is written before the deployment is created.** A lab that
    boots pointing at a key with nothing behind it opens the file picker instead
    of the run, and a person sees an empty QuixLab.
@@ -26,7 +27,8 @@ RUN = "sn002_20260723T131303942Z"
 PORTAL = "https://portal-api.dev.quix.io"
 WORKSPACE = "ws-demo"
 VIEWER = {"x-portal-token": "viewer-token"}
-PATH = f"/api/v1/test-runs/{RUN}/quixlab"
+PATH = f"/api/v1/test-runs/{RUN}/notebooks"
+NB = "nb-1"
 
 TEMPLATE_ROW = {
     "deploymentId": "dep-template",
@@ -61,12 +63,12 @@ TEMPLATE_SPEC = {
 # --------------------------------------------------------------------------
 
 
-def test_a_lab_is_named_for_one_viewer_and_one_run() -> None:
-    mine = quixlab_provision.lab_name("user-a", RUN)
+def test_a_lab_is_named_for_one_viewer_and_one_notebook() -> None:
+    mine = quixlab_provision.lab_name("user-a", NB, RUN)
 
-    assert mine == quixlab_provision.lab_name("user-a", RUN), "the name must be stable"
-    assert mine != quixlab_provision.lab_name("user-b", RUN), "two people, two labs"
-    assert mine != quixlab_provision.lab_name("user-a", "other-run"), "two runs, two labs"
+    assert mine == quixlab_provision.lab_name("user-a", NB, RUN), "the name must be stable"
+    assert mine != quixlab_provision.lab_name("user-b", NB, RUN), "two people, two labs"
+    assert mine != quixlab_provision.lab_name("user-a", "nb-2", RUN), "two notebooks, two labs"
 
 
 def test_a_name_fits_what_the_portal_takes() -> None:
@@ -74,13 +76,13 @@ def test_a_name_fits_what_the_portal_takes() -> None:
     long_user = "a-very-long-federated-user-identifier-0123456789"
     long_run = "sn002_20260723T131303942Z_with_a_long_tail_as_well"
 
-    name = quixlab_provision.lab_name(long_user, long_run)
+    name = quixlab_provision.lab_name(long_user, "nb-0123456789ab", long_run)
 
     assert len(name) <= quixlab_provision.NAME_LIMIT
     assert name == quixlab_provision.sanitize(name), "lowercase, digits and dashes only"
     assert name.startswith(f"{quixlab_provision.LAB_PREFIX}-")
     # Two ids that share the truncated stem must still be two labs.
-    other = quixlab_provision.lab_name(long_user, long_run + "-second")
+    other = quixlab_provision.lab_name(long_user, "nb-0123456789ac", long_run)
     assert name != other
 
 
@@ -95,21 +97,22 @@ def test_the_url_prefix_fits_what_the_portal_takes() -> None:
     long_user = "0ab32ff2-6082-4e3a-8dd9-c48faf41d403"
     long_run = "sn059_20170211T094512001Z_and_a_long_tail"
 
-    prefix = quixlab_provision.lab_url_prefix(long_user, long_run)
+    del long_run
+    prefix = quixlab_provision.lab_url_prefix(long_user, NB)
 
     assert len(prefix) <= quixlab_provision.URL_PREFIX_LIMIT
     assert quixlab_provision.URL_PREFIX_LIMIT == 33
     assert prefix == quixlab_provision.sanitize(prefix), "it is also a host name"
-    assert prefix == quixlab_provision.lab_url_prefix(long_user, long_run), "stable"
-    # Two viewers on one run are two labs, so they must be two addresses.
-    assert prefix != quixlab_provision.lab_url_prefix("someone-else", long_run)
-    assert prefix != quixlab_provision.lab_url_prefix(long_user, "another-run")
+    assert prefix == quixlab_provision.lab_url_prefix(long_user, NB), "stable"
+    # Two viewers on one notebook are two labs, so they must be two addresses.
+    assert prefix != quixlab_provision.lab_url_prefix("someone-else", NB)
+    assert prefix != quixlab_provision.lab_url_prefix(long_user, "nb-2")
 
 
 def test_the_name_leads_with_the_run_not_the_viewer() -> None:
     """An operator scanning the deployment list wants to know which run a lab
     belongs to. A uuid first would push the run id off the end of the limit."""
-    name = quixlab_provision.lab_name("0ab32ff2-6082-4e3a-8dd9-c48faf41d403", RUN)
+    name = quixlab_provision.lab_name("0ab32ff2-6082-4e3a-8dd9-c48faf41d403", NB, RUN)
 
     assert len(name) <= quixlab_provision.NAME_LIMIT
     assert name.startswith(f"{quixlab_provision.LAB_PREFIX}-{quixlab_provision.sanitize(RUN)}")
@@ -119,23 +122,25 @@ def test_the_notebook_key_leads_with_the_workspace_folder(monkeypatch) -> None:
     """SAG grants a deployment a write only under the workspace folder."""
     monkeypatch.setenv(quixlab_provision.WORKSPACE_FOLDER_VAR, WORKSPACE)
 
-    key = quixlab_provision.notebook_key(RUN)
+    key = quixlab_provision.notebook_key(RUN, NB)
 
-    assert key == f"{WORKSPACE}/{quixlab_provision.NOTEBOOK_FOLDER}/{RUN}/analysis.py"
+    assert key == f"{WORKSPACE}/{quixlab_provision.NOTEBOOK_FOLDER}/{RUN}/{NB}/analysis.py"
     # `blob://` is bucket-relative and carries no leading slash: QuixLab's
     # `project.parse()` raises on one rather than falling back.
     assert quixlab_provision.notebook_pointer(key) == f"blob://{key}"
     assert "//" not in quixlab_provision.notebook_pointer(key)[len("blob://") :]
 
 
-def test_the_folder_of_the_notebook_is_the_run_folder(monkeypatch) -> None:
-    """The project root is the notebook's FOLDER, so it must be the run's."""
+def test_each_notebook_has_a_folder_of_its_own_under_the_run(monkeypatch) -> None:
+    """The project root is the notebook's FOLDER - its manifest, runs, items and chats live
+    there - so two notebooks in one folder would be one canvas."""
     monkeypatch.setenv(quixlab_provision.WORKSPACE_FOLDER_VAR, WORKSPACE)
 
-    root = quixlab_provision.notebook_key(RUN).rsplit("/", 1)[0]
+    root = quixlab_provision.notebook_key(RUN, NB).rsplit("/", 1)[0]
 
-    assert root.endswith(f"/{RUN}")
-    assert quixlab_provision.notebook_key("other").rsplit("/", 1)[0] != root
+    assert root.endswith(f"/{RUN}/{NB}")
+    assert quixlab_provision.notebook_key(RUN, "nb-2").rsplit("/", 1)[0] != root
+    assert quixlab_provision.notebook_key("other", NB).rsplit("/", 1)[0] != root
 
 
 def test_the_pinning_variables_never_travel_into_a_lab() -> None:
@@ -188,10 +193,7 @@ def test_a_lab_spec_clones_the_template_and_pins_its_own_notebook() -> None:
     assert spec["publicAccess"] is True, "a person has to be able to open it"
     assert spec["useLatest"] is True, "a lab made today carries today's QuixLab"
     assert spec["variables"]["QUIXLAB_MODE"]["value"] == "edit"
-    assert (
-        spec["variables"]["QUIXLAB_NOTEBOOK"]["value"]
-        == "blob://ws/quixlab-runs/r/analysis.py"
-    )
+    assert spec["variables"]["QUIXLAB_NOTEBOOK"]["value"] == "blob://ws/quixlab-runs/r/analysis.py"
     # A lab is one person's, never a workspace-wide plugin: the template IS a
     # plugin, and copying its block lists every lab in everybody's sidebar.
     assert spec["plugin"]["enabled"] is False
@@ -267,7 +269,7 @@ def portal(monkeypatch):
             return state["created"]
         if path == "/profile":
             return httpx.Response(
-                200, json={"userId": "user-a", "name": "Ana", "email": "ana@example.com"}
+                200, json={"userId": "user-a", "firstName": "Ana", "email": "ana@example.com"}
             )
         if path == quix_identity.PERMISSIONS_PATH or "permission" in path:
             return httpx.Response(200, json=True)
@@ -339,71 +341,110 @@ def _seed(db) -> None:
     )
 
 
+def _notebook(db, notebook_id: str = NB, **over) -> None:
+    db["notebooks"].insert_one(
+        {
+            "_id": notebook_id,
+            "run_id": RUN,
+            "name": "Notebook 1",
+            "created_by": "Ana",
+            "created_at": datetime(2026, 9, 22, 9, 0, tzinfo=UTC),
+            "saved_at": None,
+            **over,
+        }
+    )
+
+
+def _lab_row(notebook_id: str = NB, status: str = "Stopped") -> dict:
+    return {
+        "deploymentId": "dep-lab",
+        "name": quixlab_provision.lab_name("user-a", notebook_id, RUN),
+        "libraryItemId": "quixlab",
+        "status": status,
+        "publicUrl": "https://tm-lab.dev.quix.io",
+    }
+
+
+STOPPED_LAB = _lab_row()
+RUNNING_LAB = _lab_row(status="Running")
+NOTEBOOK_TEXT = "import quixlab as ql\n# edited in the lab\n"
+
+
 def test_a_viewer_with_no_portal_token_gets_no_lab(client, routed_db) -> None:
     """A lab created without the viewer is a lab owned by this service."""
     _seed(routed_db)
 
-    response = client.post(PATH)
+    response = client.post(PATH, json={})
 
     assert response.status_code == 403, response.text
     assert response.json()["code"] == "quixlab_needs_login"
+    assert routed_db["notebooks"].count_documents({}) == 0
 
 
-def test_creating_a_lab_writes_the_notebook_before_the_deployment(
+def test_creating_a_notebook_writes_the_file_before_the_deployment(
     client, routed_db, portal, written
 ) -> None:
     """Property 2. A lab pointed at a key with nothing behind it opens the
     file picker, and the person sees an empty QuixLab instead of their run."""
     _seed(routed_db)
 
-    response = client.post(PATH, headers=VIEWER)
+    response = client.post(PATH, headers=VIEWER, json={})
 
-    assert response.status_code == 200, response.text
+    assert response.status_code == 201, response.text
     kinds = [kind for kind, _ in portal["calls"]]
     assert kinds.index("WRITE") < kinds.index("POST"), "the notebook goes first"
 
 
-def test_the_lab_opens_on_a_notebook_in_the_run_folder(
+def test_a_new_notebook_is_listed_and_its_lab_opens_on_its_own_folder(
     client, routed_db, portal, written
 ) -> None:
     _seed(routed_db)
 
-    body = client.post(PATH, headers=VIEWER).json()
+    body = client.post(PATH, headers=VIEWER, json={"name": "Flutter sweep"}).json()
 
+    notebook_id = body["notebook_id"]
     key, source = written[0]
-    assert key == f"{WORKSPACE}/quixlab-runs/{RUN}/analysis.py"
-    assert body["notebook"] == f"blob://{key}"
+    assert key == f"{WORKSPACE}/quixlab-runs/{RUN}/{notebook_id}/analysis.py"
+    assert body["lab"]["notebook"] == f"blob://{key}"
     assert f"run_id = '{RUN}'" in source, "the notebook queries THIS run"
-    assert body["url"] == "https://tm-lab.dev.quix.io"
-    assert body["created"] is True
+    assert body["lab"]["url"] == "https://tm-lab.dev.quix.io"
+    assert body["lab"]["created"] is True
+    assert body["name"] == "Flutter sweep"
+    assert body["created_by"] == "Ana"
+    assert body["saved_at"] is None
+    listed = client.get(PATH).json()
+    assert [row["notebook_id"] for row in listed] == [notebook_id]
+    assert listed[0]["lab"] is None, "no token, no Portal read"
 
 
-def test_a_second_click_answers_the_same_lab_and_creates_nothing(
+def test_a_run_holds_several_notebooks_each_its_own_file_and_lab(
     client, routed_db, portal, written
 ) -> None:
-    """A person who clicks twice, or reloads while it builds, gets one lab."""
+    """The idea is more than one notebook per run."""
     _seed(routed_db)
-    first = client.post(PATH, headers=VIEWER).json()
-    assert first["name"] == quixlab_provision.lab_name("user-a", RUN)
-    # The Portal now lists the lab the first call made, under the name it was
-    # created with — which is the name the next call looks up.
-    portal["deployments"] = [
-        TEMPLATE_ROW,
-        {
-            "deploymentId": "dep-lab",
-            "name": first["name"],
-            "libraryItemId": "quixlab",
-            "status": "Running",
-            "publicUrl": "https://tm-lab.dev.quix.io",
-        },
-    ]
-    portal["calls"].clear()
 
-    second = client.post(PATH, headers=VIEWER).json()
+    first = client.post(PATH, headers=VIEWER, json={}).json()
+    second = client.post(PATH, headers=VIEWER, json={}).json()
 
-    assert second["id"] == "dep-lab"
-    assert second["created"] is False
-    assert [kind for kind, _ in portal["calls"]] == [], "nothing was written twice"
+    assert first["notebook_id"] != second["notebook_id"]
+    assert first["name"] == "Notebook 1"
+    assert second["name"] == "Notebook 2"
+    assert len({key for key, _ in written}) == 2, "two files, two folders"
+    assert first["lab"]["name"] != second["lab"]["name"], "two labs"
+    assert [row["name"] for row in client.get(PATH).json()] == ["Notebook 1", "Notebook 2"]
+
+
+def test_the_list_carries_this_viewer_s_labs_in_one_portal_read(client, routed_db, portal) -> None:
+    _seed(routed_db)
+    _notebook(routed_db)
+    _notebook(routed_db, "nb-2", name="Notebook 2")
+    portal["deployments"] = [TEMPLATE_ROW, RUNNING_LAB]
+
+    rows = client.get(PATH, headers=VIEWER).json()
+
+    assert rows[0]["lab"]["status"] == "Running"
+    assert rows[1]["lab"] is None
+    assert portal["calls"] == [], "a list makes nothing"
 
 
 def test_a_lab_is_never_cloned_from_another_lab(client, routed_db, portal, written) -> None:
@@ -422,9 +463,9 @@ def test_a_lab_is_never_cloned_from_another_lab(client, routed_db, portal, writt
         TEMPLATE_ROW,
     ]
 
-    response = client.post(PATH, headers=VIEWER)
+    response = client.post(PATH, headers=VIEWER, json={})
 
-    assert response.status_code == 200, response.text
+    assert response.status_code == 201, response.text
 
 
 def test_no_quixlab_to_clone_is_the_deployment_s_fault_not_the_caller_s(
@@ -433,48 +474,89 @@ def test_no_quixlab_to_clone_is_the_deployment_s_fault_not_the_caller_s(
     _seed(routed_db)
     portal["deployments"] = []
 
-    response = client.post(PATH, headers=VIEWER)
+    response = client.post(PATH, headers=VIEWER, json={})
 
     assert response.status_code == 503, response.text
     assert response.json()["code"] == "quixlab_no_template"
     assert written == [], "no notebook is stored for a lab that cannot be made"
+    assert routed_db["notebooks"].count_documents({}) == 0, "and none is listed"
 
 
-def test_a_run_the_registry_does_not_know_gets_no_lab(client, routed_db, portal, written) -> None:
-    """A lab for a run that does not exist would open on an empty query."""
-    response = client.post("/api/v1/test-runs/no-such-run/quixlab", headers=VIEWER)
+def test_a_run_the_registry_does_not_know_gets_no_notebook(
+    client, routed_db, portal, written
+) -> None:
+    """A notebook for a run that does not exist would open on an empty query."""
+    response = client.post("/api/v1/test-runs/no-such-run/notebooks", headers=VIEWER, json={})
 
     assert response.status_code == 404, response.text
     assert written == []
 
 
-def test_removing_a_lab_answers_204_even_when_there_was_none(
-    client, routed_db, portal
+def test_opening_a_saved_notebook_starts_the_stopped_lab_and_writes_nothing(
+    client, routed_db, portal, written
 ) -> None:
-    """Run deletion must not fail because a person never opened a lab."""
-    response = client.request("DELETE", PATH, headers=VIEWER)
+    """A notebook that was saved and closed keeps its file in its folder. Opening it is a
+    start, never a second create and never a file written over the person's work."""
+    _seed(routed_db)
+    _notebook(routed_db, saved_at=datetime(2026, 9, 22, 10, 0, tzinfo=UTC))
+    portal["deployments"] = [TEMPLATE_ROW, STOPPED_LAB]
 
-    assert response.status_code == 204, response.text
+    body = client.post(f"{PATH}/{NB}/open", headers=VIEWER).json()
+
+    assert body["lab"]["status"] == "Starting"
+    assert body["lab"]["created"] is False
+    assert [kind for kind, _ in portal["calls"]] == ["PUT"], portal["calls"]
+    assert portal["calls"][0][1].endswith("/deployments/dep-lab/start")
+    assert written == [], "the saved notebook is not overwritten"
 
 
-STOPPED_LAB = {
-    "deploymentId": "dep-lab",
-    "name": quixlab_provision.lab_name("user-a", RUN),
-    "libraryItemId": "quixlab",
-    "status": "Stopped",
-    "publicUrl": "https://tm-lab.dev.quix.io",
-}
-RUNNING_LAB = {**STOPPED_LAB, "status": "Running"}
-NOTEBOOK_TEXT = "import quixlab as ql\n# edited in the lab\n"
+def test_opening_a_colleague_s_notebook_makes_a_lab_of_your_own_on_the_same_file(
+    client, routed_db, portal, written
+) -> None:
+    """A notebook is the run's. A viewer with no lab on it yet gets one created on its
+    folder - and the file, which is the colleague's work, is not written."""
+    _seed(routed_db)
+    _notebook(routed_db, created_by="Ben")
+
+    body = client.post(f"{PATH}/{NB}/open", headers=VIEWER).json()
+
+    assert body["lab"]["created"] is True
+    assert body["lab"]["notebook"] == f"blob://{quixlab_provision.notebook_key(RUN, NB)}"
+    assert written == []
+
+
+def test_a_running_lab_is_not_started_again(client, routed_db, portal, written) -> None:
+    _seed(routed_db)
+    _notebook(routed_db)
+    portal["deployments"] = [TEMPLATE_ROW, RUNNING_LAB]
+
+    body = client.post(f"{PATH}/{NB}/open", headers=VIEWER).json()
+
+    assert body["lab"]["status"] == "Running"
+    assert portal["calls"] == []
+
+
+def test_the_lab_poll_makes_nothing_and_404s_before_there_is_one(client, routed_db, portal) -> None:
+    _seed(routed_db)
+    _notebook(routed_db)
+
+    missing = client.get(f"{PATH}/{NB}/lab", headers=VIEWER)
+    portal["deployments"] = [TEMPLATE_ROW, RUNNING_LAB]
+    found = client.get(f"{PATH}/{NB}/lab", headers=VIEWER)
+
+    assert missing.status_code == 404
+    assert missing.json()["code"] == "quixlab_not_found"
+    assert found.json()["id"] == "dep-lab"
+    assert portal["calls"] == []
 
 
 @pytest.fixture
 def notebook_in_blob(monkeypatch, portal):
-    """A blob store holding the lab's notebook, and recording what is written."""
+    """A blob store holding the notebook where QuixLab keeps it."""
     from api.main import app
-    from api.services import file_bytes, file_writes
+    from api.services import file_bytes
 
-    store: dict[str, bytes] = {quixlab_provision.notebook_key(RUN): NOTEBOOK_TEXT.encode()}
+    store: dict[str, bytes] = {quixlab_provision.notebook_key(RUN, NB): NOTEBOOK_TEXT.encode()}
 
     class Reader:
         def open(self, storage_ref):
@@ -483,111 +565,92 @@ def notebook_in_blob(monkeypatch, portal):
                 raise file_bytes.FileBytesUnavailable("no such blob", reason="blob_missing")
             return iter([store[key]]), len(store[key])
 
-    class Writer:
-        def check_ready(self):
-            return
-
-        def write(self, key, chunks):
-            store[key] = b"".join(chunks)
-            return len(store[key])
-
     app.dependency_overrides[file_bytes.get_file_bytes_provider] = lambda: Reader()
-    app.dependency_overrides[file_writes.get_file_writer] = lambda: Writer()
     yield store
     app.dependency_overrides.pop(file_bytes.get_file_bytes_provider, None)
-    app.dependency_overrides.pop(file_writes.get_file_writer, None)
 
 
-def test_opening_a_saved_notebook_starts_the_stopped_lab_and_writes_nothing(
-    client, routed_db, portal, written
-) -> None:
-    """A lab that was saved and closed keeps its notebook in its blob root. Opening it is a
-    start, never a second create and never a notebook written over the person's work."""
-    _seed(routed_db)
-    portal["deployments"] = [TEMPLATE_ROW, STOPPED_LAB]
-
-    body = client.post(PATH, headers=VIEWER).json()
-
-    assert body["status"] == "Starting"
-    assert body["created"] is False
-    assert [kind for kind, _ in portal["calls"]] == ["PUT"], portal["calls"]
-    assert portal["calls"][0][1].endswith("/deployments/dep-lab/start")
-    assert written == [], "the saved notebook is not overwritten"
-
-
-def test_a_running_lab_is_not_started_again(client, routed_db, portal, written) -> None:
-    _seed(routed_db)
-    portal["deployments"] = [TEMPLATE_ROW, RUNNING_LAB]
-
-    body = client.post(PATH, headers=VIEWER).json()
-
-    assert body["status"] == "Running"
-    assert portal["calls"] == []
-
-
-def test_save_and_close_files_the_notebook_under_the_run_and_stops_the_lab(
+def test_save_and_close_records_the_save_and_stops_the_lab(
     client, routed_db, portal, notebook_in_blob
 ) -> None:
     _seed(routed_db)
+    _notebook(routed_db)
     portal["deployments"] = [TEMPLATE_ROW, RUNNING_LAB]
 
-    response = client.post(f"{PATH}/close", headers=VIEWER)
+    response = client.post(f"{PATH}/{NB}/close", headers=VIEWER)
 
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["status"] == "Stopping"
+    assert body["lab"]["status"] == "Stopping"
+    assert body["saved_at"] is not None
     assert [c for c in portal["calls"] if c[1].endswith("/stop")] == [
         ("PUT", "/deployments/dep-lab/stop")
     ]
-    # The notebook is a processed result of the run, its bytes copied out of the lab.
-    result = routed_db["processed_results"].find_one({"_id": body["saved_result_id"]})
-    assert result is not None
-    assert result["run_id"] == RUN
-    assert result["result_key"] == "quixlab-notebook"
-    assert result["provenance"]["tool"] == "QuixLab"
-    saved_key = result["storage_ref"].removeprefix("blob://")
-    assert saved_key != quixlab_provision.notebook_key(RUN), "a copy, not the live file"
-    assert notebook_in_blob[saved_key] == NOTEBOOK_TEXT.encode()
-    # And the run's journal knows: `_store_result` keeps the entry on the run's timeline.
-    assert routed_db["journal_entries"].find_one({"context_run_id": RUN}) is not None
+    row = routed_db["notebooks"].find_one({"_id": NB})
+    assert row["saved_at"] is not None
+    assert row["size_bytes"] == len(NOTEBOOK_TEXT)
+    # The file stays where QuixLab wrote it: nothing was copied and nothing was removed.
+    assert notebook_in_blob == {quixlab_provision.notebook_key(RUN, NB): NOTEBOOK_TEXT.encode()}
 
 
-def test_saving_twice_is_the_next_version_of_one_result(
+def test_a_notebook_that_cannot_be_read_back_saves_nothing_and_stops_nothing(
     client, routed_db, portal, notebook_in_blob
 ) -> None:
+    """Losing the lab before the work is known to be on disk would lose the work; a lab
+    that keeps running after a refused save costs a container, which is the cheaper
+    mistake."""
     _seed(routed_db)
+    _notebook(routed_db)
     portal["deployments"] = [TEMPLATE_ROW, RUNNING_LAB]
-    first = client.post(f"{PATH}/close", headers=VIEWER).json()["saved_result_id"]
-    notebook_in_blob[quixlab_provision.notebook_key(RUN)] = b"# edited again\n"
+    del notebook_in_blob[quixlab_provision.notebook_key(RUN, NB)]
 
-    second = client.post(f"{PATH}/close", headers=VIEWER).json()["saved_result_id"]
-
-    rows = {r["_id"]: r for r in routed_db["processed_results"].find({"run_id": RUN})}
-    assert rows[second]["version"] == 2
-    assert rows[second]["supersedes"] == first
-
-
-def test_a_notebook_that_cannot_be_read_saves_nothing_and_stops_nothing(
-    client, routed_db, portal, notebook_in_blob
-) -> None:
-    """Losing the lab before the copy landed would lose the work; a lab that keeps running
-    after a refused save costs a container, which is the cheaper mistake."""
-    _seed(routed_db)
-    portal["deployments"] = [TEMPLATE_ROW, RUNNING_LAB]
-    del notebook_in_blob[quixlab_provision.notebook_key(RUN)]
-
-    response = client.post(f"{PATH}/close", headers=VIEWER)
+    response = client.post(f"{PATH}/{NB}/close", headers=VIEWER)
 
     assert response.status_code == 503, response.text
-    assert routed_db["processed_results"].count_documents({"run_id": RUN}) == 0
+    assert routed_db["notebooks"].find_one({"_id": NB})["saved_at"] is None
     assert not any(c[1].endswith("/stop") for c in portal["calls"])
 
 
 def test_closing_with_no_lab_is_a_404(client, routed_db, portal, notebook_in_blob) -> None:
     _seed(routed_db)
+    _notebook(routed_db)
     portal["deployments"] = [TEMPLATE_ROW]
 
-    response = client.post(f"{PATH}/close", headers=VIEWER)
+    response = client.post(f"{PATH}/{NB}/close", headers=VIEWER)
 
     assert response.status_code == 404
     assert response.json()["code"] == "quixlab_not_found"
+
+
+def test_deleting_a_notebook_removes_the_lab_and_the_row(client, routed_db, portal) -> None:
+    _seed(routed_db)
+    _notebook(routed_db)
+    portal["deployments"] = [TEMPLATE_ROW, RUNNING_LAB]
+
+    response = client.request("DELETE", f"{PATH}/{NB}", headers=VIEWER)
+
+    assert response.status_code == 204, response.text
+    assert [c for c in portal["calls"] if c[0] == "DELETE"] == [("DELETE", "/deployments/dep-lab")]
+    assert routed_db["notebooks"].count_documents({}) == 0
+    assert client.request("DELETE", f"{PATH}/{NB}", headers=VIEWER).status_code == 204
+
+
+def test_deleting_the_run_removes_every_notebook_and_the_caller_s_labs(
+    client, routed_db, portal
+) -> None:
+    """Run deletion must not fail because a person never opened a lab, and must not
+    leave a notebook row pointing at a run that is gone."""
+    _seed(routed_db)
+    _notebook(routed_db)
+    _notebook(routed_db, "nb-2", name="Notebook 2")
+    portal["deployments"] = [TEMPLATE_ROW, RUNNING_LAB]
+
+    response = client.request(
+        "DELETE", f"/api/v1/test-runs/{RUN}", headers=VIEWER, json={"actor": "ana"}
+    )
+
+    assert response.status_code in (200, 204), response.text
+    assert [c for c in portal["calls"] if c[0] == "DELETE"] == [
+        ("DELETE", "/deployments/dep-lab")
+    ], "one lab existed, one is removed; the other notebook had none"
+    assert routed_db["notebooks"].count_documents({"run_id": RUN}) == 0

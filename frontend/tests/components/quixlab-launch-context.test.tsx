@@ -112,17 +112,21 @@ const { listQuixLabs, getLakehouseUrl } = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/api/integrations", () => ({ listQuixLabs, getLakehouseUrl }));
 
-/* The run detail control no longer opens a shared QuixLab: it asks the API for
-   a lab of this viewer's own, for this run. The context it must carry is the
-   run id it asks with. */
-const { createRunQuixLab, getRunQuixLab } = vi.hoisted(() => ({
-  createRunQuixLab: vi.fn(),
-  getRunQuixLab: vi.fn(),
+/* The run detail control no longer opens a shared QuixLab: it opens the run's
+   newest notebook in a lab of this viewer's own, making the first when there is
+   none. The context it must carry is the run id it asks with. */
+const { createNotebook, getNotebookLab, listNotebooks, openNotebook } = vi.hoisted(() => ({
+  createNotebook: vi.fn(),
+  getNotebookLab: vi.fn(),
+  listNotebooks: vi.fn(),
+  openNotebook: vi.fn(),
 }));
 vi.mock("@/lib/api/run-quixlab", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/run-quixlab")>()),
-  createRunQuixLab,
-  getRunQuixLab,
+  createNotebook,
+  getNotebookLab,
+  listNotebooks,
+  openNotebook,
 }));
 
 import { FileDetailScreen } from "@/components/screens/files/file-detail-screen";
@@ -145,10 +149,12 @@ let opened: string[];
 let open: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
-  createRunQuixLab.mockReset();
-  getRunQuixLab.mockReset();
-  // The ordinary "this viewer has no lab for this run yet".
-  getRunQuixLab.mockRejectedValue(new Error("no QuixLab for this run yet"));
+  createNotebook.mockReset();
+  getNotebookLab.mockReset();
+  listNotebooks.mockReset();
+  openNotebook.mockReset();
+  // The ordinary "this run has no notebook yet".
+  listNotebooks.mockResolvedValue([]);
   listQuixLabs.mockReset();
   listQuixLabs.mockResolvedValue([]);
   getLakehouseUrl.mockReset();
@@ -187,20 +193,30 @@ describe("the run detail launch control", () => {
       opened.push(String(url));
       return win as unknown as Window;
     });
-    createRunQuixLab.mockResolvedValue({
-      id: "dep-lab",
-      name: "tm-lab-a",
-      status: "Running",
-      url: "https://tm-lab-a.dev.quix.io",
-      notebook: `blob://ws/quixlab-runs/${run.run_id}/analysis.py`,
-      created: true,
+    createNotebook.mockResolvedValue({
+      notebook_id: "nb-1",
+      run_id: run.run_id,
+      name: "Notebook 1",
+      created_by: "Ana",
+      created_at: "2026-09-22T09:00:00Z",
+      saved_at: null,
+      lab: {
+        id: "dep-lab",
+        name: "tm-lab-a",
+        status: "Running",
+        url: "https://tm-lab-a.dev.quix.io",
+        notebook: `blob://ws/quixlab-runs/${run.run_id}/nb-1/analysis.py`,
+        created: true,
+      },
     });
     render(withClient(<RunDetailScreen runId={run.run_id} />));
 
     await userEvent.setup().click(screen.getAllByRole("button", { name: LAUNCH })[0]);
 
     await vi.waitFor(() => expect(win.location.replace).toHaveBeenCalled());
-    expect(createRunQuixLab).toHaveBeenCalledWith(run.run_id);
+    expect(listNotebooks).toHaveBeenCalledWith(run.run_id);
+    expect(createNotebook).toHaveBeenCalledWith(run.run_id);
+    expect(openNotebook).not.toHaveBeenCalled();
     expect(win.location.replace).toHaveBeenCalledWith("https://tm-lab-a.dev.quix.io");
     // The tab is claimed on the CLICK, with no address: the lab does not exist
     // yet, and a `window.open` after the await would be blocked.

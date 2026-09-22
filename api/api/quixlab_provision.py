@@ -144,27 +144,34 @@ def sanitize(value: str) -> str:
     return out.strip("-")
 
 
-def _digest(user_id: str, run_id: str, length: int) -> str:
-    """The stable identity of one viewer-and-run pair, as hex."""
-    return hashlib.sha256(f"{user_id}\n{run_id}".encode()).hexdigest()[:length]
+def _digest(user_id: str, notebook_id: str, length: int) -> str:
+    """The stable identity of one viewer-and-notebook pair, as hex."""
+    return hashlib.sha256(f"{user_id}\n{notebook_id}".encode()).hexdigest()[:length]
 
 
-def lab_name(user_id: str, run_id: str) -> str:
-    """The one name this viewer's lab for this run has, always.
+def lab_name(user_id: str, notebook_id: str, run_id: str = "") -> str:
+    """The one name this viewer's lab for this notebook has, always.
 
-    It is READ back by `ensure_lab`, so it must be a pure function of the pair.
+    It is READ back by `find_lab`, so it must be a pure function of the pair.
 
-    The RUN leads the readable stem, not the viewer: an operator scanning the
-    deployment list wants to know which run a lab belongs to, and a viewer id
-    is a 36-character uuid that would push the run id off the end. The digest
-    carries the viewer, and keeps two people on one run apart.
+    A run may hold several notebooks, and each is its own lab: `QUIXLAB_NOTEBOOK`
+    is pinned at create and names ONE folder, and a stopped lab costs nothing, so
+    one deployment per notebook is both the simplest arrangement and the one that
+    keeps two notebooks' canvases, chats and results apart.
+
+    The run and the notebook lead the readable stem, not the viewer: an operator
+    scanning the deployment list wants to know what a lab belongs to, and a viewer
+    id is a 36-character uuid that would push the rest off the end. The digest
+    carries the viewer, and keeps two people on one notebook apart.
     """
-    digest = _digest(user_id, run_id, 8)
-    stem = sanitize(f"{LAB_PREFIX}-{run_id}")[: NAME_LIMIT - len(digest) - 1]
-    return f"{stem}-{digest}"
+    digest = _digest(user_id, notebook_id, 8)
+    stem = sanitize(
+        f"{LAB_PREFIX}-{run_id}-{notebook_id}" if run_id else f"{LAB_PREFIX}-{notebook_id}"
+    )
+    return f"{stem[: NAME_LIMIT - len(digest) - 1]}-{digest}"
 
 
-def lab_url_prefix(user_id: str, run_id: str) -> str:
+def lab_url_prefix(user_id: str, notebook_id: str) -> str:
     """The lab's host name. At most `URL_PREFIX_LIMIT` characters, always.
 
     Nothing readable fits: the prefix and the run id together are longer than
@@ -172,13 +179,17 @@ def lab_url_prefix(user_id: str, run_id: str) -> str:
     still a pure function of the pair, so a lab found by name has the address
     this would have built for it.
     """
-    prefix = f"{LAB_PREFIX}-{_digest(user_id, run_id, 16)}"
+    prefix = f"{LAB_PREFIX}-{_digest(user_id, notebook_id, 16)}"
     assert len(prefix) <= URL_PREFIX_LIMIT  # 7 + 1 + 16 = 24
     return prefix
 
 
-def notebook_key(run_id: str) -> str:
-    """The blob key of one run's notebook, workspace folder first.
+def notebook_key(run_id: str, notebook_id: str) -> str:
+    """The blob key of one notebook, workspace folder first.
+
+    Each notebook has a FOLDER of its own under the run, because the folder is the lab's
+    project root - its manifest, runs, items and chats live there - and two notebooks in
+    one folder would be one canvas.
 
     SAG reads the first folder under the bucket as the workspace and grants a
     deployment a write only under it, so the workspace folder leads the key
@@ -188,7 +199,7 @@ def notebook_key(run_id: str) -> str:
     """
     workspace = os.environ.get(WORKSPACE_FOLDER_VAR, "").strip().strip("/")
     folder = f"{workspace}/{NOTEBOOK_FOLDER}" if workspace else NOTEBOOK_FOLDER
-    return f"{folder}/{run_id}/{NOTEBOOK_NAME}"
+    return f"{folder}/{run_id}/{notebook_id}/{NOTEBOOK_NAME}"
 
 
 def notebook_pointer(key: str) -> str:
@@ -216,9 +227,7 @@ def clone_variables(template: Mapping[str, Any], overrides: Mapping[str, str]) -
     if isinstance(current, dict):
         entries = [(name, value) for name, value in current.items()]
     elif isinstance(current, list):
-        entries = [
-            (row.get("name"), row) for row in current if isinstance(row, dict)
-        ]
+        entries = [(row.get("name"), row) for row in current if isinstance(row, dict)]
     else:
         entries = []
     for name, value in entries:
@@ -332,7 +341,10 @@ def _template_row(rows: list[dict]) -> dict | None:
         if quixlab.read_text(row, "libraryItemId").lower() != quixlab.QUIXLAB_LIBRARY_ITEM_ID:
             continue
         if named:
-            if quixlab.read_text(row, "deploymentId") == named or quixlab.read_text(row, "name") == named:
+            if (
+                quixlab.read_text(row, "deploymentId") == named
+                or quixlab.read_text(row, "name") == named
+            ):
                 return row
             continue
         if quixlab.read_text(row, "name").startswith((f"{LAB_PREFIX}-", f"{RUN_PREFIX}-")):
@@ -341,7 +353,7 @@ def _template_row(rows: list[dict]) -> dict | None:
     return None
 
 
-def find_lab(token: str, *, run_id: str, user_id: str) -> Lab | None:
+def find_lab(token: str, *, run_id: str, notebook_id: str, user_id: str) -> Lab | None:
     """This viewer's lab for this run, or None. It makes nothing.
 
     `ensure_lab` cannot serve a poll: it would create the lab that the poll is
@@ -350,36 +362,60 @@ def find_lab(token: str, *, run_id: str, user_id: str) -> Lab | None:
     workspace = quix_identity.workspace_id()
     if not quix_identity.portal_url() or not workspace:
         return None
-    name = lab_name(user_id, run_id)
-    pointer = notebook_pointer(notebook_key(run_id))
+    name = lab_name(user_id, notebook_id, run_id)
+    pointer = notebook_pointer(notebook_key(run_id, notebook_id))
     with _client() as client:
         row = _find(_deployment_rows(client, token, workspace), name)
     return None if row is None else _lab_from_row(row, pointer, name)
+
+
+def find_labs(token: str, *, run_id: str, notebook_ids: list[str], user_id: str) -> dict[str, Lab]:
+    """This viewer's labs for these notebooks, by notebook id, in ONE Portal read.
+
+    A run's notebook list wants the state of every lab on it, and a listing that
+    read the Portal once per notebook would take seconds on a run with a dozen.
+    Notebooks with no lab are simply absent from the answer.
+    """
+    workspace = quix_identity.workspace_id()
+    if not notebook_ids or not quix_identity.portal_url() or not workspace:
+        return {}
+    with _client() as client:
+        rows = _deployment_rows(client, token, workspace)
+    labs: dict[str, Lab] = {}
+    for notebook_id in notebook_ids:
+        name = lab_name(user_id, notebook_id, run_id)
+        row = _find(rows, name)
+        if row is not None:
+            pointer = notebook_pointer(notebook_key(run_id, notebook_id))
+            labs[notebook_id] = _lab_from_row(row, pointer, name)
+    return labs
 
 
 def ensure_lab(
     token: str,
     *,
     run_id: str,
+    notebook_id: str,
     user_id: str,
-    notebook_source: str,
+    notebook_source: str | None,
     write_notebook,
 ) -> Lab:
-    """This viewer's lab for this run, made if it is not there yet.
+    """This viewer's lab for this notebook, made if it is not there yet.
 
     `write_notebook` takes `(key, text)` and stores the bytes. It is passed in
     rather than imported so a test proves the ORDER below without a blob store:
     the notebook is written BEFORE the deployment is created, because a lab
     that boots pointing at a key with nothing behind it opens the file picker
-    instead of the run.
+    instead of the run. `notebook_source` None means the notebook is already in
+    its folder - a saved one being opened - and NOTHING is written over it.
     """
     workspace = quix_identity.workspace_id()
     base = quix_identity.portal_url()
     if not base or not workspace:
         raise NoTemplate("this deployment cannot reach the Quix platform")
 
-    name = lab_name(user_id, run_id)
-    key = notebook_key(run_id)
+    name = lab_name(user_id, notebook_id, run_id)
+    key = notebook_key(run_id, notebook_id)
     pointer = notebook_pointer(key)
 
     with _client() as client:
@@ -390,9 +426,9 @@ def ensure_lab(
                 # A lab that was saved and closed. Its notebook is where it left it, in the
                 # blob root, so a start is all it takes - no notebook is written over.
                 _action(client, token, quixlab.read_text(existing, "deploymentId"), "start")
-                logger.info("quixlab lab %s started again for run %s", name, run_id)
+                logger.info("quixlab lab %s started again for notebook %s", name, notebook_id)
                 return _lab_from_row({**existing, "status": "Starting"}, pointer, name)
-            logger.info("quixlab lab %s already exists for run %s", name, run_id)
+            logger.info("quixlab lab %s already exists for notebook %s", name, notebook_id)
             return _lab_from_row(existing, pointer, name)
 
         template = _template_row(rows)
@@ -400,7 +436,8 @@ def ensure_lab(
             raise NoTemplate("the workspace holds no QuixLab deployment to clone")
 
         # The notebook first. See the docstring.
-        write_notebook(key, notebook_source)
+        if notebook_source is not None:
+            write_notebook(key, notebook_source)
 
         template_id = quixlab.read_text(template, "deploymentId")
         full = quix_identity.portal_get(
@@ -410,12 +447,10 @@ def ensure_lab(
             full,
             name=name,
             notebook=pointer,
-            url_prefix=lab_url_prefix(user_id, run_id),
+            url_prefix=lab_url_prefix(user_id, notebook_id),
         )
-        created = quix_identity.portal_send(
-            client, "POST", DEPLOYMENTS_PATH, token, spec
-        ).json()
-        logger.info("quixlab lab %s created for run %s", name, run_id)
+        created = quix_identity.portal_send(client, "POST", DEPLOYMENTS_PATH, token, spec).json()
+        logger.info("quixlab lab %s created for notebook %s", name, notebook_id)
         return _lab_from_row(
             created if isinstance(created, dict) else {}, pointer, name, created=True
         )
@@ -465,7 +500,7 @@ def _action(client: httpx.Client, token: str, deployment_id: str, action: str) -
     raise PlatformUnreachable(f"no {action} route accepted: {'; '.join(tried)}")
 
 
-def stop_lab(token: str, *, run_id: str, user_id: str) -> Lab | None:
+def stop_lab(token: str, *, run_id: str, notebook_id: str, user_id: str) -> Lab | None:
     """Stop this viewer's lab for this run, keeping the deployment. None when there is none.
 
     Stopped, not removed: the notebook and everything the person did lives in the lab's
@@ -474,8 +509,8 @@ def stop_lab(token: str, *, run_id: str, user_id: str) -> Lab | None:
     workspace = quix_identity.workspace_id()
     if not quix_identity.portal_url() or not workspace:
         return None
-    name = lab_name(user_id, run_id)
-    pointer = notebook_pointer(notebook_key(run_id))
+    name = lab_name(user_id, notebook_id, run_id)
+    pointer = notebook_pointer(notebook_key(run_id, notebook_id))
     with _client() as client:
         row = _find(_deployment_rows(client, token, workspace), name)
         if row is None:
@@ -483,11 +518,11 @@ def stop_lab(token: str, *, run_id: str, user_id: str) -> Lab | None:
         deployment_id = quixlab.read_text(row, "deploymentId")
         if quixlab.read_text(row, "status").lower() not in STARTABLE_STATES:
             _action(client, token, deployment_id, "stop")
-    logger.info("quixlab lab %s stopped for run %s", name, run_id)
+    logger.info("quixlab lab %s stopped for notebook %s", name, notebook_id)
     return _lab_from_row({**row, "status": "Stopping"}, pointer, name)
 
 
-def remove_lab(token: str, *, run_id: str, user_id: str) -> bool:
+def remove_lab(token: str, *, run_id: str, notebook_id: str, user_id: str) -> bool:
     """Remove this viewer's lab for this run. True when it is gone.
 
     A lab the Portal never had is already gone, so `PlatformMissing` is a
@@ -497,7 +532,7 @@ def remove_lab(token: str, *, run_id: str, user_id: str) -> bool:
     workspace = quix_identity.workspace_id()
     if not quix_identity.portal_url() or not workspace:
         return False
-    name = lab_name(user_id, run_id)
+    name = lab_name(user_id, notebook_id, run_id)
     with _client() as client:
         row = _find(_deployment_rows(client, token, workspace), name)
         if row is None:
@@ -509,7 +544,7 @@ def remove_lab(token: str, *, run_id: str, user_id: str) -> bool:
             )
         except PlatformMissing:
             return True
-    logger.info("quixlab lab %s removed for run %s", name, run_id)
+    logger.info("quixlab lab %s removed for notebook %s", name, notebook_id)
     return True
 
 

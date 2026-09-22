@@ -86,6 +86,7 @@ export const keys = {
     journal: (runId: string, params: PageParams & { kind?: JournalKind }) =>
       ["runs", "detail", runId, "journal", params] as const,
     lineage: (runId: string) => ["runs", "detail", runId, "lineage"] as const,
+    notebooks: (runId: string) => ["runs", "detail", runId, "notebooks"] as const,
     exploreContext: (runId: string) =>
       ["runs", "detail", runId, "explore", "context"] as const,
     /* Outside the detail key: a run edit invalidates the detail, and that must not

@@ -15,21 +15,23 @@ import { render, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import userEvent from "@testing-library/user-event";
 
-/* The panel frames this viewer's own lab for this run, not a picked instance. */
-const { closeRunQuixLab, createRunQuixLab, getRunQuixLab } = vi.hoisted(() => ({
-  closeRunQuixLab: vi.fn(),
-  createRunQuixLab: vi.fn(),
-  getRunQuixLab: vi.fn(),
+/* The panel frames this viewer's own lab on one of the run's notebooks. */
+const { closeNotebook, getNotebookLab, listNotebooks, openNotebook } = vi.hoisted(() => ({
+  closeNotebook: vi.fn(),
+  getNotebookLab: vi.fn(),
+  listNotebooks: vi.fn(),
+  openNotebook: vi.fn(),
 }));
 vi.mock("@/lib/api/run-quixlab", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/run-quixlab")>()),
-  closeRunQuixLab,
-  createRunQuixLab,
-  getRunQuixLab,
+  closeNotebook,
+  getNotebookLab,
+  listNotebooks,
+  openNotebook,
 }));
 
 import { QuixLabPanel } from "@/components/screens/run-detail/quixlab-panel";
-import type { RunQuixLab } from "@/lib/api/run-quixlab";
+import type { Notebook, RunQuixLab } from "@/lib/api/run-quixlab";
 import { setActivePortalToken } from "@/lib/portal/token-store";
 import { setQuixLabUrl } from "@/lib/quixlab";
 
@@ -42,8 +44,17 @@ const lab: RunQuixLab = {
   name: "tm-lab-ana-run42",
   status: "Running",
   url: ORIGIN,
-  notebook: `blob://ws/quixlab-runs/${RUN_ID}/analysis.py`,
+  notebook: `blob://ws/quixlab-runs/${RUN_ID}/nb-1/analysis.py`,
   created: false,
+};
+const notebook: Notebook = {
+  notebook_id: "nb-1",
+  run_id: RUN_ID,
+  name: "Notebook 1",
+  created_by: "Ana",
+  created_at: "2026-09-22T09:00:00Z",
+  saved_at: null,
+  lab: { ...lab, status: "Stopped" },
 };
 
 function withClient(node: ReactElement): ReactElement {
@@ -52,12 +63,14 @@ function withClient(node: ReactElement): ReactElement {
 }
 
 beforeEach(() => {
-  createRunQuixLab.mockReset();
-  getRunQuixLab.mockReset();
-  getRunQuixLab.mockResolvedValue(lab);
-  createRunQuixLab.mockResolvedValue(lab);
-  closeRunQuixLab.mockReset();
-  closeRunQuixLab.mockResolvedValue({ ...lab, status: "Stopping", saved_result_id: "res-1" });
+  listNotebooks.mockReset();
+  openNotebook.mockReset();
+  getNotebookLab.mockReset();
+  closeNotebook.mockReset();
+  listNotebooks.mockResolvedValue([notebook]);
+  openNotebook.mockResolvedValue({ ...notebook, lab });
+  getNotebookLab.mockResolvedValue(lab);
+  closeNotebook.mockResolvedValue({ ...notebook, saved_at: "2026-09-22T10:00:00Z", lab: { ...lab, status: "Stopping" } });
   setActivePortalToken("token-one");
   setQuixLabUrl(null);
 });
@@ -72,7 +85,7 @@ afterEach(() => {
 async function embed() {
   const user = userEvent.setup();
   const view = render(withClient(<QuixLabPanel runId={RUN_ID} />));
-  await user.click(await view.findByRole("button", { name: "Open QuixLab notebook" }));
+  await user.click(await view.findByRole("button", { name: "Open Notebook 1" }));
   const frame = view.container.querySelector("iframe");
   if (frame === null) throw new Error("the frame did not render");
   await waitFor(() => expect(frame.getAttribute("src")).toBe(EMBED_URL));
@@ -90,7 +103,7 @@ describe("the embedded frame takes more room", () => {
   it("offers no expand control before a frame exists", async () => {
     const view = render(withClient(<QuixLabPanel runId={RUN_ID} />));
 
-    await view.findByRole("button", { name: "Open QuixLab notebook" });
+    await view.findByRole("button", { name: "Open Notebook 1" });
     expect(view.queryByRole("button", { name: /the QuixLab frame$/ })).toBeNull();
   });
 

@@ -14,7 +14,9 @@ memory, after the frame proves a session. It never rides a URL, and neither
 does a token.
 """
 
-from api.models.common import ApiModel
+from pydantic import Field
+
+from api.models.common import ApiModel, RequestModel, UtcDatetime
 
 
 class QuixLabUrl(ApiModel):
@@ -103,7 +105,7 @@ class QuixLabList(ApiModel):
 
 
 class RunQuixLab(ApiModel):
-    """Answer of POST /test-runs/{run_id}/quixlab — one person's lab for one run.
+    """One person's lab on one notebook, as the notebook routes answer it.
 
     `status` is the Portal's own word, passed through unchanged, so the front
     end can wait for a lab that is still building without this API inventing a
@@ -116,8 +118,9 @@ class RunQuixLab(ApiModel):
     which is how a caller can tell "yours, already running" from "just spun up
     for you, give it a moment".
 
-    `notebook` is the `blob://` pointer the lab opens, and it names the run's
-    own folder. It carries no credential: a bucket-relative path is not one.
+    `notebook` is the `blob://` pointer the lab opens, and it names the notebook's
+    own folder under the run. It carries no credential: a bucket-relative path is
+    not one.
     """
 
     id: str
@@ -126,5 +129,27 @@ class RunQuixLab(ApiModel):
     url: str
     notebook: str
     created: bool = False
-    # Set by POST .../quixlab/close: the processed result the notebook was saved as.
-    saved_result_id: str | None = None
+
+
+class Notebook(ApiModel):
+    """One QuixLab notebook of a run: a file in its own blob folder, and the lab that opens it.
+
+    A run holds any number of these. `lab` is this viewer's lab for the notebook when the
+    Portal knows one - absent for a notebook nobody has opened from this deployment yet, and
+    stopped once it was saved and closed. `saved_at` is the last Save and Close; None until
+    the first.
+    """
+
+    notebook_id: str = Field(validation_alias="_id")
+    run_id: str
+    name: str
+    created_by: str
+    created_at: UtcDatetime
+    saved_at: UtcDatetime | None = None
+    lab: RunQuixLab | None = None
+
+
+class NotebookCreateRequest(RequestModel):
+    """Body of POST /test-runs/{run_id}/notebooks. Every field optional."""
+
+    name: str | None = None

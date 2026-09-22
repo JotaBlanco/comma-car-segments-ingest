@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { running, type RunQuixLab } from "@/lib/api/run-quixlab";
+import { running, type Notebook, type RunQuixLab } from "@/lib/api/run-quixlab";
 import { GIVE_UP_MS, launchRunQuixLab, type LaunchDeps, type LaunchTab } from "@/lib/run-quixlab";
 
 /**
@@ -16,8 +16,20 @@ function lab(status: string): RunQuixLab {
     name: "tm-lab-a",
     status,
     url: "https://tm-lab-a.dev.quix.io",
-    notebook: "blob://ws/quixlab-runs/r1/analysis.py",
+    notebook: "blob://ws/quixlab-runs/r1/nb-1/analysis.py",
     created: status === "Building",
+  };
+}
+
+function notebook(id: string, current: RunQuixLab | null = null): Notebook {
+  return {
+    notebook_id: id,
+    run_id: "r1",
+    name: id,
+    created_by: "Ana",
+    created_at: "2026-09-22T09:00:00Z",
+    saved_at: null,
+    lab: current,
   };
 }
 
@@ -41,11 +53,29 @@ function fakeTab(): LaunchTab & { said: string[]; went: string[]; offered: strin
   return state;
 }
 
-function deps(answers: RunQuixLab[], clock = { at: 0 }): LaunchDeps & { reads: number } {
+/**
+ * A run with no notebook: `create` answers the first lab state and `read` the
+ * rest. `saved` lists notebooks instead, and `open` answers the first state.
+ */
+function deps(
+  answers: RunQuixLab[],
+  clock = { at: 0 },
+  saved: Notebook[] = [],
+): LaunchDeps & { reads: number; created: number; opened: string[] } {
   const queue = [...answers];
   const out = {
     reads: 0,
-    create: () => Promise.resolve(queue.shift()!),
+    created: 0,
+    opened: [] as string[],
+    list: () => Promise.resolve(saved),
+    create: () => {
+      out.created += 1;
+      return Promise.resolve(notebook("nb-new", queue.shift()!));
+    },
+    open: (_runId: string, id: string) => {
+      out.opened.push(id);
+      return Promise.resolve(notebook(id, queue.shift()!));
+    },
     read: () => {
       out.reads += 1;
       return Promise.resolve(queue.shift()!);
@@ -78,7 +108,30 @@ describe("launchRunQuixLab", () => {
 
     expect(tab.went).toEqual(["https://tm-lab-a.dev.quix.io"]);
     expect(d.reads).toBe(0);
+    expect(d.created).toBe(1);
     expect(tab.offered).toEqual([]);
+  });
+
+  it("opens the NEWEST saved notebook rather than making another", async () => {
+    const tab = fakeTab();
+    const d = deps([lab("Running")], { at: 0 }, [notebook("nb-old"), notebook("nb-new")]);
+
+    await launchRunQuixLab("r1", tab, d);
+
+    expect(d.created).toBe(0);
+    expect(d.opened).toEqual(["nb-new"]);
+    expect(tab.went).toEqual(["https://tm-lab-a.dev.quix.io"]);
+  });
+
+  it("reads the lab when the open answered none, rather than sending the tab nowhere", async () => {
+    const tab = fakeTab();
+    const d = deps([lab("Running")], { at: 0 }, [notebook("nb-1")]);
+    const bare = { ...d, open: (_r: string, id: string) => Promise.resolve(notebook(id, null)) };
+
+    await launchRunQuixLab("r1", tab, bare);
+
+    expect(d.reads).toBe(1);
+    expect(tab.went).toEqual(["https://tm-lab-a.dev.quix.io"]);
   });
 
   it("waits out a build rather than showing a 502, then goes", async () => {
@@ -114,7 +167,7 @@ describe("launchRunQuixLab", () => {
     const clock = { at: 0 };
     const stuck = {
       ...deps([], clock),
-      create: () => Promise.resolve(lab("Building")),
+      create: () => Promise.resolve(notebook("nb-new", lab("Building"))),
       read: () => Promise.resolve(lab("Building")),
       wait: (ms: number) => {
         clock.at += ms;

@@ -1,9 +1,12 @@
 "use client";
 
 import {
-  createRunQuixLab,
-  getRunQuixLab,
+  createNotebook,
+  getNotebookLab,
+  listNotebooks,
+  openNotebook,
   running,
+  type Notebook,
   type RunQuixLab,
 } from "@/lib/api/run-quixlab";
 
@@ -105,25 +108,33 @@ export function claimTab(open: Window["open"] = window.open.bind(window)): Launc
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 export interface LaunchDeps {
-  create(runId: string): Promise<RunQuixLab>;
-  read(runId: string): Promise<RunQuixLab>;
+  /** The run's notebooks, oldest first. */
+  list(runId: string): Promise<Notebook[]>;
+  /** A new notebook, its lab started. */
+  create(runId: string): Promise<Notebook>;
+  /** A saved notebook, its lab started. */
+  open(runId: string, notebookId: string): Promise<Notebook>;
+  read(runId: string, notebookId: string): Promise<RunQuixLab>;
   wait(ms: number): Promise<void>;
   now(): number;
 }
 
 const LIVE: LaunchDeps = {
-  create: createRunQuixLab,
-  read: getRunQuixLab,
+  list: listNotebooks,
+  create: createNotebook,
+  open: openNotebook,
   wait: sleep,
   now: () => Date.now(),
+  read: getNotebookLab,
 };
 
 /**
- * Make this viewer's lab for this run and send the claimed tab to it.
+ * Open the run's newest notebook in the claimed tab, making the first when there is none.
  *
- * It resolves with the lab whatever happened to the tab, so a caller can
- * report the outcome; it rejects only when the lab could not be made, and the
- * caller then closes the tab and shows the reason.
+ * The notebooks panel is where a person picks between notebooks; this is the header's
+ * one-click way in, so it takes the latest rather than asking. It resolves with the lab
+ * whatever happened to the tab, so a caller can report the outcome; it rejects only
+ * when the lab could not be made, and the caller then closes the tab and shows the reason.
  */
 export async function launchRunQuixLab(
   runId: string,
@@ -131,13 +142,18 @@ export async function launchRunQuixLab(
   deps: LaunchDeps = LIVE,
 ): Promise<RunQuixLab> {
   tab.say("Setting up your QuixLab for this run…");
-  let lab = await deps.create(runId);
+  const notebooks = await deps.list(runId);
+  const latest = notebooks.at(-1);
+  const notebook = latest === undefined
+    ? await deps.create(runId)
+    : await deps.open(runId, latest.notebook_id);
+  let lab = notebook.lab ?? (await deps.read(runId, notebook.notebook_id));
   const giveUpAt = deps.now() + GIVE_UP_MS;
 
   while (!running(lab) && tab.alive() && deps.now() < giveUpAt) {
     tab.say(`Starting your QuixLab… (${lab.status.trim() || "queued"})`);
     await deps.wait(POLL_MS);
-    lab = await deps.read(runId);
+    lab = await deps.read(runId, notebook.notebook_id);
   }
 
   if (!tab.alive()) return lab;

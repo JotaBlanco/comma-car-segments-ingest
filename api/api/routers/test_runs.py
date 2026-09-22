@@ -2,7 +2,6 @@
 
 import hashlib
 import json
-import logging
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
 
@@ -12,7 +11,6 @@ from pydantic import AfterValidator
 from pymongo.database import Database
 from pymongo.errors import DuplicateKeyError
 
-from api import quixlab_provision
 from api.auth import journal_actor, journal_actor_or_id, require_token
 from api.db import get_db
 from api.errors import ApiError
@@ -43,6 +41,7 @@ from api.models.runs import (
 )
 from api.models.sorting import ResolvedSort, sort_params
 from api.quix_identity import Identity
+from api.routers import quixlab_labs
 from api.routers.files import _existing_registered, register_file_document
 from api.services import exports, queries_runs, run_deletion
 
@@ -332,22 +331,9 @@ def delete_test_run(
     stop.
     """
     # The verified caller wins over the body actor. See auth.journal_actor.
-    report = run_deletion.delete_run(
-        db, run_id, actor=journal_actor(identity, body.actor)
-    )
-    _drop_quixlab(request, run_id, identity)
+    report = run_deletion.delete_run(db, run_id, actor=journal_actor(identity, body.actor))
+    quixlab_labs.drop_run_notebooks(db, request, run_id)
     return report
-
-
-def _drop_quixlab(request: Request, run_id: str, identity: Identity) -> None:
-    """Remove the caller's lab for a deleted run. Never raise."""
-    token = (request.headers.get("x-portal-token") or "").strip()
-    if not token:
-        return
-    try:
-        quixlab_provision.remove_lab(token, run_id=run_id, user_id=identity.user_id)
-    except Exception as error:  # noqa: BLE001 - a stuck container is not a failed delete
-        logger.warning("the QuixLab for run %s was not removed: %s", run_id, error)
 
 
 @router.post("/test-runs/{run_id}/invalid-flag")
@@ -550,8 +536,7 @@ def submit_run_signals(
     canonical = _canonical_submission(run_id, body)
     checksum = hashlib.sha256(canonical).hexdigest()
     accepted = [
-        {"name": signal.name, "sample_count": len(signal.samples or [])}
-        for signal in body.signals
+        {"name": signal.name, "sample_count": len(signal.samples or [])} for signal in body.signals
     ]
 
     # The replay check runs BEFORE the lake write, or every replay would
@@ -576,16 +561,12 @@ def submit_run_signals(
         )
 
     try:
-        timestamps = [
-            stamp for signal in body.signals for stamp, _ in (signal.samples or [])
-        ]
+        timestamps = [stamp for signal in body.signals for stamp, _ in (signal.samples or [])]
         time_start = _from_ms(min(timestamps)) if timestamps else None
         time_end = _from_ms(max(timestamps)) if timestamps else None
 
         filename = f"api-submission-{datetime.now(UTC):%Y%m%dT%H%M%S}Z.json"
-        samples_status, sample_rows = _forward_samples(
-            filename, run_id, time_start, body.signals
-        )
+        samples_status, sample_rows = _forward_samples(filename, run_id, time_start, body.signals)
 
         register_body = FileRegisterRequest(
             filename=filename,
@@ -646,9 +627,9 @@ def _canonical_submission(run_id: str, body: RunSignalsSubmitRequest) -> bytes:
         "source_system": body.source_system,
         "signals": [signal.model_dump() for signal in body.signals],
     }
-    return json.dumps(
-        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-    ).encode("utf-8")
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(
+        "utf-8"
+    )
 
 
 def _from_ms(stamp_ms: int) -> datetime:
@@ -730,9 +711,7 @@ def _forward_samples(
         )
     except httpx.HTTPError as error:
         # Nothing reached Mongo yet, so the caller retries the whole payload.
-        raise ApiError(
-            503, "QuixLake did not accept the samples", "lake_unavailable"
-        ) from error
+        raise ApiError(503, "QuixLake did not accept the samples", "lake_unavailable") from error
     finally:
         client.close()
     return "written", rows

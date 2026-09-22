@@ -177,3 +177,7 @@ def ensure_indexes(db: Database) -> None:
     searches.create_index([("visibility", ASCENDING)])
     searches.create_index([("scope", ASCENDING), ("saved_at", DESCENDING)])
     # --- end lane B indexes ---
+
+    # A run's QuixLab notebooks are listed by run, and run deletion drops them by run.
+    notebooks = db["notebooks"]
+    notebooks.create_index([("run_id", ASCENDING), ("created_at", ASCENDING)])
