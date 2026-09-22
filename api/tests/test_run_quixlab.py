@@ -84,6 +84,37 @@ def test_a_name_fits_what_the_portal_takes() -> None:
     assert name != other
 
 
+def test_the_url_prefix_fits_what_the_portal_takes() -> None:
+    """The Portal answers 400 `Url prefix '...' must be less than 34 characters`.
+
+    It is a far tighter limit than the deployment name's, and the first version
+    of this used the name for both: a viewer id alone is a 36-character uuid, so
+    every create failed. Nothing readable fits, so the prefix is the pair's
+    digest and the readable identity stays on the name.
+    """
+    long_user = "0ab32ff2-6082-4e3a-8dd9-c48faf41d403"
+    long_run = "sn059_20170211T094512001Z_and_a_long_tail"
+
+    prefix = quixlab_provision.lab_url_prefix(long_user, long_run)
+
+    assert len(prefix) <= quixlab_provision.URL_PREFIX_LIMIT
+    assert quixlab_provision.URL_PREFIX_LIMIT == 33
+    assert prefix == quixlab_provision.sanitize(prefix), "it is also a host name"
+    assert prefix == quixlab_provision.lab_url_prefix(long_user, long_run), "stable"
+    # Two viewers on one run are two labs, so they must be two addresses.
+    assert prefix != quixlab_provision.lab_url_prefix("someone-else", long_run)
+    assert prefix != quixlab_provision.lab_url_prefix(long_user, "another-run")
+
+
+def test_the_name_leads_with_the_run_not_the_viewer() -> None:
+    """An operator scanning the deployment list wants to know which run a lab
+    belongs to. A uuid first would push the run id off the end of the limit."""
+    name = quixlab_provision.lab_name("0ab32ff2-6082-4e3a-8dd9-c48faf41d403", RUN)
+
+    assert len(name) <= quixlab_provision.NAME_LIMIT
+    assert name.startswith(f"{quixlab_provision.LAB_PREFIX}-{quixlab_provision.sanitize(RUN)}")
+
+
 def test_the_notebook_key_leads_with_the_workspace_folder(monkeypatch) -> None:
     """SAG grants a deployment a write only under the workspace folder."""
     monkeypatch.setenv(quixlab_provision.WORKSPACE_FOLDER_VAR, WORKSPACE)
@@ -143,14 +174,17 @@ def test_variables_are_objects_whichever_shape_the_portal_answered() -> None:
 
 def test_a_lab_spec_clones_the_template_and_pins_its_own_notebook() -> None:
     spec = quixlab_provision.build_lab_spec(
-        TEMPLATE_SPEC, name="tm-lab-x", notebook="blob://ws/quixlab-runs/r/analysis.py"
+        TEMPLATE_SPEC,
+        name="tm-lab-x",
+        notebook="blob://ws/quixlab-runs/r/analysis.py",
+        url_prefix="tm-lab-abc123",
     )
 
     assert spec["applicationId"] == "app-quixlab", "same application, no new build"
     assert spec["image"] == "quixlab:1.2.3"
     assert spec["cpuMillicores"] == 500
     assert spec["name"] == "tm-lab-x"
-    assert spec["urlPrefix"] == "tm-lab-x"
+    assert spec["urlPrefix"] == "tm-lab-abc123", "the prefix is not the name"
     assert spec["publicAccess"] is True, "a person has to be able to open it"
     assert spec["useLatest"] is True, "a lab made today carries today's QuixLab"
     assert spec["variables"]["QUIXLAB_MODE"]["value"] == "edit"

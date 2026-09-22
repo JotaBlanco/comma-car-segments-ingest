@@ -70,10 +70,17 @@ RUN_PREFIX = "tm-run"
 NOTEBOOK_FOLDER = "quixlab-runs"
 NOTEBOOK_NAME = "analysis.py"
 
-# Names the Portal takes: lowercase alphanumerics and dashes, and a deployment
-# name doubles as a DNS label, so 63 is the hard ceiling. QuixLab's own
-# `sanitize_deployment_name` stops at 60 and this keeps that number.
+# Names the Portal takes: lowercase alphanumerics and dashes. QuixLab's own
+# `sanitize_deployment_name` stops at 60 and the deployment NAME keeps that.
 NAME_LIMIT = 60
+
+# The URL PREFIX is a different, much tighter limit, and it is not the name's.
+# The Portal answers
+#   400 {"message":"Url prefix '...' must be less than 34 characters"}
+# so a prefix is at most 33. A viewer id alone is a 36-character uuid, so a
+# readable prefix is not on offer at all: `lab_url_prefix` spends the budget on
+# a digest instead, and the readable identity lives in the deployment name.
+URL_PREFIX_LIMIT = 33
 
 # The variables that pin ONE QuixLab's identity or runtime mode. Cloning them
 # would make the child masquerade as its template — and the platform re-injects
@@ -132,17 +139,37 @@ def sanitize(value: str) -> str:
     return out.strip("-")
 
 
+def _digest(user_id: str, run_id: str, length: int) -> str:
+    """The stable identity of one viewer-and-run pair, as hex."""
+    return hashlib.sha256(f"{user_id}\n{run_id}".encode()).hexdigest()[:length]
+
+
 def lab_name(user_id: str, run_id: str) -> str:
     """The one name this viewer's lab for this run has, always.
 
-    It is READ back by `ensure_lab`, so it must be a pure function of the pair
-    and it must fit the Portal's limit. The readable stem is what an operator
-    scanning the deployment list needs; the digest is what keeps two long ids
-    that share a prefix from colliding once the stem is truncated.
+    It is READ back by `ensure_lab`, so it must be a pure function of the pair.
+
+    The RUN leads the readable stem, not the viewer: an operator scanning the
+    deployment list wants to know which run a lab belongs to, and a viewer id
+    is a 36-character uuid that would push the run id off the end. The digest
+    carries the viewer, and keeps two people on one run apart.
     """
-    digest = hashlib.sha256(f"{user_id}\n{run_id}".encode()).hexdigest()[:8]
-    stem = sanitize(f"{LAB_PREFIX}-{user_id}-{run_id}")[: NAME_LIMIT - 9]
+    digest = _digest(user_id, run_id, 8)
+    stem = sanitize(f"{LAB_PREFIX}-{run_id}")[: NAME_LIMIT - len(digest) - 1]
     return f"{stem}-{digest}"
+
+
+def lab_url_prefix(user_id: str, run_id: str) -> str:
+    """The lab's host name. At most `URL_PREFIX_LIMIT` characters, always.
+
+    Nothing readable fits: the prefix and the run id together are longer than
+    the whole budget, so this is the pair's digest and nothing else. It is
+    still a pure function of the pair, so a lab found by name has the address
+    this would have built for it.
+    """
+    prefix = f"{LAB_PREFIX}-{_digest(user_id, run_id, 16)}"
+    assert len(prefix) <= URL_PREFIX_LIMIT  # 7 + 1 + 16 = 24
+    return prefix
 
 
 def notebook_key(run_id: str) -> str:
@@ -202,7 +229,7 @@ def clone_variables(template: Mapping[str, Any], overrides: Mapping[str, str]) -
     return out
 
 
-def build_lab_spec(template: dict, *, name: str, notebook: str) -> dict:
+def build_lab_spec(template: dict, *, name: str, notebook: str, url_prefix: str) -> dict:
     """Clone one QuixLab deployment into a create request for a person's lab.
 
     Pure: the caller fetches the template and posts the result, so the field
@@ -229,9 +256,10 @@ def build_lab_spec(template: dict, *, name: str, notebook: str) -> dict:
     # Track the application's latest build rather than pinning the template's
     # commit, so a lab made tomorrow carries today's QuixLab.
     spec["useLatest"] = True
-    # An edit-mode lab serves a UI to one person, so it needs an address.
+    # An edit-mode lab serves a UI to one person, so it needs an address. The
+    # prefix is NOT the name: the Portal caps it far shorter. See URL_PREFIX_LIMIT.
     spec["publicAccess"] = True
-    spec["urlPrefix"] = name
+    spec["urlPrefix"] = url_prefix
     # A lab is one person's workspace, never a workspace-wide plugin. The
     # template IS a plugin, and copying its block would list every lab in
     # everybody's sidebar under the template's own name.
@@ -367,7 +395,12 @@ def ensure_lab(
         full = quix_identity.portal_get(
             client, DEPLOYMENT_PATH.format(deployment_id=template_id), token
         ).json()
-        spec = build_lab_spec(full, name=name, notebook=pointer)
+        spec = build_lab_spec(
+            full,
+            name=name,
+            notebook=pointer,
+            url_prefix=lab_url_prefix(user_id, run_id),
+        )
         created = quix_identity.portal_send(
             client, "POST", DEPLOYMENTS_PATH, token, spec
         ).json()
@@ -526,6 +559,7 @@ __all__ = [
     "find",
     "find_lab",
     "lab_name",
+    "lab_url_prefix",
     "notebook_key",
     "notebook_pointer",
     "portal_send",
