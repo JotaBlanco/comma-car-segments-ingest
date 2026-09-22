@@ -18,7 +18,7 @@
       "id": "BL-02",
       "title": "Battery trace generator: 4 deterministic MF4s, 10 TCs, 6 pass / 4 fail",
       "status": "finished",
-      "notes": "battery-trace-gen/, Tester round 2 READY; commit pending in BL-10",
+      "notes": "committed 8d7847e, pushed",
       "updated": "2026-09-22"
     },
     {
@@ -38,22 +38,22 @@
     {
       "id": "BL-05",
       "title": "QuixLab + Lakehouse framed inside Test Manager (no new window)",
-      "status": "in progress",
-      "notes": "gated READY; committed; deployed handshake check after push",
+      "status": "finished",
+      "notes": "committed 43a6942, pushed; QA by the user in the Portal",
       "updated": "2026-09-22"
     },
     {
       "id": "BL-06",
       "title": "TM backend: one run covers several definitions (definition_ids), claims test.definitions, lake partitions platform/work_order/run_id",
-      "status": "in progress",
-      "notes": "spec dev-planning/tm-multi-definition-runs; ArchDev building",
+      "status": "finished",
+      "notes": "committed 8d7847e, pushed",
       "updated": "2026-09-22"
     },
     {
       "id": "BL-07",
       "title": "One implementation .py per test case in blob (test-manager/implementations/<td>/), linked from the definition, opened via QuixLab",
-      "status": "in progress",
-      "notes": "part of BL-06; storage path = per-TD folder (user may flip to dated MF4 prefix)",
+      "status": "finished",
+      "notes": "committed 8d7847e, pushed",
       "updated": "2026-09-22"
     },
     {
@@ -73,8 +73,8 @@
     {
       "id": "BL-10",
       "title": "Commit + push battery feature and TM adaptation; rebase onto Portal auto-commits",
-      "status": "to do",
-      "notes": "user authorised commit+push 2026-09-22",
+      "status": "finished",
+      "notes": "pushed 7a758ef..8d7847e",
       "updated": "2026-09-22"
     },
     {
@@ -152,6 +152,34 @@
       "title": "Parallel agents when code paths are disjoint; QA by the user in the Portal; no Tester round",
       "status": "finished",
       "notes": "working agreement 2026-09-22",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-22",
+      "title": "Requirement status moves automatically when a run covers it; covering run id visible on the requirement",
+      "status": "in progress",
+      "notes": "spec dev-planning/requirement-status-from-runs; blocked on requirements not being entities in api/",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-23",
+      "title": "Requirements are not entities in the TM — only markdown files on a definition",
+      "status": "discuss",
+      "notes": "decides BL-22: promote to entity, light registry, or derived-only view",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-24",
+      "title": "No verdict concept: results carry no pass/fail and name no definition",
+      "status": "to do",
+      "notes": "BL-22 defines the contract; BL-11 writes it",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-25",
+      "title": "Regenerate api/docs/openapi.v1.json (api/scripts/snapshot.sh)",
+      "status": "to do",
+      "notes": "3 models gained fields, 2 routes added — contract-snapshot test red until refreshed",
       "updated": "2026-09-22"
     }
   ]

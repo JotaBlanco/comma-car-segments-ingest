@@ -123,24 +123,28 @@ same change that moves the work. Nothing agreed in conversation stays only in co
 | ID | Status | Item | Notes |
 |---|---|---|---|
 | `BL-04` | **in progress** | Upstream plant polarity fix (dc-battery-sim, battery-sign current) | verified 53/53 in C:/repos/quixstreams-tests-polarity; commit there, then re-vendor here |
-| `BL-05` | **in progress** | QuixLab + Lakehouse framed inside Test Manager (no new window) | gated READY; committed; deployed handshake check after push |
-| `BL-06` | **in progress** | TM backend: one run covers several definitions (definition_ids), claims test.definitions, lake partitions platform/work_order/run_id | spec dev-planning/tm-multi-definition-runs; ArchDev building |
-| `BL-07` | **in progress** | One implementation .py per test case in blob (test-manager/implementations/<td>/), linked from the definition, opened via QuixLab | part of BL-06; storage path = per-TD folder (user may flip to dated MF4 prefix) |
+| `BL-22` | **in progress** | Requirement status moves automatically when a run covers it; covering run id visible on the requirement | spec dev-planning/requirement-status-from-runs; blocked on requirements not being entities in api/ |
 | `BL-08` | to do | Seed the Test Manager: 1 work order, 10 definitions, 4 run links via POST /planning/sync | after BL-06; work order lands in DCM automatically |
 | `BL-09` | to do | Regenerate traces with test.* claims + new timestamps, upload, verify battery_data_v1 and registration | old 4 routes stay in legacy mf4_signals_v5 |
-| `BL-10` | to do | Commit + push battery feature and TM adaptation; rebase onto Portal auto-commits | user authorised commit+push 2026-09-22 |
 | `BL-11` | to do | Run the 10 implementations against the lake and write verdicts | explicitly out of scope of BL-06; next feature |
 | `BL-12` | to do | Wave 2: visualisation service (battery, gas/brake pedals) from uiservice.zip on Tomas's API |  |
 | `BL-19` | to do | Covered != Tested: TESTED needs a confirmed link at (R@v,TC@w) AND a pass pinned to TC version w | shapes BL-11 (running implementations -> verdicts) |
+| `BL-24` | to do | No verdict concept: results carry no pass/fail and name no definition | BL-22 defines the contract; BL-11 writes it |
+| `BL-25` | to do | Regenerate api/docs/openapi.v1.json (api/scripts/snapshot.sh) | 3 models gained fields, 2 routes added — contract-snapshot test red until refreshed |
 | `BL-13` | discuss | TM_RUN_KEY_PATTERN is an unbound project variable on decoder + connector (literal string) | harmless for us (header rung); tell Tomas |
 | `BL-14` | discuss | Legacy rows: 4 battery routes in mf4_signals_v5 (pre-marker decode) | leave or delete |
 | `BL-15` | discuss | Requirements seeding into the new TM model (requirements-files per definition) | seed markdown covers it per definition; direct upload route exists |
 | `BL-17` | discuss | verified_by must be DERIVED from covers_req_ids, never authored (SYS.2 BP5, Miro) | we currently WRITE verified_by into battery-dc-requirements.json — conflicts with the board's D1 rule |
 | `BL-18` | discuss | verification_criteria: new mandatory authored field on requirements (Miro) | today pass criteria live only on the test spec; board wants it on the requirement and agreeing with the spec |
 | `BL-20` | discuss | Status lifecycle NEW/Draft/Ready for Review/In Review/Reviewed/Implemented/Tested + Rejected/Obsolete | our 10 reqs are all Draft; adopt the enum when the TM models it |
+| `BL-23` | discuss | Requirements are not entities in the TM — only markdown files on a definition | decides BL-22: promote to entity, light registry, or derived-only view |
 | `BL-01` | finished | DBC BATTERY_DC_V1 in jamaui DCM (type=dbc), decoder DBC_PLATFORM set | d527f90a…, 0 dropped, decoder resolves it |
-| `BL-02` | finished | Battery trace generator: 4 deterministic MF4s, 10 TCs, 6 pass / 4 fail | battery-trace-gen/, Tester round 2 READY; commit pending in BL-10 |
+| `BL-02` | finished | Battery trace generator: 4 deterministic MF4s, 10 TCs, 6 pass / 4 fail | committed 8d7847e, pushed |
 | `BL-03` | finished | Requirements + parameters + test cases as the statement of record | CLAUDE.md tables generated from battery-trace-gen/data + specs |
+| `BL-05` | finished | QuixLab + Lakehouse framed inside Test Manager (no new window) | committed 43a6942, pushed; QA by the user in the Portal |
+| `BL-06` | finished | TM backend: one run covers several definitions (definition_ids), claims test.definitions, lake partitions platform/work_order/run_id | committed 8d7847e, pushed |
+| `BL-07` | finished | One implementation .py per test case in blob (test-manager/implementations/<td>/), linked from the definition, opened via QuixLab | committed 8d7847e, pushed |
+| `BL-10` | finished | Commit + push battery feature and TM adaptation; rebase onto Portal auto-commits | pushed 7a758ef..8d7847e |
 | `BL-16` | finished | Old backend/ Test Manager + DCM-source design | superseded by Tomas's api/; archived as archive/dcm-source-on-old-backend |
 | `BL-21` | finished | Parallel agents when code paths are disjoint; QA by the user in the Portal; no Tester round | working agreement 2026-09-22 |
 
