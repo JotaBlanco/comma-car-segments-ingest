@@ -258,6 +258,76 @@
       "status": "in progress",
       "notes": "accept / reject / request changes / claim, with the four-eyes rule; part of dev-planning/review-page",
       "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-37",
+      "title": "Evaluator: run a test case against a trace and produce a verdict",
+      "status": "to do",
+      "notes": "was tm-evaluator (criteria engine + readiness trigger, group_by(test_run_id)+State). Now nothing evaluates; BL-11 is its replacement for the battery set",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-38",
+      "title": "Coverage endpoint and matrix (GET /coverage)",
+      "status": "to do",
+      "notes": "existed on the old backend; the board computes coverage at baseline seal. Needed by the requirements page and the work-order rollup (BL-28)",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-39",
+      "title": "Baselines: seal a named set of requirement versions (GET/POST /baselines)",
+      "status": "to do",
+      "notes": "existed on the old backend; the board's model (members[] manifest owned by the baseline, member_index_sha256 diff, derived reverse index). Blocked on BL-34 versions",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-40",
+      "title": "Run execution and status: /runs/{id}/execute, /status, /summary, /series, /traces",
+      "status": "to do",
+      "notes": "the old backend drove an evaluation run and served its progress and series; nothing does today",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-41",
+      "title": "Report generation per run (rendered report + report-completed)",
+      "status": "to do",
+      "notes": "old report_service; regenerable years later from the stored result documents",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-42",
+      "title": "Test-vectors sink: decoded vectors into per-raster Iceberg tables",
+      "status": "to do",
+      "notes": "was test-vectors-sink (4 topics -> acc_pt_can_100hz etc. via QuixTSDataLakeSink). The battery line sinks raw CAN rows instead — decide whether per-raster tables are still wanted",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-43",
+      "title": "Mongo writer: stream results/summaries/verdicts into queryable collections",
+      "status": "to do",
+      "notes": "was mongo-writer with a custom document_matcher per collection; the new api/ writes its own Mongo, so this may be obsolete — confirm",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-44",
+      "title": "Parameter sets as DCM config events (/parameters, config-events)",
+      "status": "to do",
+      "notes": "the old chain turned parameter sets into DCM-shaped config events; our battery parameters are a DCM document but nothing consumes them at runtime",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-45",
+      "title": "ReqIF import/export round-trip",
+      "status": "discuss",
+      "notes": "the board names ReqIF as the exchange format an OEM asks for (BP6); the old line had a ReqIF parser and canonical JSON. Nothing in api/ reads or writes it",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-46",
+      "title": "Requirements schema + validation (requirement-1.0.0.schema.json and friends)",
+      "status": "discuss",
+      "notes": "the old backend validated every artifact against a JSON schema on ingest. The new line has none; our battery set is validated only by the generator",
+      "updated": "2026-09-22"
     }
   ]
 }
