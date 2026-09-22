@@ -66,12 +66,16 @@ def identity() -> dict:
 
 
 def traces() -> list[dict]:
-    """Each scenario's chain claim, in trace order.
+    """Each scenario's run key and the definitions it covers, in trace order.
 
-    `{"trace_id", "file", "run_key", "definitions"}`. The scenario documents are
-    what the MF4 headers were written from, so the links this seed pushes and
-    the claims the traces carry come from one source.
+    `{"trace_id", "file", "run_key", "definitions"}`. A scenario claims only its
+    run key; the definitions are DERIVED from the requirements it evaluates,
+    through `requirement.verified_by`. The trace states none of them — a run is
+    assigned its definitions in the Test Manager.
     """
+    test_case_of = {
+        req_id: item["verified_by"][0] for req_id, item in requirements().items()
+    }
     rows = []
     for path in sorted(SCENARIO_DIR.glob("T*.json")):
         document = json.loads(path.read_text(encoding="utf-8"))
@@ -80,14 +84,16 @@ def traces() -> list[dict]:
                 "trace_id": document["trace_id"],
                 "file": f"{path.stem}.mf4",
                 "run_key": document["test"]["run_key"],
-                "definitions": list(document["test"]["definitions"]),
+                "definitions": [
+                    test_case_of[item["req_id"]] for item in document["evaluates"]
+                ],
             }
         )
     return rows
 
 
 def run_of_definition() -> dict[str, str]:
-    """`{tc_id: run_key}` — which trace answers each definition."""
+    """`{tc_id: run_key}` — which trace carries the evidence for each definition."""
     return {
         tc_id: trace["run_key"]
         for trace in traces()

@@ -106,9 +106,10 @@ MF4 Import  --mf4_metadata-->  MF4 Decoder  --"samples" + ONE "file_complete" ma
 - **Run-id ladder** (`mf4-decoder/identity.py`, mirrored by `tm-connector`): `declared.run_id`
   → HD-comment `test.run_key` → `TAS-\\d+` in the filename → minted `<platform>_<route>`.
   A batch with no run at all is dropped by the sink. HD-comment `test.*` properties feed the
-  run (`test.rig`, `test.work_order`, `test.definitions`, `test.description`, …).
-  `test.definitions` is a COMMA-SEPARATED SET: one trace fulfils several test definitions,
-  and the run stores them as `test_runs.definition_ids`.
+  run (`test.run_key`, `test.work_order`, `test.rig`, `test.description`, …), and those are
+  the only claims our traces make. A producer that also sends `test.definitions` states a
+  COMMA-SEPARATED SET, which the run stores as `test_runs.definition_ids`; ours omits it and
+  the definitions are assigned from the Test Run page instead.
 - **Registration happens only on the `file_complete` marker.** Files decoded by an older
   decoder never register; the decoder dedups on file sha256, so re-uploading identical bytes
   is skipped — change the route timestamp to re-ingest.
@@ -122,16 +123,19 @@ MF4 Import  --mf4_metadata-->  MF4 Decoder  --"samples" + ONE "file_complete" ma
 
 **Hierarchy (user's definition, 2026-09-22):** a **work order** is a test campaign and
 contains several **test runs**; one test run (one trace / one bench session) **covers several
-test definitions**; a **test definition** is one test case for one requirement. Runs claim
-their work order and definitions from the HD comment (`test.work_order`, `test.definitions`).
+test definitions**; a **test definition** is one test case for one requirement. A trace claims
+its work order, run key and rig from the HD comment (`test.work_order`, `test.run_key`,
+`test.rig`) and nothing else; its definitions are assigned later, on the Test Run page.
 - Definitions and work orders enter **only** via planning: `POST /api/v1/planning/sync` with
   `work_orders[]`, `test_definitions[{{id, work_order_id, title, planned_runs,
   requirements_files[{{name, content}}]}}]`, `links[]`. Requirements files are markdown. There
   is no `POST /test-definitions`; the in-cluster `Planning Sync Mock` is not reachable from a
   workstation. A PAT authorises the write.
-- Uploaded traces link themselves to their definitions through the HD-comment `test.*`
+- Uploaded traces link themselves to their work order through the HD-comment `test.*`
   claims; `links[]` confirms the linkage afterwards and never overwrites a `manual` edit.
-  Repeated `links[]` rows for one run are ADDITIVE, and a re-post answers `links_unchanged`.
+  `PushedLink.definition_id` is optional and the seed omits it, so its four links state the
+  work order only. Repeated `links[]` rows for one run are ADDITIVE (their definitions
+  union), and a re-post answers `links_unchanged`.
 - Each definition also carries one executable implementation: `POST /api/v1/test-definitions/
   {{td}}/implementation` (multipart) stores one `.py` in blob and records its sha256.
   `python -m seed all` from `battery-trace-gen/` does the whole seed.

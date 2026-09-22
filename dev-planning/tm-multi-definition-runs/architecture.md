@@ -12,7 +12,7 @@ A test run now carries a **set** of test definitions instead of one. The stored
 truth is `test_runs.definition_ids: list[str]`, sorted ascending; the legacy
 scalar `definition_id` is projected at read time as its first element, so every
 existing response field and every existing frontend screen keeps working
-untouched. A trace claims its own set in one MF4 header key
+untouched. A producer may claim its own set in one MF4 header key
 (`test.definitions`, comma-separated), a planning push states one definition per
 link and `_write_link` unions them, and the lake stops partitioning by
 `test_definition` because a run fulfilling three definitions has no honest
@@ -20,7 +20,15 @@ directory. Each definition gains one executable `.py` implementation, stored in
 blob by path and by the sha256 of its bytes, uploaded through a new API route
 that copies the existing binary requirements-upload route. A `seed/` package in
 `battery-trace-gen/` builds the whole seed: one work order, ten definitions with
-a rendered requirements document each, ten links, and the ten implementations.
+a rendered requirements document each, the run links, and the ten
+implementations.
+
+**Amended 2026-09-22 — `battery-trace-gen` stopped claiming definitions.** A
+generated trace now claims its work order, its run key and its rig, and nothing
+more; the seed pushes one definition-less link per run so the run→work-order
+linkage still lands. The definitions of a run are assigned by a person on the
+Test Run page. Every registry-side mechanism described below is unchanged and
+still serves a producer that does send `test.definitions`.
 
 ---
 
@@ -88,11 +96,11 @@ bytes lands on the same key, which is the right idempotency here.
 
 ## 3. Data flow
 
-### 3.1 A trace becomes a multi-definition run
+### 3.1 A trace becomes a run
 
 ```
 battery-trace-gen/generate.py
-  scenarios/T1.json  test{run_key, definitions[]}      scenarios/_identity.json  test{work_order, rig, ...}
+  scenarios/T1.json  test{run_key, description}        scenarios/_identity.json  test{work_order, rig, ...}
         \______________________________________________________/
                                |
                     bus/mf4.py  _test_props()
@@ -100,7 +108,9 @@ battery-trace-gen/generate.py
    <common_properties>
      test.run_key     = TAS-1001
      test.work_order  = WO-BAT-2026-001
-     test.definitions = BAT-SYS-TC-001,BAT-SYS-TC-002,BAT-SYS-TC-003
+     test.rig         = battery-sim-01
+     (no test.definitions: _test_props writes the key only for a scenario
+      that declares definitions, and none does)
                                |
                         MF4 Import -> blob
                                v
@@ -149,6 +159,10 @@ POST /planning/sync
 Pass 1 writes `[TC-001]`, pass 2 `[TC-001, TC-002]`, pass 3 the full three. A
 re-post of all three finds `merged == stored` each time, writes nothing, journals
 nothing and returns `False`, so the route counts them in `links_unchanged`.
+
+The battery seed no longer pushes definition links — it sends
+`{run_id, work_order_id}` and lets `definition_id` default to null — but the
+union above is what any planning system that does state definitions still gets.
 
 ### 3.3 The implementation
 
@@ -293,7 +307,7 @@ The `join_lookup` block at `main.py:327-342` is untouched.
 |---|---|
 | `scenarios/_identity.json:8-14` | new `test` block: work order, rig, cell, operator, bench |
 | `scenarios/T1..T4.json:4-5` | new `route` and `start_time_utc`, both on 2026-09-23 |
-| `scenarios/T1..T4.json:7-15` | new `test` block: `run_key`, `definitions`, `description` |
+| `scenarios/T1..T4.json:7-10` | new `test` block: `run_key` and `description`; no definitions |
 | `scenario.py:22-33` | `Identity.test` |
 | `scenario.py:88-91` | `Scenario.test` |
 | `scenario.py:161` | `load_scenario` reads it |
@@ -302,11 +316,11 @@ The `join_lookup` block at `main.py:327-342` is untouched.
 | `bus/mf4.py:116, :131` | `write()` takes `test: dict` |
 | `bus/mf4.py:145, :170-181` | `start_time` computed before `props`; the block merged in; the `<TX>` names the chain |
 | `generate.py:107-110` | `generate.py` passes `{**identity.test, **scenario.test}` |
-| `manifest.py:280-283` | the manifest records `run_key` and `definitions` per trace |
+| `manifest.py:280-289` | the manifest records `run_key` and, derived from the expectations, the test cases the trace covers |
 | `seed/` | NEW — see §5 |
 | `tools/gen_claude_md.py` | MOVED from the scratchpad; the two hard-coded paths become `__file__`-relative |
 | `README.md:96-118` | the seed section |
-| `CLAUDE.md:20-21, :89, :97-99, :118-123` | the regenerate pointer, the partition order, `test.definitions`, the additive links and the implementation route — mirrored in `tools/gen_claude_md.py` so the two stay identical |
+| `CLAUDE.md:20-21, :89, :97-99, :118-123` | the regenerate pointer, the partition order, the trace's chain claim, the additive links and the implementation route — mirrored in `tools/gen_claude_md.py` so the two stay identical |
 
 ### 4.7 `frontend/`
 
@@ -545,7 +559,7 @@ traces are already in the estate.
 ## 9. The planning push body
 
 `python -m seed render` writes this to `out/seed/planning-full.json`. The work
-order, one complete definition and all ten links:
+order, one complete definition and the four links:
 
 ```jsonc
 {
@@ -577,22 +591,18 @@ order, one complete definition and all ten links:
     // BAT-SYS-TC-002 … BAT-SYS-TC-010, same shape
   ],
   "links": [
-    { "run_id": "TAS-1001", "work_order_id": "WO-BAT-2026-001", "definition_id": "BAT-SYS-TC-001" },
-    { "run_id": "TAS-1001", "work_order_id": "WO-BAT-2026-001", "definition_id": "BAT-SYS-TC-002" },
-    { "run_id": "TAS-1001", "work_order_id": "WO-BAT-2026-001", "definition_id": "BAT-SYS-TC-003" },
-    { "run_id": "TAS-1002", "work_order_id": "WO-BAT-2026-001", "definition_id": "BAT-SYS-TC-004" },
-    { "run_id": "TAS-1002", "work_order_id": "WO-BAT-2026-001", "definition_id": "BAT-SYS-TC-005" },
-    { "run_id": "TAS-1002", "work_order_id": "WO-BAT-2026-001", "definition_id": "BAT-SYS-TC-006" },
-    { "run_id": "TAS-1003", "work_order_id": "WO-BAT-2026-001", "definition_id": "BAT-SYS-TC-007" },
-    { "run_id": "TAS-1003", "work_order_id": "WO-BAT-2026-001", "definition_id": "BAT-SYS-TC-008" },
-    { "run_id": "TAS-1004", "work_order_id": "WO-BAT-2026-001", "definition_id": "BAT-SYS-TC-009" },
-    { "run_id": "TAS-1004", "work_order_id": "WO-BAT-2026-001", "definition_id": "BAT-SYS-TC-010" }
+    { "run_id": "TAS-1001", "work_order_id": "WO-BAT-2026-001" },
+    { "run_id": "TAS-1002", "work_order_id": "WO-BAT-2026-001" },
+    { "run_id": "TAS-1003", "work_order_id": "WO-BAT-2026-001" },
+    { "run_id": "TAS-1004", "work_order_id": "WO-BAT-2026-001" }
   ]
 }
 ```
 
-Ten links over four runs. `_write_link`'s union turns them into four sets of
-3 / 3 / 2 / 2.
+Four links, one per run, each stating the work order and no definition.
+`_write_link` writes `work_order_id` and leaves `definition_ids` alone, which is
+all `derive_status` needs for the run to read `complete`; the definitions are
+assigned afterwards on the Test Run page.
 
 ---
 

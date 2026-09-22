@@ -6,7 +6,7 @@ record — the requirements, the parameters, the test specs and the generated
 verdict manifest — and turns them into:
 
 * the `POST /planning/sync` body: 1 work order, 10 test definitions with one
-  rendered requirements markdown each, and the 10 run->definition links;
+  rendered requirements markdown each, and one run->work-order link per trace;
 * the 10 executable test implementations, one `.py` per definition, uploaded to
   `POST /test-definitions/{td_id}/implementation`.
 

@@ -10,8 +10,9 @@ Every key ``mf4-decoder/provenance.py`` reads must be present or the lake row ge
 literal ``"unknown"`` in a Hive partition key.
 
 The ``test.*`` block states the Test Manager chain the trace belongs to — the run key,
-the work order and the test definitions it fulfils — so the evidence file describes its
-own place in the chain. ``tm-connector/connector/identity.py`` reads it.
+the work order and the rig it ran on — so the evidence file describes its own place in
+the chain. Test definitions are not claimed here; they are assigned to the run in the
+Test Manager. ``tm-connector/connector/identity.py`` reads the block.
 
 asammdf stamps every ``##FH`` block it creates with wall-clock time, so ``start_time``
 is pinned onto the file history and ``save()`` is told not to add a block of its own.
@@ -87,16 +88,18 @@ def _header_xml(props: dict[str, str], text: str) -> str:
 def _test_props(test: dict, start: dt.datetime, duration_s: float) -> dict[str, str]:
     """The `test.*` block tm-connector reads off `<common_properties>`.
 
-    `test.definitions` is ONE comma-separated value. The block is a name->value
-    map, so a repeated `<e name="test.definition">` would keep only the last —
-    the format cannot state a set any other way
+    `test.definitions` is written only for a scenario that declares definitions,
+    and none does: a run's definitions are assigned from the Test Run page in
+    the Test Manager. One that did declare them would state them as ONE
+    comma-separated value, because the block is a name->value map
     (`tm-connector/connector/identity.py`, HEADER_LIST_FIELDS).
 
     The window is derived, never stated: the file's own start plus its duration.
     """
     keys = ("run_key", "work_order", "rig", "cell", "operator", "bench_sw", "description")
     props = {f"test.{key}": str(test[key]) for key in keys if test.get(key) is not None}
-    props["test.definitions"] = ",".join(test.get("definitions") or [])
+    if test.get("definitions"):
+        props["test.definitions"] = ",".join(test["definitions"])
     props["test.started_at"] = start.isoformat().replace("+00:00", "Z")
     end = start + dt.timedelta(seconds=duration_s)
     props["test.ended_at"] = end.isoformat().replace("+00:00", "Z")
@@ -176,8 +179,7 @@ def write(
         f"(sha256 {dbc.sha256[:12]}...), embedded as an attachment and resolvable "
         f"from DCM as type='{DCM_TYPE}' target_key='{DCM_TARGET_KEY}'. "
         f"Test Manager run {test.get('run_key')}, work order "
-        f"{test.get('work_order')}, definitions "
-        f"{','.join(test.get('definitions') or [])}.",
+        f"{test.get('work_order')}, rig {test.get('rig')}.",
     )
     mdf.header.start_time = start_time
 

@@ -104,7 +104,7 @@ def main() -> None:
             scenario_id=scenario.trace_id,
             cell_seed=identity.cell_seed,
             # The shared chain (work order, rig, cell, operator, bench) plus
-            # what this trace claims for itself (run key, definitions).
+            # what this trace claims for itself (run key, description).
             test={**identity.test, **scenario.test},
         )
         stats[scenario.trace_id] = {

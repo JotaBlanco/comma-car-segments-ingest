@@ -6,10 +6,6 @@
   "duration_s": 1800,
   "test": {
     "run_key": "TAS-1003",
-    "definitions": [
-      "BAT-SYS-TC-007",
-      "BAT-SYS-TC-008"
-    ],
     "description": "T3 sleep and balance — 150 A discharge, then 900 s of relaxation in Sleep"
   },
   "plant_initial_state": {

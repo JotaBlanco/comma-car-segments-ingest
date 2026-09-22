@@ -29,7 +29,7 @@ class Identity:
     route_template: str
     #: The `test.*` header keys every trace shares — the work order it fulfils,
     #: the rig, the cell, the operator and the bench software. A scenario's own
-    #: `test` block adds its run key and the definitions it claims.
+    #: `test` block adds its run key and its description.
     test: dict[str, str]
 
 
@@ -87,8 +87,8 @@ class Scenario:
     route: str
     start_time_utc: str
     duration_s: float
-    #: What this trace claims about the Test Manager chain: `run_key`, the
-    #: `definitions` it fulfils, and its own `description`.
+    #: What this trace claims about the Test Manager chain: its `run_key` and
+    #: its own `description`. Definitions are assigned in the Test Manager.
     test: dict[str, Any]
     path: Path
     source_sha256: str

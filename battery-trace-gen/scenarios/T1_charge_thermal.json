@@ -6,11 +6,6 @@
   "duration_s": 900,
   "test": {
     "run_key": "TAS-1001",
-    "definitions": [
-      "BAT-SYS-TC-001",
-      "BAT-SYS-TC-002",
-      "BAT-SYS-TC-003"
-    ],
     "description": "T1 charge and thermal — 300 A into a warm pack, chiller off"
   },
   "plant_initial_state": {

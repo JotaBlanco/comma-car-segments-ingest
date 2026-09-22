@@ -3,14 +3,15 @@
     python -m seed render            # write out/seed/ and out/impl/, post nothing
     python -m seed catalog           # POST the work order + 10 definitions, no links
     python -m seed impl              # POST the 10 implementations
-    python -m seed links             # POST the same catalog + the 10 links
+    python -m seed links             # POST the same catalog + the 4 links
     python -m seed all               # catalog, impl, links, in that order
 
 The order of operations is the spec's, and the traces sit between `impl` and
-`links`: upload the four MF4s through MF4 Import after `impl`, so the header
-claims resolve against a mirror that already holds the definitions, then run
-`links` to have planning confirm them. `links` is idempotent — a re-post of the
-same links answers `links_unchanged`.
+`links`: upload the four MF4s through MF4 Import after `impl`, so the header's
+work-order claim resolves against a mirror that already holds it, then run
+`links` to have planning confirm the run->work-order linkage. A run's
+definitions are assigned afterwards, on the Test Run page. `links` is
+idempotent — a re-post of the same links answers `links_unchanged`.
 
 `render` posts nothing and needs no credential, so the payload and the modules
 can be read before anything reaches the environment.
@@ -77,7 +78,7 @@ COMMANDS = {
 
 
 def _sanity() -> None:
-    """The table the seed echoes: which run answers which definition, and how."""
+    """The table the seed echoes: which run carries which definition's evidence."""
     verdicts = sources.verdicts()
     runs = sources.run_of_definition()
     print(f"{'definition':<16} {'run':<10} {'expected':<9} requirement")

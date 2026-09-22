@@ -1,4 +1,4 @@
-"""Build the `POST /planning/sync` body: one work order, ten definitions, ten links.
+"""Build the `POST /planning/sync` body: one work order, ten definitions, four links.
 
 The registry's inbound push (`api/api/models/planning.py`,
 `PlanningPushRequest`) takes three lists. This module fills them from the seed's
@@ -73,19 +73,16 @@ def test_definitions() -> list[dict]:
 
 
 def links() -> list[dict]:
-    """One link per (run, definition) pair — ten of them over four runs.
+    """One link per run, naming its work order and no definition.
 
-    `_write_link` unions the definitions of the links naming one run, so the
-    three links of `TAS-1001` leave it holding all three.
+    `PushedLink.definition_id` is optional (`api/api/models/planning.py`), and
+    the link omitting it writes `work_order_id` alone — which is all
+    `derive_status` needs for the run to read `complete`. The definitions of a
+    run are assigned by a person on the Test Run page, so planning states none.
     """
     return [
-        {
-            "run_id": trace["run_key"],
-            "work_order_id": WORK_ORDER_ID,
-            "definition_id": tc_id,
-        }
+        {"run_id": trace["run_key"], "work_order_id": WORK_ORDER_ID}
         for trace in sources.traces()
-        for tc_id in trace["definitions"]
     ]
 
 
@@ -99,5 +96,5 @@ def catalog_body() -> dict:
 
 
 def full_body() -> dict:
-    """Step 5 of the seed: the same catalog, plus the links planning decided."""
+    """Step 5 of the seed: the same catalog, plus the run->work-order links."""
     return {**catalog_body(), "links": links()}

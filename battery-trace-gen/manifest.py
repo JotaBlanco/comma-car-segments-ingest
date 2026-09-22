@@ -278,9 +278,14 @@ def build(
                 "trace_id": run.scenario.trace_id,
                 "title": run.scenario.title,
                 "file": run.scenario.output_name,
-                # The Test Manager chain the trace states in its own HD comment.
+                # The run key the trace states in its own HD comment, and the
+                # test cases its expectations cover. The trace claims no
+                # definition; the run is assigned them in the Test Manager.
                 "run_key": run.scenario.test["run_key"],
-                "definitions": run.scenario.test["definitions"],
+                "definitions": [
+                    tc_ids[expectation.req_id]
+                    for expectation in run.scenario.expectations
+                ],
                 "route": run.scenario.route,
                 "segment": 0,
                 "start_time_utc": run.scenario.start_time_utc,

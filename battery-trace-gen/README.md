@@ -85,8 +85,8 @@ reaches the lake.
 ## Seed the Test Manager
 
 The generator writes the evidence; `seed/` writes the plan the evidence answers to —
-one work order, ten test definitions with a rendered requirements document each, ten
-run/definition links, and one executable `.py` implementation per definition.
+one work order, ten test definitions with a rendered requirements document each, one
+run/work-order link per trace, and one executable `.py` implementation per definition.
 
 ```
 export TM_API_URL=https://<backend-api host>
@@ -96,13 +96,14 @@ python -m seed render     # write out/seed/ and out/impl/, post nothing
 python -m seed catalog    # POST the work order + the 10 definitions, no links
 python -m seed impl       # POST the 10 implementations
 # ... upload the 4 MF4s through MF4 Import ...
-python -m seed links      # POST the same catalog + the 10 links (idempotent)
+python -m seed links      # POST the same catalog + the 4 links (idempotent)
 ```
 
 Each trace states its own chain in its MF4 header — `test.run_key`,
-`test.work_order` and `test.definitions` (comma-separated) — so a run links itself
-on upload and `links` only confirms it. The four run keys are `TAS-1001 … TAS-1004`
-and one run carries two or three definitions.
+`test.work_order` and `test.rig` — so a run links itself to its work order on upload
+and `links` only confirms it. The four run keys are `TAS-1001 … TAS-1004`. A trace
+claims no test definition: the definitions of a run are assigned from the Test Run
+page in the Test Manager.
 
 ## Layout
 
