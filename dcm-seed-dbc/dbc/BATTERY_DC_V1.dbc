@@ -1,0 +1,333 @@
+VERSION "BATTERY_DC_V1 1.0"
+
+
+NS_ :
+	NS_DESC_
+	CM_
+	BA_DEF_
+	BA_
+	VAL_
+	CAT_DEF_
+	CAT_
+	FILTER
+	BA_DEF_DEF_
+	EV_DATA_
+	ENVVAR_DATA_
+	SGTYPE_
+	SGTYPE_VAL_
+	BA_DEF_SGTYPE_
+	BA_SGTYPE_
+	SIG_TYPE_REF_
+	VAL_TABLE_
+	SIG_GROUP_
+	SIG_VALTYPE_
+	SIGTYPE_VALTYPE_
+	BO_TX_BU_
+	BA_DEF_REL_
+	BA_REL_
+	BA_DEF_DEF_REL_
+	BU_SG_REL_
+	BU_EV_REL_
+	BU_BO_REL_
+	SG_MUL_VAL_
+
+BS_:
+
+BU_: BMS OBC VCU BTMS
+
+BO_ 256 BMS_01: 8 BMS
+ SG_ BMS_U_Dc : 0|16@1+ (0.01,600) [600|1255.35] "V" Vector__XXX
+ SG_ BMS_I_Dc : 16|16@1- (0.05,0) [-1638.4|1638.35] "A" Vector__XXX
+ SG_ BMS_State : 32|4@1+ (1,0) [0|15] "1" Vector__XXX
+ SG_ BMS_01_BZ : 52|4@1+ (1,0) [0|15] "1" Vector__XXX
+ SG_ BMS_01_CRC : 56|8@1+ (1,0) [0|255] "1" Vector__XXX
+
+BO_ 272 BMS_02: 8 BMS
+ SG_ BMS_Soc_Tech : 0|16@1+ (0.01,0) [0|655.35] "%" Vector__XXX
+ SG_ BMS_Soc_Cust : 16|16@1+ (0.01,0) [0|655.35] "%" Vector__XXX
+ SG_ BMS_U_Ocv_Est : 32|16@1+ (0.01,600) [600|1255.35] "V" Vector__XXX
+ SG_ BMS_02_BZ : 52|4@1+ (1,0) [0|15] "1" Vector__XXX
+ SG_ BMS_02_CRC : 56|8@1+ (1,0) [0|255] "1" Vector__XXX
+
+BO_ 273 BMS_03: 8 BMS
+ SG_ BMS_T_Batt : 0|12@1+ (0.1,-50) [-50|359.5] "degC" Vector__XXX
+ SG_ BMS_T_Derate_Ref : 12|12@1+ (0.1,-50) [-50|359.5] "degC" Vector__XXX
+ SG_ BMS_Derating_Fct : 24|10@1+ (0.001,0) [0|1.023] "1" Vector__XXX
+ SG_ BMS_I_Chg_Lim : 34|12@1+ (0.1,0) [0|409.5] "A" Vector__XXX
+ SG_ BMS_03_BZ : 52|4@1+ (1,0) [0|15] "1" Vector__XXX
+ SG_ BMS_03_CRC : 56|8@1+ (1,0) [0|255] "1" Vector__XXX
+
+BO_ 274 BMS_04: 8 BMS
+ SG_ BMS_U_Cell_Min : 0|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ BMS_U_Cell_Max : 12|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ BMS_U_Cell_Min_Idx : 24|8@1+ (1,1) [1|256] "1" Vector__XXX
+ SG_ BMS_U_Cell_Max_Idx : 32|8@1+ (1,1) [1|256] "1" Vector__XXX
+ SG_ BMS_Balancing_Act : 40|1@1+ (1,0) [0|1] "1" Vector__XXX
+ SG_ BMS_U_Cell_Delta : 41|11@1+ (0.0001,0) [0|0.2047] "V" Vector__XXX
+ SG_ BMS_04_BZ : 52|4@1+ (1,0) [0|15] "1" Vector__XXX
+ SG_ BMS_04_CRC : 56|8@1+ (1,0) [0|255] "1" Vector__XXX
+
+BO_ 288 BMS_Cell_01: 8 BMS
+ SG_ BMS_Cell_Mux M : 0|8@1+ (1,0) [0|255] "1" Vector__XXX
+ SG_ Ucell_001 m0 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_002 m0 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_003 m0 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_004 m0 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_005 m1 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_006 m1 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_007 m1 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_008 m1 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_009 m2 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_010 m2 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_011 m2 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_012 m2 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_013 m3 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_014 m3 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_015 m3 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_016 m3 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_017 m4 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_018 m4 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_019 m4 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_020 m4 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_021 m5 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_022 m5 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_023 m5 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_024 m5 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_025 m6 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_026 m6 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_027 m6 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_028 m6 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_029 m7 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_030 m7 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_031 m7 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_032 m7 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_033 m8 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_034 m8 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_035 m8 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_036 m8 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_037 m9 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_038 m9 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_039 m9 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_040 m9 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_041 m10 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_042 m10 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_043 m10 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_044 m10 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_045 m11 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_046 m11 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_047 m11 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_048 m11 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_049 m12 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_050 m12 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_051 m12 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_052 m12 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_053 m13 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_054 m13 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_055 m13 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_056 m13 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_057 m14 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_058 m14 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_059 m14 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_060 m14 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_061 m15 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_062 m15 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_063 m15 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_064 m15 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_065 m16 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_066 m16 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_067 m16 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_068 m16 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_069 m17 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_070 m17 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_071 m17 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_072 m17 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_073 m18 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_074 m18 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_075 m18 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_076 m18 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_077 m19 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_078 m19 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_079 m19 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_080 m19 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_081 m20 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_082 m20 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_083 m20 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_084 m20 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_085 m21 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_086 m21 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_087 m21 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_088 m21 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_089 m22 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_090 m22 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_091 m22 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_092 m22 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_093 m23 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_094 m23 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_095 m23 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_096 m23 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_097 m24 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_098 m24 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_099 m24 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_100 m24 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_101 m25 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_102 m25 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_103 m25 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_104 m25 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_105 m26 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_106 m26 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_107 m26 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_108 m26 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_109 m27 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_110 m27 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_111 m27 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_112 m27 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_113 m28 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_114 m28 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_115 m28 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_116 m28 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_117 m29 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_118 m29 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_119 m29 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_120 m29 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_121 m30 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_122 m30 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_123 m30 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_124 m30 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_125 m31 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_126 m31 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_127 m31 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_128 m31 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_129 m32 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_130 m32 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_131 m32 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_132 m32 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_133 m33 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_134 m33 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_135 m33 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_136 m33 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_137 m34 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_138 m34 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_139 m34 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_140 m34 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_141 m35 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_142 m35 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_143 m35 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_144 m35 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_145 m36 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_146 m36 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_147 m36 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_148 m36 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_149 m37 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_150 m37 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_151 m37 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_152 m37 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_153 m38 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_154 m38 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_155 m38 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_156 m38 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_157 m39 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_158 m39 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_159 m39 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_160 m39 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_161 m40 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_162 m40 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_163 m40 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_164 m40 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_165 m41 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_166 m41 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_167 m41 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_168 m41 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_169 m42 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_170 m42 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_171 m42 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_172 m42 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_173 m43 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_174 m43 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_175 m43 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_176 m43 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_177 m44 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_178 m44 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_179 m44 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_180 m44 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_181 m45 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_182 m45 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_183 m45 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_184 m45 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_185 m46 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_186 m46 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_187 m46 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_188 m46 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_189 m47 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_190 m47 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_191 m47 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_192 m47 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_193 m48 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_194 m48 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_195 m48 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_196 m48 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_197 m49 : 8|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_198 m49 : 20|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_199 m49 : 32|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ Ucell_200 m49 : 44|12@1+ (0.001,3) [3|7.095] "V" Vector__XXX
+ SG_ BMS_Cell_01_CRC : 56|8@1+ (1,0) [0|255] "1" Vector__XXX
+
+BO_ 512 OBC_01: 8 OBC
+ SG_ OBC_I_Out : 0|16@1- (0.05,0) [-1638.4|1638.35] "A" Vector__XXX
+ SG_ OBC_U_Out : 16|16@1+ (0.01,600) [600|1255.35] "V" Vector__XXX
+ SG_ OBC_I_Avail : 32|12@1+ (0.1,0) [0|409.5] "A" Vector__XXX
+ SG_ OBC_Active : 44|1@1+ (1,0) [0|1] "1" Vector__XXX
+ SG_ OBC_Fault : 45|1@1+ (1,0) [0|1] "1" Vector__XXX
+ SG_ OBC_01_BZ : 52|4@1+ (1,0) [0|15] "1" Vector__XXX
+ SG_ OBC_01_CRC : 56|8@1+ (1,0) [0|255] "1" Vector__XXX
+
+BO_ 768 VCU_01: 8 VCU
+ SG_ VCU_Veh_State : 0|4@1+ (1,0) [0|15] "1" Vector__XXX
+ SG_ VCU_Kl15 : 4|1@1+ (1,0) [0|1] "1" Vector__XXX
+ SG_ VCU_Charge_Plug : 5|1@1+ (1,0) [0|1] "1" Vector__XXX
+ SG_ VCU_Accel_Pedal_Pct : 8|10@1+ (0.1,0) [0|102.3] "%" Vector__XXX
+ SG_ VCU_Brake_Pedal_Pct : 18|10@1+ (0.1,0) [0|102.3] "%" Vector__XXX
+ SG_ VCU_T_Ambient : 28|12@1+ (0.1,-50) [-50|359.5] "degC" Vector__XXX
+ SG_ VCU_01_BZ : 52|4@1+ (1,0) [0|15] "1" Vector__XXX
+ SG_ VCU_01_CRC : 56|8@1+ (1,0) [0|255] "1" Vector__XXX
+
+BO_ 1024 BTMS_01: 8 BTMS
+ SG_ BTMS_Heater_State : 0|2@1+ (1,0) [0|3] "1" Vector__XXX
+ SG_ BTMS_Heater_Req : 2|2@1+ (1,0) [0|3] "1" Vector__XXX
+ SG_ BTMS_P_Heater : 4|12@1+ (1,0) [0|4095] "W" Vector__XXX
+ SG_ BTMS_Chiller_State : 16|2@1+ (1,0) [0|3] "1" Vector__XXX
+ SG_ BTMS_P_Chiller : 18|13@1+ (1,0) [0|8191] "W" Vector__XXX
+ SG_ BTMS_T_Coolant : 31|12@1+ (0.1,-50) [-50|359.5] "degC" Vector__XXX
+ SG_ BTMS_01_BZ : 52|4@1+ (1,0) [0|15] "1" Vector__XXX
+ SG_ BTMS_01_CRC : 56|8@1+ (1,0) [0|255] "1" Vector__XXX
+
+CM_ "BATTERY_DC_V1: synthetic DC traction battery bus, one channel battery_hs_can1. Currents are in battery perspective throughout: positive = discharge, negative = charge. Enum legends are carried in signal comments and never in VAL_ tables, because a value table routes the channel to the decoded value_text column and breaks every numeric criterion.";
+CM_ BO_ 288 "Multiplexed cell array: 50 mux groups of 4 cells cover Ucell_001 to Ucell_200, so the whole array refreshes every 2,5 s and each cell appears at 0,4 Hz. This frame carries no _BZ counter: the 8-bit mux index is its sequence, advancing on every transmission and wrapping 49 to 0.";
+CM_ SG_ 256 BMS_I_Dc "Battery perspective: positive = discharge, negative = charge. This is the one place a reader of the decoded lake can recover the convention.";
+CM_ SG_ 256 BMS_State "0 Off, 1 Sleep, 2 Standby, 3 Charging, 4 Discharging, 5 Heating, 6 Fault. Balancing is not a state: it is BMS_State == 1 with BMS_Balancing_Act == 1.";
+CM_ SG_ 272 BMS_Soc_Tech "Technical state of charge, pure coulomb counting.";
+CM_ SG_ 272 BMS_Soc_Cust "Customer state of charge, the clamped linear map of BMS_Soc_Tech.";
+CM_ SG_ 273 BMS_T_Batt "True pack temperature, lumped thermal node.";
+CM_ SG_ 273 BMS_T_Derate_Ref "Temperature the derating law used: a first-order lag of BMS_T_Batt. Reported together with the limit in force on the current now on the bus.";
+CM_ SG_ 273 BMS_Derating_Fct "Charging current derating factor, 1,0 at or below T_batt_max minus T_batt_safety_threshold and 0,0 at or above T_batt_max.";
+CM_ SG_ 273 BMS_I_Chg_Lim "Magnitude, unsigned; the permitted charge current is -BMS_I_Chg_Lim.";
+CM_ SG_ 274 BMS_U_Cell_Delta "BMS_U_Cell_Max minus BMS_U_Cell_Min at 0,1 mV resolution, computed from the same cell array BMS_Cell_01 transmits.";
+CM_ SG_ 274 BMS_Balancing_Act "Active cell balancing, asserted inside a Sleep residency.";
+CM_ SG_ 512 OBC_I_Out "Battery perspective: negative = current delivered into the pack.";
+CM_ SG_ 512 OBC_I_Avail "Magnitude the charger can supply.";
+CM_ SG_ 768 VCU_Veh_State "0 Off, 1 Sleep, 2 Standby, 3 Drive, 4 Charge.";
+CM_ SG_ 768 VCU_Accel_Pedal_Pct "Illustrative only, proportional to positive BMS_I_Dc; zero while plugged in.";
+CM_ SG_ 768 VCU_Brake_Pedal_Pct "Illustrative only, proportional to negative BMS_I_Dc; zero while plugged in.";
+CM_ SG_ 1024 BTMS_Heater_State "0 off, 1 = P_heater_middle, 2 = P_heater_max. The state the heater is running.";
+CM_ SG_ 1024 BTMS_Heater_Req "Heater state the BMS requested this tick.";
+CM_ SG_ 1024 BTMS_Chiller_State "0 off, 1 = CHILLER_POWER_LOW, 2 = CHILLER_POWER_HIGH.";
+
+BA_DEF_ BO_  "GenMsgCycleTime" INT 0 65535;
+BA_DEF_DEF_  "GenMsgCycleTime" 0;
+BA_ "GenMsgCycleTime" BO_ 256 10;
+BA_ "GenMsgCycleTime" BO_ 272 100;
+BA_ "GenMsgCycleTime" BO_ 273 100;
+BA_ "GenMsgCycleTime" BO_ 274 100;
+BA_ "GenMsgCycleTime" BO_ 288 50;
+BA_ "GenMsgCycleTime" BO_ 512 50;
+BA_ "GenMsgCycleTime" BO_ 768 50;
+BA_ "GenMsgCycleTime" BO_ 1024 100;
