@@ -1,0 +1,10 @@
+# Python 3.12 like every other app in the pipeline.
+FROM python:3.12-slim
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONIOENCODING=UTF-8
+WORKDIR /app
+COPY . .
+RUN pip install --no-cache-dir -r requirements.txt
+# The read-only status endpoint. No blob port, no upload port.
+EXPOSE 80
+ENTRYPOINT ["python", "main.py"]

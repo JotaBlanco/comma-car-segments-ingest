@@ -1,0 +1,1448 @@
+@import 'leaflet/dist/leaflet.css';
+@import './theme/tokens.css';
+
+/* The colour utilities the JSX uses, over the station's tokens: a second Tailwind
+   theme would collide with the Test Manager's own `muted`, `surface` and `accent`. */
+.fts-root .bg-bg {
+  background-color: var(--bg);
+}
+.fts-root .bg-chrome {
+  background-color: var(--chrome);
+}
+.fts-root .bg-select {
+  background-color: var(--select);
+}
+.fts-root .bg-surface {
+  background-color: var(--surface);
+}
+.fts-root .bg-surface-2 {
+  background-color: var(--surface-2);
+}
+.fts-root .bg-border {
+  background-color: var(--border);
+}
+.fts-root .bg-text {
+  background-color: var(--text);
+}
+.fts-root .bg-muted {
+  background-color: var(--text-muted);
+}
+.fts-root .bg-accent {
+  background-color: var(--accent);
+}
+.fts-root .bg-accent-fill {
+  background-color: var(--accent-fill);
+}
+.fts-root .bg-accent-ink {
+  background-color: var(--accent-ink);
+}
+.fts-root .bg-brand {
+  background-color: var(--brand);
+}
+.fts-root .bg-brand-ink {
+  background-color: var(--brand-ink);
+}
+.fts-root .bg-alarm {
+  background-color: var(--alarm);
+}
+.fts-root .bg-ok {
+  background-color: var(--ok);
+}
+.fts-root .bg-warn {
+  background-color: var(--warn);
+}
+.fts-root .text-bg {
+  color: var(--bg);
+}
+.fts-root .text-chrome {
+  color: var(--chrome);
+}
+.fts-root .text-select {
+  color: var(--select);
+}
+.fts-root .text-surface {
+  color: var(--surface);
+}
+.fts-root .text-surface-2 {
+  color: var(--surface-2);
+}
+.fts-root .text-border {
+  color: var(--border);
+}
+.fts-root .text-text {
+  color: var(--text);
+}
+.fts-root .text-muted {
+  color: var(--text-muted);
+}
+.fts-root .text-accent {
+  color: var(--accent);
+}
+.fts-root .text-accent-fill {
+  color: var(--accent-fill);
+}
+.fts-root .text-accent-ink {
+  color: var(--accent-ink);
+}
+.fts-root .text-brand {
+  color: var(--brand);
+}
+.fts-root .text-brand-ink {
+  color: var(--brand-ink);
+}
+.fts-root .text-alarm {
+  color: var(--alarm);
+}
+.fts-root .text-ok {
+  color: var(--ok);
+}
+.fts-root .text-warn {
+  color: var(--warn);
+}
+.fts-root .border-bg {
+  border-color: var(--bg);
+}
+.fts-root .border-chrome {
+  border-color: var(--chrome);
+}
+.fts-root .border-select {
+  border-color: var(--select);
+}
+.fts-root .border-surface {
+  border-color: var(--surface);
+}
+.fts-root .border-surface-2 {
+  border-color: var(--surface-2);
+}
+.fts-root .border-border {
+  border-color: var(--border);
+}
+.fts-root .border-text {
+  border-color: var(--text);
+}
+.fts-root .border-muted {
+  border-color: var(--text-muted);
+}
+.fts-root .border-accent {
+  border-color: var(--accent);
+}
+.fts-root .border-accent-fill {
+  border-color: var(--accent-fill);
+}
+.fts-root .border-accent-ink {
+  border-color: var(--accent-ink);
+}
+.fts-root .border-brand {
+  border-color: var(--brand);
+}
+.fts-root .border-brand-ink {
+  border-color: var(--brand-ink);
+}
+.fts-root .border-alarm {
+  border-color: var(--alarm);
+}
+.fts-root .border-ok {
+  border-color: var(--ok);
+}
+.fts-root .border-warn {
+  border-color: var(--warn);
+}
+.fts-root .fill-bg {
+  fill: var(--bg);
+}
+.fts-root .fill-chrome {
+  fill: var(--chrome);
+}
+.fts-root .fill-select {
+  fill: var(--select);
+}
+.fts-root .fill-surface {
+  fill: var(--surface);
+}
+.fts-root .fill-surface-2 {
+  fill: var(--surface-2);
+}
+.fts-root .fill-border {
+  fill: var(--border);
+}
+.fts-root .fill-text {
+  fill: var(--text);
+}
+.fts-root .fill-muted {
+  fill: var(--text-muted);
+}
+.fts-root .fill-accent {
+  fill: var(--accent);
+}
+.fts-root .fill-accent-fill {
+  fill: var(--accent-fill);
+}
+.fts-root .fill-accent-ink {
+  fill: var(--accent-ink);
+}
+.fts-root .fill-brand {
+  fill: var(--brand);
+}
+.fts-root .fill-brand-ink {
+  fill: var(--brand-ink);
+}
+.fts-root .fill-alarm {
+  fill: var(--alarm);
+}
+.fts-root .fill-ok {
+  fill: var(--ok);
+}
+.fts-root .fill-warn {
+  fill: var(--warn);
+}
+.fts-root .stroke-bg {
+  stroke: var(--bg);
+}
+.fts-root .stroke-chrome {
+  stroke: var(--chrome);
+}
+.fts-root .stroke-select {
+  stroke: var(--select);
+}
+.fts-root .stroke-surface {
+  stroke: var(--surface);
+}
+.fts-root .stroke-surface-2 {
+  stroke: var(--surface-2);
+}
+.fts-root .stroke-border {
+  stroke: var(--border);
+}
+.fts-root .stroke-text {
+  stroke: var(--text);
+}
+.fts-root .stroke-muted {
+  stroke: var(--text-muted);
+}
+.fts-root .stroke-accent {
+  stroke: var(--accent);
+}
+.fts-root .stroke-accent-fill {
+  stroke: var(--accent-fill);
+}
+.fts-root .stroke-accent-ink {
+  stroke: var(--accent-ink);
+}
+.fts-root .stroke-brand {
+  stroke: var(--brand);
+}
+.fts-root .stroke-brand-ink {
+  stroke: var(--brand-ink);
+}
+.fts-root .stroke-alarm {
+  stroke: var(--alarm);
+}
+.fts-root .stroke-ok {
+  stroke: var(--ok);
+}
+.fts-root .stroke-warn {
+  stroke: var(--warn);
+}
+.fts-root .outline-bg {
+  outline-color: var(--bg);
+}
+.fts-root .outline-chrome {
+  outline-color: var(--chrome);
+}
+.fts-root .outline-select {
+  outline-color: var(--select);
+}
+.fts-root .outline-surface {
+  outline-color: var(--surface);
+}
+.fts-root .outline-surface-2 {
+  outline-color: var(--surface-2);
+}
+.fts-root .outline-border {
+  outline-color: var(--border);
+}
+.fts-root .outline-text {
+  outline-color: var(--text);
+}
+.fts-root .outline-muted {
+  outline-color: var(--text-muted);
+}
+.fts-root .outline-accent {
+  outline-color: var(--accent);
+}
+.fts-root .outline-accent-fill {
+  outline-color: var(--accent-fill);
+}
+.fts-root .outline-accent-ink {
+  outline-color: var(--accent-ink);
+}
+.fts-root .outline-brand {
+  outline-color: var(--brand);
+}
+.fts-root .outline-brand-ink {
+  outline-color: var(--brand-ink);
+}
+.fts-root .outline-alarm {
+  outline-color: var(--alarm);
+}
+.fts-root .outline-ok {
+  outline-color: var(--ok);
+}
+.fts-root .outline-warn {
+  outline-color: var(--warn);
+}
+
+
+/* The station is one element of the Test Manager: its tokens, its type size and its
+   theme live on this root and reach no further. */
+.fts-root {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+/* Scoped: unscoped, these reached every button of the Test Manager. */
+.fts-root button,
+.fts-root input,
+.fts-root select {
+  font: inherit;
+  color: inherit;
+}
+.fts-root input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+.eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.field {
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text);
+}
+.field:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-panel);
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+.panel-title {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  z-index: 5;
+}
+
+.panel-shell {
+  display: flex;
+  flex-direction: column;
+}
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  height: 32px;
+  padding: 0 6px 0 10px;
+}
+.panel-head .panel-title {
+  position: static;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.panel-icon {
+  flex-shrink: 0;
+  color: var(--accent);
+  opacity: 0.85;
+}
+.panel-chevron {
+  transition: transform 0.12s;
+}
+.panel-chevron-collapsed {
+  transform: rotate(-90deg);
+}
+.panel-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+/* The dashboard: widgets placed in cells, each absolutely positioned so a move animates. */
+.dash {
+  position: relative;
+  width: 100%;
+}
+.dash-item {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transition:
+    transform 0.16s ease,
+    width 0.16s ease,
+    height 0.16s ease;
+}
+.dash-item > .panel {
+  height: 100%;
+}
+/* The first paint has no width yet: no slide-in from the corner. */
+.dash-item-unmeasured,
+.dash-item-dragging {
+  transition: none;
+}
+.dash-item-dragging {
+  z-index: 20;
+  opacity: 0.92;
+}
+.dash-item-dragging > .panel {
+  box-shadow: var(--shadow);
+  border-color: var(--accent);
+}
+.dash-placeholder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  transition:
+    transform 0.12s ease,
+    width 0.12s ease,
+    height 0.12s ease;
+  z-index: 1;
+}
+.dash-dragging,
+.dash-dragging * {
+  user-select: none;
+}
+.dash-move,
+.dash-move .panel-head-grab {
+  cursor: grabbing;
+}
+.dash-resize,
+.dash-resize .panel-grip {
+  cursor: nwse-resize;
+}
+.panel-head-grab {
+  cursor: grab;
+  touch-action: none;
+}
+.panel-editing {
+  border-style: dashed;
+}
+/* The corner you drag to resize. */
+.panel-grip {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  touch-action: none;
+  z-index: 6;
+}
+.panel-grip::before {
+  content: '';
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  border-radius: 0 0 2px 0;
+  opacity: 0.7;
+}
+.panel-grip:hover::before {
+  border-color: var(--accent);
+  opacity: 1;
+}
+.dash-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 240px;
+  padding: 24px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+/* The header's dashboard controls. */
+.layout-select,
+.layout-name {
+  height: 28px;
+  padding: 0 8px;
+  font-size: 13px;
+}
+.layout-name {
+  width: 12rem;
+}
+.btn-ghost {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+.btn-ghost:hover {
+  background: var(--hover);
+}
+.icon-btn-on {
+  background: var(--accent-fill);
+  color: var(--accent-ink);
+  border-color: var(--accent-fill);
+}
+.icon-btn-on:hover {
+  background: var(--accent-fill);
+  filter: brightness(0.92);
+}
+@media (max-width: 1100px) {
+  .layout-bar .text-muted,
+  .layout-bar .btn-ghost {
+    display: none;
+  }
+}
+
+/* The gallery. */
+.gallery-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space);
+}
+.gallery-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+}
+.gallery-card-on {
+  border-color: var(--accent);
+}
+.gallery-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--accent);
+}
+.gallery-icon .panel-icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* A line you drag: it floats in the gap, so it never takes layout space. */
+.row-divider {
+  position: absolute;
+  z-index: 5;
+  touch-action: none;
+}
+.row-divider::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  border-radius: 999px;
+  background: transparent;
+  transition: background 0.12s;
+}
+.row-divider:hover::before,
+.row-divider:active::before,
+.row-divider:focus-visible::before {
+  background: var(--accent);
+}
+.row-divider-x {
+  top: 0;
+  bottom: 0;
+  width: var(--space);
+  transform: translateX(-50%);
+  cursor: col-resize;
+}
+.row-divider-x::before {
+  width: 3px;
+}
+.row-divider-y {
+  left: 0;
+  right: 0;
+  bottom: calc(var(--space) * -1);
+  height: var(--space);
+  cursor: row-resize;
+}
+.row-divider-y::before {
+  height: 3px;
+}
+
+/* Fixed px: the root font-size is 14px, so h-14 would be 49. */
+.hdg-tape {
+  height: 56px;
+  flex-shrink: 0;
+}
+
+/* Task 18 tunes every strip's height here, not per chart. */
+.strip {
+  height: var(--strip-h, 220px);
+}
+.strip-slot {
+  position: relative;
+}
+/* Every seam is one step: the shell's padding, the cells, the strips. */
+.main-grid {
+  padding: var(--space);
+}
+/* Inside a widget the strips scroll; the widget's cells set how many show. */
+.strip-scroll {
+  height: 100%;
+  overflow: auto;
+  align-content: start;
+  padding: var(--space);
+}
+.strip-list {
+  gap: var(--space);
+}
+/* A refetch dims the loaded line rather than blanking the strip. */
+.strip-stale {
+  opacity: 0.5;
+}
+/* Offset, not padded: padding would push the plot past the panel. */
+.strip-body {
+  position: absolute;
+  top: 32px;
+  right: 8px;
+  bottom: 0;
+  left: 0;
+}
+.strip-head {
+  right: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tree {
+  padding: 6px;
+}
+.tree-empty {
+  padding: 16px 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.tree-aircraft + .tree-aircraft {
+  margin-top: 8px;
+}
+.tree-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px 0 6px;
+  border-radius: var(--radius);
+  text-align: left;
+  font-size: 13px;
+  color: var(--text);
+  transition: background-color 0.12s;
+}
+button.tree-row:hover,
+label.tree-row:hover {
+  background: var(--hover);
+}
+.tree-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.tree-group {
+  height: 32px;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  cursor: default;
+}
+.tree-kind {
+  margin-top: 2px;
+}
+.tree-children {
+  margin-left: 13px;
+  padding-left: 7px;
+  border-left: 1px solid var(--divider);
+}
+.tree-children .tree-children {
+  margin-left: 13px;
+}
+.tree-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  transition: color 0.12s;
+}
+.tree-icon-plane {
+  color: var(--accent);
+}
+.tree-active .tree-icon-flight,
+.tree-row:hover .tree-icon-flight {
+  color: var(--accent);
+}
+.tree-icon-a429 {
+  color: var(--chart-s7);
+}
+.tree-icon-analog {
+  color: var(--chart-s2);
+}
+.tree-icon-fto {
+  color: var(--chart-s3);
+}
+.tree-icon-source {
+  color: var(--chart-s5);
+}
+.tree-icon-anomaly {
+  color: var(--alarm);
+}
+.tree-anomalies {
+  margin-top: 6px;
+}
+.tree-check-alarm {
+  background: var(--alarm) !important;
+  border-color: var(--alarm) !important;
+}
+.tree-count-alarm {
+  background: var(--alarm);
+}
+.tree-anomaly.tree-picked {
+  background: color-mix(in srgb, var(--alarm) 9%, transparent);
+}
+.tree-select-all .tree-label {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.tree-check-input:disabled + .tree-check {
+  opacity: 0.35;
+}
+.tree-signal .tree-icon {
+  width: 14px;
+  height: 14px;
+  opacity: 0.7;
+}
+.tree-picked .tree-icon {
+  color: var(--text);
+  opacity: 1;
+}
+.tree-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tree-meta {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding-left: 6px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+/* The partition column behind a row, the Lakehouse way: revealed on hover so
+   the labels keep their room. */
+.tree-key {
+  flex-shrink: 0;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 15px;
+  letter-spacing: 0.02em;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.tree-row:hover > .tree-key {
+  opacity: 1;
+}
+/* A closed recording lists its protocols as their icons. */
+.tree-kinds {
+  display: inline-flex;
+  gap: 3px;
+}
+.tree-kinds .tree-icon {
+  width: 13px;
+  height: 13px;
+}
+/* The strip's swatch: the same series colour as its tree checkbox. */
+.strip-swatch {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 8px;
+  border-radius: 2px;
+  vertical-align: 0;
+}
+.tree-active {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+  font-weight: 600;
+}
+button.tree-active:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.tree-picked {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  font-weight: 500;
+}
+label.tree-picked:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.tree-signal {
+  cursor: pointer;
+  height: 28px;
+}
+.tree-check-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.tree-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border);
+  background: var(--surface-2);
+  color: #fff;
+  transition:
+    border-color 0.12s,
+    background-color 0.12s;
+}
+.tree-signal:hover .tree-check {
+  border-color: var(--accent);
+}
+.tree-check-input:focus-visible + .tree-check {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.tree-count {
+  flex-shrink: 0;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent-fill);
+  color: var(--accent-ink);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+}
+.tree-filter {
+  width: calc(100% - 8px);
+  margin: 4px 4px 6px;
+  height: 28px;
+  font-size: 12px;
+}
+.tree-pending {
+  font-size: 13px;
+}
+.tree-spinner {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--divider);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: tree-spin 0.8s linear infinite;
+}
+@keyframes tree-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.tree-chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform 0.12s;
+}
+.tree-chevron-open {
+  transform: rotate(90deg);
+}
+.tree-spacer {
+  width: 14px;
+  flex-shrink: 0;
+}
+
+.sidebar-grid {
+  position: relative;
+  transition: grid-template-columns 200ms ease;
+}
+.sidebar-grid-resizing {
+  transition: none;
+}
+
+.app-header {
+  box-shadow: var(--shadow-header);
+  position: relative;
+  z-index: 20;
+}
+
+/* Busy: a light sweeping along the header's bottom edge and a pill naming the wait. */
+.busy-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  overflow: hidden;
+  pointer-events: none;
+}
+.busy-bar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--accent) 40%,
+    var(--accent) 60%,
+    transparent
+  );
+  animation: busy-sweep 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes busy-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+.busy-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+  padding: 0 10px 0 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  animation: busy-in 0.2s ease-out;
+}
+@keyframes busy-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+}
+.busy-ring {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  border-top-color: var(--accent);
+  animation: tree-spin 0.8s linear infinite;
+}
+.sidebar-title {
+  height: 36px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--divider);
+}
+.sidebar-resizer {
+  top: 0;
+  width: var(--space);
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+}
+.sidebar-resizer::before {
+  width: 3px;
+}
+
+.sidebar-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  border-top: 1px solid var(--divider);
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+.sidebar-toggle:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.brand-home {
+  cursor: pointer;
+  color: var(--text);
+  border-radius: var(--radius);
+}
+.brand-home:hover span {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+}
+.icon-btn:hover {
+  background: var(--hover);
+}
+/* Sized variants follow .icon-btn: same specificity, last wins. */
+.panel-collapse {
+  width: 22px;
+  height: 22px;
+  color: var(--text-muted);
+}
+.panel-collapse:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.strip-remove {
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+.strip-remove:hover {
+  background: var(--hover);
+  color: var(--alarm);
+}
+.strip-remove:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.tl-btn {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+.tl-clock {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.tl-btn:hover {
+  background: var(--hover);
+}
+
+.modal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.btn-primary {
+  height: 34px;
+  background: var(--accent-fill);
+  color: var(--accent-ink);
+  border-radius: var(--radius);
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(0.92);
+}
+
+/* --text is white in dark, near-black in light: readable on both. */
+.banner-alarm {
+  background: var(--alarm);
+  color: var(--text);
+}
+
+.map-blank {
+  background: var(--surface-2);
+}
+.ac-marker {
+  background: transparent;
+  border: 0;
+}
+.leaflet-container {
+  background: var(--surface-2);
+  font: inherit;
+  /* Leaflet panes (z-index 400+) would cover the PAT overlay. */
+  isolation: isolate;
+}
+
+/* Two classes outrank uPlot's own one-class .u-select default. */
+.uplot .u-over {
+  cursor: crosshair;
+}
+.uplot .u-select {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-left: 1px solid var(--accent);
+  border-right: 1px solid var(--accent);
+}
+/* In select mode the drag rectangle already wears the highlighter. */
+.drag-select .uplot .u-select {
+  background: var(--select-soft);
+  border-left: 1px solid var(--select);
+  border-right: 1px solid var(--select);
+}
+.strip-selected {
+  color: var(--select);
+}
+
+/* The transport's primary action carries the accent. */
+.tl-play {
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
+  color: var(--accent-ink);
+}
+/* The glyph is a `fill-text` utility, which the scoped rules paint dark; on the accent it is ink. */
+.fts-root .tl-play .fill-text,
+.fts-root .tl-play svg {
+  fill: var(--accent-ink);
+  color: var(--accent-ink);
+}
+.tl-play:hover {
+  background: color-mix(in srgb, var(--accent-fill) 85%, white);
+}
+.tl-selection {
+  position: absolute;
+  top: -3px;
+  height: 14px;
+  border-radius: 3px;
+  background: var(--select-soft);
+  border-left: 2px solid var(--select);
+  border-right: 2px solid var(--select);
+  pointer-events: none;
+}
+.tl-event {
+  position: absolute;
+  top: -4px;
+  min-width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--alarm) 35%, transparent);
+  border-left: 2px solid var(--alarm);
+  border-right: 2px solid var(--alarm);
+  cursor: pointer;
+}
+.tl-event-instant {
+  width: 3px !important;
+  border-right: none;
+  background: var(--alarm);
+}
+.tl-event:hover {
+  background: color-mix(in srgb, var(--alarm) 55%, transparent);
+}
+.tl-seg {
+  display: inline-flex;
+  margin-left: 6px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.tl-seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.tl-seg-btn:hover {
+  color: var(--text);
+}
+.tl-seg-on {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+.tl-seg-on:last-child {
+  color: var(--select);
+}
+.tl-seg-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* The marked period's summary, between the panels and the transport. */
+.selbar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-height: 56px;
+  padding: 6px 14px 6px 12px;
+  overflow-x: auto;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--select) 6%, var(--chrome));
+  font-size: 12px;
+}
+.selbar-mark {
+  flex-shrink: 0;
+  width: 3px;
+  height: 22px;
+  border-radius: 2px;
+  background: var(--select);
+}
+.selbar-divider {
+  flex-shrink: 0;
+  width: 1px;
+  height: 22px;
+  background: var(--border);
+}
+.selbar-stat {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  line-height: 1.2;
+}
+.selbar-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.selbar-value {
+  font-size: 12.5px;
+  color: var(--text);
+}
+.selbar-sub {
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+.selbar-up {
+  color: var(--ok);
+}
+.selbar-down {
+  color: var(--chart-s3);
+}
+.selbar .tl-btn,
+.selbar .icon-btn {
+  flex-shrink: 0;
+}
+.event-selected {
+  box-shadow: inset 2px 0 0 var(--select);
+  background: var(--select-soft);
+}
+
+/* var() is invalid in SVG fill/stroke attributes; use classes. */
+.svg-fill-sky {
+  fill: var(--sky);
+}
+.svg-fill-ground {
+  fill: var(--ground);
+}
+.svg-fill-warn {
+  fill: var(--warn);
+}
+.svg-stroke-warn {
+  stroke: var(--warn);
+}
+.svg-fill-text {
+  fill: var(--text);
+}
+.svg-fill-muted {
+  fill: var(--text-muted);
+}
+.svg-stroke-muted {
+  stroke: var(--text-muted);
+}
+.svg-fill-surface-2 {
+  fill: var(--surface-2);
+}
+.svg-fill-bg {
+  fill: var(--bg);
+}
+.svg-fill-surface {
+  fill: var(--surface);
+}
+.svg-stroke-accent {
+  stroke: var(--accent);
+}
+.svg-stroke-border {
+  stroke: var(--border);
+}
+.readout {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Outlined, not filled: no ink token reads on --ok/--warn. */
+/* Two lines tall always, so a wrap does not resize the pair. */
+.lamp {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  margin-top: 2px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: center;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+}
+.lamp-off {
+  color: var(--text-muted);
+}
+.lamp-idle {
+  color: var(--text);
+}
+.lamp-ok {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+.lamp-warn {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+.event-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  cursor: pointer;
+}
+.event-row:hover {
+  background: var(--surface-2);
+}
+.event-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.event-row.past {
+  opacity: 0.55;
+}
+
+@keyframes fts-zoom-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* No backdrop fade: opacity 0 would show the shell it hides. */
+.fts-panel {
+  animation: fts-zoom-in 200ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fts-panel {
+    animation: none;
+  }
+  .sidebar-grid {
+    transition: none;
+  }
+  .tree-chevron {
+    transition: none;
+  }
+}
+
+/* A waveform's parameter control on its bar, and its picker. */
+.waveform-params {
+  position: relative;
+  width: auto;
+  min-width: 22px;
+  padding: 0 4px;
+  gap: 3px;
+}
+.waveform-count {
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+.waveform-empty {
+  height: 100%;
+  min-height: 0;
+  border: 0;
+}
+.picker-tree {
+  max-height: 60vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px;
+}
+
+/* The transport footer: a shade off the page, so the time axis stands out. */
+.fts-transport {
+  background: var(--transport, var(--chrome));
+}

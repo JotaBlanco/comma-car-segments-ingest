@@ -14,7 +14,10 @@ from quixstreams import Application, State
 from quixstreams.dataframe.joins.lookups import QuixConfigurationService
 
 import dcm_dbc
+import identity
 from idempotency import decode_identity, log_mode, mark_decoded, needs_decode
+from inventory import FileInventory
+from marker import build_marker
 from provenance import (
     UNKNOWN,
     UNKNOWN_FRAME,
@@ -35,6 +38,20 @@ logger = logging.getLogger("mf4-decoder")
 FRAME_CHUNK = int(os.getenv("FRAME_CHUNK", "1000"))      # MDF read chunk; unrelated to batching
 BATCH_RECORDS = int(os.getenv("BATCH_RECORDS", "100"))   # Records per Kafka message (cluster size)
 FLUSH_EVERY = int(os.getenv("FLUSH_EVERY", "1000"))      # librdkafka flush every N batches (was: N samples)
+
+# Rung 3 of the run-key ladder. It MUST be the value tm-connector reads from its
+# own TM_RUN_KEY_PATTERN: the two apps climb the same ladder over the same
+# message and a different pattern here is a silent disagreement about which run
+# a file belongs to. See identity.py.
+TM_RUN_KEY_PATTERN = os.getenv("TM_RUN_KEY_PATTERN", identity.DEFAULT_RUN_KEY_PATTERN)
+
+# The wire discriminator every message on the output topic carries. tm-connector
+# accumulates "samples" and finalizes on KIND_FILE_COMPLETE (marker.py, which
+# owns that spelling); the lake sink expands "samples" and skips the marker. A
+# batch with no `kind` at all is one an older decoder wrote, and both readers
+# still treat it as samples — which is what makes this rollout safe over a topic
+# that already holds a backlog.
+KIND_SAMPLES = "samples"
 
 # CAN bus-logging decode -----------------------------------------------------
 # "dcm" (default): decode with the database held in the Dynamic Configuration
@@ -255,8 +272,57 @@ def _produce_batch(record_base, ts_buf, val_buf, text_buf):
         )
 
 
+def _produce_marker(
+    *,
+    metadata,
+    filename,
+    upload_id,
+    declared,
+    header_properties,
+    inv,
+    decode_error=None,
+    samples_suppressed=None,
+):
+    """Emit the ONE terminal `file_complete` message for a file.
+
+    The payload is built by `marker.build_marker`, which is a pure function so
+    the contract test can feed it to tm-connector's real readers and then to the
+    registry's real models. This half is the produce call and nothing else.
+
+    It is produced ONCE, after the last batch has been flushed, so a registry
+    that reads it can rely on the rows already being on their way to the lake.
+    A file that failed to decode gets one too, carrying `decode_error`: a decode
+    failure is the PRODUCER's to state, and a file that never produced a marker
+    is invisible to the registry rather than visibly broken.
+    """
+    time_start_ms, time_end_ms = inv.window
+    payload = build_marker(
+        metadata=metadata,
+        filename=filename,
+        upload_id=upload_id,
+        declared=declared,
+        header_properties=header_properties,
+        inventory_rows=inv.rows(),
+        time_start_ms=time_start_ms,
+        time_end_ms=time_end_ms,
+        unknown=UNKNOWN,
+        decode_error=decode_error,
+        samples_suppressed=samples_suppressed,
+    )
+    try:
+        msg = output_topic.serialize(key=str(upload_id or filename), value=payload)
+        producer.produce(topic=output_topic.name, key=msg.key, value=msg.value)
+        producer.flush()
+    except Exception as e:
+        # A lost marker costs this file its registration, and nothing else: the
+        # samples are already in the lake. Kafka redelivers the metadata message
+        # if the offset was never committed, and the decode-once filter makes
+        # that replay cheap.
+        logger.error("Produce failed for the file_complete marker of %s: %s", filename, e)
+
+
 def _emit_channel(
-    record_base, timestamps, samples, start_ms, total_msgs, total_samples,
+    record_base, timestamps, samples, start_ms, total_msgs, total_samples, inv=None,
 ):
     """Emit one channel's samples as BATCH_RECORDS-sized Kafka messages.
 
@@ -277,13 +343,22 @@ def _emit_channel(
     ``dcm_config_id``, ``channel_name``, ``frame_name``, ``sender_node``)
     reaches numeric and string channels alike.
 
+    ``inv`` is the file's channel catalogue. Every channel reports itself to it
+    exactly once, INCLUDING the two that leave without producing a batch: a
+    channel that is in the file and missing from the catalogue is invisible in
+    the one place an engineer looks it up. See inventory.py.
+
     Returns updated (total_msgs, total_samples).
     """
+    signal = record_base["signal"]
+    unit = record_base["unit"]
     arr = np.asarray(samples)
 
     # Empty channel after dtype detection: nothing to emit. _channel_has_data
     # used to filter these upstream; with that check removed, drop here.
     if len(arr) == 0:
+        if inv is not None:
+            inv.declare(signal, unit)
         return total_msgs, total_samples
 
     if _is_numeric_dtype(arr.dtype):
@@ -299,13 +374,22 @@ def _emit_channel(
         if not ok.all():
             ts_full = ts_full[ok]
             arr = arr[ok]
-        # All-NaN/Inf channel: nothing emittable left after the mask.
+        # All-NaN/Inf channel: nothing emittable left after the mask. It is
+        # still a channel of this file, so it is catalogued without statistics
+        # — there is no finite sample to compute one from.
         if len(arr) == 0:
+            if inv is not None:
+                inv.declare(signal, unit)
             return total_msgs, total_samples
 
         ts_list = ts_full.tolist()
         val_list = arr.tolist()
         n = len(val_list)
+
+        # Measured over the WHOLE channel, before it is sliced into batches, so
+        # the numbers describe the signal rather than its last batch.
+        if inv is not None:
+            inv.observe_numeric(signal, unit, ts_list, val_list)
 
         for offset in range(0, n, BATCH_RECORDS):
             end = min(offset + BATCH_RECORDS, n)
@@ -329,6 +413,11 @@ def _emit_channel(
     n = len(samples)
     ts_buf = []
     text_buf = []
+    # The three numbers the catalogue needs from a path that never holds the
+    # whole channel: how many samples survived, and the two ends of the window.
+    text_count = 0
+    text_first_ts = None
+    text_last_ts = None
 
     for offset in range(0, n, FRAME_CHUNK):
         ts_chunk = timestamps[offset:offset + FRAME_CHUNK]
@@ -339,9 +428,14 @@ def _emit_channel(
             if safe_v is None:
                 continue
 
-            ts_buf.append(start_ms + int(float(t) * 1000))
+            ts_ms = start_ms + int(float(t) * 1000)
+            ts_buf.append(ts_ms)
             text_buf.append(safe_v)
             total_samples += 1
+            text_count += 1
+            if text_first_ts is None:
+                text_first_ts = ts_ms
+            text_last_ts = ts_ms
 
             if len(ts_buf) >= BATCH_RECORDS:
                 _produce_batch(
@@ -357,6 +451,13 @@ def _emit_channel(
             record_base, ts_buf, [None] * len(ts_buf), text_buf,
         )
         total_msgs += 1
+
+    if inv is not None:
+        if text_count:
+            inv.observe_text(signal, unit, text_count, text_first_ts, text_last_ts)
+        else:
+            # Every sample was unreadable. The channel is in the file.
+            inv.declare(signal, unit, dtype="str")
 
     return total_msgs, total_samples
 
@@ -548,7 +649,7 @@ def _decode_can_bus_logging(mdf, target_dir, dcm_doc=None):
 
 def _emit_signals(
     signals, file_scalars, start_ms, seen_names, total_msgs, total_samples,
-    signal_frame_map=None, bus_names=None,
+    signal_frame_map=None, bus_names=None, inv=None,
 ):
     """Emit an iterable of asammdf ``Signal`` objects.
 
@@ -591,13 +692,19 @@ def _emit_signals(
         else:
             emit_signal = f"{name}#g{occ}"
 
-        samples = sig.samples
-        if len(samples) == 0:
-            continue
-
         unit = getattr(sig, "unit", "") or ""
         if not isinstance(unit, str):
             unit = str(unit)
+
+        samples = sig.samples
+        if len(samples) == 0:
+            # Read the unit first, then skip: a channel with no samples still
+            # earns a catalogue row, and a row is worth more with its unit on
+            # it. `_emit_channel` catalogues every other channel; this one never
+            # reaches it.
+            if inv is not None:
+                inv.declare(emit_signal, unit)
+            continue
 
         # Bare name, not emit_signal: a "#g<idx>"-qualified name is our own
         # invention and would never match a DBC entry.
@@ -614,7 +721,7 @@ def _emit_signals(
 
         total_msgs, total_samples = _emit_channel(
             record_base, sig.timestamps, samples,
-            start_ms, total_msgs, total_samples,
+            start_ms, total_msgs, total_samples, inv=inv,
         )
         emitted += 1
 
@@ -653,6 +760,15 @@ def process(metadata: dict, state: State):
     dbc_dir = None
     decoded = None
 
+    # Initialised before the try for the same reason the two above are: the
+    # failure path produces a `file_complete` marker, and it must be able to
+    # report whatever the decode got as far as resolving. A download that raises
+    # leaves all three at these values, which say "nothing was learned" rather
+    # than raising a second time inside the error handler.
+    declared = metadata.get("declared") if isinstance(metadata.get("declared"), dict) else {}
+    header_properties = {}
+    inv = FileInventory()
+
     try:
         # --- Phase: download --------------------------------------------
         t_phase = time.monotonic()
@@ -689,10 +805,35 @@ def process(metadata: dict, state: State):
         # being the sole Hive partition when the table moved to
         # platform/device/route, but an all-null column still makes PyArrow
         # infer a null type and fail the parquet write.
+        # --- The Test Manager identity ----------------------------------
+        # The run key is resolved HERE, once, and every message this file
+        # produces carries the answer: the batches as the `run_id` partition
+        # column, the terminal marker inside the `declared` bag tm-connector
+        # reads on rung 1 of its own ladder. Resolving it twice is how the
+        # registry and the lake come to disagree about which run a file is —
+        # identity.py says what that costs.
+        declared, run_id = identity.resolve_identity(
+            metadata.get("declared"),
+            header_properties,
+            filename,
+            TM_RUN_KEY_PATTERN,
+            provenance_fields,
+            UNKNOWN,
+        )
+
         file_scalars = {
+            "kind": KIND_SAMPLES,
             "file_name": filename,
             "upload_id": upload_id or UNKNOWN,
             **provenance_fields,
+            # The lake's traceability columns. `run_id` is the one column whose
+            # absence drops the row rather than defaulting it (the sink refuses
+            # to place a batch that names no run), so it stays None when nothing
+            # resolved one instead of becoming a sentinel that would merge every
+            # unplaceable file into one partition.
+            "run_id": run_id,
+            "work_order": metadata.get("work_order") or declared.get("work_order_id"),
+            "test_definition": metadata.get("test_definition") or declared.get("definition_id"),
         }
 
         logger.info(
@@ -768,6 +909,7 @@ def process(metadata: dict, state: State):
                 total_msgs, total_samples,
                 signal_frame_map=signal_frame_map,
                 bus_names=bus_names,
+                inv=inv,
             )
             logger.info(
                 "Decoded %d CAN signal(s) across %d message group(s) "
@@ -799,6 +941,7 @@ def process(metadata: dict, state: State):
             ),
             file_scalars, start_ms, seen_names,
             total_msgs, total_samples,
+            inv=inv,
         )
 
         # Emit master channels per-group (iter_channels in this asammdf
@@ -840,7 +983,7 @@ def process(metadata: dict, state: State):
 
             total_msgs, total_samples = _emit_channel(
                 record_base, master_sig.timestamps, samples,
-                start_ms, total_msgs, total_samples,
+                start_ms, total_msgs, total_samples, inv=inv,
             )
         decode_ms = int((time.monotonic() - t_phase) * 1000)
 
@@ -870,21 +1013,57 @@ def process(metadata: dict, state: State):
                 elapsed_ms,
             )
 
-        # The file is decoded and every batch is flushed, so record the
-        # marker that turns a replay of this metadata message into a no-op
-        # instead of a second copy in the lake. Deliberately the last
+        # The terminal marker, and it goes BEFORE the decode-once mark: a
+        # delivery that is about to be filtered out must not be the one that
+        # skipped the file's only registration. Producing it twice is harmless
+        # — the registry identifies a file by (run, checksum) and answers the
+        # second one as a replay — while never producing it is not.
+        _produce_marker(
+            metadata=metadata,
+            filename=filename,
+            upload_id=upload_id,
+            declared=declared,
+            header_properties=header_properties,
+            inv=inv,
+            samples_suppressed=(
+                None if run_id is not None else
+                "the file names no run, so its rows have no lake partition"
+            ),
+        )
+
+        # The file is decoded, every batch is flushed and the marker is out, so
+        # record the mark that turns a replay of this metadata message into a
+        # no-op instead of a second copy in the lake. Deliberately the last
         # statement of the try: anything that raised above leaves the file
-        # unmarked and therefore retryable, so the marker is never more
-        # durable than the rows it vouches for. total_msgs == 0 is marked
-        # too - decoded-but-produced-nothing (no embedded DBC, no decodable
-        # channel) is a completed decode, and re-running it would download
-        # and decode the file again for the same empty result.
+        # unmarked and therefore retryable, so the mark is never more durable
+        # than the rows it vouches for. total_msgs == 0 is marked too —
+        # decoded-but-produced-nothing (no DBC, no decodable channel) is a
+        # completed decode, and re-running it would download and decode the file
+        # again for the same empty result.
         mark_decoded(state, metadata, samples=total_samples)
 
-    except Exception:
+    except Exception as error:
         logger.exception(
             "Failed to process file %s (blob_path=%s)", filename, blob_path
         )
+        # A file that failed to decode still reaches the registry, carrying the
+        # reason. Without this the file is simply absent from the Test Manager,
+        # which reads exactly like a file nobody uploaded. The marker is built
+        # from whatever survived the failure — the three names are bound before
+        # the try for exactly this reason, so a download that raised still
+        # reports the file rather than raising again in the handler.
+        try:
+            _produce_marker(
+                metadata=metadata,
+                filename=filename,
+                upload_id=upload_id,
+                declared=declared,
+                header_properties=header_properties,
+                inv=inv,
+                decode_error=f"{type(error).__name__}: {error}",
+            )
+        except Exception:
+            logger.exception("Could not report the decode failure of %s", filename)
     finally:
         if decoded is not None:
             try:

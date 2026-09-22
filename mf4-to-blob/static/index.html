@@ -134,12 +134,84 @@
             margin-top: 6px;
             word-break: break-word;
         }
+
+        .claim {
+            border: 1px solid #d5d9e0;
+            border-radius: 8px;
+            padding: 14px 16px 12px;
+            margin: 0 0 18px;
+        }
+        .claim legend {
+            font-weight: 600;
+            font-size: 0.95rem;
+            padding: 0 6px;
+        }
+        .claim-hint { font-weight: 400; color: #6b7280; }
+        .claim-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 10px 14px;
+        }
+        .claim-grid label {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 0.85rem;
+            color: #374151;
+        }
+        .claim-grid input {
+            padding: 7px 9px;
+            border: 1px solid #d5d9e0;
+            border-radius: 6px;
+            font: inherit;
+            font-size: 0.9rem;
+        }
+        .claim-grid input:focus {
+            outline: 2px solid #4f46e5;
+            outline-offset: -1px;
+            border-color: #4f46e5;
+        }
+        .claim-note {
+            margin: 10px 0 0;
+            font-size: 0.8rem;
+            color: #6b7280;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>MF4 to Blob</h1>
         <p class="subtitle">Drag and drop one or more <code>.mf4</code> files. Each is uploaded to the workspace blob storage and a metadata message is published.</p>
+
+        <!--
+          The identity card. Every field here rides as a `declared.*` query
+          parameter and lands in the message's `declared` bag, which is the
+          registry's own vocabulary and what tm-connector reads verbatim.
+          Everything is OPTIONAL: an upload that claims nothing still registers,
+          and its run is resolved from the file's own header at decode time.
+          A claim typed here BEATS one written into the filename.
+        -->
+        <fieldset class="claim" id="claim">
+            <legend>Test Manager claim <span class="claim-hint">— optional</span></legend>
+            <div class="claim-grid">
+                <label>Work order
+                    <input type="text" id="workOrderId" placeholder="WO-2026-0851" autocomplete="off">
+                </label>
+                <label>Test definition
+                    <input type="text" id="definitionId" placeholder="TD-BAT-THERM" autocomplete="off">
+                </label>
+                <label>Run id
+                    <input type="text" id="runId" placeholder="left blank: taken from the recording" autocomplete="off">
+                </label>
+                <label>Rig
+                    <input type="text" id="rigId" placeholder="RIG-04" autocomplete="off">
+                </label>
+            </div>
+            <p class="claim-note">
+                Blank is a real answer. A run nobody claims waits for its work order
+                in the Test Manager rather than being invented here.
+            </p>
+        </fieldset>
 
         <div class="drop-zone" id="dropZone">
             <p>Drag and drop .mf4 files here, or click to browse</p>
@@ -365,6 +437,32 @@
             return startDirectUpload(e);
         }
 
+        // The four claim fields as a `declared.*` query string, leading "&" and
+        // all, or "" when the card is empty. Read at SEND time rather than
+        // captured when the file was picked, so a correction typed before the
+        // click is the claim that travels.
+        //
+        // An empty input contributes NOTHING. Sending `declared.run_id=` would
+        // state an empty run id, which is a different claim from stating none:
+        // the server validates it, rejects it as malformed, and the upload
+        // fails on a field nobody filled in.
+        function declaredQuery() {
+            const fields = {
+                'work_order_id': document.getElementById('workOrderId'),
+                'definition_id': document.getElementById('definitionId'),
+                'run_id':        document.getElementById('runId'),
+                'rig_id':        document.getElementById('rigId'),
+            };
+            let query = '';
+            for (const [name, input] of Object.entries(fields)) {
+                const value = (input && input.value || '').trim();
+                if (value) {
+                    query += '&declared.' + name + '=' + encodeURIComponent(value);
+                }
+            }
+            return query;
+        }
+
         function startDirectUpload(e) {
             // XHR, not fetch: fetch has no upload-progress event and the
             // progress bar is the point of this page. The body is the File
@@ -373,7 +471,7 @@
             return new Promise(resolve => {
                 const xhr = new XMLHttpRequest();
                 const url = '/upload/direct?filename=' + encodeURIComponent(e.file.name) +
-                    '&size=' + e.file.size;
+                    '&size=' + e.file.size + declaredQuery();
                 xhr.open('POST', url, true);
                 xhr.setRequestHeader('Content-Type', 'application/octet-stream');
 
@@ -424,7 +522,10 @@
             // Step 1: ask server for a SAS URL.
             let sasResp;
             try {
-                const r = await fetch('/upload/sas', {
+                // `replace` swaps only the FIRST "&" for a "?", which turns the
+                // leading-& form into a query string and leaves the empty
+                // case an untouched bare path.
+                const r = await fetch('/upload/sas' + declaredQuery().replace('&', '?'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ filename: e.file.name, size: e.file.size }),

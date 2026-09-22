@@ -8,9 +8,23 @@ variables:
     required: true
   - name: output
     inputType: OutputTopic
-    description: Topic to publish decoded per-timestamp messages
+    description: >-
+      Topic the decoder publishes to. Two shapes ride it, told apart by `kind`:
+      the per-channel `samples` batches the lake sink expands, and the ONE
+      terminal `file_complete` marker per file - the file's whole signal
+      inventory, which tm-connector turns into its registry catalogue.
     defaultValue: mf4-to-msg
     required: true
+  - name: TM_RUN_KEY_PATTERN
+    inputType: FreeText
+    description: >-
+      Rung 3 of the run-key ladder: the regex that reads a run key out of a
+      filename, used when neither the uploader nor the MF4 header names one.
+      MUST be the same value tm-connector runs with - the two apps climb the
+      same ladder over the same message, and a different pattern here puts a
+      file's catalogue in the registry under one run and its samples in the
+      lake under another, with nothing reporting it.
+    defaultValue: TAS-\d+
   - name: config
     inputType: InputTopic
     description: DCM configuration-events topic. QuixConfigurationService consumes it to

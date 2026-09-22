@@ -1,0 +1,89 @@
+[project]
+name = "test-manager-api"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.141.1",
+    "httpx>=0.28.1",
+    "pydantic>=2.13.4",
+    # The metrics route (FR-DM-081). The platform build already runs Prometheus
+    # and Grafana, so the API only exposes series. This library writes the
+    # exposition format, and a hand-written histogram gets the cumulative
+    # buckets wrong. It is pure Python and it pulls in nothing else.
+    "prometheus-client>=0.24.1",
+    "pymongo>=4.17.0",
+    # Starlette parses a multipart body with this package, and it raises at
+    # import time without it. `POST /results/upload` takes a multipart body.
+    "python-multipart>=0.0.32",
+    "uvicorn[standard]>=0.52.3",
+]
+
+# `tm` is the CLI the workbook asks for beside the UI and the API
+# (FR-DM-107). It is a thin client over the same routes, and it adds no
+# dependency: `argparse` ships with Python and `httpx` is already above.
+[project.scripts]
+tm = "cli.tm:main"
+
+# The project had no build backend, so uv treated it as a virtual project and
+# installed no console script. `tm` needs one. The wheel ships `cli` only: the
+# API, the seed, the ingest half and the planning mock all still travel as
+# plain directories in the image, and adding them here would change how they
+# import.
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["cli"]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "pytest-xdist>=3.6",
+    "ruff>=0.16.3",
+    "testcontainers>=4.15.0",
+]
+# The blob and lake group. It was the watcher's group until 19 Aug 2026. The
+# watcher moved to the ingestion pipeline, and three of the four names stayed:
+#
+#   asammdf, numpy   `ingest/fixtures.py` mints a real MF4 byte image, and
+#                    `ingest/blob_seed.py` writes it at each registered file's
+#                    `storage_ref`. Without it the download button serves 503.
+#   quixportal[s3]   `ingest/store.py` builds the blob client for the two byte
+#                    legs: the file download and the result upload.
+#
+# `watchdog` left. It watched a local directory for the watcher, and nothing
+# polls a directory any more. See plans/design/INGEST-SPLIT.md.
+ingest = [
+    "asammdf>=8.8.23",
+    "numpy>=2.5.2",
+    # 2.0.4 or newer. SAG rejects a virtual-host request and reads the bucket
+    # from the path. quixportal 2.0.1 sets no addressing style, so it would
+    # misroute. 2.0.2 added the path style, 2.0.4 added the user-token field.
+    "quixportal[s3]>=2.0.4",
+]
+
+# `quixportal` is a Quix internal library. It is not on PyPI. The Azure
+# Artifacts "public" feed serves it, and it needs no token.
+[tool.uv.sources]
+quixportal = { index = "quix-public" }
+
+[[tool.uv.index]]
+name = "quix-public"
+url = "https://pkgs.dev.azure.com/quix-analytics/53f7fe95-59fe-4307-b479-2473b96de6d1/_packaging/public/pypi/simple/"
+explicit = true
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+# The suite runs in parallel. One test seeds the whole demo cast, which takes
+# 30 seconds, and 70 tests do it. Serial, the run takes hours.
+# `conftest.py` starts ONE mongo container and every worker shares it.
+# Use `-n0` for a single test, or to read a traceback in order.
+# Capped at 4. Many agents run suites at once in separate worktrees,
+# and `-n auto` takes a worker per core on a 20-core machine.
+addopts = "-n 4"
+
+[tool.ruff]
+line-length = 100

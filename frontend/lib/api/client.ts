@@ -1,338 +1,157 @@
-/**
- * Base API client for Test Manager Backend
- * Provides apiGet, apiPost, apiPut, apiDelete functions with authentication
- */
+import { getActivePortalToken, PORTAL_TOKEN_HEADER } from "@/lib/portal/token-store";
+import type { ApiErrorBody } from "@/types";
 
-import { STANDALONE_TOKEN_KEY } from "../contexts/quix-auth-context"
+/* Browser calls go through the server-side proxy, which adds the
+   Authorization header. The shared TM_API_TOKEN never reaches the browser.
 
-// API Error class for consistent error handling
+   The viewer's own Quix Portal token travels the other way. The browser holds
+   it and the proxy runs on the server, so the browser states it on the
+   request. The proxy then sends the viewer's token instead of the shared one,
+   and the API names a real person in the journal. The path is relative, so
+   the header goes to our own origin and to no other host. */
+const BASE_PATH = "/api/proxy";
+
 export class ApiError extends Error {
-  status: number
-  data: any
-
-  constructor(message: string, status: number, data?: any) {
-    super(message)
-    this.name = "ApiError"
-    this.status = status
-    this.data = data
+  constructor(
+    public readonly status: number,
+    public readonly detail: string,
+    public readonly code: string,
+    public readonly errors: unknown[] = [],
+  ) {
+    super(detail);
+    this.name = "ApiError";
   }
 }
 
-/**
- * Get the API base URL
- * Client-side: Always use relative URLs (proxied by Next.js rewrites)
- * Server-side: Use API_URL environment variable for internal service communication
- */
-export function getApiUrl(): string {
-  // Client-side: Always use relative URLs for Next.js proxy
-  if (typeof window !== "undefined") {
-    return "" // Empty string = relative URLs, proxied by Next.js rewrites
-  }
+export type QueryParamValue =
+  | string
+  | number
+  | boolean
+  | undefined
+  | readonly (string | number)[];
 
-  // Server-side: Use internal service URL
-  if (process.env.API_URL) {
-    return process.env.API_URL
-  }
-
-  // Fallback for local development (server-side only)
-  return "http://localhost:8080"
-}
+export type QueryParams = Record<string, QueryParamValue>;
 
 /**
- * Get authentication token from Quix Auth Context
- * Token should be passed as parameter from hooks/components
- * Fallback to localStorage and environment variable for standalone mode
- */
-function getAuthToken(providedToken?: string | null): string | null {
-  // Use provided token from Quix Auth Context (preferred)
-  if (providedToken) {
-    return providedToken
-  }
-
-  // Fallback: Check localStorage for standalone mode token
-  if (typeof window !== "undefined") {
-    const stored = localStorage.getItem(STANDALONE_TOKEN_KEY)
-    if (stored) {
-      console.log("[API Client] Using token from localStorage (standalone mode)")
-      return stored
-    }
-  }
-
-  // Fallback: Environment variable (for local development only)
-  const envToken = process.env.NEXT_PUBLIC_QUIX_AUTH_TOKEN || null
-  if (envToken) {
-    console.log("[API Client] Using token from environment (local development)")
-  } else {
-    console.warn("[API Client] No auth token available!")
-  }
-
-  return envToken
-}
-
-/**
- * Build fetch headers with authentication
- */
-function buildHeaders(providedToken?: string | null): HeadersInit {
-  const headers: HeadersInit = {
-    "Content-Type": "application/json",
-  }
-
-  const token = getAuthToken(providedToken)
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`
-  }
-
-  return headers
-}
-
-/**
- * Handle API response
- * Throws ApiError for non-2xx responses
- */
-async function handleResponse<T>(response: Response): Promise<T> {
-  // Handle 204 No Content
-  if (response.status === 204) {
-    return undefined as T
-  }
-
-  const contentType = response.headers.get("content-type")
-  const isJson = contentType?.includes("application/json")
-
-  if (!response.ok) {
-    let errorData: any
-    let message: string
-
-    if (isJson) {
-      errorData = await response.json()
-      message = errorData?.detail || errorData?.message || `Request failed with status ${response.status}`
-    } else {
-      // Non-JSON response (HTML, text, etc.)
-      const text = await response.text()
-      const isHtml = contentType?.includes("text/html")
-
-      if (isHtml) {
-        // Don't show raw HTML to user - provide clean error message
-        message = `Request failed with status ${response.status}`
-        errorData = { html: text } // Store HTML for debugging but don't display it
-      } else {
-        // Plain text error
-        message = text || `Request failed with status ${response.status}`
-        errorData = text
-      }
-    }
-
-    console.error("[API Client] Error:", message, "Status:", response.status, "Data:", errorData)
-    throw new ApiError(message, response.status, errorData)
-  }
-
-  if (isJson) {
-    return response.json()
-  }
-
-  return response.text() as any
-}
-
-/**
- * Execute fetch with automatic retry on auth errors (401/403)
- * If request fails with 401/403, attempts to refresh token and retry once
- */
-async function fetchWithRetry<T>(
-  fetchFn: (token?: string | null) => Promise<Response>,
-  currentToken?: string | null,
-  refreshTokenFn?: () => Promise<string | null>
-): Promise<T> {
-  try {
-    // First attempt with current token
-    const response = await fetchFn(currentToken)
-    return await handleResponse<T>(response)
-  } catch (error) {
-    // If auth error and refresh function provided, attempt refresh and retry
-    if (
-      error instanceof ApiError &&
-      (error.status === 401 || error.status === 403) &&
-      refreshTokenFn
-    ) {
-      console.log("[API Client] Auth error detected, attempting token refresh...")
-
-      const freshToken = await refreshTokenFn()
-
-      if (freshToken && freshToken !== currentToken) {
-        console.log("[API Client] Got fresh token, retrying request...")
-        const retryResponse = await fetchFn(freshToken)
-        return await handleResponse<T>(retryResponse)
-      } else {
-        console.warn("[API Client] Token refresh did not provide new token")
-      }
-    }
-
-    // Re-throw original error if retry not applicable or retry also failed
-    throw error
-  }
-}
-
-/**
- * Build URL with query parameters
- */
-function buildUrl(endpoint: string, params?: Record<string, any>): string {
-  const baseUrl = getApiUrl()
-  // Prepend /api/v1 to all endpoints
-  const apiEndpoint = endpoint.startsWith('/api/') ? endpoint : `/api/v1${endpoint}`
-
-  // For localhost (empty baseUrl), use relative URL
-  let url: URL
-  if (baseUrl === "") {
-    url = new URL(apiEndpoint, window.location.origin)
-  } else {
-    url = new URL(apiEndpoint, baseUrl)
-  }
-
-  if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== "") {
-        url.searchParams.append(key, String(value))
-      }
-    })
-  }
-
-  return url.toString()
-}
-
-/**
- * GET request
- * @param endpoint API endpoint path
- * @param params Query parameters
- * @param token Auth token
- * @param refreshToken Optional function to refresh expired token
- */
-export async function apiGet<T>(
-  endpoint: string,
-  params?: Record<string, any>,
-  token?: string | null,
-  refreshToken?: () => Promise<string | null>
-): Promise<T> {
-  const url = buildUrl(endpoint, params)
-  console.log("[API Client] GET", url)
-
-  return fetchWithRetry<T>(
-    (authToken) =>
-      fetch(url, {
-        method: "GET",
-        headers: buildHeaders(authToken),
-      }),
-    token,
-    refreshToken
-  )
-}
-
-/**
- * GET request returning the raw response body as text.
+ * Build the query string of a call: `?a=1&b=2`, or the empty string.
  *
- * Needed for assets the browser cannot fetch itself: an <img src> tag sends no
- * Authorization header, so an authenticated endpoint returns 403 and the image
- * breaks. Fetching here and inlining the markup keeps the auth token attached.
- * Retries once through refreshToken on 401/403, mirroring fetchWithRetry.
+ * Exported because the server-side export builds its own URL from the same
+ * filters object the list call uses (`components/shared/export-button.tsx`).
+ * A second builder would encode a filter differently, and the file would then
+ * hold different rows from the table.
  */
-export async function apiGetText(
-  endpoint: string,
-  params?: Record<string, any>,
-  token?: string | null,
-  refreshToken?: () => Promise<string | null>
-): Promise<string> {
-  const url = buildUrl(endpoint, params)
-
-  let response = await fetch(url, { method: "GET", headers: buildHeaders(token) })
-
-  if ((response.status === 401 || response.status === 403) && refreshToken) {
-    const fresh = await refreshToken()
-    if (fresh) {
-      response = await fetch(url, { method: "GET", headers: buildHeaders(fresh) })
+export function buildQuery(params?: QueryParams): string {
+  if (!params) return "";
+  const sp = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined) continue;
+    if (Array.isArray(value)) {
+      // Multi-value filters: repeat the key once per entry (contract §1.1).
+      for (const entry of value as readonly (string | number)[]) {
+        sp.append(key, String(entry));
+      }
+    } else {
+      sp.set(key, String(value));
     }
   }
+  const qs = sp.toString();
+  return qs ? `?${qs}` : "";
+}
 
-  if (!response.ok) {
-    throw new ApiError(
-      `Request failed: ${response.status} ${response.statusText}`,
-      response.status
-    )
+/**
+ * The viewer's Portal token, when the browser holds one.
+ *
+ * `lib/api/lake.ts` exports its calls through this helper too. That route
+ * refuses a caller with no token, so the browser must state it there as well.
+ */
+export function viewerHeaders(): Record<string, string> {
+  const portalToken = getActivePortalToken();
+  return portalToken === null ? {} : { [PORTAL_TOKEN_HEADER]: portalToken };
+}
+
+/** Build the ApiError of a refused answer. The §A body names the code. */
+async function errorFrom(response: Response): Promise<ApiError> {
+  let errorBody: ApiErrorBody = {
+    detail: `Request failed with status ${response.status}`,
+    code: "unknown_error",
+    errors: [],
+  };
+  try {
+    errorBody = (await response.json()) as ApiErrorBody;
+  } catch {
+    // non-JSON error body — keep fallback
   }
+  return new ApiError(response.status, errorBody.detail, errorBody.code, errorBody.errors);
+}
 
-  return response.text()
+/* DELETE carries a body here. The unflag route reads a reason from it
+   (`api/api/routers/test_runs.py`), so the helper sends one. The proxy
+   exports DELETE, so the method reaches the API. */
+async function request<T>(
+  method: "GET" | "POST" | "PATCH" | "DELETE",
+  path: string,
+  options: { params?: QueryParams; body?: unknown } = {},
+): Promise<T> {
+  const headers: Record<string, string> = { ...viewerHeaders() };
+  if (options.body !== undefined) headers["Content-Type"] = "application/json";
+  const response = await fetch(`${BASE_PATH}${path}${buildQuery(options.params)}`, {
+    method,
+    headers,
+    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+  });
+  if (!response.ok) throw await errorFrom(response);
+  return (await response.json()) as T;
 }
 
 /**
- * POST request
- * @param endpoint API endpoint path
- * @param data Request body data
- * @param token Auth token
- * @param refreshToken Optional function to refresh expired token
+ * Send a DELETE that answers 204 and reads nothing back.
+ *
+ * `request` parses every answer as JSON. A 204 carries no body, so that parse
+ * throws on a call that in fact succeeded. `DELETE /saved-searches/{id}`
+ * answers 204 (contract §D DS-9), so it comes through here.
  */
-export async function apiPost<T>(
-  endpoint: string,
-  data?: any,
-  token?: string | null,
-  refreshToken?: () => Promise<string | null>
-): Promise<T> {
-  const url = buildUrl(endpoint)
+async function deleteVoid(path: string, body: unknown): Promise<void> {
+  const response = await fetch(`${BASE_PATH}${path}`, {
+    method: "DELETE",
+    headers: { ...viewerHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw await errorFrom(response);
+}
 
-  return fetchWithRetry<T>(
-    (authToken) =>
-      fetch(url, {
-        method: "POST",
-        headers: buildHeaders(authToken),
-        body: data ? JSON.stringify(data) : undefined,
-      }),
-    token,
-    refreshToken
-  )
+/** The parts of an upload answer a caller reads: the body and the checksum. */
+export interface FormAnswer<T> {
+  body: T;
+  /** The SHA-256 the server computed over the stored bytes, or null. */
+  checksum: string | null;
 }
 
 /**
- * PUT request
- * @param endpoint API endpoint path
- * @param data Request body data
- * @param token Auth token
- * @param refreshToken Optional function to refresh expired token
+ * Post a multipart body.
+ *
+ * This helper sets **no** Content-Type header on purpose. A multipart body
+ * needs the boundary the browser picked, and only the browser knows it. A
+ * hand-written header loses the boundary and the server then reads no part.
+ * The proxy copies the header the browser wrote, so the boundary survives.
  */
-export async function apiPut<T>(
-  endpoint: string,
-  data?: any,
-  token?: string | null,
-  refreshToken?: () => Promise<string | null>
-): Promise<T> {
-  const url = buildUrl(endpoint)
-
-  return fetchWithRetry<T>(
-    (authToken) =>
-      fetch(url, {
-        method: "PUT",
-        headers: buildHeaders(authToken),
-        body: data ? JSON.stringify(data) : undefined,
-      }),
-    token,
-    refreshToken
-  )
+async function postForm<T>(path: string, form: FormData): Promise<FormAnswer<T>> {
+  const response = await fetch(`${BASE_PATH}${path}`, {
+    method: "POST",
+    headers: { ...viewerHeaders() },
+    body: form,
+  });
+  if (!response.ok) throw await errorFrom(response);
+  return {
+    body: (await response.json()) as T,
+    checksum: response.headers.get("X-Checksum-SHA256"),
+  };
 }
 
-/**
- * DELETE request
- * @param endpoint API endpoint path
- * @param token Auth token
- * @param refreshToken Optional function to refresh expired token
- */
-export async function apiDelete<T = void>(
-  endpoint: string,
-  token?: string | null,
-  refreshToken?: () => Promise<string | null>
-): Promise<T> {
-  const url = buildUrl(endpoint)
-
-  return fetchWithRetry<T>(
-    (authToken) =>
-      fetch(url, {
-        method: "DELETE",
-        headers: buildHeaders(authToken),
-      }),
-    token,
-    refreshToken
-  )
-}
+export const api = {
+  get: <T>(path: string, params?: QueryParams) => request<T>("GET", path, { params }),
+  post: <T>(path: string, body: unknown) => request<T>("POST", path, { body }),
+  patch: <T>(path: string, body: unknown) => request<T>("PATCH", path, { body }),
+  delete: <T>(path: string, body: unknown) => request<T>("DELETE", path, { body }),
+  deleteVoid: (path: string, body: unknown) => deleteVoid(path, body),
+  postForm: <T>(path: string, form: FormData) => postForm<T>(path, form),
+};

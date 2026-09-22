@@ -1,0 +1,1682 @@
+/* ── Measurement view (signal explorer) ──────────────────
+   Everything here is scoped under ``.qm`` so the measurement surface can
+   carry its own theme without touching the IDE's single dark palette in
+   base.css.
+
+   THEME: the plot theme is a property of this surface, not the app. Tokens
+   are declared on ``.qm`` (dark, the default) and redefined under
+   ``.qm[data-theme="light"]``. The canvas renderer reads the SAME custom
+   properties via getComputedStyle (see measure-render.js), so one attribute
+   flip re-themes both DOM and canvas. Never hardcode a colour below — a
+   literal survives the flip and breaks the plot in the other theme.        */
+
+/* `hidden` must actually hide.
+   The attribute is only a UA-stylesheet `display: none`, so ANY explicit display
+   in this file beats it — silently. Two did: .qm-chippanel (display: grid) sat
+   permanently over the plot as an empty bordered bar, reported twice as "a bar
+   doing nothing", and .qm-search (display: flex) stayed visible on the values
+   page. Worse, `el.hidden = true` still reads back as true, so unit tests on the
+   property passed while the element was on screen.
+   One scoped rule, so no future `display` can defeat a `hidden` again. */
+.qm [hidden] { display: none !important; }
+
+.qm {
+  /* Anchors the centred help panel — without it the box positions against the
+     page and lands wherever the surface happens to sit. */
+  position: relative;
+  /* chrome — mirrors base.css so the view feels native in dark mode */
+  --qm-bg: #1e1e1e;
+  --qm-surface: #252526;
+  --qm-surface-hi: #2d2d30;
+  --qm-plot: #171718;            /* instrument screen: deeper than chrome */
+  --qm-border: #3c3c3c;
+  --qm-border-soft: #2b2b2c;
+  --qm-text: #d4d4d4;
+  --qm-text-dim: #858585;
+  --qm-text-faint: #6b6b6b;
+  --qm-accent: #007acc;
+  --qm-accent-soft: rgba(0, 122, 204, 0.16);
+  --qm-accent-border: #24506b;
+  --qm-grid: rgba(255, 255, 255, 0.12);
+  --qm-val-strong: #ffffff;
+  --qm-cb-border: #565656;
+  --qm-win-active: #4d4d50;
+  --qm-dot-ring: #171718;        /* halo punched around cursor value dots */
+  --qm-scrollbar: #4a4a4d;
+  --qm-scrollbar-hi: #5f5f63;
+
+  /* measurement cursors */
+  --qm-cursor: #e5b567;
+  --qm-cursor-b: #8a7ba8;
+  --qm-agg-border: #4a412c;
+  --qm-agg-bg: rgba(229, 181, 103, 0.07);
+
+  /* partition-tree folders: amber for physical, purple for virtual */
+  --qm-folder: #e5b567;
+  --qm-folder-virtual: #b083f0;
+
+  /* trace palette — per theme on purpose. These are VS Code's syntax
+     colours, which read well on #171718 and wash out completely on white. */
+  --qm-sig-1: #4ec9b0;
+  --qm-sig-2: #dcdcaa;
+  --qm-sig-3: #c586c0;
+  --qm-sig-4: #ce9178;
+  --qm-sig-5: #9cdcfe;
+  --qm-sig-6: #b5cea8;
+  --qm-sig-7: #d16969;
+  --qm-sig-8: #c8c8c8;
+
+  --qm-mono: "Cascadia Mono", Consolas, "SF Mono", ui-monospace, monospace;
+
+  color: var(--qm-text);
+  background: var(--qm-bg);
+}
+
+/* Themed scrollbars. The view mounts on the fullscreen overlay / a canvas node,
+   OUTSIDE the app's `.node` scrollbar rules, so without this it falls back to
+   the OS default — a bright bar that reads as a bug against this dark UI. */
+.qm, .qm * { scrollbar-color: var(--qm-scrollbar) transparent; scrollbar-width: thin; }
+.qm::-webkit-scrollbar, .qm *::-webkit-scrollbar { width: 10px; height: 10px; }
+.qm::-webkit-scrollbar-track, .qm *::-webkit-scrollbar-track { background: transparent; }
+.qm::-webkit-scrollbar-thumb, .qm *::-webkit-scrollbar-thumb {
+  background: var(--qm-scrollbar);
+  border-radius: 6px;
+  border: 2px solid var(--qm-bg);
+}
+.qm::-webkit-scrollbar-thumb:hover, .qm *::-webkit-scrollbar-thumb:hover { background: var(--qm-scrollbar-hi); }
+.qm::-webkit-scrollbar-corner, .qm *::-webkit-scrollbar-corner { background: transparent; }
+
+.qm[data-theme="light"] {
+  --qm-bg: #f3f3f3;
+  --qm-surface: #ffffff;
+  --qm-surface-hi: #eaeaea;
+  --qm-plot: #ffffff;
+  --qm-border: #cfcfcf;
+  --qm-border-soft: #e7e7e7;
+  --qm-text: #1f1f1f;
+  --qm-text-dim: #6a6a6a;
+  --qm-text-faint: #8a8a8a;
+  --qm-accent: #0066b8;
+  --qm-accent-soft: rgba(0, 102, 184, 0.12);
+  --qm-accent-border: #9dc2e0;
+  --qm-grid: rgba(0, 0, 0, 0.14);
+  --qm-val-strong: #000000;
+  --qm-cb-border: #9a9a9a;
+  --qm-win-active: #bcbcbc;
+  --qm-dot-ring: #ffffff;
+  --qm-scrollbar: #c2c2c2;
+  --qm-scrollbar-hi: #a8a8a8;
+
+  --qm-cursor: #a8761a;
+  --qm-cursor-b: #6b5b8f;
+  --qm-agg-border: #dcc48f;
+  --qm-agg-bg: rgba(168, 118, 26, 0.09);
+
+  --qm-folder: #b8860b;
+  --qm-folder-virtual: #8b3fd6;
+
+  /* darker, saturated traces — the dark set is unreadable on white */
+  --qm-sig-1: #0f7b6c;
+  --qm-sig-2: #8a6d00;
+  --qm-sig-3: #8b3f86;
+  --qm-sig-4: #a8541f;
+  --qm-sig-5: #1a6fa8;
+  --qm-sig-6: #4a7a2b;
+  --qm-sig-7: #b02d2d;
+  --qm-sig-8: #4a4a4a;
+}
+
+.qm, .qm * { box-sizing: border-box; }
+.qm :focus-visible { outline: 2px solid var(--qm-accent); outline-offset: 1px; }
+
+/* ── shell ────────────────────────────────────────────────────────── */
+.qm {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
+  min-height: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.qm-topbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 44px;
+  padding: 0 14px;
+  background: var(--qm-surface);
+  border-bottom: 1px solid var(--qm-border);
+  flex: none;
+}
+
+.qm-id { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.qm-id b { font-weight: 600; }
+.qm-tag {
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--qm-accent);
+  background: var(--qm-accent-soft);
+  border-radius: 3px;
+  padding: 2px 6px;
+}
+
+.qm-modes { display: flex; gap: 2px; margin-left: 6px; }
+.qm-modes button {
+  font: inherit;
+  font-size: 12px;
+  color: var(--qm-text-dim);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 4px 11px;
+  cursor: pointer;
+}
+.qm-modes button:hover { color: var(--qm-text); background: var(--qm-surface-hi); }
+.qm-modes button[aria-pressed="true"] {
+  color: #fff;
+  background: var(--qm-accent);
+  border-color: var(--qm-accent);
+}
+
+.qm-spacer { flex: 1; }
+
+.qm-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--qm-mono);
+  font-size: 11px;
+  color: var(--qm-text-dim);
+}
+.qm-field {
+  background: var(--qm-bg);
+  border: 1px solid var(--qm-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  color: var(--qm-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.qm-ibtn {
+  font: inherit;
+  font-size: 12px;
+  color: var(--qm-text-dim);
+  background: var(--qm-bg);
+  border: 1px solid var(--qm-border);
+  border-radius: 4px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex: none;
+}
+.qm-ibtn:hover { color: var(--qm-text); border-color: var(--qm-accent); }
+
+/* ── modes ────────────────────────────────────────────────────────
+   Three panes over one state. Only the active one is in the layout, so the
+   hidden panes never get a measurable width (a zero-width canvas would cache
+   a nonsense bucket count). */
+.qm-pane { display: none; min-height: 0; }
+
+/* Controls help. Centred over the surface, because it is a reference you open,
+   read and close — not furniture that lives on the page taking plot height. */
+.qm-helpbox {
+  position: absolute;
+  z-index: 20;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(520px, calc(100% - 40px));
+  max-height: calc(100% - 60px);
+  overflow: auto;
+  background: var(--qm-surface);
+  border: 1px solid var(--qm-win-active);
+  border-radius: 6px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
+  padding: 10px 12px 12px;
+}
+.qm-helphead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--qm-text-dim);
+}
+.qm-helpclose {
+  border: 1px solid var(--qm-border);
+  border-radius: 3px;
+  background: var(--qm-surface-hi);
+  color: var(--qm-text-dim);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 7px;
+  cursor: pointer;
+}
+.qm-helpclose:hover { color: var(--qm-text); border-color: var(--qm-win-active); }
+.qm-helplist { margin: 0; display: grid; gap: 3px; }
+.qm-helprow {
+  display: grid;
+  grid-template-columns: 132px 1fr;
+  gap: 10px;
+  align-items: baseline;
+  padding: 2px 0;
+  border-bottom: 1px solid var(--qm-border-soft);
+}
+.qm-helprow dt {
+  font-family: var(--qm-mono);
+  font-size: 11px;
+  color: var(--qm-accent);
+  white-space: nowrap;
+}
+.qm-helprow dd { margin: 0; font-size: 11.5px; color: var(--qm-text); }
+.qm[data-mode="explore"]  .qm-body     { display: grid; }
+.qm[data-mode="standard"] .qm-standard { display: block; overflow: auto; }
+.qm[data-mode="ai"]       .qm-ai       { display: block; overflow: auto; }
+
+/* In-flight query: dim the resolution badge rather than covering the plot, so
+   the old data stays readable while the new range loads. */
+.qm-busy .qm-badge.qm-agg { opacity: 0.5; }
+
+/* ── body: tree | windows / readout ─────────────────────────────────
+   NO `display` here on purpose. `.qm-pane { display: none }` above and
+   `.qm-body` have equal specificity, so a `display: grid` in this block would
+   win on source order alone and leave Explore visible in every mode. The
+   mode-scoped rule above (specificity 0,2,0) is the only place display is set. */
+.qm-body {
+  /* Sidebar width is user-draggable; --qm-sb-w is set on .qm by the resizer. */
+  grid-template-columns: var(--qm-sb-w, 268px) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  position: relative;          /* anchors the panes' overlays */
+  min-height: 0;
+}
+
+.qm-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--qm-surface);
+  border-right: 1px solid var(--qm-border);
+  /* anchors .qm-sb-resizer */
+  position: relative;
+}
+
+/* Sidebar resize handle. Sits ON the border so the border itself reads as the
+   grab target, and overhangs a little either side because a 1px hit area is
+   not usable with a mouse. */
+.qm-sb-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -3px;
+  width: 7px;
+  cursor: col-resize;
+  z-index: 5;
+  touch-action: none;
+}
+.qm-sb-resizer:hover,
+.qm-sb-resizer.qm-dragging {
+  background: var(--qm-accent);
+  opacity: 0.55;
+}
+
+.qm-sb-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--qm-text-dim);
+  padding: 10px 12px 6px;
+}
+
+.qm-search {
+  margin: 0 10px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--qm-bg);
+  border: 1px solid var(--qm-border);
+  border-radius: 4px;
+  padding: 5px 8px;
+  color: var(--qm-text-dim);
+}
+.qm-search input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: 0;
+  outline: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--qm-text);
+}
+.qm-search input::placeholder { color: var(--qm-text-faint); }
+
+.qm-tree { flex: 1; overflow-y: auto; padding: 0 6px 12px; }
+
+.qm-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.qm-row:hover { background: var(--qm-surface-hi); }
+.qm-chev { width: 10px; font-size: 9px; color: var(--qm-text-dim); flex: none; }
+.qm-pkey { color: var(--qm-text-dim); }
+.qm-pval { color: var(--qm-text); }
+/* Folder/file icon per partition kind: amber physical, purple virtual (with a
+   star), dim file for a leaf — mirrors the Lakehouse UI tree. */
+.qm-fico {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--qm-folder);
+}
+.qm-fico svg { width: 14px; height: 14px; }
+.qm-fico-virtual { color: var(--qm-folder-virtual); }
+.qm-fico-file { color: var(--qm-text-dim); }
+/* Partition KEY badge, shown to the right of the value (Lake House style). */
+.qm-pkey-badge {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 16px;
+  color: var(--qm-text-dim);
+  background: var(--qm-surface-hi);
+  border: 1px solid var(--qm-border-soft);
+}
+/* Virtual partitions echo the purple folder-star. */
+.qm-pkey-badge.qm-virtual {
+  color: var(--qm-folder-virtual);
+  border-color: var(--qm-folder-virtual);
+  background: transparent;
+}
+.qm-count {
+  margin-left: auto;
+  font-family: var(--qm-mono);
+  font-size: 10px;
+  color: var(--qm-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.qm-kids { padding-left: 14px; }
+.qm-kids[hidden] { display: none; }
+.qm-tree-msg { padding: 6px 10px; font-size: 11px; color: var(--qm-text-dim); }
+
+/* tri-state checkbox: off | some | on */
+.qm-cb {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--qm-cb-border);
+  border-radius: 3px;
+  background: var(--qm-bg);
+  font-size: 9px;
+  line-height: 1;
+  color: #fff;
+}
+.qm-cb[data-state="on"] { background: var(--qm-accent); border-color: var(--qm-accent); }
+.qm-cb[data-state="some"] {
+  border-color: var(--qm-accent);
+  background: var(--qm-accent-soft);
+  color: var(--qm-accent);
+}
+/* A branch holding exactly what its siblings picked beneath themselves: the copy a first tick makes. */
+.qm-cb[data-state="mirror"] { border-color: var(--purple, #b083f0); color: var(--purple, #b083f0); background: transparent; font-size: 11px; }
+.qm-cb[data-state="off"] { color: transparent; }
+/* What every root folder shares, said once above a tree rooted on a dataset's folders. */
+.qm-roots { font-size: 11px; color: var(--text-dim); padding: 4px 10px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.qm-swatch { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+
+/* Tail of a paged partition level. Reads as a control, not as a signal — it must
+   never be mistaken for a row you can select. */
+.qm-more {
+  margin: 2px 0 2px 18px;
+  padding: 4px 8px;
+  border: 1px dashed var(--qm-border);
+  border-radius: 4px;
+  font-size: 10px;
+  color: var(--qm-text-dim);
+  cursor: pointer;
+  user-select: none;
+}
+.qm-more:hover, .qm-more:focus-visible {
+  color: var(--qm-text);
+  border-color: var(--qm-win-active);
+  border-style: solid;
+  outline: none;
+}
+
+.qm-more {
+  font: inherit;
+  font-size: 11px;
+  color: var(--qm-accent);
+  background: none;
+  border: 0;
+  padding: 4px 6px 4px 27px;
+  cursor: pointer;
+  text-align: left;
+}
+.qm-more:hover { text-decoration: underline; }
+
+.qm-sb-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  justify-content: space-between;
+}
+.qm-sb-foot {
+  display: block;
+  padding: 8px 12px;
+  border-top: 1px solid var(--qm-border-soft);
+  font-size: 11px;
+  color: var(--qm-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── sidebar panes and folding ────────────────────────────────────
+   The values table can live here instead of in the bottom bar. It is the same
+   table either way; only its home changes, and it is never in both at once. */
+.qm-sbmodes { display: flex; gap: 2px; }
+.qm-sbmode {
+  padding: 2px 8px;
+  border: 1px solid var(--qm-border);
+  background: transparent;
+  color: var(--qm-text-dim);
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.qm-sbmode:first-child { border-radius: 4px 0 0 4px; }
+.qm-sbmode:last-child { border-radius: 0 4px 4px 0; border-left: 0; }
+.qm-sbmode[aria-selected="true"] {
+  background: var(--qm-surface-hi);
+  color: var(--qm-text);
+  border-color: var(--qm-win-active);
+}
+
+.qm-sb-values { flex: 1; overflow: auto; min-height: 0; }
+
+/* Sampling switch, at the top of the values pane. Which of the two is honest
+   depends on the signal — discrete readings versus a sampled curve — so it is a
+   choice, not a constant. */
+.qm-valbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--qm-border-soft);
+}
+.qm-valbar-lbl {
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--qm-text-faint);
+  margin-right: auto;
+}
+.qm-fill {
+  padding: 1px 6px;
+  border: 1px solid var(--qm-border);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--qm-text-dim);
+  font: inherit;
+  font-size: 9px;
+  cursor: pointer;
+}
+.qm-fill[aria-checked="true"] {
+  background: var(--qm-surface-hi);
+  color: var(--qm-text);
+  border-color: var(--qm-win-active);
+}
+/* An inferred number stays legible but must never pass for a measured one. */
+.qm-approxmark { color: var(--qm-text-faint); margin-right: 1px; }
+.qm-sb-values td.qm-approx { color: var(--qm-text-dim); }
+
+/* COMPACT, because this is the same table in a fifth of the width. The bottom bar
+   can afford air; here every row of padding is a signal you cannot see. Tight
+   leading, no cell borders doing decoration work the zebra already does, and the
+   name column gives way first — it is the only one that can be truncated without
+   losing a number. */
+.qm-sb-values table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 10px;
+  table-layout: fixed;
+}
+.qm-sb-values th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--qm-surface);
+  text-align: right;
+  font-weight: 500;
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--qm-text-dim);
+  padding: 3px 4px 2px;
+  border-bottom: 1px solid var(--qm-border);
+  white-space: nowrap;
+}
+.qm-sb-values td {
+  padding: 1px 4px;
+  border-bottom: 0;
+  text-align: right;
+  font-family: var(--qm-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--qm-text);
+  white-space: nowrap;
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Zebra instead of a rule per row: same separation, none of the height. */
+.qm-sb-values tbody tr:nth-child(even) { background: var(--qm-surface-hi); }
+.qm-sb-values tbody tr:hover { background: var(--qm-border-soft); }
+.qm-sb-values th:first-child, .qm-sb-values td:first-child { text-align: left; }
+/* The name takes what is left and truncates; the full one is in the title. */
+.qm-sb-values th:first-child, .qm-sb-values td:first-child { width: auto; }
+.qm-sb-values td.qm-name {
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.qm-sb-values td.qm-name > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qm-sb-values td.qm-val { color: var(--qm-val-strong); }
+.qm-sb-values td .qm-u { color: var(--qm-text-dim); font-size: 9px; margin-left: 2px; }
+/* The "(range)" / "(A–B)" scope hints cost a whole column's width here. The
+   bottom bar still shows them, and the header still says Min/Max/Mean. */
+.qm-sb-values .qm-sc { display: none; }
+/* With one window open, the Window column says "1" on every row — noise that is
+   paying for itself in width. Hidden in this pane only, and only while there is
+   nothing to disambiguate. */
+.qm[data-one-window="1"] .qm-sb-values th:nth-child(2),
+.qm[data-one-window="1"] .qm-sb-values td:nth-child(2) { display: none; }
+
+/* Fold / unfold. The sidebar collapses to nothing and the plots take the width;
+   the control that brings it back is a labelled button at the head of the
+   toolbar (.qm-sbunfold, styled as a .qm-tbtn), so it can never be hidden by the
+   thing it un-hides and never floats over the data. */
+.qm-sbfold {
+  border: 1px solid var(--qm-border);
+  border-radius: 4px;
+  background: var(--qm-surface-hi);
+  color: var(--qm-text-dim);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  padding: 1px 5px;
+  cursor: pointer;
+}
+.qm-sbfold:hover { color: var(--qm-text); border-color: var(--qm-win-active); }
+/* Folded: ONE column, and the sidebar leaves the flow.
+   It used to keep a two-track template with a 0 first track, and since
+   display:none takes the sidebar out of grid placement entirely, .qm-work
+   auto-placed into that zero-width track — the plots vanished along with the
+   sidebar. A single track has nothing to auto-place wrongly into. */
+.qm[data-sb-folded="1"] .qm-body { grid-template-columns: minmax(0, 1fr); }
+.qm[data-sb-folded="1"] .qm-sidebar { display: none; }
+/* Belt and braces: name the track the plots live in, so a future third child of
+   .qm-body cannot push them out of it again. */
+.qm[data-sb-folded="1"] .qm-work { grid-column: 1; }
+
+/* Unselect-all. Sits between the two counts because it acts on what they count,
+   and stays disabled rather than hidden so its place in the row never shifts. */
+.qm-clearsig {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border: 1px solid var(--qm-border);
+  border-radius: 4px;
+  background: var(--qm-surface-hi);
+  color: var(--qm-text-dim);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+.qm-clearsig:hover:not(:disabled) {
+  color: var(--qm-text);
+  border-color: var(--qm-win-active);
+}
+.qm-clearsig:disabled { opacity: 0.4; cursor: default; }
+
+/* "keys" toggle — same chip as clear-all, lit when partition keys show on every folder. */
+.qm-keytog {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border: 1px solid var(--qm-border);
+  border-radius: 4px;
+  background: var(--qm-surface-hi);
+  color: var(--qm-text-dim);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+.qm-keytog:hover { color: var(--qm-text); border-color: var(--qm-win-active); }
+.qm-keytog[aria-pressed="true"] {
+  color: var(--qm-accent);
+  border-color: var(--qm-accent);
+  background: var(--qm-accent-soft);
+}
+
+/* Compact chrome (inline in a canvas node): just the waveforms and their own
+   headers. Maximizing restores everything, the controls "?" included. */
+.qm[data-compact="1"] .qm-topbar,
+.qm[data-compact="1"] .qm-sidebar,
+.qm[data-compact="1"] .qm-toolbar,
+.qm[data-compact="1"] .qm-rangestrip { display: none; }
+/* Sidebar is hidden, so drop its grid column — the workspace takes the full
+   width (otherwise the plots sit in the reserved 268px sidebar track). Same
+   three-part shape as the folded sidebar: one column, sidebar out of flow, and
+   the plots pinned to the surviving track (else .qm-work auto-places wrong and
+   the windows neither fill the width nor stretch to the node's height). */
+.qm[data-compact="1"] .qm-body { padding: 0; grid-template-columns: minmax(0, 1fr); }
+.qm[data-compact="1"] .qm-work { grid-column: 1; }
+/* Embedded/compact hosts (the Lens dashboard panel) don't always impose a
+   definite height on the mounted root, so `.qm { height: 100% }` resolves
+   against an auto-height parent and collapses — the window strips then fall to
+   their min-height and everything below goes dead (the whole point of the
+   `flex: <ratio> 1 0` layout is defeated). Floor the compact root so the strips
+   always have real height to fill; when the host DOES give a taller definite
+   height, `height: 100%` above still fills it. Belt-and-braces default height. */
+.qm[data-compact="1"] { min-height: 680px; }
+/* THE fix for "windows don't stretch vertically": `.qm` is a 2-row grid
+   (topbar `auto`, body `1fr`). Compact hides the topbar with display:none, which
+   REMOVES it from grid flow — so the body pane shifts up into the `auto` row and
+   sizes to its content, leaving dead space below. Collapse to a single stretch
+   row so the body (the only in-flow child) always fills the height. */
+.qm[data-compact="1"] { grid-template-rows: minmax(0, 1fr); }
+
+/* ── control palette + windows ────────────────────────────────────
+   One concentrated strip for the measurement controls, above the strips it
+   governs. Per-window overrides stay on each window header — the toolbar is a
+   bulk action, not a lock. */
+.qm-work {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  position: relative;          /* anchors .qm-ypanel */
+}
+
+.qm-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 7px 10px;
+  background: var(--qm-surface);
+  border-bottom: 1px solid var(--qm-border);
+}
+
+.qm-tbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: var(--qm-text-dim);
+  background: var(--qm-bg);
+  border: 1px solid var(--qm-border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.qm-tbtn:hover { color: var(--qm-text); border-color: var(--qm-accent); }
+.qm-tico { font-size: 12px; line-height: 1; }
+
+/* Diff cursor active: amber, matching cursor B and the Δ columns. */
+.qm-tbtn.qm-difftog[aria-pressed="true"] {
+  color: var(--qm-cursor);
+  border-color: var(--qm-agg-border);
+  background: var(--qm-agg-bg);
+}
+
+/* Cursor link: accent when every window shares one time base, neutral when
+   none do, and visibly PARTIAL when some window has been unlinked — the
+   mixed state is the whole point of keeping per-window overrides. */
+.qm-linktog[data-state="all"] {
+  color: var(--qm-accent);
+  border-color: var(--qm-accent-border);
+  background: var(--qm-accent-soft);
+}
+.qm-linktog[data-state="mixed"] {
+  color: var(--qm-cursor);
+  border-color: var(--qm-agg-border);
+  background: var(--qm-agg-bg);
+}
+
+.qm-tsep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--qm-border);
+  margin: 0 2px;
+}
+
+.qm-workspace {
+  /* Fills what the toolbar leaves. Without an explicit flex-grow the strips
+     collapse to their min-height and the space below goes dead — this used to
+     be a grid cell that stretched for free, before .qm-work wrapped it. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.qm-win {
+  position: relative;          /* anchors .qm-chippanel */
+  /* Strips share the workspace like a real scope page: flex-grow proportional
+     to the configured height, so `height` acts as a RATIO and leftover space is
+     never left dead at the bottom. min-height keeps them legible once enough
+     windows are open that the workspace has to scroll. */
+  display: flex;
+  flex-direction: column;
+  /* Per-window floor. Doubles as the fallback height: if the flex chain ever
+     fails to hand the workspace a real height (embedded host with no definite
+     height), each strip is still this tall instead of a squished ~132px. Keep
+     in sync with WIN_MIN_PX in measure-view.js. */
+  min-height: 240px;
+  background: var(--qm-surface);
+  border: 1px solid var(--qm-border);
+  border-radius: 5px;
+  overflow: hidden;
+}
+/* Per-subwindow scroll strip. Thin on purpose: it is a position indicator you
+   can grab, not a control that deserves plot height. The lit block is the visible
+   range inside the whole measurement. */
+.qm-winstrip {
+  flex: none;
+  height: 9px;
+  margin: 0 1px 1px;
+  position: relative;
+  background: var(--qm-surface-hi);
+  border-radius: 3px;
+  cursor: grab;
+  touch-action: none;
+  overflow: hidden;
+}
+.qm-winstrip:active { cursor: grabbing; }
+.qm-winwin {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  background: var(--qm-accent);
+  opacity: 0.42;
+  border-radius: 2px;
+  min-width: 3px;
+}
+.qm-winstrip:hover .qm-winwin { opacity: 0.62; }
+
+.qm-win.qm-active {
+  border-color: var(--qm-win-active);
+  box-shadow: inset 2px 0 0 var(--qm-accent);
+}
+
+/* The boundary between two stacked windows. It replaces the flex gap rather than
+   adding height, so adding the grips did not shrink the plots. */
+.qm-win-grip {
+  flex: none;
+  height: 10px;
+  margin: -10px 0;              /* absorb the workspace gap either side */
+  position: relative;
+  z-index: 4;
+  cursor: row-resize;
+  touch-action: none;
+}
+.qm-win-grip::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 34px;
+  height: 3px;
+  border-radius: 2px;
+  transform: translate(-50%, -50%);
+  background: var(--qm-border);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.qm-win-grip:hover::after,
+.qm-win-grip.qm-dragging::after { opacity: 1; background: var(--qm-accent); }
+
+.qm-win-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 9px;
+  border-bottom: 1px solid var(--qm-border-soft);
+  background: linear-gradient(var(--qm-surface-hi), var(--qm-surface));
+  /* The plot is what the window is for: the header may never take more than a
+     third of it. With the one-row legend below this is already ~30px and the cap
+     never binds — it is here so no future header content can repeat the five-row
+     legend that took more height than the plot. */
+  flex: none;
+  max-height: 30%;
+  min-height: 0;
+}
+.qm-win-title {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--qm-text-dim);
+}
+/* ONE row. Chips past the edge are hidden by _layoutChips and reachable through
+   the "+N" button, so the strip's height is fixed whatever the signal count. */
+.qm-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.qm-chipmore {
+  flex: none;
+  font: inherit;
+  font-size: 10px;
+  padding: 2px 7px;
+  border: 1px dashed var(--qm-border);
+  border-radius: 10px;
+  background: var(--qm-surface-hi);
+  color: var(--qm-text-dim);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.qm-chipmore:hover { color: var(--qm-text); border-color: var(--qm-win-active); border-style: solid; }
+
+/* The overflow list. Opens over the plot rather than pushing it down — the whole
+   point is that the header stops stealing height. */
+.qm-chippanel {
+  position: absolute;
+  z-index: 7;
+  left: 9px;
+  right: 9px;
+  max-height: calc(100% - 46px);
+  overflow: auto;
+  padding: 4px;
+  background: var(--qm-surface);
+  border: 1px solid var(--qm-win-active);
+  border-radius: 5px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 2px 6px;
+}
+.qm-cphead {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 1px 4px 4px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--qm-border-soft);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--qm-text-dim);
+}
+.qm-cpclose {
+  border: 1px solid var(--qm-border);
+  border-radius: 3px;
+  background: var(--qm-surface-hi);
+  color: var(--qm-text-dim);
+  font: inherit;
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+.qm-cpclose:hover { color: var(--qm-text); border-color: var(--qm-win-active); }
+
+.qm-cprow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.qm-cprow:hover { background: var(--qm-surface-hi); }
+.qm-cpname {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  font-size: 11px;
+  color: var(--qm-text);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.qm-cpname:hover { color: var(--qm-accent); }
+.qm-cprow.qm-off { opacity: 0.55; }
+.qm-cprow.qm-off .qm-cpname { text-decoration: line-through; }
+.qm-cprow.qm-off .qm-swatch { background: var(--qm-text-faint) !important; }
+.qm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--qm-text);
+  background: var(--qm-bg);
+  border: 1px solid var(--qm-border);
+  border-radius: 10px;
+  padding: 1px 8px 1px 6px;
+}
+.qm-chip .qm-unit {
+  color: var(--qm-text-dim);
+  font-family: var(--qm-mono);
+  font-size: 10px;
+}
+
+.qm-win-tools { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+
+.qm-badge {
+  font-family: var(--qm-mono);
+  font-size: 10px;
+  color: var(--qm-text-dim);
+  border: 1px solid var(--qm-border);
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* Resolution badge. Amber, matching the cursor, because it is a measurement
+   caveat and not decoration: it says "these are aggregates, not samples". */
+.qm-badge.qm-agg {
+  color: var(--qm-cursor);
+  border-color: var(--qm-agg-border);
+  background: var(--qm-agg-bg);
+}
+
+.qm-scope {
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--qm-text-dim);
+  background: var(--qm-bg);
+  border: 1px solid var(--qm-border);
+  border-radius: 3px;
+  padding: 2px 7px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.qm-scope[data-scope="shared"] {
+  color: var(--qm-accent);
+  border-color: var(--qm-accent-border);
+  background: var(--qm-accent-soft);
+}
+
+/* The canvas is absolutely positioned so it cannot feed its own height back
+   into the flex box; the renderer measures .qm-plot and sizes the backing
+   store to match. */
+.qm-plot {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 80px;
+  background: var(--qm-plot);
+}
+.qm-plot canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.qm-add-win {
+  font: inherit;
+  font-size: 12px;
+  color: var(--qm-text-dim);
+  background: transparent;
+  border: 1px dashed var(--qm-border);
+  border-radius: 5px;
+  padding: 9px;
+  cursor: pointer;
+  flex: none;
+}
+.qm-add-win:hover {
+  color: var(--qm-text);
+  border-color: var(--qm-accent);
+  background: var(--qm-surface);
+}
+
+.qm-empty {
+  margin: auto;
+  text-align: center;
+  color: var(--qm-text-dim);
+  font-size: 12px;
+  padding: 30px 20px;
+}
+
+/* Pointer time in the readout foot. Dimmer than the cursor times: it is where you
+   are about to measure, not what you have measured. */
+.qm-thover { color: var(--qm-text-dim); }
+.qm-tgap { color: var(--qm-text-faint); font-size: 10px; }
+
+/* Diff-cursor toggle: styled like the cursor-scope button so the two
+   cursor-related controls read as a family. */
+.qm-difftog {
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--qm-text-dim);
+  background: var(--qm-bg);
+  border: 1px solid var(--qm-border);
+  border-radius: 3px;
+  padding: 3px 9px;
+  cursor: pointer;
+  flex: none;
+}
+.qm-difftog:hover { color: var(--qm-text); border-color: var(--qm-accent); }
+.qm-difftog[aria-pressed="true"] {
+  color: var(--qm-cursor);
+  border-color: var(--qm-agg-border);
+  background: var(--qm-agg-bg);
+}
+
+/* Cursor timestamps, in the sidebar foot. Time 2 takes cursor B's colour so the
+   number is tied to the dotted line it came from. They used to live in the bottom
+   bar; the plot ruler now carries the same instants, so folding the sidebar away
+   costs no time information. */
+.qm-times {
+  display: flex;
+  align-items: baseline;
+  gap: 2px 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+  color: var(--qm-text-dim);
+}
+.qm-tlabel {
+  font-size: 9.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--qm-text-faint);
+}
+.qm-times .qm-num.qm-t2 { color: var(--qm-cursor-b); }
+
+/* ── standard mode ────────────────────────────────────────────────
+   Standard mode is the EXISTING dataset node (SQL editor + table/chart),
+   untouched by measurement mode — so this module renders nothing here beyond a
+   marker. Visualisation belongs to Explore only. */
+.qm-standard-msg {
+  max-width: 560px;
+  margin: 60px auto;
+  padding: 16px 18px;
+  background: var(--qm-surface);
+  border: 1px solid var(--qm-border);
+  border-radius: 6px;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--qm-text-dim);
+}
+.qm-standard-msg b { color: var(--qm-text); font-weight: 600; }
+
+/* ── ai mode ──────────────────────────────────────────────────────── */
+.qm-ai-wrap {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.qm-box {
+  background: var(--qm-surface);
+  border: 1px solid var(--qm-border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.qm-who {
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--qm-text-dim);
+}
+
+.qm-box textarea {
+  width: 100%;
+  resize: vertical;
+  background: var(--qm-plot);
+  border: 1px solid var(--qm-border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  color: var(--qm-text);
+  font-family: var(--qm-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  outline: none;
+}
+.qm-box textarea:focus { border-color: var(--qm-accent); }
+.qm-box textarea::placeholder { color: var(--qm-text-faint); }
+
+.qm-ai-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.qm-ai-status { font-size: 11px; color: var(--qm-text-dim); }
+
+.qm-go {
+  font: inherit;
+  font-size: 12px;
+  margin-left: auto;
+  background: var(--qm-accent);
+  color: #fff;
+  border: 0;
+  border-radius: 4px;
+  padding: 5px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex: none;
+}
+.qm-go:hover:not(:disabled) { filter: brightness(1.14); }
+.qm-go:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* AI-mode preview: deliberately the simplest possible read of the data — a
+   few numbers, no chart. Plots live in Explore. */
+.qm-mini { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.qm-mini th {
+  text-align: right;
+  font-weight: 500;
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--qm-text-faint);
+  padding: 0 8px 5px;
+  border-bottom: 1px solid var(--qm-border-soft);
+}
+.qm-mini th:first-child, .qm-mini td:first-child { text-align: left; }
+.qm-mini td {
+  padding: 4px 8px;
+  text-align: right;
+  font-family: var(--qm-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--qm-text);
+  border-bottom: 1px solid var(--qm-border-soft);
+}
+.qm-mini td.qm-name { font-family: inherit; display: flex; align-items: center; gap: 7px; }
+.qm-mini-empty { font-size: 11.5px; color: var(--qm-text-dim); }
+
+.qm-patch {
+  margin: 0;
+  background: var(--qm-plot);
+  border: 1px solid var(--qm-border);
+  border-radius: 5px;
+  padding: 11px 13px;
+  overflow-x: auto;
+  font-family: var(--qm-mono);
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: var(--qm-text-dim);
+  max-height: 40vh;
+}
+
+/* ── table picker ─────────────────────────────────────────────────── */
+.qm-tablebtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: inherit;
+  color: var(--qm-text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+.qm-tablebtn:hover { background: var(--qm-surface-hi); border-color: var(--qm-border); }
+.qm-caret { color: var(--qm-text-dim); font-size: 9px; }
+
+.qm-tables { flex: 1; overflow-y: auto; padding: 0 6px 12px; }
+.qm-tablerow.qm-cur { background: var(--qm-accent-soft); }
+.qm-tablerow.qm-cur .qm-pval { color: var(--qm-accent); }
+
+/* ── mode legibility ──────────────────────────────────────────────
+   With SQL and the descriptor both live on one node, the switcher alone is a
+   silent clue. Say outright which path is producing what you see. */
+.qm-modewrap { display: flex; flex-direction: column; gap: 1px; margin-left: 6px; }
+.qm-modenote {
+  font-size: 9.5px;
+  letter-spacing: 0.03em;
+  color: var(--qm-text-faint);
+  padding-left: 2px;
+  white-space: nowrap;
+}
+
+/* ── range strip: where you are in the whole measurement ─────────── */
+.qm-rangestrip {
+  position: relative;
+  flex: none;
+  height: 16px;
+  margin: 0 10px 8px;
+  background: var(--qm-plot);
+  border: 1px solid var(--qm-border);
+  border-radius: 3px;
+  cursor: grab;
+  touch-action: none;
+}
+.qm-rangewin {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  background: var(--qm-accent-soft);
+  border: 1px solid var(--qm-accent-border);
+  border-radius: 2px;
+  min-width: 6px;
+  pointer-events: none;
+}
+
+/* ── per-window Y mode + auto-fit ─────────────────────────────────── */
+.qm-ymode {
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--qm-text-dim);
+  background: var(--qm-bg);
+  border: 1px solid var(--qm-border);
+  border-radius: 3px;
+  padding: 2px 7px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+/* X-range link. Same shape as the Y-mode and cursor-scope buttons beside it —
+   it was missing a rule entirely, so it rendered as a raw browser button in the
+   default font and colours. */
+.qm-xlink {
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--qm-text-dim);
+  background: var(--qm-bg);
+  border: 1px solid var(--qm-border);
+  border-radius: 3px;
+  padding: 2px 7px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.qm-xlink:hover { color: var(--qm-text); border-color: var(--qm-accent); }
+/* "own" is the exceptional state — this window has left the shared time base,
+   so it gets the same amber the other "you have diverged" markers use. */
+.qm-xlink[data-x="own"] {
+  color: var(--qm-cursor);
+  border-color: var(--qm-agg-border);
+  background: var(--qm-agg-bg);
+}
+
+.qm-ymode[data-y="shared"] {
+  color: var(--qm-accent);
+  border-color: var(--qm-accent-border);
+  background: var(--qm-accent-soft);
+}
+
+/* Drop target while dragging a signal from the tree. */
+.qm-win.qm-dropok {
+  border-color: var(--qm-accent);
+  box-shadow: inset 0 0 0 1px var(--qm-accent);
+}
+.qm-row[draggable="true"] { cursor: grab; }
+
+/* ── X / Y column panel ───────────────────────────────────────────── */
+.qm-colspanel {
+  flex: none;
+  padding: 8px 10px;
+  background: var(--qm-surface);
+  border-bottom: 1px solid var(--qm-border);
+  max-height: 34vh;
+  overflow-y: auto;
+}
+.qm-colrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 11.5px;
+  flex-wrap: wrap;
+}
+.qm-collbl {
+  color: var(--qm-text-dim);
+  text-transform: uppercase;
+  font-size: 9.5px;
+  letter-spacing: 0.07em;
+}
+.qm-signame {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11.5px;
+  color: var(--qm-text);
+  min-width: 108px;
+}
+/* Editable in place, so it must read as the plain label it replaced until focused. */
+.qm-sname {
+  font: inherit;
+  font-size: 11.5px;
+  width: 108px;
+  padding: 2px 4px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+}
+.qm-sname:hover { border-color: var(--qm-border-soft); }
+.qm-sname:focus {
+  background: var(--qm-bg);
+  border-color: var(--qm-accent);
+  outline: none;
+}
+.qm-colspanel select {
+  font: inherit;
+  font-size: 11px;
+  color: var(--qm-text);
+  background: var(--qm-bg);
+  border: 1px solid var(--qm-border);
+  border-radius: 3px;
+  padding: 2px 5px;
+}
+.qm-colnote { color: var(--qm-text-faint); font-size: 10.5px; }
+.qm-sunit {
+  font: inherit;
+  font-size: 11px;
+  width: 5.5em;
+  color: var(--qm-text);
+  background: var(--qm-bg);
+  border: 1px solid var(--qm-border);
+  border-radius: 3px;
+  padding: 2px 5px;
+}
+/* Settings for ONE value column of the channel above: indented past its swatch. */
+.qm-colsub {
+  padding: 1px 0 1px 17px;
+}
+.qm-colname {
+  font-family: var(--qm-mono);
+  font-size: 11px;
+  color: var(--qm-text-dim);
+  min-width: 91px;
+}
+
+/* Value columns: a checkbox list, not a select. A native multi-select has no
+   search and no count, and past a dozen columns it is unusable. Weighted to
+   match .qm-chippanel / .qm-cprow so the view gains no new visual language. */
+.qm-ycols {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--qm-text);
+  background: var(--qm-bg);
+  border: 1px solid var(--qm-border);
+  border-radius: 3px;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+.qm-ycols:hover { border-color: var(--qm-accent); }
+.qm-ycols[aria-expanded="true"] { border-color: var(--qm-win-active); }
+.qm-ycount { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Anchored to .qm-work, NOT to the trigger's own box: .qm-colspanel scrolls at
+   34vh and clipped every row of this list away. `top`/`left` are written by
+   _placeYPanel from the trigger's rect; only THIS box scrolls. */
+.qm-ypanel {
+  position: absolute;
+  z-index: 8;
+  min-width: 210px;
+  max-height: 40vh;
+  overflow: auto;
+  font-size: 11.5px;
+  padding: 4px;
+  background: var(--qm-surface);
+  border: 1px solid var(--qm-win-active);
+  border-radius: 5px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+.qm-ypanel .qm-search { margin: 2px 0 4px; padding: 3px 6px; }
+.qm-ypanel .qm-search input { font-size: 11px; }
+.qm-ypanel .qm-cprow { cursor: pointer; }
+.qm-ypanel .qm-cpname { cursor: pointer; }
+/* Still offered, ranked last: the ORDER decides the default, the list decides
+   what is possible — so a clock or a bookkeeping column is dimmed, not hidden. */
+.qm-ypanel .qm-dim .qm-cpname { color: var(--qm-text-faint); }
+.qm-ypanel .qm-cprow[aria-disabled="true"] .qm-axbox { cursor: not-allowed; opacity: 0.7; }
+.qm-ovr {
+  font-family: var(--qm-mono);
+  font-size: 9.5px;
+  padding: 1px 5px;
+  border-radius: 2px;
+  color: var(--qm-text-faint);
+  border: 1px solid var(--qm-border);
+}
+.qm-ovr[data-ovr="yes"] {
+  color: var(--qm-cursor);
+  border-color: var(--qm-agg-border);
+  background: var(--qm-agg-bg);
+}
+.qm-reset {
+  font: inherit;
+  font-size: 10px;
+  color: var(--qm-text-dim);
+  background: transparent;
+  border: 1px solid var(--qm-border);
+  border-radius: 3px;
+  padding: 1px 6px;
+  cursor: pointer;
+}
+.qm-reset:hover { color: var(--qm-text); border-color: var(--qm-accent); }
+.qm-perlist { border-top: 1px solid var(--qm-border-soft); margin-top: 4px; }
+
+/* ── fullscreen host (explore) ────────────────────────────────────── */
+.qm-overlay {
+  position: fixed;
+  inset: 0;
+  /* Above the app's own fixed chrome. #ql-footer-left sits at 9100 and was
+     painting over the readout's bottom bar; a fullscreen measuring surface
+     has to cover the canvas furniture, not compete with it. */
+  z-index: 9200;
+  display: flex;
+  background: var(--qm-bg, #1e1e1e);
+}
+.qm-overlay > .qm { flex: 1; min-width: 0; }
+
+/* ── cell host (standard / ai) ─────────────────────────────────────── */
+/* The node's output area is a scrolling box sized by the node. The view is a
+   grid that needs a definite height to lay its rows out, so the host stops
+   scrolling and hands its full height over — the workspace inside the view
+   does the scrolling instead. */
+.node-output.qm-cell-host {
+  overflow: auto;
+  padding: 0;
+  display: flex;
+  min-height: 0;
+}
+/* A node is often shorter than a usable instrument panel. Rather than squeeze
+   the toolbar, sidebar and plots into ~80px, claim a workable height and let
+   the host scroll — the user can resize the node, or go fullscreen. */
+.node-output.qm-cell-host > .qm {
+  flex: 1;
+  min-width: 0;
+  min-height: 320px;
+  border: 0;
+}
+/* Explore "plot" display must fill the node's HEIGHT. The row layout above grows
+   the view on the main axis (width) and leaves height to a percentage + the
+   320px floor — which in a tall node resolves to ~320px, leaving dead space
+   below. Lay this host out as a COLUMN so flex-grow sizes the view's HEIGHT to
+   the node, and let it shrink to whatever height the node actually has. */
+.node-output.explore-plot.qm-cell-host { flex-direction: column; min-height: 360px; }
+.node-output.explore-plot.qm-cell-host > .qm {
+  flex: 1 1 auto;
+  height: auto;        /* flex-grow drives the height on the column's main axis;
+                          .qm's own `height: 100%` can otherwise resolve short
+                          and cap the plots with dead space below. */
+  min-height: 360px;   /* readable floor if the fill chain ever fails */
+  min-width: 0;
+}
+/* No table yet: the card stands in for the view, centred in the empty host. */
+.node-output.explore-plot > .compact-card { margin: auto 0; }
+
+/* Cell <-> fullscreen switch. Inherits .qm-tbtn wholesale — it only needs to
+   sit at the far end, because it changes where the view lives rather than what
+   it shows, so it does not belong among the cursor and zoom controls. */
+.qm-tbtn.qm-display {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* Why the plots are empty. Sits directly above the workspace because that is
+   what it explains, and wraps rather than truncating — a SQL error's useful
+   part is usually at the end. */
+.qm-err {
+  margin: 0 10px 6px;
+  padding: 6px 9px;
+  border: 1px solid var(--qm-warn, #b4762c);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--qm-warn, #b4762c) 12%, transparent);
+  color: var(--qm-text, #ddd);
+  font-size: 10.5px;
+  line-height: 1.5;
+  word-break: break-word;
+  max-height: 6.5em;
+  overflow: auto;
+}
+
+/* Failure states in the sidebar: the headline stays readable, the raw error is
+   available but quiet, and the retry is a normal toolbar button. */
+.qm-msg-detail {
+  margin: 6px 0;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--qm-text-dim);
+  word-break: break-word;
+  max-height: 7.5em;
+  overflow: auto;
+}
+.qm-tree-msg .qm-retry { margin-top: 6px; }
+
+@media (max-width: 900px) {
+  .qm-body { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; }
+  .qm-sidebar { grid-row: auto; border-right: 0; border-bottom: 1px solid var(--qm-border); max-height: 34vh; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .qm-modes button, .qm-ibtn, .qm-add-win, .qm-scope {
+    transition: background .12s, color .12s, border-color .12s;
+  }
+}
+
+/* ── per-signal trace visibility + Y-axis toggle ───────────────────
+   The chip is two controls: the NAME shows/hides the trace, the small box to
+   its right shows/hides that signal's Y axis. Both are per (window, signal). */
+.qm-chip {
+  padding: 2px 6px 2px 4px;
+  gap: 6px;
+  border-radius: 11px;
+  background: var(--qm-surface-hi);
+}
+
+.qm-chipname {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--qm-text);
+  background: none;
+  border: 0;
+  padding: 1px 2px;
+  cursor: pointer;
+  border-radius: 9px;
+}
+.qm-chipname:hover { color: var(--qm-accent); }
+
+/* Hidden trace: struck through and dimmed, but still listed — the signal is
+   still selected and still measured, just not drawn. */
+.qm-chip.qm-off { opacity: 0.55; }
+.qm-chip.qm-off .qm-chipname { text-decoration: line-through; }
+.qm-chip.qm-off .qm-swatch { background: var(--qm-text-faint) !important; }
+
+.qm-axbox {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  font-size: 8px;
+  line-height: 1;
+  color: #fff;
+  border: 1px solid var(--qm-cb-border);
+  border-radius: 2px;
+  background: var(--qm-bg);
+  cursor: pointer;
+}
+.qm-axbox[data-on="1"] { background: var(--qm-accent); border-color: var(--qm-accent); }
+.qm-axbox:hover { border-color: var(--qm-accent); }
+
+/* Per-window fit reads as a fit, not a glyph — it sits beside the cursor-scope
+   and Y-mode buttons, so it matches them. */
+.qm-winfit {
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--qm-text-dim);
+  background: var(--qm-bg);
+  border: 1px solid var(--qm-border);
+  border-radius: 3px;
+  padding: 2px 7px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.qm-winfit:hover { color: var(--qm-text); border-color: var(--qm-accent); }

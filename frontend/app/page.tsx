@@ -1,12 +1,12 @@
-import { redirect } from "next/navigation"
+import type { Metadata } from "next";
+import { pageTitle } from "@/lib/page-title";
+import { HomeScreen } from "@/components/screens/home/home-screen";
 
-/**
- * The V-model chain starts at Requirements, so the app opens there.
- *
- * A server-side redirect rather than a client one: it avoids rendering a
- * dashboard frame that is immediately replaced, and it keeps "/" working for
- * anything that links to the app root (the Quix portal sidebar item does).
- */
-export default function RootPage() {
-  redirect("/requirements")
+/* The root page and the root layout share a segment, and a layout's
+   title.template applies to CHILD segments only (Next docs,
+   generate-metadata.md) — so this one states the full title itself. */
+export const metadata: Metadata = { title: { absolute: pageTitle("Home") } };
+
+export default function HomePage() {
+  return <HomeScreen />;
 }

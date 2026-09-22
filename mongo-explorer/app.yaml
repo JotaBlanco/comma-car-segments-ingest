@@ -1,0 +1,33 @@
+name: Mongo explorer
+language: docker
+variables:
+  - name: MONGO_HOST
+    inputType: FreeText
+    description: The MongoDB service name - the one Mongo, holding the configurations and the registry in two databases
+    defaultValue: mongodb
+    required: true
+  - name: MONGO_PORT
+    inputType: FreeText
+    defaultValue: "27017"
+    required: true
+  - name: MONGO_USER
+    inputType: FreeText
+    description: The same root user the Configuration Manager connects with
+    defaultValue: admin
+    required: true
+  - name: MONGO_PASSWORD
+    inputType: Secret
+    description: The same root password the Configuration Manager connects with (mongo_password)
+    defaultValue: mongo_password
+    required: true
+  - name: MONGOKU_AUTH_BASIC
+    inputType: FreeText
+    description: "Optional user:password login for the page. Unset for now - the data is synthetic and the deployment stays Stopped until needed; set it (as a secret) before the registry holds anything real, because the explorer edits and deletes through the root credentials on a public URL"
+    required: false
+  - name: MONGOKU_EXCLUDE_DATABASES
+    inputType: FreeText
+    description: Only the two application databases show
+    defaultValue: admin,config,local
+    required: false
+dockerfile: dockerfile
+defaultFile: dockerfile

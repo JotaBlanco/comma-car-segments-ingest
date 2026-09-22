@@ -35,11 +35,10 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Install global packages
-RUN npm install -g \
-    npm@latest \
-    typescript \
-    @types/node
+# No global package install. The step used to run `npm install -g npm@latest`,
+# and that floating tag now resolves to npm 12, which refuses node 20 and fails
+# the build. `typescript` and `@types/node` are already devDependencies, so the
+# local install below supplies both.
 
 # Create a non-root user
 RUN groupadd -g 1001 nodejs && \

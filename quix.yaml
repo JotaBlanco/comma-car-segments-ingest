@@ -45,6 +45,10 @@ deployments:
         value: 5000
       - name: FORCE_REDECODE
         description: Escape hatch for the decode-once filter. "false" skips a file that was already decoded, so replaying mf4_metadata cannot stack another copy of it in the lake. "true" re-decodes everything, duplicates included. Force a single file instead with force_redecode=true on its mf4_metadata message.
+      - name: TM_RUN_KEY_PATTERN
+        inputType: ProjectVariable
+        description: Rung 3 of the run-key ladder, shared with the TS Metadata sink. ONE project value with two readers, because the decoder and the connector must resolve the same run for the same file - a different pattern on either side splits a file's catalogue from its samples silently.
+        variableKey: TM_RUN_KEY_PATTERN
     blobStorage:
       bind: true
   - name: MF4 DataLake Sink
@@ -58,60 +62,175 @@ deployments:
         memory: 2000
     variables:
       - name: TABLE_NAME
-        value: mf4_signals_v5
+        inputType: ProjectVariable
+        description: The ONE lake table this estate writes. tm-connector states it on every run it registers, and the Test Manager API and frontend read it back, so all four read one project value and the claim cannot drift from the writer.
+        variableKey: LAKE_TABLE
+      - name: HIVE_COLUMNS
+        description: The Test Manager's traceability chain. Changing it needs a NEW LAKE_TABLE and a new CONSUMER_GROUP - the sink validates an existing table's partition spec at setup() and refuses a mismatch.
+        value: platform,work_order,test_definition,run_id,~channel_name,~sender_node,~frame_name,~signal
       - name: BATCH_SIZE
         value: 50
       - name: CONSUMER_GROUP
-        value: mf4_signals_v5
+        description: Bumped with the Test Manager integration so every stored batch is replayed into the new traceability-partitioned table.
+        value: mf4_signals_v6_lake_v1
+      - name: config
+        description: The Dynamic Configuration event topic. The sink reads each claimed work order's WorkOrder configuration and uses its `project` as the platform FALLBACK, for a file whose own MF4 header named no platform.
+        value: config-updates
     blobStorage:
       bind: true
-  - name: Test Manager - Backend
+  - name: Test Manager - API
     group: Test Manager
-    application: backend
+    application: api
+    version: latest
+    deploymentType: Service
+    resources:
+      limits:
+        cpu: 1000
+        memory: 1000
+    publicAccess:
+      enabled: true
+      urlPrefix: backend-api
+    network:
+      serviceName: test-manager-backend
+      ports:
+        - port: 80
+          targetPort: 8000
+    variables:
+      - name: TM_API_TOKEN
+        inputType: ProjectVariable
+        description: The static bearer every /api/v1 route needs. The API refuses to start without it, and tm-connector, the frontend and the seeds all present the SAME project value.
+        variableKey: TM_API_TOKEN
+      - name: MONGO_USER
+        description: With MONGO_PASSWORD, the two pieces TM_COMMAND builds MONGO_URL from. The registry shares the MongoDB deployment with the Dynamic Configuration Manager and keeps its own `test_manager` database, so the password is never spelled inside a URL.
+        value: admin
+      - name: MONGO_PASSWORD
+        variableKey: mongo_password
+      - name: MONGO_HOST
+        value: mongodb
+      - name: TM_COMMAND
+        description: What this container runs. `python -m api.start_registry` builds MONGO_URL from the pieces above and hands over to uvicorn; blank would run the API against MONGO_URL directly.
+        value: python -m api.start_registry
+      - name: PLANNING_API_URL
+        description: The planning system the registry mirrors work orders from. The mock below stands in for it.
+        value: http://mock-planning:8003
+      - name: CONFIG_API_URL
+        description: The deployed Configuration Manager. Every new or changed work order is pushed there as a WorkOrder configuration, which is where the lake sink reads the platform fallback from. Empty disables the push.
+        value: http://config-api-svc
+      - name: TM_LAKE_TABLE
+        inputType: ProjectVariable
+        description: The lake table the statistics and Explore queries read - the SAME project value the sink writes and tm-connector claims.
+        variableKey: LAKE_TABLE
+      - name: MF4_IMPORT_URL
+        description: The MF4 Import upload route the ingestion sweep posts blob dropbox files to. Blank leaves the sweep off; the import page is still reachable on its own URL.
+        value: http://mf4-to-blob/upload/direct
+      - name: TM_QUIXLAB_URL
+        inputType: FreeText
+        description: QuixLab's public URL. Empty hides the frontend's "Open in QuixLab" buttons.
+        value: https://quixlab-testrigorg-commacarsegmentsingest-t-b5554eca.testrig-depl.dev.quix.io
+      - name: TM_FTS_URL
+        description: The Flight Test Station's public URL. This estate deploys no station, so it stays EMPTY and the run screen's station panel and the Workbooks nav entry hide themselves. Setting it lights both up against whatever is deployed there.
+        value: ''
+    state:
+      enabled: true
+      size: 1
+    blobStorage:
+      bind: true
+  - name: Planning Sync Mock
+    group: Test Manager
+    application: api
+    version: latest
+    deploymentType: Service
+    resources:
+      limits:
+        cpu: 200
+        memory: 300
+    network:
+      serviceName: mock-planning
+      ports:
+        - port: 8003
+          targetPort: 8003
+    variables:
+      - name: TM_COMMAND
+        required: true
+        description: The same image as the API, told to run the planning mock instead.
+        value: uvicorn mock_planning.main:app --host 0.0.0.0 --port 8003
+      - name: TM_API_URL
+        required: true
+        description: The registry the push worker posts the catalog and its links to. Unset means the mock never pushes.
+        value: http://test-manager-backend/api/v1
+      - name: TM_API_TOKEN
+        inputType: ProjectVariable
+        variableKey: TM_API_TOKEN
+  - name: TS Metadata sink
+    group: Ingestion
+    application: tm-connector
     version: latest
     deploymentType: Service
     resources:
       limits:
         cpu: 500
-        memory: 500
-    publicAccess:
-      enabled: true
-      urlPrefix: backend-api
-    state:
-      enabled: true
-      size: 1
+        memory: 1000
     network:
-      serviceName: test-manager-backend
+      serviceName: tm-connector
       ports:
         - port: 80
-          targetPort: 8080
+          targetPort: 80
     variables:
-      - name: QUIXLAB_URL
-        inputType: FreeText
-        description: QuixLab public URL framed by the Test Implementation page. This project's own lab; the Analytics page frames a different one, so repointing either cannot move the other.
-        value: https://quixlab-testrigorg-commacarsegmentsingest-t-b5554eca.testrig-depl.dev.quix.io
-      - name: ANALYTICS_URL
-        description: QuixLab framed by the Analytics page. A separate deployment in the cananalysis-dev workspace, maintained independently of ours. The direct deployment URL is used rather than the portal /embedded route, because that route would put the portal inside a frame the portal is already serving.
-        value: https://quixlab-testrigorg-cananalysis-dev.testrig-depl.dev.quix.io
-      - name: MF4_IMPORT_URL
-        inputType: FreeText
-        description: MF4 Import public URL framed by the File Import page, so a recording is uploaded in the same window as the five V-model stages that consume it.
-        value: https://mf4import-testrigorg-commacarsegmentsingest-t-b5554eca.testrig-depl.dev.quix.io
-      - name: MEASUREMENTS_URL
-        description: Grafana, framed by the Measurements page - the charts over the decoded signals it reads from the Lakehouse Query API. Previously pointed at a query UI in another org's warehouse, which never held this pipeline's data.
-        value: https://grafana-testrigorg-commacarsegmentsingest-t-b5554eca.testrig-depl.dev.quix.io
-      - name: LAKEHOUSE_UI_URL
-        inputType: FreeText
-        description: The Lakehouse UI - tables and partitions - framed by the Lakehouse page. An org-global deployment (testrigorg-global), which is why it does not appear in this workspace's deployment list, and it pairs with the lh-cat-3d7475f5 catalog the sink writes through. The portal's own /lakehouse route was used first and was wrong because it boots the whole portal shell around the panel. Grafana charts the same data and is framed by Measurements instead.
-        value: https://lh-ui-3d7475f5-testrigorg-global.testrig-depl.dev.quix.io
+      - name: metadata_input
+        description: Upload metadata from MF4 Import - one message per stored upload; registers the run the moment the upload lands.
+        value: mf4_metadata
+      - name: batch_input
+        description: The decoder's own topic. This lane accumulates the kind:"samples" batches and finalizes on the ONE kind:"file_complete" marker per file, which carries the whole signal inventory.
+        value: mf4-to-msg
+      - name: TM_API_URL
+        description: The Test Manager API - the only registry access this service has.
+        value: http://test-manager-backend/api/v1
+      - name: TM_API_TOKEN
+        inputType: ProjectVariable
+        variableKey: TM_API_TOKEN
+      - name: TM_ACTOR
+        description: The journal actor. Must name a service - "system"/"unknown"/"user" answer 422.
+        value: ingestion
+      - name: TM_HTTP_TIMEOUT_SECONDS
+        description: One MF4 registers hundreds of signals in a single POST /files. The connector must outwait that write; a timeout-and-retry would register the same bytes again while the first write is still running.
+        value: 900
+      - name: TM_RUN_KEY_PATTERN
+        inputType: ProjectVariable
+        description: Rung 3 of the run-key ladder, shared with the MF4 Decoder. See that deployment's copy.
+        variableKey: TM_RUN_KEY_PATTERN
+      - name: TM_STALL_SECONDS
+        description: A file whose batches never arrive reads as stalled on /status after this long.
+        value: 900
+      - name: LAKE_TABLE
+        inputType: ProjectVariable
+        description: The lake table claimed on every run (run.lake_table), read from the ONE project value the sink writes to.
+        variableKey: LAKE_TABLE
+  - name: Mongo Data Explorer
+    group: Test Manager
+    application: mongo-explorer
+    version: latest
+    deploymentType: Service
+    resources:
+      limits:
+        cpu: 200
+        memory: 400
+    publicAccess:
+      enabled: true
+      urlPrefix: tm-explorer
+    desiredStatus: Stopped
+    network:
+      serviceName: data-explorer
+      ports:
+        - port: 80
+          targetPort: 3100
+    variables:
+      - name: MONGO_HOST
+        value: mongodb
+      - name: MONGO_USER
+        value: admin
       - name: MONGO_PASSWORD
+        description: The same root password the Configuration Manager connects with.
         variableKey: mongo_password
-      - name: CONFIG_API_URL
-        value: http://config-api-svc
-      - name: DATA_LAKE_V2_TOPIC_NAME
-        value: mf4_signals_v4
-    blobStorage:
-      bind: true
   - name: Test Manager - Frontend
     group: Test Manager
     application: frontend
@@ -129,6 +248,30 @@ deployments:
       ports:
         - port: 80
           targetPort: 3000
+    variables:
+      - name: API_URL
+        description: The proxy route reads this. Unset, the proxy calls itself and serves nothing.
+        value: http://localhost:3000
+      - name: TM_BE_URL
+        description: next.config.ts rewrites /api/v1 here. Unset, the built-in mock answers.
+        value: http://test-manager-backend
+      - name: TM_API_TOKEN
+        inputType: ProjectVariable
+        description: The proxy sends this bearer token. Without it every screen answers 401.
+        variableKey: TM_API_TOKEN
+      - name: TM_LAKE_TABLE
+        inputType: ProjectVariable
+        description: The physical lake table the Explore workbench names - the SAME project value the sink, the connector and the API read.
+        variableKey: LAKE_TABLE
+      - name: TM_LAKE_SESSION_PARTITIONS
+        description: The partition levels that ADDRESS a session, outermost first, the last one being the session. The head of the sink's HIVE_COLUMNS.
+        value: platform,work_order,test_definition,run_id
+      - name: TM_LAKE_DATA_PARTITIONS
+        description: The partition levels INSIDE one session, the last one being the signal. The tail of the sink's HIVE_COLUMNS, ~ markers and all.
+        value: ~channel_name,~sender_node,~frame_name,~signal
+      - name: TM_FTS_URL
+        description: The Flight Test Station's site root. This estate deploys no station, so it stays EMPTY and the Workbooks nav entry hides itself.
+        value: ''
     plugin:
       embeddedView:
         enabled: true
@@ -300,6 +443,10 @@ deployments:
 # This section describes the Topics of the data pipeline
 topics:
   - name: mf4_metadata
+  # Two shapes on one topic, told apart by `kind`: the decoder's per-channel
+  # `samples` batches, which the lake sink expands, and the ONE terminal
+  # `file_complete` marker per file, which tm-connector registers the file from
+  # and which the sink skips. 
   - name: mf4-to-msg
   - name: config-updates
   - name: trace-ingest-requests

@@ -1,0 +1,8 @@
+# tm-connector reads Kafka and calls HTTP. That is the whole dependency set.
+#
+# There is deliberately NO quixportal here: this service holds no blob
+# credentials, binds no blob storage, and never opens a stored object. The bytes
+# were hashed by mf4-import and read by mf4-decoder; this service only states
+# what they found. `tests/test_no_blob_access.py` pins that.
+quixstreams>=3.0
+httpx>=0.28.1

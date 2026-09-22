@@ -1,0 +1,66 @@
+name: MF4 TM Connector
+language: python
+variables:
+  - name: metadata_input
+    inputType: InputTopic
+    description: Upload metadata from mf4-to-blob — one message per stored upload
+    defaultValue: mf4_metadata
+    required: true
+  - name: batch_input
+    inputType: InputTopic
+    description: The decoder's own topic. Carries kind:"samples" batches and the one terminal kind:"file_complete" marker per file, which holds the whole signal inventory
+    defaultValue: mf4-to-msg
+    required: true
+  - name: TM_API_URL
+    inputType: FreeText
+    description: The public Test Manager API — the only registry access this service has
+    defaultValue: http://test-manager-backend/api/v1
+    required: true
+  - name: TM_API_TOKEN
+    inputType: ProjectVariable
+    description: Bearer token for the Test Manager API. Every /api/v1 route needs it
+    defaultValue: TM_API_TOKEN
+    required: true
+    secret: true
+  - name: TM_ACTOR
+    inputType: FreeText
+    description: The journal actor. Must name a service — "system"/"unknown"/"user" answer 422
+    defaultValue: ingestion
+    required: true
+  - name: TM_HTTP_TIMEOUT_SECONDS
+    inputType: FreeText
+    description: Per-request timeout against the Test Manager API
+    defaultValue: 30
+  - name: TM_RETRY_MAX_BACKOFF_SECONDS
+    inputType: FreeText
+    description: Ceiling on the exponential backoff when the registry is down
+    defaultValue: 60
+  - name: TM_RETRY_MAX_ATTEMPTS
+    inputType: FreeText
+    description: Retries within one delivery. Exhausted means the offset stays uncommitted, never that the message is dropped
+    defaultValue: 6
+  - name: TM_RUN_KEY_PATTERN
+    inputType: FreeText
+    description: Filename fallback for the run key, used when neither channel declares one
+    defaultValue: TAS-\d+
+  - name: TM_STALL_SECONDS
+    inputType: FreeText
+    description: A file whose batches never arrive reads as stalled on /status after this long
+    defaultValue: 900
+  - name: TM_STATUS_PORT
+    inputType: FreeText
+    description: Port for the read-only /status and /health endpoints
+    defaultValue: 80
+  - name: LOGLEVEL
+    inputType: FreeText
+    description: Python log level
+    defaultValue: INFO
+  - name: LAKE_TABLE
+    inputType: ProjectVariable
+    description: The lake table name claimed on every run (run.lake_table). No code default on purpose — unset states nothing rather than guessing.
+    defaultValue: LAKE_TABLE
+    required: true
+    secret: false
+dockerfile: dockerfile
+runEntryPoint: main.py
+defaultFile: main.py

@@ -1,0 +1,149 @@
+/**
+ * Giving the embedded QuixLab room.
+ *
+ * The Portal frames the Test Manager, and the Test Manager frames QuixLab, so
+ * QuixLab renders two boxes deep and it renders small. Expanded lifts the
+ * panel over the content area.
+ *
+ * The rule this file exists to hold: **expanding must not reload the frame.**
+ * The token handshake buys QuixLab an 8-hour session, and a reload throws it
+ * away. So the test compares the iframe NODE across a toggle, not its markup.
+ */
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { render, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+const { listQuixLabs } = vi.hoisted(() => ({ listQuixLabs: vi.fn() }));
+vi.mock("@/lib/api/integrations", () => ({ listQuixLabs }));
+
+import { QuixLabPanel } from "@/components/screens/run-detail/quixlab-panel";
+import { setActivePortalToken } from "@/lib/portal/token-store";
+import { setQuixLabUrl, type QuixLabInstance } from "@/lib/quixlab";
+
+const RUN_ID = "RUN-2026-0042";
+const ORIGIN = "https://quixlab-dep1.dev.quix.io";
+
+const lab: QuixLabInstance = {
+  id: "dep-1",
+  name: "QuixLab shared",
+  kind: "deployment",
+  status: "Running",
+  url: ORIGIN,
+  embed_url: `${ORIGIN}?isIframe=true`,
+  origin: ORIGIN,
+};
+
+beforeEach(() => {
+  listQuixLabs.mockReset();
+  listQuixLabs.mockResolvedValue([lab]);
+  setActivePortalToken("token-one");
+  setQuixLabUrl(null);
+});
+
+afterEach(() => {
+  setActivePortalToken(null);
+  setQuixLabUrl(null);
+  vi.restoreAllMocks();
+});
+
+/** Mount the panel and open the frame, the way a person opens it. */
+async function embed() {
+  const user = userEvent.setup();
+  const view = render(<QuixLabPanel runId={RUN_ID} />);
+  await user.click(await view.findByRole("button", { name: "Embed here" }));
+  const frame = view.container.querySelector("iframe");
+  if (frame === null) throw new Error("the frame did not render");
+  await waitFor(() => expect(frame.getAttribute("src")).toBe(lab.embed_url));
+  return { user, view, frame };
+}
+
+const expandControl = (view: ReturnType<typeof render>) =>
+  view.getByRole("button", { name: /the QuixLab frame$/ });
+
+/** The panel element itself — the one that claims the content area. */
+const panel = (view: ReturnType<typeof render>) =>
+  view.container.firstElementChild as HTMLElement;
+
+describe("the embedded frame takes more room", () => {
+  it("offers no expand control before a frame exists", async () => {
+    const view = render(<QuixLabPanel runId={RUN_ID} />);
+
+    await view.findByRole("button", { name: "Embed here" });
+    expect(view.queryByRole("button", { name: /the QuixLab frame$/ })).toBeNull();
+  });
+
+  it("names the control, and the name says which way it goes", async () => {
+    const { user, view } = await embed();
+
+    const control = expandControl(view);
+    expect(control).toHaveAccessibleName("Expand the QuixLab frame");
+    expect(control).toHaveAttribute("aria-pressed", "false");
+
+    await user.click(control);
+
+    expect(expandControl(view)).toHaveAccessibleName("Collapse the QuixLab frame");
+    expect(expandControl(view)).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("gives the panel the content area, and the height of the viewport", async () => {
+    const { user, view } = await embed();
+
+    expect(panel(view).className).not.toContain("fixed");
+
+    await user.click(expandControl(view));
+
+    // `fixed` + `bottom-0` is the viewport's own height, never a pixel count.
+    const className = panel(view).className;
+    expect(className).toContain("fixed");
+    expect(className).toContain("bottom-0");
+    expect(className).toContain("top-[52px]");
+  });
+
+  it("keeps the SAME frame node across a toggle, so the session survives", async () => {
+    const { user, view, frame } = await embed();
+
+    await user.click(expandControl(view));
+    expect(view.container.querySelector("iframe")).toBe(frame);
+    expect(frame.getAttribute("src")).toBe(lab.embed_url);
+
+    await user.click(expandControl(view));
+    expect(view.container.querySelector("iframe")).toBe(frame);
+    expect(frame.getAttribute("src")).toBe(lab.embed_url);
+    // Never a sandbox: QuixLab needs same-origin storage for its session cookie.
+    expect(frame.hasAttribute("sandbox")).toBe(false);
+  });
+
+  it("keeps the SAME frame node when the signal pick appears above it", async () => {
+    // The pick adds a line between the header and the frame. React keeps the
+    // frame's slot, so the node survives — a moved frame would reload QuixLab.
+    const { view, frame } = await embed();
+
+    view.rerender(<QuixLabPanel runId={RUN_ID} signals={["Signal_003", "Signal_007"]} />);
+
+    expect(view.container.querySelector("iframe")).toBe(frame);
+    expect(frame.getAttribute("src")).toBe(lab.embed_url);
+    expect(view.container.textContent).toContain("“Open in a tab” opens the whole run");
+  });
+
+  it("leaves the expanded panel on Escape", async () => {
+    const { user, view } = await embed();
+
+    await user.click(expandControl(view));
+    expect(panel(view).className).toContain("fixed");
+
+    await user.keyboard("{Escape}");
+
+    expect(panel(view).className).not.toContain("fixed");
+    expect(expandControl(view)).toHaveAccessibleName("Expand the QuixLab frame");
+  });
+
+  it("drops the expanded panel when a person closes the frame", async () => {
+    const { user, view } = await embed();
+
+    await user.click(expandControl(view));
+    await user.click(view.getByRole("button", { name: "Close the frame" }));
+
+    expect(panel(view).className).not.toContain("fixed");
+    expect(view.container.querySelector("iframe")).toBeNull();
+  });
+});

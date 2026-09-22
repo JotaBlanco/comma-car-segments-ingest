@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Test Manager">
+  <rect width="64" height="64" rx="11" fill="#24408e"/>
+  <!--
+    The wordmark is drawn on its own 54 x 26 grid, then placed by this one
+    transform. It used to sit at that raw size inside a 64 tile, which left
+    5px at the sides against 19px above and below: the letters touched the
+    edges while the tile looked half empty. The transform scales it to 40
+    wide and centres it, so the mark breathes on every side and still reads
+    at 16px. Change the numbers here, never the path data.
+  -->
+  <g fill="#ffffff" transform="translate(12 22.37) scale(0.7407) translate(-5 -19)">
+    <path d="M5 19h22v7H5z"/>
+    <path d="M12.5 19h7v26h-7z"/>
+    <path d="M31 45V19h6l8 11.5L53 19h6v26h-7V28l-4.5 6.5h-5L38 28v17z"/>
+  </g>
+</svg>

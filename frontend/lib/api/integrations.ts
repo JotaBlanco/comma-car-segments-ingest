@@ -1,206 +1,86 @@
+import { api } from "./client";
+import { getActivePortalToken } from "@/lib/portal/token-store";
+import type { QuixLabInstance } from "@/lib/quixlab";
+
+/** How long this waits for the viewer's Portal token before it asks anyway.
+
+    The embedded handshake times out at three seconds
+    (`lib/portal/use-portal-auth.ts:163`), so five is past every honest path. */
+const TOKEN_WAIT_MS = 5_000;
+const TOKEN_POLL_MS = 150;
+
 /**
- * API client for Integrations
- * Provides methods to interact with /integrations endpoints
+ * Resolve once the viewer's Portal token is in the holder, or once we give up.
  *
- * @internal - Do not import directly. Use the `useIntegrationsApi()` hook instead:
- * ```typescript
- * import { useIntegrationsApi } from "@/lib/hooks/use-api"
+ * **Why the wait exists.** `usePortalAuth` writes the token one commit after
+ * the mount, and embedded it first runs a postMessage handshake of up to three
+ * seconds (`lib/portal/use-portal-auth.ts:105-128`). A caller that mounts with
+ * the app — the sidebar, and a run detail page a person deep-links to — sends
+ * its call before that. The call then carries no `x-portal-token`, the route
+ * answers an empty list, and the caller keeps the fallback for the whole
+ * session. `components/providers/query-provider.tsx` holds every `useQuery`
+ * for the same reason; this is that gate, for the one call that is not a query.
  *
- * const integrationsApi = useIntegrationsApi()
- * const url = await integrationsApi.getConfigManagerUrl(testId)
- * ```
+ * It always resolves. A token that never arrives is the signed-out path, and
+ * the call then answers the same empty list it answers today.
  */
-
-import { apiGet } from "./client"
-
-export interface ConfigManagerUrl {
-  url: string
+function portalTokenReady(): Promise<void> {
+  if (getActivePortalToken() !== null) return Promise.resolve();
+  const giveUpAt = Date.now() + TOKEN_WAIT_MS;
+  return new Promise((resolve) => {
+    const timer = setInterval(() => {
+      if (getActivePortalToken() === null && Date.now() < giveUpAt) return;
+      clearInterval(timer);
+      resolve();
+    }, TOKEN_POLL_MS);
+  });
 }
 
-export const integrationsApi = {
-  /**
-   * Get Portal-embedded URL for Configuration Manager
-   * @param streamId - Optional test ID for context-aware filtering
-   */
-  getConfigManagerUrl: (
-    streamId?: string | null,
-    token?: string | null,
-    refreshToken?: () => Promise<string | null>
-  ) => {
-    const params = streamId ? { stream_id: streamId } : undefined
-    return apiGet<ConfigManagerUrl>(
-      "/integrations/config-manager-url",
-      params,
-      token,
-      refreshToken
-    )
-  },
+/**
+ * The QuixLab list, for the picker on the run detail screen.
+ *
+ * **Whose token.** The viewer's. `lib/api/client.ts` attaches
+ * `x-portal-token` from `getActivePortalToken()` on every call, the same way
+ * `lib/api/explore-chat.ts` does, and the proxy forwards it. A dev-session
+ * list is personal, so the shared bearer would answer the wrong question.
+ *
+ * **What the caller must keep apart.** An empty `items` is an ordinary answer:
+ * this deployment cannot ask the Portal, or the workspace holds none. A
+ * **503** `platform_unavailable` is an outage. The first falls back to the
+ * configured URL in silence; the second must read as an outage on the screen.
+ * This function does not flatten the two — the 503 arrives as an `ApiError`.
+ */
+/**
+ * The Portal's Lakehouse page for this workspace, or an empty string.
+ *
+ * **The route needs no viewer token. The call still does.** The route derives
+ * the value from its own environment and asks the Portal nothing, so the
+ * answer costs nothing. But the route sits behind the bearer guard every
+ * `/api/v1` route sits behind (`api/api/main.py:563`), and on a deployed front
+ * end the proxy lends no shared token: `Quix__Portal__Api` is set, so
+ * `sharedTokenIsTheOnlyKey()` is false and a call with no `x-portal-token`
+ * goes on with no Authorization header at all
+ * (`app/api/proxy/[...path]/route.ts`). The API then answers 401.
+ *
+ * The sidebar mounts with the app and asks in its first effect, before
+ * `usePortalAuth` writes the token. Without this wait that first call is the
+ * only call, it is refused, and the Lakehouse item stays hidden for the whole
+ * session. `listQuixLabs` below waits for the same reason.
+ *
+ * Do not remove the wait. An empty string means "show no Lakehouse link", and
+ * so does a failed call — which is what a signed-out viewer gets, after
+ * `portalTokenReady` gives up.
+ */
+export async function getLakehouseUrl(): Promise<string> {
+  await portalTokenReady();
+  const answer = await api.get<{ url?: string }>("/integrations/lakehouse-url");
+  return typeof answer.url === "string" ? answer.url.trim() : "";
+}
 
-  /**
-   * Get direct frontend URL for Configuration Manager (for iframe embedding)
-   * @param configId - Optional config ID for context-aware filtering
-   * @param configVersion - Optional config version
-   */
-  getConfigManagerFrontendUrl: (
-    configId?: string | null,
-    configVersion?: number | null,
-    token?: string | null,
-    refreshToken?: () => Promise<string | null>
-  ) => {
-    const params: { config_id?: string; config_version?: number } = {}
-    if (configId) params.config_id = configId
-    if (configVersion !== null && configVersion !== undefined) {
-      params.config_version = configVersion
-    }
-    const queryParams = Object.keys(params).length > 0 ? params : undefined
-    return apiGet<ConfigManagerUrl>(
-      "/integrations/config-manager-frontend-url",
-      queryParams,
-      token,
-      refreshToken
-    )
-  },
-
-  /**
-   * Get Data Lake Explorer URL
-   * @param testId - Optional test ID for filtering
-   */
-  getDataLakeUrl: (
-    testId?: string | null,
-    token?: string | null,
-    refreshToken?: () => Promise<string | null>
-  ) => {
-    const params = testId ? { test_id: testId } : undefined
-    return apiGet<ConfigManagerUrl>(
-      "/integrations/data-lake-url",
-      params,
-      token,
-      refreshToken
-    )
-  },
-
-  /**
-   * QuixLab URL for the Test Implementation page.
-   *
-   * Comes from the backend, not a NEXT_PUBLIC_* var: the frontend image is
-   * built once and deployed with runtime variables, so a NEXT_PUBLIC value
-   * would be inlined at build time and undefined at runtime.
-   */
-  getQuixlabUrl: (
-    token?: string | null,
-    refreshToken?: () => Promise<string | null>
-  ) =>
-    apiGet<{ url: string }>(
-      "/integrations/quixlab-url",
-      undefined,
-      token,
-      refreshToken
-    ),
-
-  /**
-   * Get the Measurements URL - Grafana, charting the decoded signals out of the
-   * Lakehouse Query API. No SQL or token is appended: the old query-builder UI
-   * took both as query params, Grafana takes neither.
-   */
-  getMeasurementsUrl: (
-    token?: string | null,
-    refreshToken?: () => Promise<string | null>
-  ) =>
-    apiGet<{ url: string }>(
-      "/integrations/measurements-url",
-      undefined,
-      token,
-      refreshToken
-    ),
-
-  /**
-   * Get the MF4 Import URL, framed by the File Import page. Backend-served for
-   * the same reason as getQuixlabUrl above.
-   */
-  getMf4ImportUrl: (
-    token?: string | null,
-    refreshToken?: () => Promise<string | null>
-  ) =>
-    apiGet<{ url: string }>(
-      "/integrations/mf4-import-url",
-      undefined,
-      token,
-      refreshToken
-    ),
-
-  /**
-   * Get the Lakehouse UI URL - the tables-and-partitions browser, not the Query
-   * API the Test Run evaluation reads signals from.
-   */
-  getLakehouseUrl: (
-    token?: string | null,
-    refreshToken?: () => Promise<string | null>
-  ) =>
-    apiGet<{ url: string }>(
-      "/integrations/lakehouse-url",
-      undefined,
-      token,
-      refreshToken
-    ),
-
-  /**
-   * Get Analytics/Notebook URL
-   * @param testId - Test ID for context
-   * @param campaignId - Campaign ID for context
-   * @param environmentId - Environment ID for context
-   */
-  getAnalyticsUrl: (
-    testId?: string | null,
-    campaignId?: string | null,
-    environmentId?: string | null,
-    token?: string | null,
-    refreshToken?: () => Promise<string | null>
-  ) => {
-    const params: {
-      test_id?: string
-      campaign_id?: string
-      environment_id?: string
-    } = {}
-    if (testId) params.test_id = testId
-    if (campaignId) params.campaign_id = campaignId
-    if (environmentId) params.environment_id = environmentId
-    const queryParams = Object.keys(params).length > 0 ? params : undefined
-    return apiGet<ConfigManagerUrl>(
-      "/integrations/analytics-url",
-      queryParams,
-      token,
-      refreshToken
-    )
-  },
-
-  /**
-   * Download test measurement data from DataLake
-   * Returns CSV text directly from Quix Lake Query API
-   * @param testId - Test ID for filtering
-   * @param campaignId - Campaign ID for filtering
-   * @param environmentId - Environment ID for filtering
-   */
-  downloadTestData: (
-    testId?: string | null,
-    campaignId?: string | null,
-    environmentId?: string | null,
-    token?: string | null,
-    refreshToken?: () => Promise<string | null>
-  ) => {
-    const params: {
-      test_id?: string
-      campaign_id?: string
-      environment_id?: string
-    } = {}
-    if (testId) params.test_id = testId
-    if (campaignId) params.campaign_id = campaignId
-    if (environmentId) params.environment_id = environmentId
-    const queryParams = Object.keys(params).length > 0 ? params : undefined
-    return apiGet<string>(
-      "/integrations/download-test-data",
-      queryParams,
-      token,
-      refreshToken
-    )
-  },
+export async function listQuixLabs(): Promise<QuixLabInstance[]> {
+  // The route reads the viewer's token, and that token lands after a caller
+  // mounts. See `portalTokenReady` above.
+  await portalTokenReady();
+  const answer = await api.get<{ items?: QuixLabInstance[] }>("/integrations/quixlabs");
+  return Array.isArray(answer.items) ? answer.items : [];
 }

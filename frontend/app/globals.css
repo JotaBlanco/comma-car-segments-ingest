@@ -1,180 +1,356 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-@layer base {
-  :root {
-    --background: 0 0% 96%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 98%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 96%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 217 100% 50%; /* Quix blue #0064ff - brand color */
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 86%; /* Light gray for secondary actions - improved contrast */
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 20% 90%; /* De-emphasized content */
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 60% 88%; /* Highlights and hover states */
-    --accent-foreground: 222.2 47.4% 11.2%;
+@custom-variant dark (&:is(.dark *));
 
-    /* Industrial professional semantic colors - muted for technical context */
-    --destructive: 0 35% 45%; /* Muted maroon - professional destructive */
-    --destructive-foreground: 0 0% 100%;
-    --success: 170 35% 40%; /* Muted teal - industrial success */
-    --success-foreground: 0 0% 100%;
-    --warning: 35 40% 42%; /* Muted bronze/amber - equipment ready */
-    --warning-foreground: 0 0% 100%;
-    --info: 210 35% 48%; /* Muted slate blue - industrial palette aligned */
-    --info-foreground: 0 0% 100%;
+:root {
+  color-scheme: light;
 
-    --border: 214.3 31.8% 87.4%;
-    --input: 214.3 31.8% 87%; /* Slightly darker for better definition */
-    --ring: 217 100% 50%;
-    --radius: 0.5rem;
+  /* Sidebar width. The shell grid takes it from the nav element, and the
+     `fixed` Explore and QuixLab overlays read it here. The sidebar rewrites it
+     on the root element when a person collapses or expands the rail. */
+  --sidebar-w: 232px;
 
-    /* Neon accent, taken from the QuixLab canvas: violet with an electric-blue
-       partner. Deliberately the only saturated colour in an otherwise muted
-       industrial palette, so it marks just what the eye should land on first.
-       Deeper in light mode, because true neon reads as washed-out grey on a
-       near-white background. */
-    --neon: 258 82% 52%;
-    --neon-foreground: 0 0% 100%;
-    --neon-glow: 258 82% 52%;
-    --neon-alt: 217 91% 55%;
-    --neon-pass: 145 80% 33%;
-    --neon-fail: 2 78% 47%;
-    --neon-warn: 30 92% 45%;
+  /* Assistant dock width, by side. The same `fixed` overlays stop at the dock
+     the way they stop at the sidebar, so an open panel sits beside Explore
+     instead of behind it. The assistant panel rewrites these on the root when
+     it opens, closes, resizes or changes dock side; both stay 0 while it
+     floats, because a floating window is above the overlay on its own. */
+  --dock-w: 0px;
+  --dock-left-w: 0px;
 
-    /* Journal category colors - industrial subdued palette */
-    --journal-safety: 0 35% 45%; /* Muted maroon */
-    --journal-setup: 170 35% 40%; /* Muted teal */
-    --journal-testing: 260 30% 45%; /* Muted purple-gray */
-    --journal-location: 30 35% 45%; /* Muted bronze */
-    --journal-hw: 40 35% 45%; /* Muted gold-brown */
-    --journal-sw: 185 32% 42%; /* Muted cyan-gray */
-  }
+  /* Prototype tokens — verbatim from test-manager-concept.html :root */
+  --bg: #f6f6f4;
+  --surface: #ffffff;
+  --surface-2: #fbfbfa;
+  --ink: #17191e;
+  --ink-2: #4b4f58;
+  /* WCAG AA: 5.19:1 on --surface, 4.80:1 on --bg, 4.56:1 on --muted
+     (was #878b94 — only 3.41:1 on white). Same cool-gray hue, darkened. */
+  --ink-3: #696d75;
+  --line: #e5e5e1;
+  --line-2: #eeeeea;
+  --line-strong: #c9c9c4; /* hover borders */
+  --accent: #24408e; /* links, active nav, focus rings */
+  --accent-ink: #ffffff; /* text on accent fills */
+  --accent-fill: #24408e; /* solid CTA fills — stays deep in dark */
+  --accent-fill-hover: #1d3576;
+  --accent-soft: #eef1f9;
+  --accent-soft-border: #dbe2f3; /* api badge border */
+  --amber: #9a5b10;
+  --amber-bg: #fdf3e3;
+  --amber-border: #f3e2c6; /* manual badge border */
+  --amber-dot: #e8a33d;
+  --green: #1d6b3c;
+  --green-bg: #e9f4ec;
+  --green-dot: #3d9963;
+  --red: #a02c2c;
+  --red-bg: #faeceb;
+  --red-border: #eecfcc; /* invalid banner / quarantine border */
+  --red-dot: #cf5b52;
+  --red-fill: #a02c2c; /* destructive CTA fill — stays deep in dark */
+  --red-fill-hover: #8c2424;
+  --radius: 6px;
 
-  .dark {
-    --background: 0 0% 10.2%; /* rgb(26, 26, 27) */
-    --foreground: 210 8% 92%; /* #eaedf0 */
-    --card: 225 6% 13%; /* rgb(34, 34, 41) */
-    --card-foreground: 210 8% 92%;
-    --popover: 225 6% 13%;
-    --popover-foreground: 210 8% 92%;
-    --primary: 217 100% 50%; /* Quix blue #0064ff - brand color */
-    --primary-foreground: 210 40% 98%; /* Fixed: white text on blue */
-    --secondary: 225 5% 17%; /* Darker gray for secondary actions */
-    --secondary-foreground: 210 40% 98%;
-    --muted: 225 5% 14%; /* Even darker for de-emphasized content */
-    --muted-foreground: 215 16.3% 60%;
-    --accent: 225 8% 20%; /* Slightly lighter for highlights */
-    --accent-foreground: 210 40% 98%;
+  /* Explore — chart series, validated (dataviz six checks, light on #ffffff).
+     s1/s2 from the approved mockup; s3/s4 extend the ramp with the AA-cleared
+     green/red text tones so four series stay distinguishable. */
+  --chart-s1: #3050ab;
+  --chart-s2: #9a5b10;
+  --chart-s3: #1d6b3c;
+  --chart-s4: #a02c2c;
+  /* Explore — SQL syntax tones. Aliases of AA-cleared text tokens so the
+     ghost-editor keeps axe contrast in both themes. */
+  --syn-kw: #24408e;
+  --syn-str: #1d6b3c;
+  --syn-num: #9a5b10;
+  --syn-com: #696d75;
 
-    /* Industrial professional semantic colors - dark mode optimized */
-    --destructive: 0 40% 52%; /* Muted maroon - higher visibility */
-    --destructive-foreground: 0 0% 100%;
-    --success: 170 38% 45%; /* Muted teal - higher visibility */
-    --success-foreground: 0 0% 100%;
-    --warning: 35 45% 50%; /* Muted bronze/amber - higher visibility */
-    --warning-foreground: 0 0% 10%;
-    --info: 210 35% 55%; /* Muted slate blue - higher visibility */
-    --info-foreground: 0 0% 100%;
+  --shadow: 0 1px 2px rgba(23, 25, 30, 0.05), 0 4px 16px rgba(23, 25, 30, 0.05);
+  --shadow-lg: 0 4px 12px rgba(23, 25, 30, 0.08),
+    0 24px 64px rgba(23, 25, 30, 0.16);
 
-    --border: 225 6% 26%; /* #434352 */
-    --input: 225 6% 30%; /* Slightly lighter for input fields */
-    --ring: 217 100% 50%;
+  /* shadcn semantic aliases mapped onto the prototype palette */
+  --background: var(--bg);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--accent);
+  --primary-foreground: var(--accent-ink);
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--ink-2);
+  --muted: #f0f0ee;
+  --muted-foreground: var(--ink-3);
+  --destructive: var(--red);
+  --border: var(--line);
+  /* Form-control boundary, WCAG 1.4.11 (3:1). It cannot follow --line: --line
+     is a decorative hairline at 1.26:1 on --surface. Same cool-gray hue,
+     darkened until it clears 3:1 on --surface (3.65), --surface-2 (3.52) and
+     --bg (3.37). MUST have a counterpart in .dark below. */
+  --input: #83868d;
+  --ring: var(--accent);
+}
 
-    /* Full neon on dark, where it can actually glow - the QuixLab lavender. */
-    --neon: 255 92% 76%;
-    --neon-foreground: 258 40% 12%;
-    --neon-glow: 255 95% 70%;
-    --neon-alt: 217 91% 60%;
-    --neon-pass: 142 82% 46%;
-    --neon-fail: 0 84% 57%;
-    --neon-warn: 30 96% 56%;
+/* Dark theme — the Quix Portal dark palette. The Test Manager runs in an
+   iframe inside the Portal, so the dark tokens take the Portal values.
+   Source: Quix.Portal.Frontend/projects/quix-library/styles/quix/palettes.scss
+   (grey/blue/green/red/amber ramps, $dark-theme-background :318,
+   $dark-theme-foreground :275) and quix/config.scss (:18 primary, :25-26 text
+   palettes, :127-135 bootstrap colors). The Portal has no light theme, so the
+   :root block above stays untouched.
+   Toggled via the `dark` class on <html> (see components/theme). */
+.dark {
+  color-scheme: dark;
 
-    /* Journal category colors - dark mode optimized */
-    --journal-safety: 0 40% 52%; /* Muted maroon */
-    --journal-setup: 170 38% 45%; /* Muted teal */
-    --journal-testing: 260 35% 52%; /* Muted purple-gray */
-    --journal-location: 30 40% 52%; /* Muted bronze */
-    --journal-hw: 40 40% 52%; /* Muted gold-brown */
-    --journal-sw: 185 38% 48%; /* Muted cyan-gray */
-  }
+  --bg: #1a1a1b; /* grey-900 — Portal `background` */
+  --surface: #222229; /* grey-800 — Portal `card` / `dialog` */
+  --surface-2: #2b2b34; /* grey-700 — Portal `app-bar` / mat-card header.
+                           Lighter than --surface here, the way the Portal
+                           lifts a panel header off the panel body. */
+  --ink: #ffffff; /* Portal foreground `base` */
+  --ink-2: #bdbdbf; /* Portal `secondary-text` rgba(white, .7) over --surface */
+  /* Portal `hint-text` rgba(white, .5) resolves to #919194 and only reaches
+     4.43:1 on --surface-2. grey-200 (Portal `header-icons`) is the next stop
+     up the same ramp and clears AA on every dark surface: 6.27:1 on --surface,
+     5.56:1 on --surface-2, 4.73:1 on --muted, 6.90:1 on --bg. */
+  --ink-3: #a2a2b0;
+  --line: rgba(255, 255, 255, 0.08); /* Portal $light-dividers */
+  /* Form-control boundary, WCAG 1.4.11 (3:1). Portal grey-300 (#787886) drops
+     to 2.68:1 on --muted, so this sits between grey-300 and grey-200 on the
+     same ramp: 4.70:1 on --surface, 4.17:1 on --surface-2, 3.55:1 on --muted,
+     5.18:1 on --bg. */
+  --input: #8b8b99;
+  --line-2: rgba(255, 255, 255, 0.05); /* quieter divider; the Portal has one */
+  --line-strong: #434352; /* grey-500 — Portal `scroll-bar` / `unselected-chip` */
+  --accent: #00adff; /* blue-400 — Portal $dark-theme-primary-text `lighter`
+                        (link hover / `_hover-text`). The Portal resting link
+                        blue-600 #008eff only reaches 4.02:1 on --accent-soft,
+                        so the accent takes the lighter step: 6.34:1 on
+                        --surface, 5.16:1 on --accent-soft. */
+  --accent-ink: #ffffff;
+  --accent-fill: #0064ff; /* blue-800 — Portal $dark-theme-primary, the fill
+                             behind a Portal raised button */
+  --accent-fill-hover: #2341e0; /* blue-900 — Portal $dark-theme-primary
+                                   `darker`; hovers deepen so white keeps AA */
+  --accent-soft: rgba(0, 173, 255, 0.13); /* low-alpha blue wash */
+  --accent-soft-border: rgba(0, 173, 255, 0.32);
+  --amber: #ffae3d; /* amber-400 — Portal bootstrap `alert` */
+  --amber-bg: #342d2b; /* rgba(#ffae3d, .08) over --surface, the Portal
+                          `._selected` wash recipe */
+  --amber-border: #4e3e2d; /* rgba(#ffae3d, .20) over --surface */
+  --amber-dot: #ff9f2a; /* amber-500 */
+  --green: #00dd81; /* green-400 — Portal bootstrap `success` */
+  --green-bg: #1f3130; /* rgba(#00dd81, .08) over --surface */
+  --green-dot: #1db96e; /* green-500 — Portal `pipeline-arrow-active` */
+  /* red-200 — Portal $dark-theme-warn-text `lighter`. The resting warn red-300
+     #ff6b6b reads 5.69:1 on --surface, below the 6.91:1 this token had, so the
+     lighter step keeps the contrast at 7.73:1. */
+  --red: #ff9999;
+  --red-bg: #342c32; /* rgba(#ff9999, .08) over --surface */
+  --red-border: #4e3a3f; /* rgba(#ff9999, .20) over --surface */
+  --red-dot: #ff4040; /* red-500 — Portal bootstrap `danger` */
+  --red-fill: #b52d2d; /* red-700 */
+  --red-fill-hover: #c23131; /* red-600 */
 
+  /* Explore — chart series, one per Portal hue family. */
+  --chart-s1: #008eff; /* blue-600 */
+  --chart-s2: #ffae3d; /* amber-400 */
+  --chart-s3: #00dd81; /* green-400 */
+  --chart-s4: #ff9999; /* red-200 */
+  /* Explore — SQL syntax tones (aliases of the AA-cleared text tokens). */
+  --syn-kw: #00adff;
+  --syn-str: #00dd81;
+  --syn-num: #ffae3d;
+  --syn-com: #a2a2b0;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 4px 16px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.5), 0 24px 64px rgba(0, 0, 0, 0.6);
+
+  /* shadcn semantic aliases that don't inherit via var() chains */
+  --muted: #363641; /* grey-600 — Portal `snack-bar` */
+}
+
+@theme inline {
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-sans);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  /* shadcn "accent" is a hover surface — mapped to the soft tint; use
+     `primary` utilities for the prototype's blue accent (#24408e). */
+  --color-accent: var(--accent-soft);
+  --color-accent-foreground: var(--accent);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Prototype palette as first-class Tailwind colors */
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-line-strong: var(--line-strong);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-fill: var(--accent-fill);
+  --color-accent-fill-hover: var(--accent-fill-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-soft-border: var(--accent-soft-border);
+  --color-amber: var(--amber);
+  --color-amber-bg: var(--amber-bg);
+  --color-amber-border: var(--amber-border);
+  --color-amber-dot: var(--amber-dot);
+  --color-green: var(--green);
+  --color-green-bg: var(--green-bg);
+  --color-green-dot: var(--green-dot);
+  --color-red: var(--red);
+  --color-red-bg: var(--red-bg);
+  --color-red-border: var(--red-border);
+  --color-red-dot: var(--red-dot);
+  --color-red-fill: var(--red-fill);
+  --color-red-fill-hover: var(--red-fill-hover);
+
+  --shadow-tm: var(--shadow);
+  --shadow-tm-lg: var(--shadow-lg);
+
+  --radius-sm: 4px;
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 6px);
 }
 
 @layer base {
   * {
-    @apply border-border;
+    @apply border-border outline-ring/50;
   }
-
+  html {
+    @apply font-sans;
+  }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-size: 0.875rem;
+    line-height: 1.45;
   }
-
-  /* Remove the native disclosure triangle from <details>/<summary> so our
-     custom chevron is the only affordance. Applied globally because <details>
-     is only used in CollapsibleSection; no other component uses it. */
-  details > summary {
-    list-style: none;
+  /* Tailwind v4 preflight sets buttons to cursor: default; restore the
+     web-app convention that anything clickable shows a pointer. */
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  [role="tab"]:not(:disabled),
+  [role="menuitem"]:not([aria-disabled="true"]),
+  [role="option"]:not([aria-disabled="true"]),
+  label[for],
+  select:not(:disabled),
+  summary {
+    cursor: pointer;
   }
-
-  details > summary::-webkit-details-marker {
-    display: none;
-  }
-
-  /* Dark theme scrollbar styling */
-  .dark {
-    /* Webkit browsers (Chrome, Safari, Edge) */
-    ::-webkit-scrollbar {
-      width: 10px;
-      height: 10px;
-    }
-
-    ::-webkit-scrollbar-track {
-      background: hsl(var(--muted));
-    }
-
-    ::-webkit-scrollbar-thumb {
-      background: hsl(var(--border));
-      border-radius: 5px;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-      background: hsl(var(--muted-foreground));
-    }
-
-    /* Firefox */
-    * {
-      scrollbar-width: thin;
-      scrollbar-color: hsl(var(--border)) hsl(var(--muted));
-    }
-
-  }
-
 }
 
-/* ================================================================
-   DESIGN VARIANTS
-   Applied via data-variant on <html>. "common" (no attribute) is
-   the original layout, unchanged.
-
-   Three variants: common (no attribute), editorial (tabs), showcase
-   (rings, fewer columns, verdict-first). Token overrides here are
-   only for properties that are structural in effect (e.g. radius
-   changes the chrome weight of every element).
-   ================================================================ */
-
-/* ── VARIANT: showcase ──────────────────────────────────────────
-   Marketing demo view. Larger radius so the cards feel polished,
-   not sharp. All structural changes are in the TSX layout.       */
-[data-variant="showcase"] {
-  --radius: 0.75rem;
+/* Prototype table density — unlayered on purpose so it wins over the shadcn
+   table component's default size utilities (h-10/px-2/p-2). Per-cell escapes
+   still work with important utilities, e.g. `p-0!`. */
+table {
+  border-collapse: collapse;
+}
+th {
+  height: auto;
+  padding: 8px 16px;
+  text-align: left;
+  vertical-align: middle;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line-2);
+  white-space: nowrap;
+}
+td {
+  padding: 9px 16px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--line-2);
+}
+tbody tr:last-child td {
+  border-bottom: none;
 }
 
-/* ── VARIANT: editorial ─────────────────────────────────────────
-   Tab-segmented detail layout. Radius stays at default; the tab
-   chrome provides the structural differentiation.                */
+/* Sticky column-header row inside a full-height panel's scroll area.
+   Scoped to `.table-scroll` so it never affects tables outside opt-in list
+   screens. The inset box-shadow preserves the thead/body separator when the
+   header is stuck (some browsers drop `border-bottom` on `position: sticky`
+   cells). shadcn `<Table>` wraps its `<table>` in an `overflow-x-auto` div;
+   we neutralise that inside `.table-scroll` so this wrapper is the sticky
+   scroll ancestor (otherwise `top: 0` resolves against the shadcn wrapper). */
+.table-scroll [data-slot="table-container"] {
+  overflow: visible;
+}
+.table-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-2);
+  box-shadow: inset 0 -1px 0 var(--line-2);
+}
+/* Tabbed focus must not land under the stuck header. The browser scrolls
+   the FOCUSED element into view, so the margin sits on the focusables in
+   the body — a margin on the row would do nothing. 3rem clears the header
+   row in every opt-in table. */
+.table-scroll tbody :is(a, button, input, select) {
+  scroll-margin-top: 3rem;
+}
+
+/* Sync-backfill cell flash */
+@keyframes flashbg {
+  0% {
+    background-color: var(--green-bg);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+.flash {
+  animation: flashbg 1.6s ease;
+}
+
+/* QuixLab's Explorer on the Explore page: its "measure" tag goes, and the Test
+   Manager's sessions control sits first in its top bar. */
+.qm-page-host .qm-topbar .qm-tag {
+  display: none;
+}
+.qm-page-host .qm-topbar .qm-id {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tm-explore-sessions {
+  display: inline-flex;
+  align-items: center;
+}
+/* The resolution badge (ms/px, samples/px, aggregated) leaves the window head for the
+   plot's bottom-right corner, so the head keeps its room for the trace chips. */
+.qm-page-host .qm-win .qm-win-tools .qm-agg {
+  position: absolute;
+  right: 12px;
+  bottom: 36px;
+  z-index: 3;
+  background: var(--qm-surface);
+  opacity: 0.92;
+}

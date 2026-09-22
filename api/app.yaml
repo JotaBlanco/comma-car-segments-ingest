@@ -1,0 +1,76 @@
+name: api
+language: python
+variables:
+  - name: MONGO_URL
+    inputType: FreeText
+    description: MongoDB connection string
+    defaultValue: mongodb://mongo:27017
+    required: true
+  - name: MONGO_USER
+    inputType: FreeText
+    description: With MONGO_PASSWORD, the pieces TM_COMMAND builds MONGO_URL from when the registry shares the Configuration Manager's Mongo (this estate). Unused when MONGO_URL is set directly.
+    defaultValue: admin
+  - name: MONGO_PASSWORD
+    inputType: Secret
+    description: The MongoDB root password (mongo_password). See MONGO_USER.
+    defaultValue: mongo_password
+  - name: MONGO_HOST
+    inputType: FreeText
+    description: The MongoDB service name. TM_COMMAND builds MONGO_URL from this, MONGO_USER and MONGO_PASSWORD; the registry keeps its own `test_manager` database on it, beside the Configuration Manager's.
+    defaultValue: mongodb
+  - name: MONGO_PORT
+    inputType: FreeText
+    defaultValue: '27017'
+  - name: PLANNING_API_URL
+    inputType: FreeText
+    description: Planning system base URL (mock in the demo)
+    defaultValue: http://mock-planning:8003
+  - name: TM_API_TOKEN
+    inputType: Secret
+    description: Static bearer token — the API refuses to start without it
+    defaultValue: TM_API_TOKEN
+    required: true
+  - name: MF4_IMPORT_URL
+    inputType: FreeText
+    description: The MF4 Import upload URL. Blank, the ingestion sweep stays off.
+    defaultValue: http://mf4-to-blob/upload/direct
+  - name: INGEST_SWEEP_INTERVAL_SECONDS
+    inputType: FreeText
+    description: Seconds between two ingestion sweep passes.
+    defaultValue: '300'
+  - name: TM_WATCH_PREFIX
+    inputType: FreeText
+    description: The blob prefix the sweep watches. It must sit outside the folder mf4-import writes.
+    defaultValue: test-manager/dropbox
+  - name: TM_FILE_RETENTION_DAYS
+    inputType: FreeText
+    description: Days a deleted file waits in the recycle bin. 0 turns the purge off.
+    defaultValue: '30'
+  - name: TM_INGEST_SOURCE
+    inputType: FreeText
+    description: Where file bytes are read from. blob = the workspace blob storage the pipeline writes.
+    defaultValue: blob
+  - name: TM_MCP_URL
+    inputType: FreeText
+    description: Override for the assistant's MCP host. Blank uses the platform-injected value, which self-corrects on a rename — prefer blank.
+  - name: TM_LAKE_TABLE
+    inputType: FreeText
+    description: The lake table the statistics and Explore queries read. One project fact (LAKE_TABLE) with four readers — sink, connector, API, frontend.
+  - name: CONFIG_API_URL
+    inputType: FreeText
+    description: The deployed Configuration Manager (Dynamic Configuration). Every new or changed work order is pushed there as a JSON configuration; empty disables the push.
+  - name: TM_QUIXLAB_URL
+    inputType: FreeText
+    description: The QuixLab site root — surfaces the frontend's "Open in QuixLab" buttons. Empty hides them.
+  - name: TM_FTS_URL
+    inputType: FreeText
+    description: The Flight Test Station's PUBLIC site root — surfaces the run's "Open in the Flight Test Station" panel. Empty hides it. It is framed in the browser, so an internal service name will not do.
+  - name: TM_COMMAND
+    inputType: FreeText
+    description: What this container runs. Blank = the Test Manager API; mock-planning = the planning sync mock.
+  - name: TM_API_URL
+    inputType: FreeText
+    description: The registry base URL the planning mock polls for waiting runs (mock-planning mode only).
+dockerfile: Dockerfile
+runEntryPoint: api/main.py
+defaultFile: api/main.py

@@ -1,30 +1,56 @@
+# The application descriptor of the front end.
+#
+# This file declares the application and the SCHEMA of its variables. quix.yaml sets the
+# concrete values, and quix.yaml alone carries the `plugin:` block, the public URL and
+# the ports. The platform reads no `plugin:` key from an app.yaml
+# (Quix.Shared/Quix.Shared.Descriptors/Models/ApplicationDescriptor.cs holds no such property).
 name: frontend
 language: nodejs
 variables:
   - name: API_URL
     inputType: FreeText
-    description: Backend API URL for server-side requests (internal Kubernetes service name)
-    defaultValue: http://test-manager-backend
+    description: The proxy route reads this. Unset, the proxy calls itself and serves nothing.
+    defaultValue: http://tm-api
+    required: true
+  - name: TM_BE_URL
+    inputType: FreeText
+    description: next.config.ts rewrites /api/v1 here. Unset, the built-in mock answers.
+    defaultValue: http://tm-api
+    required: true
+  - name: TM_API_TOKEN
+    inputType: Secret
+    description: The proxy sends this bearer token. Without it every screen answers 401.
+    defaultValue: TM_API_TOKEN
     required: true
   - name: NODE_ENV
     inputType: FreeText
-    description: Node environment
+    description: Node environment.
     defaultValue: production
     required: true
   - name: NEXT_TELEMETRY_DISABLED
     inputType: FreeText
-    description: Disable Next.js telemetry
-    defaultValue: 1
-  - name: MF4_UPLOAD_URL
-    inputType: FreeText
-    description: MF4 upload service base URL, used by the Add Test Run dialog. Unset disables MF4 upload.
-    defaultValue: https://mf4import-testrigorg-commacarsegmentsingest-t-b5554eca.testrig-depl.dev.quix.io
+    description: Disable Next.js telemetry.
+    defaultValue: "1"
     required: false
-  - name: MEASUREMENTS_URL
+  - name: TM_LAKE_TABLE
     inputType: FreeText
-    multiline: false
-    defaultValue: https://query-ui-quixers-testrigdemodatawarehouse-prod.az-france-0.app.quix.io/
-    required: true
+    description: The physical lake table the Explore workbench names — the FE's own /api/lake/query route posts SQL to the lake, so this process reads the same value the API deployment does. It is the ONE LAKE_TABLE project value the sink writes and tm-connector claims.
+    defaultValue: mf4_signals_v6
+    required: false
+  - name: TM_LAKE_SESSION_PARTITIONS
+    inputType: FreeText
+    description: The partition levels that ADDRESS a session, outermost first; the last one is the session itself. The sessions dialog walks these folders and lists the last level's values as the sessions. Unset, platform,work_order,test_definition,run_id applies — the order the lake sink writes.
+    defaultValue: platform,work_order,test_definition,run_id
+    required: false
+  - name: TM_LAKE_DATA_PARTITIONS
+    inputType: FreeText
+    description: The partition levels INSIDE one session, outermost first; the last one is the signal. The Explorer's tree walks these under a picked session, and an issue's link names its signal by them. A ~ virtual marker is allowed, so the sink's HIVE_COLUMNS can be pasted and split at the session level. The default is the tail of mf4-datalake-sink's HIVE_COLUMNS.
+    defaultValue: ~channel_name,~sender_node,~frame_name,~signal
+    required: false
+  - name: TM_FTS_URL
+    inputType: FreeText
+    description: The Flight Test Station's site root. The Workbooks pages run the station's front end inside the Test Manager and read its data through this process's /api/fts route, which forwards to <TM_FTS_URL>/api with the viewer's token. Unset, the route answers 503 and a workbook cannot open.
+    required: false
 dockerfile: dockerfile
 runEntryPoint: package.json
 defaultFile: package.json

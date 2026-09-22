@@ -1,0 +1,33 @@
+# The pipeline's own test configuration.
+#
+# The Test Manager stack carries its OWN suites and is NOT run from here:
+#   api/          — `cd api && pytest tests -q` (needs Docker; it starts a mongo:7 container)
+#   tm-connector/ — `pytest tm-connector/tests -q`
+#   frontend/     — `cd frontend && npm test`
+#
+# `testpaths` below is the pipeline law suite: the apps that move MF4 bytes, and
+# the contracts between them.
+[project]
+name = "comma-car-segments-ingest"
+version = "0.1.0"
+requires-python = ">=3.13"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [
+    "tests",
+    # The registry package lives at api/api, so the DIRECTORY goes on the path
+    # and `api.models` resolves. The pipeline's contract tests validate their
+    # bodies with the registry's real models rather than a copy of them.
+    "api",
+    "mf4-to-blob",
+    "mf4-decoder",
+    "mf4-datalake-sink",
+    "tm-connector",
+    "dcm-seed-dbc",
+]
+filterwarnings = [
+    # third-party httpx->httpx2 migration noise (fastapi testclient), not our code
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+    "ignore:The httpx module is deprecated",
+]

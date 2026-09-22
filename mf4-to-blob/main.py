@@ -129,8 +129,19 @@ class CompleteRequest(BaseModel):
 
 
 @app.post("/upload/sas")
-async def upload_sas(req: SasRequest):
-    """Validate and mint a per-blob SAS for the browser to PUT to."""
+async def upload_sas(req: SasRequest, request: Request):
+    """Validate and mint a per-blob SAS for the browser to PUT to.
+
+    The claim is collected HERE, at mint time, and stashed on the progress
+    record. `/upload/complete` reads it back rather than taking it again, so the
+    bytes that were uploaded and the claim that names them are decided in one
+    place and a second caller cannot re-label a finished upload.
+    """
+    try:
+        declared = metadata.collect_declared(request.query_params)
+    except ValueError as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=400)
+
     if req.size > MAX_FILE_BYTES:
         return JSONResponse(
             {"status": "error", "message": f"file exceeds max_file_bytes={MAX_FILE_BYTES}"},
@@ -157,7 +168,7 @@ async def upload_sas(req: SasRequest):
         )
 
     state.init(upload_id, req.filename, req.size)
-    state.set_status(upload_id, "uploading", blob_path=blob_path)
+    state.set_status(upload_id, "uploading", blob_path=blob_path, declared=declared)
 
     return {
         "uploadId": upload_id,
@@ -226,6 +237,7 @@ async def upload_complete(req: CompleteRequest, request: Request):
         content_type="application/x-mdf",
         blob_url=_blob_url_or_none(req.blobPath),
         uploader_ip=request.client.host if request.client else None,
+        declared=info.get("declared"),
     )
 
     try:
@@ -285,6 +297,12 @@ async def upload_direct(
     advisory (used for the progress percentage and an early 413); the
     authoritative size is what we actually wrote.
     """
+    # Before the first byte: a malformed claim must cost nothing written.
+    try:
+        declared = metadata.collect_declared(request.query_params)
+    except ValueError as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=400)
+
     if size > MAX_FILE_BYTES:
         return JSONResponse(
             {"status": "error", "message": f"file exceeds max_file_bytes={MAX_FILE_BYTES}"},
@@ -344,6 +362,7 @@ async def upload_direct(
         content_type="application/x-mdf",
         blob_url=_blob_url_or_none(blob_path),
         uploader_ip=request.client.host if request.client else None,
+        declared=declared,
     )
 
     try:

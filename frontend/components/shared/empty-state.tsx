@@ -1,29 +1,17 @@
-import { ReactNode } from "react"
-import { Button } from "@/components/ui/button"
+import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 interface EmptyStateProps {
-  icon?: ReactNode
-  title: string
-  description?: string
-  action?: {
-    label: string
-    onClick: () => void
-  }
+  title?: string;
+  message?: ReactNode;
+  className?: string;
 }
 
-export function EmptyState({ icon, title, description, action }: EmptyStateProps) {
+export function EmptyState({ title, message, className }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-      {icon && <div className="mb-4 text-muted-foreground">{icon}</div>}
-      <h3 className="text-lg font-semibold mb-2">{title}</h3>
-      {description && (
-        <p className="text-sm text-muted-foreground mb-4 max-w-md">{description}</p>
-      )}
-      {action && (
-        <Button onClick={action.onClick} variant="outline">
-          {action.label}
-        </Button>
-      )}
+    <div className={cn("px-4 py-[22px] text-center text-[0.78rem] text-ink-3", className)}>
+      {title !== undefined && <div className="mb-0.5 font-semibold text-ink-2">{title}</div>}
+      {message ?? "Nothing here yet."}
     </div>
-  )
+  );
 }

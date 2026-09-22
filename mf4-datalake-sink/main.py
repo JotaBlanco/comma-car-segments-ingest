@@ -77,13 +77,56 @@ stays a thin writer and does no decoding.
 This sink fans each batched message back out to N per-row dicts via
 sdf.apply(..., expand=True) so QuixTSDataLakeSink writes one Iceberg row per
 sample, identical to a non-batched producer.
+
+ONE TOPIC, TWO KINDS
+--------------------
+``mf4-to-msg`` carries two shapes since the Test Manager integration, told apart
+by ``kind``: ``"samples"`` (the per-channel batches above) and the one terminal
+``"file_complete"`` marker per file, which holds that file's signal inventory and
+no samples at all. tm-connector finalizes on the marker; this sink SKIPS it.
+Expanding it would read ``value["ts_ms"]`` on a message that has none.
+
+A message with NO ``kind`` is a batch an older decoder wrote, and
+``AUTO_OFFSET_RESET=earliest`` replays those. They are samples, so they are
+expanded — the filter refuses the marker specifically, rather than demanding a
+field the backlog cannot carry.
+
+PARTITIONED BY THE TRACEABILITY CHAIN
+-------------------------------------
+    HIVE_COLUMNS = platform,work_order,test_definition,run_id,
+                   ~channel_name,~sender_node,~frame_name,~signal
+
+``work_order`` / ``test_definition`` are ``unassigned`` when nobody claimed the
+file — an absent claim is a fact, not a fault. ``run_id`` has no such default:
+a batch that names no run is DROPPED, with a warning, because ``run_id=unknown/``
+would merge every unplaceable file in the estate into one partition that reads
+like a real run.
+
+``device``, ``route``, ``segment`` and ``dcm_config_id`` are still on every row
+and still queryable; they are no longer directory levels. ``run_id`` is minted
+from ``platform`` and ``route`` when nothing else names it
+(``mf4-decoder/identity.py``), so a route-level directory under it would only
+repeat what the level above already says.
+
+``platform`` prefers what the FILE says. The MF4's own header names the vehicle,
+which is a better answer than any plan; the ``WorkOrder`` configuration the Test
+Manager files in Dynamic Configuration (``api/api/config_push.py``, ``$.project``)
+is consulted only when the header named none. That keeps the pushed configuration
+load-bearing without letting a planning value overwrite a measured one.
+
+Changing HIVE_COLUMNS needs a NEW ``TABLE_NAME`` (the sink validates an existing
+table's partition spec at setup() and refuses a mismatch) and a new
+``CONSUMER_GROUP``, so ``earliest`` replays into the new table.
 """
 import logging
-import math
 import os
 import re
 
 from quixstreams import Application
+from quixstreams.dataframe.joins.lookups import (
+    QuixConfigurationService,
+    QuixConfigurationServiceJSONField,
+)
 from quixstreams.sinks.core.quix_ts_datalake_sink import QuixTSDataLakeSink
 
 # Configure logging
@@ -119,153 +162,17 @@ def _positive_int(env_var: str, default: str) -> int:
     return value
 
 
-# Running count of rows whose ``value`` was not a float and had to be coerced
-# to null. Counted and logged rather than raised: the sink writes in batches, so
-# one poison sample would fail the whole parquet write, the checkpoint would not
-# commit, and the service would retry the same offsets forever. Clearing that
-# state needs a topic purge or a redeploy, which is not an acceptable failure
-# mode for a data-shape problem in a single row.
-_coerced_rows = 0
-
-# Signals already warned about in the current flush window. Coercion is a
-# per-signal property (a signal is either systematically mis-typed or it is
-# not), so one line per signal per flush says everything a rate-limited
-# every-Nth-row line said, at a tiny fraction of the volume: the previous
-# "every 1000 rows" rule reached 31k+ lines on a single file. The set is
-# cleared by _FlushScopedWarningSink.write() so a signal that stays broken
-# still reports once per flush rather than once per process lifetime.
-_coerce_warned_signals: set[str] = set()
-
-# Value used for any provenance/enrichment scalar an older message lacks. Must
-# match the decoder's provenance.UNKNOWN: these columns are Hive partition keys
-# and must never be null. See the module docstring.
-UNKNOWN = "unknown"
-
-
-def _coerce_value(raw):
-    """Coerce one raw sample to ``(float | None, str | None)``.
-
-    The decoder already routes numeric channels to ``value`` and text channels
-    to ``value_text``, so this is a backstop for everything else that can reach
-    the sink: messages from an older decoder, hand-written messages, or a dtype
-    the decoder mis-routed. Anything that will not become a finite float is
-    returned as ``(None, str(raw))`` - the value survives as text instead of
-    raising ``ArrowInvalid`` inside the parquet writer.
-
-    Numeric strings are accepted as numbers: a replayed older message can carry
-    ``"1.5"`` where a float belongs, and that is a number, not a label.
-    """
-    if raw is None:
-        return None, None
-    # bool is a subclass of int; check it first so True lands as 1.0 rather
-    # than being handled by some later branch.
-    if isinstance(raw, bool):
-        return float(raw), None
-    if not isinstance(raw, (int, float, str)):
-        return None, str(raw)
-    try:
-        as_float = float(raw)
-    except (TypeError, ValueError):
-        return None, str(raw)
-    # NaN / Inf have no parquet double representation that survives a round
-    # trip through pd.isna(), so they are nulls, not text.
-    return (as_float, None) if math.isfinite(as_float) else (None, None)
-
-
-def _expand_columnar(value):
-    """Expand a per-channel batched message into N per-row dicts.
-
-    Scalars (file_name, upload_id, the provenance block, signal, unit and the
-    DBC-derived block) are repeated; arrays (ts_ms, value, value_text) are
-    indexed.
-
-    Every yielded row carries *both* ``value`` and ``value_text``, one of them
-    ``None``. A row that omitted a key would make the column set vary between
-    rows of the same parquet file, which is the same class of unstable-schema
-    bug as the mixed-type ``value`` column this split fixes.
-
-    Everything except ``ts_ms``/``value``/``unit``/``file_name`` is read
-    defensively with ``.get()``: messages produced by an older decoder are
-    already on the topic and ``AUTO_OFFSET_RESET=earliest`` replays them. They
-    carry no provenance keys at all, so those default to ``"unknown"`` and the
-    rows write cleanly - and, critically, still land in a real Hive partition
-    instead of being dropped by ``groupby``. ``value_text`` defaults to an
-    all-null column for the same reason; an array of the wrong length is
-    discarded rather than raising, because a malformed message must not stall
-    the checkpoint.
-
-    The signal name is read as ``signal`` first and ``channel`` second. The
-    column was renamed for the ``mf4_signals_v3`` table (so the ``~signal``
-    virtual partition and the reference ``can_signals_v13`` schema line up),
-    but every message the previous decoder already wrote to ``mf4-to-msg``
-    still spells it ``channel`` - and those are exactly the messages
-    ``earliest`` is replaying, so dropping the fallback would drop the backlog.
-    """
-    global _coerced_rows
-
-    n = len(value["ts_ms"])
-    file_name = value["file_name"]
-    upload_id = value.get("upload_id") or UNKNOWN
-    platform = value.get("platform") or UNKNOWN
-    device = value.get("device") or UNKNOWN
-    route = value.get("route") or UNKNOWN
-    segment = value.get("segment") or UNKNOWN
-    dcm_config_id = value.get("dcm_config_id") or UNKNOWN
-    # "signal" (current) then "channel" (pre-v3 decoder); never null - it is a
-    # virtual partition key and feeds the catalog's per-file value index.
-    signal = value.get("signal") or value.get("channel") or UNKNOWN
-    unit = value["unit"]
-    channel_name = value.get("channel_name") or UNKNOWN
-    frame_name = value.get("frame_name") or UNKNOWN
-    sender_node = value.get("sender_node") or UNKNOWN
-    ts_arr = value["ts_ms"]
-    val_arr = value["value"]
-
-    text_arr = value.get("value_text")
-    if not isinstance(text_arr, list) or len(text_arr) != n:
-        text_arr = None
-
-    for i in range(n):
-        raw = val_arr[i]
-        num, coerced_text = _coerce_value(raw)
-        text = text_arr[i] if text_arr is not None else None
-
-        if coerced_text is not None:
-            _coerced_rows += 1
-            # Do not overwrite a real value_text; the coerced string is only a
-            # fallback for rows that have nowhere else to put the value.
-            if text is None:
-                text = coerced_text
-            if signal not in _coerce_warned_signals:
-                _coerce_warned_signals.add(signal)
-                logger.warning(
-                    "Coercing non-numeric 'value' samples to null on signal=%s "
-                    "(first this flush; example %r -> value_text=%r); "
-                    "%d row(s) coerced since start",
-                    signal,
-                    raw,
-                    coerced_text,
-                    _coerced_rows,
-                )
-
-        yield {
-            "file_name":     file_name,
-            "upload_id":     upload_id,
-            "platform":      platform,
-            "device":        device,
-            "route":         route,
-            "segment":       segment,
-            "dcm_config_id": dcm_config_id,
-            "signal":        signal,
-            "unit":          unit,
-            "channel_name":  channel_name,
-            "frame_name":    frame_name,
-            "sender_node":   sender_node,
-            "ts_ms":         ts_arr[i],
-            "value":         num,
-            "value_text":    None if text is None else str(text),
-        }
-
+# The rules one message is written by. `expand.py` holds them so they can be
+# tested without a broker; this module holds the wiring that needs one.
+from expand import (  # noqa: E402  (after the logging setup above, on purpose)
+    F_WORK_ORDER_PLATFORM,
+    UNKNOWN,
+    WORK_ORDER_CONFIG_TYPE,
+    _coerce_warned_signals,
+    _expand_columnar,
+    is_sample_batch,
+    work_order_target_key,
+)
 
 # Marks a *virtual* partition: a column that appears in the partition tree and
 # is filterable, but is NOT written as a physical `key=value/` directory and
@@ -405,6 +312,35 @@ blob_sink = _FlushScopedWarningSink(
 # Create streaming dataframe
 sdf = app.dataframe(topic=app.topic(os.environ["input"]))
 
+# The terminal `file_complete` marker shares this topic and holds no samples.
+# Filtered FIRST, ahead of the lookup and the expand, so neither ever sees it.
+sdf = sdf.filter(is_sample_batch)
+
+# The work order's platform, joined BEFORE the expand: one cache read per batch
+# rather than one per row. It is the FALLBACK for `platform` - see
+# `_expand_columnar` - so a work order nobody filed costs nothing.
+#
+# `fallback="default"` is not optional: the SDK default is "error", which
+# re-raises inside join() and takes the sink down when content cannot be
+# fetched. Leaving `config` unset turns the join off entirely, which is the
+# right answer for a workspace with no Configuration Manager.
+config_topic = os.getenv("config", "").strip()
+if config_topic:
+    work_order_lookup = QuixConfigurationService(
+        app.topic(config_topic, value_deserializer="json"),
+        app_config=app.config,
+        fallback="default",
+    )
+    sdf = sdf.join_lookup(
+        work_order_lookup,
+        {
+            F_WORK_ORDER_PLATFORM: QuixConfigurationServiceJSONField(
+                type=WORK_ORDER_CONFIG_TYPE, jsonpath="$.project", default=UNKNOWN
+            )
+        },
+        on=work_order_target_key,
+    )
+
 # Expand batched payload: one Kafka message (per-channel scalar+array) -> N records.
 sdf = sdf.apply(_expand_columnar, expand=True)
 
@@ -430,6 +366,10 @@ logger.info(
     f"{virtual_hive_columns if virtual_hive_columns else 'none'}"
 )
 logger.info(f"  Sort column: {sort_column or 'none (falls back to timestamp_column)'}")
+logger.info(
+    "  Work order platform fallback: %s",
+    f"joined from {config_topic}" if config_topic else "off (no `config` topic set)",
+)
 
 if __name__ == "__main__":
     app.run()

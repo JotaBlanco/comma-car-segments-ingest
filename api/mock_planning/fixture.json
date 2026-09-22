@@ -1,0 +1,121 @@
+{
+  "_comment": "The planning cast: work orders and test definitions. Planning knows the pairs and HOW MANY runs each definition plans (planned_runs) - never WHICH run ids (24 Aug 2026, TR-002): the TAS mints ids at execution and the claim on the data correlates. Overlay file - the demo owns its cast.",
+  "work_orders": [
+    {
+      "id": "WO-2026-0836",
+      "title": "HV battery thermal validation — phase 1",
+      "project": "EX90",
+      "status": "closed",
+      "requestor": "L. Åkesson · Battery",
+      "department": "Battery Test Labs",
+      "priority": "P3 — background",
+      "created_at": "2026-05-28T00:00:00Z"
+    },
+    {
+      "id": "WO-2026-0839",
+      "title": "HV battery thermal validation — summer cycle",
+      "project": "EX90",
+      "status": "closed",
+      "requestor": "L. Åkesson · Battery",
+      "department": "Battery Test Labs",
+      "priority": "P2 — standard",
+      "created_at": "2026-07-20T00:00:00Z"
+    },
+    {
+      "id": "WO-2026-0843",
+      "title": "Inverter thermal derating — phase 2",
+      "project": "EC40",
+      "status": "closed",
+      "requestor": "S. Vidal · Powertrain",
+      "department": "Powertrain Test Labs",
+      "priority": "P2 — standard",
+      "created_at": "2026-07-28T00:00:00Z"
+    },
+    {
+      "id": "WO-2026-0847",
+      "title": "E-machine efficiency characterisation",
+      "project": "EX90",
+      "status": "active",
+      "requestor": "M. Ekholm · Propulsion",
+      "department": "Propulsion Test Labs",
+      "priority": "P2 — standard",
+      "created_at": "2026-08-03T00:00:00Z"
+    },
+    {
+      "id": "WO-2026-0851",
+      "title": "HV battery thermal validation — winter cycle",
+      "project": "EX90",
+      "status": "active",
+      "requestor": "L. Åkesson · Battery",
+      "department": "Battery Test Labs",
+      "priority": "P1 — expedite",
+      "created_at": "2026-08-12T00:00:00Z"
+    },
+    {
+      "id": "WO-2026-0853",
+      "title": "Road load data acquisition — instrumented route",
+      "project": "EX90",
+      "status": "active",
+      "requestor": "J. Falk · Vehicle Dynamics",
+      "department": "Vehicle Test Operations",
+      "priority": "P2 — standard",
+      "created_at": "2026-08-14T00:00:00Z"
+    }
+  ],
+  "test_definitions": [
+    {
+      "id": "TD-BAT-091",
+      "work_order_id": "WO-2026-0836",
+      "title": "HV battery thermal cycling · phase 1",
+      "planned_runs": 10,
+      "requirements_files": [
+        {
+          "name": "TR-BAT-091-requirements.md",
+          "content": "# TD-BAT-091 — HV battery thermal cycling, phase 1\n\n## Purpose\nProve that the HV battery pack holds its stated capacity and its cell\ntemperature limits over 10 full thermal cycles. The cycle runs the pack from\n-20 degC to +45 degC at the ramp rate below.\n\n## Test article\n- Pack: EX90 400 V module, build level B3.\n- Cell temperature sensors: 12, one per module face.\n- Coolant loop: bench chiller, glycol 50 percent.\n\n## Acceptance limits\n\n| Parameter | Limit | Signal |\n| --- | --- | --- |\n| Max cell temperature | 58 degC | HV_Batt_Cell_Temp_Max |\n| Cell delta over pack | 6 K | HV_Batt_Cell_Temp_Delta |\n| Capacity fade after 10 cycles | 2 percent | HV_Batt_Capacity_Ah |\n| Coolant inlet temperature | 15 to 35 degC | Coolant_In_Temp |\n\n## Procedure\n1. Soak the pack at -20 degC for 4 hours.\n2. Charge at 1C to 100 percent state of charge.\n3. Ramp the coolant to +45 degC at 2 K per minute.\n4. Discharge at 1C to 10 percent state of charge.\n5. Record the four signals above at 10 Hz for the whole cycle.\n6. Repeat steps 1 to 5 ten times.\n\n## Data delivery\nEach run delivers one MF4 file per cycle. The file names carry the cycle\nnumber. A run with a broken temperature channel is invalid, and the operator\nmarks it in the Test Manager with the reason.\n"
+        }
+      ]
+    },
+    {
+      "id": "TD-BAT-102",
+      "work_order_id": "WO-2026-0839",
+      "title": "HV battery thermal cycling · +10 °C → +45 °C",
+      "planned_runs": 1
+    },
+    {
+      "id": "TD-BAT-114",
+      "work_order_id": "WO-2026-0851",
+      "title": "HV battery thermal cycling · −20 °C → +40 °C",
+      "planned_runs": 4
+    },
+    {
+      "id": "TD-EM-201",
+      "work_order_id": "WO-2026-0847",
+      "title": "E-machine efficiency map — WLTP points",
+      "planned_runs": 2,
+      "requirements_files": [
+        {
+          "name": "TR-EM-201-requirements.md",
+          "content": "# TD-EM-201 — E-machine efficiency map, WLTP points\n\n## Purpose\nMeasure the efficiency of the rear e-machine over the WLTP operating points,\nand confirm the map that the propulsion team released for the EX90.\n\n## Test article\n- E-machine: rear axle, 190 kW, build level C1.\n- Inverter: production software 4.2.1.\n- Dynamometer: RIG-02, torque flange calibrated within 90 days.\n\n## Operating points\n\n| Point | Speed (rpm) | Torque (Nm) | Target efficiency |\n| --- | --- | --- | --- |\n| P1 | 1500 | 80 | 92 percent |\n| P2 | 3000 | 140 | 94 percent |\n| P3 | 6000 | 90 | 93 percent |\n| P4 | 9000 | 40 | 90 percent |\n\n## Procedure\n1. Warm the stator coolant to 65 degC and hold it.\n2. Hold each operating point for 120 seconds.\n3. Record shaft torque, shaft speed, DC current and DC voltage at 100 Hz.\n4. Average the last 60 seconds of each point.\n5. Report the efficiency of each point against the target above.\n\n## Acceptance\n- Every point meets its target efficiency or the run reports the shortfall.\n- The torque flange calibration date sits inside the run metadata.\n- A point whose coolant temperature drifts more than 3 K is repeated.\n"
+        }
+      ]
+    },
+    {
+      "id": "TD-EM-204",
+      "work_order_id": "WO-2026-0847",
+      "title": "E-machine efficiency map — high-load extension",
+      "planned_runs": 1
+    },
+    {
+      "id": "TD-INV-077",
+      "work_order_id": "WO-2026-0843",
+      "title": "Inverter derating sweep · thermal limits",
+      "planned_runs": 1
+    },
+    {
+      "id": "TD-RLD-301",
+      "work_order_id": "WO-2026-0853",
+      "title": "Road load capture · instrumented durability route",
+      "planned_runs": 6
+    }
+  ]
+}

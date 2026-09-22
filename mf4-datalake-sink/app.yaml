@@ -10,7 +10,7 @@ variables:
     inputType: FreeText
     multiline: false
     description: Iceberg table name; defaults to topic name if unset. A new name is required whenever HIVE_COLUMNS changes - the sink validates the partition spec of an existing table at setup() and refuses a mismatch.
-    defaultValue: mf4_signals_v3
+    defaultValue: mf4_signals_v6
   - name: HIVE_COLUMNS
     inputType: FreeText
     multiline: false
@@ -21,8 +21,11 @@ variables:
       catalog index, but is not written as a key=value directory and does not
       split files. Supported by the pinned QuixStreams commit
       (c888997ab65303a5565cef84da687eb3d6f98790) and by nothing older. Mirrors
-      the reference can_signals_v13 table.
-    defaultValue: platform,device,route,~channel_name,~sender_node,~frame_name,~signal
+      the reference can_signals_v13 table. The tree follows the Test Manager's
+      traceability chain since the registry integration: platform / work order /
+      test definition / run. device, route and segment stay on every row as
+      ordinary columns.
+    defaultValue: platform,work_order,test_definition,run_id,~channel_name,~sender_node,~frame_name,~signal
   - name: TIMESTAMP_COLUMN
     inputType: FreeText
     description: Column containing timestamp values to extract year/month/day/hour from
@@ -49,7 +52,7 @@ variables:
   - name: CONSUMER_GROUP
     inputType: FreeText
     description: Kafka consumer group name. Must change together with TABLE_NAME so AUTO_OFFSET_RESET=earliest replays the topic into the new table.
-    defaultValue: mf4_signals_v3_lake_v1
+    defaultValue: mf4_signals_v6_lake_v1
   - name: AUTO_OFFSET_RESET
     inputType: Options
     description: Where to start consuming if no offset exists
@@ -70,6 +73,15 @@ variables:
       compaction rewrites files ordered by it so time-range / ORDER BY queries
       can skip whole files. Leave empty to fall back to TIMESTAMP_COLUMN.
     defaultValue: ts_ms
+  - name: config
+    inputType: InputTopic
+    description: >-
+      The Dynamic Configuration event topic. The sink reads each claimed work
+      order's WorkOrder configuration from it and uses its `project` as the
+      platform FALLBACK, for a file whose own MF4 header named no platform.
+      Leave empty to turn the join off - the fallback is then always `unknown`,
+      and a file that states its platform is unaffected either way.
+    defaultValue: config-updates
   - name: MAX_WRITE_WORKERS
     inputType: FreeText
     description: How many files can be written in parallel to storage at once (based on partitioning + batch size)

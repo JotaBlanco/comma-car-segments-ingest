@@ -2,8 +2,10 @@
 FROM node:20-bookworm-slim AS builder
 WORKDIR /app
 
-# Accept build argument for API URL (defaults to internal service name for Quix Cloud)
-ARG API_URL=http://test-manager-backend
+# Accept build argument for API URL. The default names the service quix.yaml
+# creates (`serviceName: tm-api`). The old default named `test-manager-backend`,
+# a service the current quix.yaml never creates.
+ARG API_URL=http://tm-api
 ENV API_URL=$API_URL
 
 # Copy package files
@@ -14,6 +16,13 @@ RUN npm install --legacy-peer-deps
 
 # Copy source code
 COPY . .
+
+# next.config.ts reads TM_BE_URL inside rewrites(), and Next.js runs rewrites()
+# ONCE, at build time. The result goes into the routes manifest. Without a value
+# here the image holds no /api/v1 rewrite at all, and no runtime variable can add
+# one back. The built-in mock then answers on the deployed stack.
+ARG TM_BE_URL=http://tm-api
+ENV TM_BE_URL=$TM_BE_URL
 
 # Build Next.js for production
 RUN npm run build
@@ -31,11 +40,20 @@ RUN npm install --legacy-peer-deps --omit=dev
 # Copy built Next.js app from builder stage
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/next.config.js ./
+# The repository holds next.config.ts, never next.config.js. The old line named the
+# JavaScript file, so this production build failed and no front end could deploy.
+COPY --from=builder /app/next.config.ts ./
 
 # Set production environment
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# The proxy route and /ready read API_URL at REQUEST time, in this stage. A
+# builder-stage ENV never reaches here, so the runtime declares its own. The
+# platform overwrites it from quix.yaml, and a plain `docker run` still gets a
+# name that resolves inside the workspace.
+ARG API_URL=http://tm-api
+ENV API_URL=$API_URL
 
 # Expose Next.js port
 EXPOSE 3000
