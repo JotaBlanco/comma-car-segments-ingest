@@ -206,8 +206,8 @@
     {
       "id": "BL-29",
       "title": "Test Runs nested under Work order; Test definitions under Test Run (nav + run detail)",
-      "status": "in progress",
-      "notes": "dev-planning/tm-hierarchy-nav",
+      "status": "finished",
+      "notes": "sidebar indents runs under work orders and definitions under runs; run overview gained a Definitions panel",
       "updated": "2026-09-22"
     },
     {
@@ -327,6 +327,20 @@
       "title": "Requirements schema + validation (requirement-1.0.0.schema.json and friends)",
       "status": "discuss",
       "notes": "the old backend validated every artifact against a JSON schema on ingest. The new line has none; our battery set is validated only by the generator",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-47",
+      "title": "No UI assigns a definition to a run",
+      "status": "to do",
+      "notes": "the only route replaces the whole set (_resolve_manual_links, api/api/services/queries_runs.py:1173). tm-multi-definition-runs/architecture.md claims the Test Run page does it — it does not. Needed now that traces no longer claim definitions",
+      "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-48",
+      "title": "Six run-detail tests mock @/lib/hooks wholesale and now throw on useWorkOrder",
+      "status": "to do",
+      "notes": "new-tab-marks, no-would-toasts, null-fields, quixlab-launch-context, signals-selection, signals-tab-filters — each needs useWorkOrder in its mock factory",
       "updated": "2026-09-22"
     }
   ]

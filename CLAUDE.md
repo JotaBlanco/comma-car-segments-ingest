@@ -128,7 +128,6 @@ same change that moves the work. Nothing agreed in conversation stays only in co
 |---|---|---|---|
 | `BL-04` | **in progress** | Upstream plant polarity fix (dc-battery-sim, battery-sign current) | verified 53/53 in C:/repos/quixstreams-tests-polarity; commit there, then re-vendor here |
 | `BL-22` | **in progress** | Requirement status moves automatically when a run covers it; covering run id visible on the requirement | spec dev-planning/requirement-status-from-runs; blocked on requirements not being entities in api/ |
-| `BL-29` | **in progress** | Test Runs nested under Work order; Test definitions under Test Run (nav + run detail) | dev-planning/tm-hierarchy-nav |
 | `BL-32` | **in progress** | Review page — review a requirement or a test definition | user 2026-09-22: one review surface over both entity kinds. Board: Draft -> Ready for Review -> In Review -> Reviewed, and 'a second person is required' on accept and on any edit of a Reviewed item (DCM policy, pinned by policy_sha256). Spec: dev-planning/review-page |
 | `BL-33` | **in progress** | Versioned verifies-link between requirement and test definition, stored in the database | user 2026-09-22: hyperlinks both ways carrying the version of each side. Board model: link_id = link_type|from_id|to_id with NO version in the preimage, recording the confirmed pair (R@v, TC@w) separately from current versions; the difference is what makes a link suspect. Folded into dev-planning/review-page |
 | `BL-35` | **in progress** | Authoring controls on every page: add / edit / remove | user 2026-09-22: Review, Requirements, Test definitions, Work orders, Test runs. Collides with planning ownership — work orders and definitions are mirrored read-only today (planning_sync), and the board says a Reviewed item needs a second person to edit. Spec: dev-planning/authoring-controls |
@@ -153,6 +152,8 @@ same change that moves the work. Nothing agreed in conversation stays only in co
 | `BL-42` | to do | Test-vectors sink: decoded vectors into per-raster Iceberg tables | was test-vectors-sink (4 topics -> acc_pt_can_100hz etc. via QuixTSDataLakeSink). The battery line sinks raw CAN rows instead — decide whether per-raster tables are still wanted |
 | `BL-43` | to do | Mongo writer: stream results/summaries/verdicts into queryable collections | was mongo-writer with a custom document_matcher per collection; the new api/ writes its own Mongo, so this may be obsolete — confirm |
 | `BL-44` | to do | Parameter sets as DCM config events (/parameters, config-events) | the old chain turned parameter sets into DCM-shaped config events; our battery parameters are a DCM document but nothing consumes them at runtime |
+| `BL-47` | to do | No UI assigns a definition to a run | the only route replaces the whole set (_resolve_manual_links, api/api/services/queries_runs.py:1173). tm-multi-definition-runs/architecture.md claims the Test Run page does it — it does not. Needed now that traces no longer claim definitions |
+| `BL-48` | to do | Six run-detail tests mock @/lib/hooks wholesale and now throw on useWorkOrder | new-tab-marks, no-would-toasts, null-fields, quixlab-launch-context, signals-selection, signals-tab-filters — each needs useWorkOrder in its mock factory |
 | `BL-13` | discuss | TM_RUN_KEY_PATTERN is an unbound project variable on decoder + connector (literal string) | harmless for us (header rung); tell Tomas |
 | `BL-14` | discuss | Legacy rows: 4 battery routes in mf4_signals_v5 (pre-marker decode) | leave or delete |
 | `BL-15` | discuss | Requirements seeding into the new TM model (requirements-files per definition) | seed markdown covers it per definition; direct upload route exists |
@@ -171,6 +172,7 @@ same change that moves the work. Nothing agreed in conversation stays only in co
 | `BL-16` | finished | Old backend/ Test Manager + DCM-source design | superseded by Tomas's api/; archived as archive/dcm-source-on-old-backend |
 | `BL-21` | finished | Parallel agents when code paths are disjoint; QA by the user in the Portal; no Tester round | working agreement 2026-09-22 |
 | `BL-23` | finished | Requirements are not entities in the TM — only markdown files on a definition | answered 2026-09-22: requirements become entities with versions (BL-34), not a light registry — the user chose versioned links (BL-33) |
+| `BL-29` | finished | Test Runs nested under Work order; Test definitions under Test Run (nav + run detail) | sidebar indents runs under work orders and definitions under runs; run overview gained a Definitions panel |
 | `BL-30` | finished | Import form no longer claims a test definition | mf4-to-blob form: work order, run id, rig |
 
 ## Working agreement
