@@ -208,6 +208,24 @@ export function DefinitionDetailScreen({ tdId }: DefinitionDetailScreenProps) {
               {definition.synced_at.replace("T", " ")}
             </span>
           </MetaCell>
+          {/* The requirements this definition verifies — the other half of
+              the Requirements page's "Verified by" column, read from the
+              same authored `covers_req_ids` link (BP5). */}
+          {(definition.covers_req_ids ?? []).length > 0 && (
+            <MetaCell label="Verifies" className="col-span-4">
+              <span className="inline-flex flex-wrap items-center gap-1.5">
+                {(definition.covers_req_ids ?? []).map((reqId) => (
+                  <Link
+                    key={reqId}
+                    href={`/requirements/${encodeURIComponent(reqId)}`}
+                    className="rounded-sm bg-muted px-[5px] py-px font-mono text-[0.7rem] text-ink-2 hover:underline"
+                  >
+                    {reqId}
+                  </Link>
+                ))}
+              </span>
+            </MetaCell>
+          )}
         </MetaGrid>
       </Panel>
 

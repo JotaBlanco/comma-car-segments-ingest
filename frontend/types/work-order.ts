@@ -89,6 +89,11 @@ export interface TestDefinitionListItem {
   status: DefinitionStatus;
   orphaned: boolean;
   synced_at: string;
+  /** The requirements this definition verifies — authored, mirrored by
+      planning (requirement-status-from-runs spec §5.2/§7.2). On both the
+      list row and the detail, so the two never disagree. Optional: an API
+      built before the requirement catalog lands sends no field. */
+  covers_req_ids?: string[];
 }
 
 /**

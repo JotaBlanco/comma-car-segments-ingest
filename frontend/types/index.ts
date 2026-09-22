@@ -12,3 +12,4 @@ export * from "./lineage";
 export * from "./explore";
 export * from "./assistant";
 export * from "./saved-search";
+export * from "./requirement";

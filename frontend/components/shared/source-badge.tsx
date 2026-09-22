@@ -5,7 +5,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 import { sourceMeaning } from "@/types/source";
 
-export type SourceKind = "embedded" | "manual" | `api:${string}`;
+export type SourceKind = "embedded" | "manual" | "derived" | `api:${string}`;
 
 interface SourceBadgeProps {
   source: SourceKind;
@@ -16,6 +16,11 @@ const variantClass = {
   embedded: "border-line bg-muted text-ink-2",
   api: "border-accent-soft-border bg-accent-soft text-primary",
   manual: "border-amber-border bg-amber-bg text-amber",
+  /* Dashed = computed, generalised from the board's one dashed `Tested` box
+     to every derived attribute (requirements-page spec §5). A border-STYLE,
+     not a colour, so it costs no contrast ratio and survives dark mode and a
+     monochrome print unchanged. */
+  derived: "border-dashed border-line bg-transparent text-ink-3",
 } as const;
 
 /**
@@ -45,7 +50,8 @@ export function SourceBadge({ source, className }: SourceBadgeProps) {
     ref.current?.focus();
   });
 
-  const variant = source === "embedded" || source === "manual" ? source : "api";
+  const variant =
+    source === "embedded" || source === "manual" || source === "derived" ? source : "api";
   const meaning = sourceMeaning(source);
   const reached = open !== null;
 

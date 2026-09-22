@@ -42,7 +42,7 @@ export interface SavedSearch {
 }
 
 /** The screens that own a saved-search list. One storage key each. */
-export type SavedSearchScope = "runs" | "files" | "signals" | "work-orders";
+export type SavedSearchScope = "runs" | "files" | "signals" | "work-orders" | "requirements";
 
 /**
  * One saved search plus the screen that owns it. A global list mixes the
@@ -61,6 +61,7 @@ const SCOPE_KEYS: Record<SavedSearchScope, null> = {
   files: null,
   signals: null,
   "work-orders": null,
+  requirements: null,
 };
 
 /** Every scope, so a reader of all of them never hard-codes the list. */

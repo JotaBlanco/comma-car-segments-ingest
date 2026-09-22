@@ -26,12 +26,17 @@ fully local (runs' five patchable fields). A requirement is the first entity
 where two rows of the same table can be written by two different doors —
 `POST /planning/sync` for one, the new `POST /requirements` for the other.
 Rather than build a second screen or a mode switch, the existing table/detail
-idiom carries an `origin: SourceTag` field per row, and every write control
-checks it before rendering (`authoring-controls/spec.md` §4's rule: *a
-control renders if and only if some source can legally own the write right
-now; otherwise it is absent, never disabled*). This is the same pattern the
-read-only mirror screens already use for their permanently-absent controls —
-just applied per-row instead of per-screen.
+idiom reads each row's origin off `RequirementDetail.field_sources` (the
+committed API's per-field provenance map, the same shape `sourced()` already
+gives every other entity — `types/requirement.ts`'s `requirementOrigin()`
+helper), and every write control checks it before rendering
+(`authoring-controls/spec.md` §4's rule: *a control renders if and only if
+some source can legally own the write right now; otherwise it is absent,
+never disabled*). This is the same pattern the read-only mirror screens
+already use for their permanently-absent controls — just applied per-row
+instead of per-screen, and, because origin only travels on the *detail*
+read, applied at detail-load time rather than at list-render time (see
+"Known simplifications").
 
 **The dispatch brief overrides two of `requirements-page/spec.md`'s own
 decisions, deliberately.** That spec's §2 line *"Nothing on this page is
@@ -226,51 +231,54 @@ verifies just before meeting the definition itself.
 ## Beyond §10 — where this build extends the read contract
 
 `requirements-page/spec.md` §10 is the authoritative read contract, and
-another agent builds `api/` against it in parallel. This build codes against
-it as written for `chapter` / `status` / `state` / `method` / `q`, and
-additively extends it in the following places, each because the widened,
-fully-filterable column set the dispatch brief asks for has no other honest
-implementation (§"Why this architecture" above explains why client-side
-re-filtering was rejected):
+another agent built `api/api/models/requirements.py` /
+`api/api/routers/requirements.py` in parallel (committed as `3b3910a` during
+this build). This frontend was checked directly against that committed code,
+not only the spec text, and the two disagree in more places than a spec
+reading alone would predict. Every gap below is real, not speculative, and
+every one degrades to an empty/absent state on this frontend, never to a
+crash — but each is a genuine integration item for whoever reconciles the
+two builds next:
 
-| Extension | Shape | Why |
+| Gap | Committed API | This frontend's answer |
 |---|---|---|
-| `RequirementRow` carries `system_states`, `measurand`, `source`, `related_reqs` | 4 more fields on the LIST row, not detail-only as §10.1 has it | these are now list columns; a row without them cannot render its own table cell |
-| `RequirementRow`/`Detail` carry `item_version`, `content_sha256`, `origin` | 3 fields, per `authoring-controls/spec.md` §6 | concurrency guard + which door wrote the row |
-| `GET /requirements` gains `ears_pattern`, `system_state`, `measurand`, `source`, `revision`, `related_req`, `has_verified_by`, `has_latest_run` | 8 more query params, repeated where multi-valued | one filter per widened column, per the dispatch brief's rule |
-| `GET /requirements/facets` gains `system_states`, `measurands`, `sources` | 3 more arrays | the same "whole-mirror facet, never a typed list" rule §10.2 already states for chapter/status/method |
-| `RequirementDetail` gains `resolved_tokens: {token, resolved}[]` | new, optional | §7B asks for a chip PER resolved `{token}`; the flat `text_rendered` string alone cannot say where each substitution landed without this |
+| `GET /requirements/facets` | **Does not exist.** No route, no `queries_requirements` function. | Chapter/Status/Method/System state/Measurand/Source filters render with no options until the route is added; `useRequirementFacets()` fails silently (`data` stays `undefined`). |
+| `GET /requirements/{id}/journal` | **Does not exist**, and `api/api/routers/journal.py`'s entity map was not extended with `"requirement"` either. | The History panel shows its normal `ErrorState` until both land. |
+| `RequirementRow` | No `system_states`, `measurand`, `source`, `related_reqs`, `item_version`, `content_sha256`, `asil`, or any row-origin field. Only `req_id, title, status, chapter, ears_pattern, revision, verification_method` (four of those seven **nullable**) plus the seven derived fields. | The four widened columns render empty until the row carries them (`RequirementRow.system_states` etc. are optional in `types/requirement.ts`); row-level Retire fetches a fresh `item_version` via `GET /requirements/{id}` immediately before writing (see "Known simplifications"); row-level Edit always opens, and the dialog's own detail fetch (which **does** carry provenance) decides whether a form renders. |
+| `asil` | **Does not exist anywhere** — not on `RequirementRow`, not on `RequirementDetail`, not on either write request. `requirements-page/spec.md` proposed adding it; it was not built. | Removed entirely from this frontend — no column, no form field, no CSV column. Keeping it would have meant a form field that silently 422s the whole `PATCH` the moment `extra="forbid"` sees the key (see next row). |
+| `RequirementPatchRequest` | `RequestModel`, `extra="forbid"`. Fields: `title, text, ears_pattern, chapter, system_states, rationale, source, verification_method, measurand, revision, related_reqs, figure_refs, verification_criteria, parent_version, actor, second_actor, note`. **No `status`.** | The edit form's Status control is hidden (`RequirementFormFields showStatus={false}`) and `status` is never diffed into the patch body — a status move is not this route's job. |
+| Row-level provenance | **No flat field.** `RequirementDetail.field_sources: FieldSources` — the same per-field provenance map every other entity detail already carries (`sourced()`, `types/source.ts`) — is the only place origin lives, and only on the detail read. | `requirementOrigin(detail)` reads `field_sources.title.source` as the row-level proxy. This independently avoids the naming collision an earlier draft of this doc flagged for Buddy (a `source: "manual"\|"api:planning"` field would have collided with the requirement's own authored `source: string[]` stakeholder-tag field) — the committed API's choice of `field_sources` sidesteps that question entirely, without anyone having to pick a name. |
+| `RequirementEvidence` | `run_id, definition_id, definition_title, outcome, produced_at, implementation_sha256, current: bool \| None, evidence_values`. **No `first_data_at`.** | The covering-runs table's "Arrived" column reads "—" until the API adds it. |
+| Filters beyond `chapter`/`status`/`state`/`method`/`q` | Not read by `list_requirements` at all. | Every widened-column filter (`ears_pattern`, `system_state`, `measurand`, `source`, `revision`, `related_req`, `has_verified_by`, `has_latest_run`) is sent as an ordinary query param FastAPI does not bind and therefore ignores — no 422, the filter is simply inert until the route reads it. |
+| `RequirementDetail.resolved_tokens` | Does not exist; only `text` and `text_rendered` (flat string) do. | §7B asks for a chip **per** resolved `{token}`; without a token→resolution list this frontend falls back to rendering the flat `text_rendered` string with no per-token chips (`RequirementTextPanel` already handles the absent case). |
+| `RequirementViewCounts` | `all, not_covered, covered, exercised, failed, tested`. **No `no_evidence`.** | The "No evidence" quick view still filters correctly (`state=not_covered&state=covered`); it just shows no count badge until the fold adds the field. |
 
-None of these break the contract as written — every one is additive, and an
-API that has not implemented one yet is read as `undefined`/absent by this
-frontend, never as an error.
-
-## Naming collision flagged to Buddy
-
-`requirement-status-from-runs/spec.md` §5.1 gives the requirement document an
-authored `source: string[]` field (stakeholder provenance tags, e.g.
-`"STAKEHOLDER:battery-dc-brief-2026-09-21"` — already a required list column
-here). `authoring-controls/spec.md` §6 independently adds a row-provenance
-field **also named `source`**, of a different shape entirely
-(`"manual" | "api:planning"`, singular). Both specs are read literally in
-this build, so the frontend cannot carry both under one name. This build
-names the row-provenance field `origin` in every frontend type and control
-(`RequirementRow.origin`, the edit-dialog's origin gate, the header badge),
-and leaves the stakeholder list as `source`, matching the older, twice-
-confirmed spec. **This is a wire-contract question for Buddy, not a
-frontend styling choice** — the parallel API build must pick one wire name
-for the provenance field that does not collide with the stakeholder list,
-and this frontend's `origin` naming is a proposal, not a settled contract.
+None of these break the contract as written — every one is additive or
+gracefully absent, and this frontend was typechecked and linted against the
+actual committed models (not just the spec prose) to confirm every gap above
+degrades rather than crashes.
 
 ## Known simplifications
 
-- **Column-header origin badges are column-level, not per-row.** Every
-  authored column's header shows `api:planning` even on a page that can now
-  mix manual and planning rows. The detail screen's header block shows the
-  correct per-row `origin` badge; the list's per-cell badges would be the
-  fifty-badges-per-page problem spec §5.3 already rejects. A future
-  enhancement could add a small per-row marker if mixed-origin lists become
-  common; not built here.
+- **Column-header origin badges are column-level, not per-row**, and the
+  **list's row-level Edit icon always renders**, unconditionally. Both follow
+  from the same fact: `RequirementRow` carries no provenance data at all (see
+  "Beyond §10"), so the list genuinely cannot know a row's origin without
+  fetching its detail first. The detail screen's header block shows the
+  correct per-row origin badge and correctly gates its Edit button, because
+  it has already loaded `field_sources`. Opening Edit from the list on a
+  planning row shows the dialog's "mirrored from planning, edited there, not
+  here" notice instead of a form — one extra click to discover what a
+  per-row list badge would have said up front, traded for not fetching every
+  visible row's detail just to paint an icon.
+- **Row-level and batch Retire fetch a fresh `item_version` immediately
+  before writing**, rather than using a version read at list-load time.
+  `RequirementRow` carries no `item_version` to reuse (see "Beyond §10"), and
+  fetching fresh is also the more correct concurrency guard regardless: a
+  version cached from when the list first loaded could already be stale by
+  the time a person confirms a retire several minutes later. The detail
+  screen already holds a just-loaded `item_version` and passes it directly,
+  skipping the extra round trip.
 - **The four-eyes `second_actor` field is a plain text box**, not a picker
   against a user directory — this codebase has no such directory or search
   endpoint (`useActor()` only resolves the *current* signed-in identity).

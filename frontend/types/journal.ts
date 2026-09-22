@@ -8,6 +8,7 @@ export type JournalEntityType =
   | "work_order"
   | "result"
   | "test_definition"
+  | "requirement"
   /* A whole-list CSV export (`api/api/services/exports.py`). It names no
      stored document: the entity id is the list a person exported, so an
      export row carries no detail link. */

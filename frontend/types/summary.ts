@@ -10,6 +10,10 @@ export interface HomeCounts {
       omits the field, and a missing count must read as zero — never as NaN
       in the sidebar. Same rule as `orphaned_definitions` below. */
   test_definitions?: number;
+  /** The whole requirements mirror. Optional: an API built before the
+      requirement catalog lands sends no field, and a missing count must
+      read as zero — never as NaN in the sidebar. */
+  requirements?: number;
   runs_today: number;
   files_today: number;
   rig_count: number;

@@ -53,6 +53,7 @@ const NOTE_STALE_KEYS: Record<JournalEntityType, (id: string) => readonly unknow
   work_order: (id) => keys.workOrders.detail(id),
   result: (id) => keys.results.detail(id),
   test_definition: (id) => keys.testDefinitions.detail(id),
+  requirement: (id) => keys.requirements.detail(id),
   // An export names a list, not a document, so it owns no detail screen and
   // no nested journal. The Audit table is the only place its rows appear.
   export: () => keys.journal.all,

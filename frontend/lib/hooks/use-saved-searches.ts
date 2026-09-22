@@ -139,6 +139,7 @@ export const SAVED_SEARCH_SCOPE: Record<
   files: { label: "Files", pathname: "/files" },
   signals: { label: "Signals", pathname: "/signals" },
   "work-orders": { label: "Work orders", pathname: "/work-orders" },
+  requirements: { label: "Requirements", pathname: "/requirements" },
 };
 
 /** One saved search from either store, ready to link. */
@@ -184,11 +185,13 @@ export function useMergedSavedSearches(active = true): MergedSavedSearches {
   const files = useServerSavedSearches("files", identity, active);
   const signals = useServerSavedSearches("signals", identity, active);
   const workOrders = useServerSavedSearches("work-orders", identity, active);
+  const requirements = useServerSavedSearches("requirements", identity, active);
   const server: Record<SavedSearchScope, ReturnType<typeof useServerSavedSearches>> = {
     runs,
     files,
     signals,
     "work-orders": workOrders,
+    requirements,
   };
 
   const serverRows: MergedSavedSearch[] = SAVED_SEARCH_SCOPES.flatMap((scope) =>

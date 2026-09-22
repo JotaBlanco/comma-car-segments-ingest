@@ -13,6 +13,7 @@ import {
   FlaskConical,
   Home,
   LayoutDashboard,
+  ListChecks,
   NotebookText,
   PanelLeftClose,
   PanelLeftOpen,
@@ -33,6 +34,7 @@ export interface SidebarCounts {
   runs?: string | number;
   workOrders?: string | number;
   definitions?: string | number;
+  requirements?: string | number;
   files?: string | number;
   signals?: string | number;
 }
@@ -132,6 +134,10 @@ export function Sidebar({ counts }: SidebarProps) {
     // sidebar prints NaN.
     definitions:
       summaryCounts !== undefined ? formatInt(summaryCounts.test_definitions ?? 0) : undefined,
+    // An API built before the requirement catalog lands sends no field —
+    // same fallback-to-zero rule as `definitions` above.
+    requirements:
+      summaryCounts !== undefined ? formatInt(summaryCounts.requirements ?? 0) : undefined,
     files: summaryCounts !== undefined ? formatInt(summaryCounts.files) : undefined,
     signals: summaryCounts !== undefined ? formatCompact(summaryCounts.signals) : undefined,
   };
@@ -218,6 +224,17 @@ export function Sidebar({ counts }: SidebarProps) {
     { label: "Home", href: "/", icon: Home },
     { label: "Work orders", href: "/work-orders", icon: ClipboardList, count: resolved.workOrders },
     { label: "Test runs", href: "/runs", icon: Timer, count: resolved.runs, depth: 1 },
+    /* Sits directly above Test definitions, same depth: a requirement is
+       covered BY a definition, so a reader meets the thing being verified
+       just before the thing that verifies it (requirement-status-from-runs
+       spec §7.3). */
+    {
+      label: "Requirements",
+      href: "/requirements",
+      icon: ListChecks,
+      count: resolved.requirements,
+      depth: 2,
+    },
     /* The definitions list and the definition detail both ship. Without this
        entry the only way in is the Home "orphaned definitions" line. */
     {

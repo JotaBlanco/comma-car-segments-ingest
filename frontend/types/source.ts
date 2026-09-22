@@ -40,6 +40,9 @@ export function sourced<
 export function sourceMeaning(source: string): string {
   if (source === "embedded") return "Ingestion wrote this value from the measurement file.";
   if (source === "manual") return "A person typed this value into the Test Manager.";
+  if (source === "derived") {
+    return "The Test Manager computed this value from other records. Nothing stores it and nobody can edit it.";
+  }
   const system = source.startsWith("api:") ? source.slice(4) : source;
   return `The ${system === "catalogue" ? "catalog" : system} system wrote this value over the API.`;
 }

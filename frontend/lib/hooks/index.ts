@@ -6,6 +6,7 @@ export * from "./use-announce";
 export * from "./use-page-title";
 export * from "./use-work-orders";
 export * from "./use-test-definitions";
+export * from "./use-requirements";
 export * from "./use-files";
 export * from "./use-file-link";
 export * from "./use-journal";

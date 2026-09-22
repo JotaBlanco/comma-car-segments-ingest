@@ -12,7 +12,8 @@
  *  - Every mutation is read-merge-write: re-read storage, apply, write back.
  *    Two tabs then interleave instead of clobbering each other.
  *  - One `localStorage` key per screen — `tm-export-columns:runs`, `:files`,
- *    `:signals`. A runs choice can never reach the files screen.
+ *    `:signals`, `:requirements`. A runs choice can never reach the files
+ *    screen.
  *  - A refused or full `localStorage` never throws. The store falls back to an
  *    in-memory copy, so the picker keeps working for the rest of the tab, and
  *    `exportColumnsPersist` tells the UI to say so.
@@ -23,7 +24,7 @@
 import { useSyncExternalStore } from "react";
 
 /** The screens that own an export column choice. One storage key each. */
-export type ExportColumnScope = "runs" | "files" | "signals";
+export type ExportColumnScope = "runs" | "files" | "signals" | "requirements";
 
 export const EXPORT_COLUMNS_VERSION = 1;
 
@@ -98,7 +99,10 @@ export function exportColumnsPersist(scope: ExportColumnScope): boolean {
 
 /** The scope each storage key belongs to, so one event drops one cache. */
 const SCOPE_BY_KEY = new Map<string, ExportColumnScope>(
-  (["runs", "files", "signals"] as const).map((scope) => [exportColumnsStorageKey(scope), scope]),
+  (["runs", "files", "signals", "requirements"] as const).map((scope) => [
+    exportColumnsStorageKey(scope),
+    scope,
+  ]),
 );
 
 /**

@@ -3,6 +3,7 @@ import type {
   JournalKind,
   JournalListFilters,
   PageParams,
+  RequirementListFilters,
   ResultListFilters,
   RunGroupFilters,
   RunListFilters,
@@ -104,6 +105,15 @@ export const keys = {
     detail: (tdId: string) => ["test-definitions", "detail", tdId] as const,
     journal: (tdId: string, params: PageParams & { kind?: JournalKind }) =>
       ["test-definitions", "detail", tdId, "journal", params] as const,
+  },
+  requirements: {
+    all: ["requirements"] as const,
+    list: (filters: RequirementListFilters) =>
+      ["requirements", "list", normalizeFilters(filters)] as const,
+    facets: ["requirements", "facets"] as const,
+    detail: (reqId: string) => ["requirements", "detail", reqId] as const,
+    journal: (reqId: string, params: PageParams & { kind?: JournalKind }) =>
+      ["requirements", "detail", reqId, "journal", params] as const,
   },
   files: {
     all: ["files"] as const,

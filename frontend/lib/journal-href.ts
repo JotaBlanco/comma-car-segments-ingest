@@ -7,6 +7,7 @@ const ENTITY_PATH = {
   signal: "/signals",
   work_order: "/work-orders",
   test_definition: "/definitions",
+  requirement: "/requirements",
 } as const;
 
 /** An entity type that owns a detail screen. */

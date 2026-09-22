@@ -59,6 +59,7 @@ const TYPE_LABELS: Record<JournalEntry["entity_type"], string> = {
   work_order: "Work order",
   result: "Result",
   test_definition: "Definition",
+  requirement: "Requirement",
   export: "Export",
 };
 

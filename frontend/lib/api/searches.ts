@@ -2,7 +2,7 @@ import type { Paginated, SavedSearchVisibility, ServerSavedSearch } from "@/type
 import { api } from "./client";
 
 /** The list screens that own a saved-search list. Contract §D DS-9. */
-export type SavedSearchApiScope = "runs" | "files" | "signals" | "work-orders";
+export type SavedSearchApiScope = "runs" | "files" | "signals" | "work-orders" | "requirements";
 
 export interface SavedSearchCreateBody {
   scope: SavedSearchApiScope;
