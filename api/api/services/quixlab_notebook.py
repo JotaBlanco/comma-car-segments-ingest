@@ -21,7 +21,10 @@ worth a 500 rather than a notebook that runs someone else's SQL.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
+from datetime import UTC, datetime
 
 # A value safe to sit inside a single-quoted SQL string inside a Python
 # triple-quoted string. No quote, no backslash, no newline, no `"""`.
@@ -177,4 +180,36 @@ def timeline(samples):
 '''
 
 
-__all__ = ["PARTITIONS", "UnsafeValue", "lake_tree", "notebook_source", "partition_path"]
+# What QuixLab's code store records as the writer of a notebook; the lab's own pushes carry
+# its deployment id here.
+MANIFEST_SOURCE = "test-manager"
+
+
+def manifest_source(notebook_name: str, text: str) -> str:
+    """The manifest QuixLab's code store reads BESIDE the notebook, as JSON.
+
+    A lab booted on a project root asks the code store for `<root>/<notebook>.manifest.json`
+    first; the notebook alone reads as an EMPTY root, and QuixLab then seeds a blank
+    "My Notebook" over it (`quixlab/src/quixlab/code_store.py`, `materialize`;
+    `main.py`, `_boot_project`). The fingerprint is the store's own: sha256 of the text,
+    with no file nodes (`content_sha`).
+    """
+    return json.dumps(
+        {
+            "notebook": notebook_name,
+            "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            "written": datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ"),
+            "files": [],
+            "source": MANIFEST_SOURCE,
+        }
+    )
+
+
+__all__ = [
+    "PARTITIONS",
+    "UnsafeValue",
+    "lake_tree",
+    "manifest_source",
+    "notebook_source",
+    "partition_path",
+]

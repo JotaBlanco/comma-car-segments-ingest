@@ -411,7 +411,7 @@ def test_creating_a_notebook_writes_the_file_before_the_deployment(
 
     assert response.status_code == 201, response.text
     kinds = [kind for kind, _ in portal["calls"]]
-    assert kinds.index("WRITE") < kinds.index("POST"), "the notebook goes first"
+    assert kinds == ["WRITE", "WRITE", "POST"], "the notebook, its manifest, then the deployment"
 
 
 def test_a_new_notebook_is_listed_and_its_lab_opens_on_its_own_folder(
@@ -424,6 +424,17 @@ def test_a_new_notebook_is_listed_and_its_lab_opens_on_its_own_folder(
     notebook_id = body["notebook_id"]
     key, source = written[0]
     assert key == f"{WORKSPACE}/quixlab-runs/{RUN}/{notebook_id}/analysis.py"
+    # QuixLab's code store reads the manifest FIRST: without it the root is empty and the
+    # lab seeds a blank "My Notebook" over the starter.
+    import hashlib
+    import json
+
+    manifest_key, manifest = written[1]
+    assert manifest_key == f"{key}.manifest.json"
+    parsed = json.loads(manifest)
+    assert parsed["notebook"] == "analysis.py"
+    assert parsed["sha256"] == hashlib.sha256(source.encode()).hexdigest()
+    assert parsed["files"] == []
     assert body["lab"]["notebook"] == f"blob://{key}"
     assert f"/run_id={RUN}'" in source, "the notebook opens on THIS run's folder"
     assert body["lab"]["url"] == "https://tm-lab.dev.quix.io"
@@ -448,7 +459,9 @@ def test_a_run_holds_several_notebooks_each_its_own_file_and_lab(
     assert first["notebook_id"] != second["notebook_id"]
     assert first["name"] == "Notebook 1"
     assert second["name"] == "Notebook 2"
-    assert len({key for key, _ in written}) == 2, "two files, two folders"
+    assert len({key for key, _ in written if key.endswith("analysis.py")}) == 2, (
+        "two files, two folders"
+    )
     assert first["lab"]["name"] != second["lab"]["name"], "two labs"
     assert [row["name"] for row in client.get(PATH).json()] == ["Notebook 1", "Notebook 2"]
 

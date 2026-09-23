@@ -54,6 +54,7 @@ import httpx
 
 from api import quix_identity, quixlab
 from api.quix_identity import PlatformMissing, PlatformRefused, PlatformUnreachable
+from api.services import quixlab_notebook
 
 logger = logging.getLogger(__name__)
 
@@ -435,9 +436,14 @@ def ensure_lab(
         if template is None:
             raise NoTemplate("the workspace holds no QuixLab deployment to clone")
 
-        # The notebook first. See the docstring.
+        # The notebook first, then the manifest QuixLab's code store gates on - a root with
+        # the notebook alone reads as empty and is seeded with a blank. See the docstring.
         if notebook_source is not None:
             write_notebook(key, notebook_source)
+            write_notebook(
+                f"{key}.manifest.json",
+                quixlab_notebook.manifest_source(NOTEBOOK_NAME, notebook_source),
+            )
 
         template_id = quixlab.read_text(template, "deploymentId")
         full = quix_identity.portal_get(
