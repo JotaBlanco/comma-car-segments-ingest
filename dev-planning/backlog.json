@@ -391,6 +391,20 @@
       "status": "finished",
       "notes": "ghcr.io/quixio/quixlab:pr-42-c9939a4 (built 2026-08-19) -> main-a4c31e3 (commit a4c31e39, built 2026-09-11); pinned to the immutable tag, not the floating main",
       "updated": "2026-09-23"
+    },
+    {
+      "id": "BL-56",
+      "title": "Requirements collection was empty in jamaui — the page had nothing to show",
+      "status": "finished",
+      "notes": "found while smoke-testing BL-54. seed/ already sends requirements in the planning body (planning_sync.py:178) but had not been re-run since the collection shipped at 3b3910a. `python -m seed catalog` -> requirements_mirrored 10. NOTE: TM_API_URL is the BASE url, push.py appends /api/v1 itself",
+      "updated": "2026-09-23"
+    },
+    {
+      "id": "BL-57",
+      "title": "Battery Sim v2: compact layout, a speed/smaller-battery knob, car with spinning wheels",
+      "status": "in progress",
+      "notes": "user 2026-09-23. Q_MAX_AH and SAMPLE_TIME are tunable:false module constants seeded from env (plant/main.py:90-91), and the loop sleeps exactly one step (:455) — a live speed slider needs a recorded patch to the vendored plant, a smaller battery needs only a deployment variable. Spec at dev-planning/battery-sim-ui-v2/spec.md",
+      "updated": "2026-09-23"
     }
   ]
 }
