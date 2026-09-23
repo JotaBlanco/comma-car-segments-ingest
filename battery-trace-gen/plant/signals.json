@@ -14,8 +14,8 @@
       "datatype": "float",
       "unit": "W",
       "default": -8000.0,
-      "min": -250000.0,
-      "max": 250000.0,
+      "min": -400000.0,
+      "max": 400000.0,
       "enum": null,
       "direction": "input",
       "tunable": null
@@ -244,8 +244,8 @@
       "datatype": "float",
       "unit": "W",
       "default": -8000.0,
-      "min": -250000.0,
-      "max": 250000.0,
+      "min": -400000.0,
+      "max": 400000.0,
       "enum": null,
       "direction": "output",
       "tunable": null

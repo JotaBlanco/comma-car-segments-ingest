@@ -34,12 +34,17 @@ variables:
   - name: K_DRAG_N_PER_MPS2
     inputType: FreeText
     description: Car visualisation - aerodynamic drag coefficient in N per (m/s)^2
-    defaultValue: "0.40"
+    defaultValue: "0.3692"
+    required: false
+  - name: K_LIN_N_PER_MPS
+    inputType: FreeText
+    description: Road load, linear term in N/(m/s). Second coefficient of F = K_ROLL_N + K_LIN_N_PER_MPS*v + K_DRAG_N_PER_MPS2*v^2
+    defaultValue: "5.0"
     required: false
   - name: K_ROLL_N
     inputType: FreeText
     description: Car visualisation - constant rolling resistance in N
-    defaultValue: "196"
+    defaultValue: "200"
     required: false
   - name: DRIVELINE_EFF
     inputType: FreeText
@@ -49,7 +54,7 @@ variables:
   - name: V_FLOOR_MPS
     inputType: FreeText
     description: Car visualisation - launch floor in m/s; tractive force below this speed is held at its value here, which is what bounds launch acceleration
-    defaultValue: "15"
+    defaultValue: "12.41"
     required: false
   - name: WHEEL_RADIUS_M
     inputType: FreeText

@@ -29,7 +29,7 @@ The conversion is made once, immediately after the solver, so `dc_voltage`, both
 updates and the KT2*I**2 heating term are untouched and become correct by construction.
 
 
-THE ELEVEN EDITS
+THE TWELVE EDITS
 --------------
 (1) main.py:386 — inserted immediately after `dc_current = solve_dc_current(...)`
 
@@ -185,11 +185,22 @@ THE ELEVEN EDITS
     deployment variable so the live sim and the trace generator stay on one model.
     Folded into the same regeneration as (10).
 
+(12) signals.json — requested_power_w range widened to +/- 400 kW
+
+    The lexicon capped the request at +/- 250 kW and REJECTS an out-of-range write
+    rather than clamping it, so once the dashboard's pedal ceiling rose to 352 kW
+    every pedal position above 71 % was thrown away and the plant held its last
+    accepted value. That read as "no reaction above about 60 %" and as an achieved
+    current that never reached the request.
+
+    Widening a bound changes no value the traces carry - their requests stay inside
+    the old range - so the four sha256s are unaffected.
+
 Nothing else differs from the source. lexicon.py is byte-identical to the commit above.
 
 sha256 of the vendored copies
     main.py         13f52233a7ffccaf153478fe4f724e141344855ee7a5cbe13f7d0e037f641381
-    signals.json    74d69d84df787f5a895e2e641941f24872dbc2022d96b01257d74852d031c4d2
+    signals.json    644fd1acff95247e980b4df394cbca798b582c244a661f70d10e65c5826e45c9
     lexicon.py      0b708068e9a4ab2bf5568ce33b93ad7234eadfa2e3ca5a31a6ff0989c28ad5d0
     parameters.json a65e35d6648e8f4478ee76479448ea86de927576df033f962a3b513fa4284c92
 
