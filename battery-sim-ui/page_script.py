@@ -55,13 +55,23 @@ DASHBOARD_JS = """
     if (sendTimer) return;
     sendTimer = setTimeout(() => { sendTimer = null; postCommand(); }, SEND_THROTTLE_MS);
   }
-  function postCommand() {
+  function postCommand(extra) {
     fetch('/command', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(state),
+      body: JSON.stringify(extra ? Object.assign({}, state, extra) : state),
     }).catch(() => {});
   }
+
+  // `reset` is momentary and never enters `state`: the plant acts on the tick
+  // that sees a 1 and clears the flag itself, so a later command must not
+  // repeat it. The car's own speed is browser-side, so it is zeroed here.
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    postCommand({ reset: 1 });
+    car.v_mps = 0;
+    Object.values(series).forEach((s) => { s.buf.length = 0; });
+    drawActive();
+  });
 
   const accelSlider = document.getElementById('accel-slider');
   const brakeSlider = document.getElementById('brake-slider');

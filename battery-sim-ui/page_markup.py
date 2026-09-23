@@ -19,6 +19,8 @@ BODY_HTML = """<body class="bg-body">
       <label for="speed-top" class="small text-secondary mb-0 text-nowrap">Simulation speed</label>
       <input type="range" class="form-range speed-slider" id="speed-top" min="1" max="50" step="1" value="1">
       <span class="badge text-bg-secondary speed-badge">&times;1</span>
+      <button type="button" class="btn btn-sm btn-outline-secondary text-nowrap" id="reset-btn"
+              title="Restore charge, RC voltages and temperature to their startup values. Pedals, ambient, knobs and simulation speed are left alone.">Reset sim</button>
     </div>
     <div class="d-flex align-items-center gap-2 small text-secondary text-nowrap">
       <span class="live-dot" id="live-dot"></span><span id="live-text">connecting&hellip;</span>

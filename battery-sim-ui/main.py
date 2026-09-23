@@ -150,6 +150,9 @@ def command_route():
         "ambient_temp_c": float(data.get("ambient_temp_c", 15)),
         "chiller_setting": int(data.get("chiller_setting", 0)),
         "heater_setting": int(data.get("heater_setting", 0)),
+        # Momentary: the plant restores its state on the tick that sees a 1 and
+        # clears the flag itself, so the page never has to send a 0 back.
+        "reset": int(data.get("reset", 0)),
     }
     # TIME_SCALE is a plant PARAMETER, not a signal: the plant divides its
     # inter-tick sleep by it and nothing else. handle_command applies the two
