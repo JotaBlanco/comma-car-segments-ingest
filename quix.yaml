@@ -431,7 +431,7 @@ deployments:
         required: true
         value: battery-data
       - name: Q_MAX_AH
-        value: "25"
+        value: "90"
       - name: A_THERMAL
         value: "0.001"
       - name: KE

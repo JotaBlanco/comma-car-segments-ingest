@@ -13,8 +13,8 @@ variables:
     required: true
   - name: Q_MAX_AH
     inputType: FreeText
-    description: Pack capacity in Ah. Read once at startup into Q_MAX - a change needs a restart, and a live write is refused
-    defaultValue: "25"
+    description: Pack capacity in Ah. Read once at startup into Q_MAX - a change needs a restart, and a live write is refused. 90 Ah is ~70 kWh, so the 250 kW pedal is 3.6C; a smaller pack makes SOC move faster but cooks and empties in minutes, and the temperature derating then throttles discharge. Use TIME_SCALE to speed the sim up instead.
+    defaultValue: "90"
     required: false
   - name: A_THERMAL
     inputType: FreeText

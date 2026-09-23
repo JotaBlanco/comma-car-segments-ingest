@@ -444,8 +444,8 @@
     {
       "id": "BL-63",
       "title": "Battery Sim thermal model is 50x slower than the pack it now models",
-      "status": "in progress",
-      "notes": "user 2026-09-23: temperature frozen at 20.0 and ambient has no effect. Both real: C=1/A_THERMAL=5000 J/degC and KE=1.6 W/degC give tau=52 min (0.10 degC/min idle, 0.38 degC/min across a 20 degC ambient gap) while Q_MAX_AH=25 moves SOC in seconds. Staged A_THERMAL=0.001 + KE=8.0 -> tau 2.1 min. Initial temperature is A_THERMAL*100000, so the plant must decouple it first or the sim boots at the 60 degC clamp",
+      "status": "finished",
+      "notes": "A_THERMAL 0.0002->0.001 and KE 1.6->8.0 (tau 52min -> 2.1min), initial temperature decoupled from A_THERMAL. Q_MAX_AH went 100->25 then back to 90: at 25 Ah the 250 kW pedal is 12.8C, so the pack hit 57 degC and the derating LUT throttled it to 58% - TIME_SCALE is the speed knob, not pack size",
       "updated": "2026-09-23"
     },
     {
@@ -453,6 +453,13 @@
       "title": "Car visual: no freely-licensed clean-background Taycan image exists",
       "status": "discuss",
       "notes": "user asked for an internet image. Commons' CC BY 4.0 side view is a showroom photo with bystanders, a PORSCHE floor mat and a crest banner; press renders are copyrighted. Plan: redraw as a proper vector (scales, recolours, wheels genuinely spin). User can drop a licensed asset into battery-sim-ui/static/ instead",
+      "updated": "2026-09-23"
+    },
+    {
+      "id": "BL-65",
+      "title": "Plant derates DISCHARGE current, but SAF-003 specifies derating only for charging",
+      "status": "discuss",
+      "notes": "plant/main.py:384 applies derating_factor to dc_current unconditionally, so a hot pack loses traction power too. BAT-SYS-SAF-003 states the derating applies to 'the actual charging current limit'. Measured live: 56.9 degC -> factor 0.578 -> 250 kW request delivered 144 kW. Vendored behaviour; the four traces depend on it",
       "updated": "2026-09-23"
     }
   ]
