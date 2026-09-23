@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 import { Archive, Pencil, Plus } from "lucide-react";
 import { ActiveFilterPills } from "@/components/shared/active-filter-pills";
@@ -13,17 +12,12 @@ import { LoadingRows } from "@/components/shared/loading-rows";
 import { PageHeader } from "@/components/shared/page-header";
 import { Panel, PanelHead, TableScrollArea } from "@/components/shared/panel";
 import { QuickViewSegment, type QuickView } from "@/components/shared/quick-view-segment";
-import { RowLink, RowLinkLabel } from "@/components/shared/row-link";
+import { RowLink } from "@/components/shared/row-link";
 import { SourceBadge, type SourceKind } from "@/components/shared/source-badge";
-import { ToneBadge } from "@/components/shared/status-badge";
 import { TableEmptyState } from "@/components/shared/table-empty-state";
 import { TablePager } from "@/components/shared/table-pager";
 import { TableSearchInput } from "@/components/shared/table-search-input";
-import {
-  ToolbarFiltersButton,
-  ToolbarRow,
-  useDisclosure,
-} from "@/components/shared/table-toolbar";
+import { ToolbarRow } from "@/components/shared/table-toolbar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { requirementsApi } from "@/lib/api/requirements";
 import { formatArrival } from "@/lib/format";
@@ -31,9 +25,11 @@ import { usePlanningSyncStatus, useRequirementFacets, useRequirements } from "@/
 import { useTableState } from "@/lib/table-state";
 import type { EarsPattern, RequirementListFilters, VerificationState } from "@/types";
 import { AddRequirementDialog } from "./add-requirement-dialog";
-import { ChipList, MonoChip } from "./chip-list";
 import { EditRequirementDialog } from "./edit-requirement-dialog";
-import { RequirementsFiltersPanel } from "./requirements-filters-panel";
+import { useHiddenColumns } from "./requirements-column-visibility";
+import { REQUIREMENT_COLUMNS } from "./requirements-columns";
+import { RequirementsColumnsMenu } from "./requirements-columns-menu";
+import { RequirementsFiltersPopover } from "./requirements-filters-popover";
 import { RequirementsBatchBar } from "./requirements-batch-bar";
 import { buildRequirementPills } from "./requirements-active-pills";
 import {
@@ -41,17 +37,19 @@ import {
   REQUIREMENTS_TABLE_CONFIG,
 } from "./requirements-table-config";
 import { RetireRequirementDialog, type RetirableRequirement } from "./retire-requirement-dialog";
-import { VerificationChip } from "./verification-chip";
 
 /**
  * Requirements — a widened, fully filterable read+authoring grid over the
  * mirrored `requirements` collection (requirements-page spec + the dispatch
  * brief's override of its "nothing is editable" line, per
  * authoring-controls spec §3).
+ *
+ * The data columns are declared once in `requirements-columns.tsx`, and both
+ * the header and the body map the visible slice of that list, so a column
+ * hidden from the Columns menu leaves the table whole.
  */
 
 const PATHNAME = "/requirements";
-const COL_COUNT = 17; // checkbox + 15 data columns + actions
 
 function ColHead({
   children,
@@ -72,14 +70,6 @@ function ColHead({
   );
 }
 
-function ChipLink({ href, id }: { href: string; id: string }) {
-  return (
-    <Link href={href} className="hover:underline">
-      <MonoChip>{id}</MonoChip>
-    </Link>
-  );
-}
-
 export function RequirementsScreen() {
   const table = useTableState(REQUIREMENTS_TABLE_CONFIG, PATHNAME);
   const { state, activeQuickViewId } = table;
@@ -97,7 +87,15 @@ export function RequirementsScreen() {
     (state.single.related_req !== undefined ? 1 : 0) +
     (state.single.has_verified_by !== undefined ? 1 : 0) +
     (state.single.has_latest_run !== undefined ? 1 : 0);
-  const disclosure = useDisclosure(activeOptionCount, false);
+
+  const hiddenColumns = useHiddenColumns();
+  const columns = useMemo(() => {
+    const hidden = new Set(hiddenColumns);
+    return REQUIREMENT_COLUMNS.filter((column) => column.pinned === true || !hidden.has(column.id));
+  }, [hiddenColumns]);
+  /* The select checkbox and the actions cell sit either side of the visible
+     data columns — together they are what a loading, error or empty row spans. */
+  const colCount = columns.length + 2;
 
   const filters: RequirementListFilters = useMemo(() => {
     const next: RequirementListFilters = { page: state.page, page_size: state.pageSize };
@@ -194,7 +192,13 @@ export function RequirementsScreen() {
       <ToolbarRow
         actions={
           <>
-            <ToolbarFiltersButton disclosure={disclosure} />
+            <RequirementsFiltersPopover
+              table={table}
+              facets={facets}
+              pathname={PATHNAME}
+              activeCount={activeOptionCount}
+            />
+            <RequirementsColumnsMenu hidden={hiddenColumns} />
             <ExportButton
               total={data?.total ?? 0}
               fetchPage={(page, pageSize) =>
@@ -224,13 +228,6 @@ export function RequirementsScreen() {
         />
       </ToolbarRow>
 
-      <RequirementsFiltersPanel
-        disclosure={disclosure}
-        table={table}
-        facets={facets}
-        pathname={PATHNAME}
-      />
-
       <div className="mb-2.5" />
       <ActiveFilterPills pills={pills} onClearAll={() => table.clearAll()} />
       <RequirementsBatchBar rows={batchRows} onSelectionChange={setPickedIds} />
@@ -257,38 +254,28 @@ export function RequirementsScreen() {
                     aria-label="Select every requirement on this page"
                   />
                 </TableHead>
-                <ColHead source="api:planning">Requirement</ColHead>
-                <ColHead source="api:planning">Title</ColHead>
-                <ColHead source="api:planning">Chapter</ColHead>
-                <ColHead source="api:planning">Status</ColHead>
-                <ColHead source="derived">Verification</ColHead>
-                <ColHead source="derived">Verified by</ColHead>
-                <ColHead source="derived">Latest run</ColHead>
-                <ColHead source="derived" align="right">Runs</ColHead>
-                <ColHead source="api:planning">Method</ColHead>
-                <ColHead source="api:planning">EARS pattern</ColHead>
-                <ColHead source="api:planning">System states</ColHead>
-                <ColHead source="api:planning">Measurands</ColHead>
-                <ColHead source="api:planning">Revision</ColHead>
-                <ColHead source="api:planning">Source</ColHead>
-                <ColHead source="api:planning">Related reqs</ColHead>
                 <TableHead className="w-16">
                   <span className="sr-only">Actions</span>
                 </TableHead>
+                {columns.map((column) => (
+                  <ColHead key={column.id} source={column.source} align={column.align}>
+                    {column.label}
+                  </ColHead>
+                ))}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isPending && <LoadingRows rows={6} cols={COL_COUNT} />}
+              {isPending && <LoadingRows rows={6} cols={colCount} />}
               {isError && (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={COL_COUNT} className="p-0!">
+                  <TableCell colSpan={colCount} className="p-0!">
                     <ErrorState onRetry={() => void refetch()} />
                   </TableCell>
                 </TableRow>
               )}
               {showBaselineEmpty && (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={COL_COUNT} className="p-0!">
+                  <TableCell colSpan={colCount} className="p-0!">
                     <span className="grid place-items-center px-4 py-7 text-[0.78rem] text-ink-3">
                       No requirements mirrored yet — planning pushes them through{" "}
                       <span className="font-mono">POST /planning/sync</span>.
@@ -298,7 +285,7 @@ export function RequirementsScreen() {
               )}
               {showEmpty && (
                 <TableEmptyState
-                  colSpan={COL_COUNT}
+                  colSpan={colCount}
                   onClearAll={() => table.clearAll()}
                   message="No requirements match the current filters."
                 />
@@ -312,71 +299,8 @@ export function RequirementsScreen() {
                       aria-label={`Select ${row.req_id}`}
                     />
                   </TableCell>
-                  <TableCell>
-                    <RowLinkLabel>
-                      <span className="font-mono text-[0.78rem]">{row.req_id}</span>
-                    </RowLinkLabel>
-                  </TableCell>
-                  <TableCell className="whitespace-normal">{row.title}</TableCell>
-                  <TableCell>{row.chapter ?? "—"}</TableCell>
-                  <TableCell>
-                    <ToneBadge tone="neutral">{row.status}</ToneBadge>
-                  </TableCell>
-                  <TableCell>
-                    <VerificationChip state={row.verification_state} stale={row.evidence_stale} />
-                  </TableCell>
-                  <TableCell>
-                    <ChipList
-                      items={row.verified_by}
-                      renderItem={(td) => (
-                        <ChipLink href={`/definitions/${encodeURIComponent(td)}`} id={td} />
-                      )}
-                      emptyLabel={<span className="text-ink-3">Not covered</span>}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    {row.latest_run_id === null ? (
-                      <span className="text-ink-3">—</span>
-                    ) : (
-                      <Link
-                        href={`/runs/${encodeURIComponent(row.latest_run_id)}`}
-                        className="font-mono text-[0.78rem] hover:underline"
-                      >
-                        {row.latest_run_id}
-                      </Link>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-[0.78rem]">
-                    {row.covering_run_count}
-                  </TableCell>
-                  <TableCell>{row.verification_method ?? "—"}</TableCell>
-                  <TableCell>{row.ears_pattern ?? "—"}</TableCell>
-                  <TableCell>
-                    <ChipList
-                      items={row.system_states ?? []}
-                      renderItem={(v) => <MonoChip>{v}</MonoChip>}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <ChipList
-                      items={row.measurand ?? []}
-                      renderItem={(m) => <MonoChip>{`${m.name} (${m.unit})`}</MonoChip>}
-                    />
-                  </TableCell>
-                  <TableCell className="font-mono text-[0.78rem]">{row.revision ?? "—"}</TableCell>
-                  <TableCell>
-                    <ChipList items={row.source ?? []} renderItem={(v) => <MonoChip>{v}</MonoChip>} />
-                  </TableCell>
-                  <TableCell>
-                    <ChipList
-                      items={row.related_reqs ?? []}
-                      renderItem={(id) => (
-                        <ChipLink href={`/requirements/${encodeURIComponent(id)}`} id={id} />
-                      )}
-                    />
-                  </TableCell>
                   <TableCell className="w-16">
-                    <div className="flex items-center justify-end gap-1">
+                    <div className="flex items-center gap-1">
                       {/* The list row carries no per-row origin (the
                           committed API's `RequirementRow` has none — see
                           the architecture doc). Edit always opens; the
@@ -412,6 +336,11 @@ export function RequirementsScreen() {
                       </Button>
                     </div>
                   </TableCell>
+                  {columns.map((column) => (
+                    <TableCell key={column.id} className={column.cellClassName}>
+                      {column.cell(row)}
+                    </TableCell>
+                  ))}
                 </RowLink>
               ))}
             </TableBody>

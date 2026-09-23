@@ -59,8 +59,11 @@ const join = (values: readonly string[]): string => values.join("; ");
 /**
  * The export's column set — the full widened attribute list, so the CSV
  * remains the reach-everything-else surface this repo already uses (§6 of
- * the requirements-page spec), even though every column now also renders in
- * the table itself.
+ * the requirements-page spec).
+ *
+ * It is independent of the table's own column list
+ * (`requirements-columns.tsx`) and of what the Columns menu hides: hiding is
+ * a view, and a file a person exports carries every column either way.
  */
 export const REQUIREMENT_CSV_COLUMNS: readonly CsvColumn<RequirementRow>[] = [
   { header: "Requirement", value: (row) => row.req_id },

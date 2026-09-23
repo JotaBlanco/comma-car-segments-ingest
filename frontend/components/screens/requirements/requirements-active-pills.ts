@@ -2,8 +2,8 @@ import type { FilterPill } from "@/components/shared/active-filter-pills";
 import type { UseTableStateResult } from "@/lib/table-state";
 import { VERIFICATION_STATE_LABEL } from "./requirements-table-config";
 
-/** Every active filter pill, named whether the filter panel is open or shut
-    (requirements-page spec §6, "Active filters always named"). */
+/** Every active filter pill, named whether the filters overlay is open or
+    shut (requirements-page spec §6, "Active filters always named"). */
 export function buildRequirementPills(table: UseTableStateResult): readonly FilterPill[] {
   const { state } = table;
   const pills: FilterPill[] = [];

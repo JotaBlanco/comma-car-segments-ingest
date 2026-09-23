@@ -12,9 +12,13 @@
  * Collapsing is only safe because `ActiveFilterPills` sits under this on every
  * screen that uses it, naming each filter that is on whether the panel is open
  * or shut. A shut panel therefore hides controls, never state. `useDisclosure`
- * adds the second guard by default: a URL that already carries a filter opens
- * the panel on arrival, so a link a colleague pastes shows the filters it
- * applies. A screen with a tall panel can decline that guard — see the hook.
+ * adds the second guard: a URL that already carries a filter opens the panel
+ * on arrival, so a link a colleague pastes shows the filters it applies.
+ *
+ * A screen whose panel is too tall to push the table down puts the same
+ * controls in an overlay instead and skips `useDisclosure` — `requirements`
+ * does, through `toolbarTriggerClass` and `FiltersTriggerContent` below, so
+ * its Filters control still looks and counts exactly like this one.
  */
 
 import { useId, useState } from "react";
@@ -28,14 +32,10 @@ import { cn } from "@/lib/utils";
  * `useState` with an initialiser, not an effect: `activeCount` decides the
  * FIRST paint only. An effect would re-shut a panel the reader had since
  * opened every time a filter count changed.
- *
- * `openWhenFiltered={false}` keeps the panel shut on arrival even when the URL
- * carries filters. Requirements passes it: twelve controls wrap to two rows
- * there, and those rows come off the table. The pills name what is applied.
  */
-export function useDisclosure(activeCount: number, openWhenFiltered = true) {
+export function useDisclosure(activeCount: number) {
   const id = useId();
-  const [open, setOpen] = useState(() => openWhenFiltered && activeCount > 0);
+  const [open, setOpen] = useState(() => activeCount > 0);
   return {
     id,
     open,
@@ -72,6 +72,53 @@ export function ToolbarRow({
   );
 }
 
+/** The skin every toolbar trigger wears — the panel button, a popover trigger,
+    a menu trigger. `active` is "this control is open or is holding state". */
+export function toolbarTriggerClass(active: boolean, className?: string): string {
+  return cn(
+    "inline-flex flex-none items-center gap-[6px] rounded-md border border-border px-[11px] py-[5px] text-[0.76rem] font-semibold transition-colors",
+    "hover:bg-surface-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+    active ? "bg-surface-2 text-ink" : "bg-surface text-ink-2",
+    className,
+  );
+}
+
+/**
+ * What a Filters trigger says: the icon, the label, the count of what is on,
+ * and the chevron.
+ *
+ * The count is what keeps a shut panel honest at a glance. It follows the
+ * quick-view segment's badge — mono, one step down, `text-ink-3` at rest —
+ * because `--color-accent-foreground` aliases `--accent`, so an accent-on-accent
+ * pill would paint itself invisible.
+ */
+export function FiltersTriggerContent({
+  open,
+  activeCount,
+  label = "Filters",
+}: {
+  readonly open: boolean;
+  readonly activeCount: number;
+  readonly label?: string;
+}) {
+  return (
+    <>
+      <SlidersHorizontal className="size-[13px]" strokeWidth={2.2} />
+      {label}
+      {activeCount > 0 && (
+        <span className={cn("ml-px font-mono text-[0.68rem]", open ? "text-ink" : "text-ink-3")}>
+          {activeCount}
+        </span>
+      )}
+      <ChevronDown
+        aria-hidden="true"
+        className={cn("size-[12px] opacity-60 transition-transform", open && "rotate-180")}
+        strokeWidth={2.2}
+      />
+    </>
+  );
+}
+
 /** The button that opens the options panel, with a count of what is on. */
 export function ToolbarFiltersButton({
   disclosure,
@@ -87,30 +134,9 @@ export function ToolbarFiltersButton({
       onClick={toggle}
       aria-expanded={open}
       aria-controls={id}
-      className={cn(
-        "inline-flex flex-none items-center gap-[6px] rounded-md border border-border px-[11px] py-[5px] text-[0.76rem] font-semibold transition-colors",
-        "hover:bg-surface-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-        open ? "bg-surface-2 text-ink" : "bg-surface text-ink-2",
-      )}
+      className={toolbarTriggerClass(open)}
     >
-      <SlidersHorizontal className="size-[13px]" strokeWidth={2.2} />
-      {label}
-      {/* The count is what keeps a shut panel honest at a glance. It follows
-          the quick-view segment's badge — mono, one step down, `text-ink-3` at
-          rest — because `--color-accent-foreground` aliases `--accent`, so an
-          accent-on-accent pill would paint itself invisible. */}
-      {activeCount > 0 && (
-        <span
-          className={cn("ml-px font-mono text-[0.68rem]", open ? "text-ink" : "text-ink-3")}
-        >
-          {activeCount}
-        </span>
-      )}
-      <ChevronDown
-        aria-hidden="true"
-        className={cn("size-[12px] opacity-60 transition-transform", open && "rotate-180")}
-        strokeWidth={2.2}
-      />
+      <FiltersTriggerContent open={open} activeCount={activeCount} label={label} />
     </button>
   );
 }
