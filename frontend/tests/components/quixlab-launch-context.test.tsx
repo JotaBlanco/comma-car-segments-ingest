@@ -61,6 +61,8 @@ vi.mock("@/lib/hooks", async () => {
   });
   const state = () => db.getDb();
   return {
+    // The run strip counts the issues itself now; none in these tests.
+    useRunSnippets: () => ok({ snippets: [] }),
     usePageTitle: () => undefined,
     /* An orphan file asks for run "" — the real hook disables the query,
        so the mock answers no data instead of throwing. */
@@ -145,7 +147,7 @@ const orphanFile = listFiles(db, { unlinked: true }, PAGE).items[0];
 const signal = listSignals(db, {}, PAGE).items[0];
 
 const QUIXLAB = "https://quixlab-abc123.dev.quix.io";
-const LAUNCH = /New QuixLab notebook/;
+const LAUNCH = /Open in QuixLab/;
 /* The file page opens the shared QuixLab on the file's run, as it always did. */
 const FILE_LAUNCH = /Open in QuixLab/;
 

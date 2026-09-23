@@ -30,7 +30,7 @@ import { listNotebooks } from "@/lib/api/run-quixlab";
 import { keys } from "@/lib/hooks/keys";
 import { SHELL_BREAKOUT_CLASS } from "@/lib/shell-breakout";
 import { formatArrival, formatInt } from "@/lib/format";
-import { usePageTitle, useRun, useRunJournal } from "@/lib/hooks";
+import { usePageTitle, useRun, useRunJournal, useRunSnippets } from "@/lib/hooks";
 import { quixLabConfigured } from "@/lib/quixlab";
 import { claimTab, launchRunQuixLab } from "@/lib/run-quixlab";
 import { cn } from "@/lib/utils";
@@ -455,7 +455,7 @@ function RunActions({
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
         <path d="M5 3l14 9-14 9V3z" />
       </svg>
-      <span>New QuixLab notebook</span>
+      <span>Open in QuixLab</span>
       <NewTabMark iconClassName="size-3 opacity-80" />
     </Button>
   );
@@ -763,10 +763,13 @@ export function RunDetailScreen({ runId }: { runId: string }) {
   // value itself lives in the URL (`?tab=…`) so a refresh keeps the tab open;
   // invalid/missing values fall back to the default.
   const activeTab = parseRunTab(searchParams.get("tab"));
-  /* How many data snippets the Anomalies tab found, once it has looked: the tab writes
-     it, the strip shows it. Null until then, so the strip shows no number it cannot vouch
-     for (the count comes from the lake, not from the run record). */
-  const [snippetCount, setSnippetCount] = useState<number | null>(null);
+  /* How many data snippets the run has. The strip asks the lake itself: the Issues tab
+     used to report it, but a tab that is not open is not mounted, so the number only
+     appeared once somebody clicked the tab. The query is shared with the tab through the
+     cache, so opening it costs nothing more. Null until the lake answers, so the strip
+     shows no number it cannot vouch for. */
+  const snippetsQuery = useRunSnippets(runId);
+  const snippetCount = snippetsQuery.data ? snippetsQuery.data.snippets.length : null;
   // Full-screen Explore focus mode (⇧F / Esc), toggled from inside ExploreTab.
   const [focus, setFocus] = useState(false);
   // Details ▾ overlay in the Explore slim bar.
@@ -989,7 +992,7 @@ export function RunDetailScreen({ runId }: { runId: string }) {
             />
           </TabsContent>
           <TabsContent value="anomalies">
-            <AnomaliesTab runId={run.run_id} onCountChange={setSnippetCount} />
+            <AnomaliesTab runId={run.run_id} />
           </TabsContent>
           <TabsContent value="journal">
             <JournalTab runId={run.run_id} onAddNote={() => setNoteOpen(true)} />

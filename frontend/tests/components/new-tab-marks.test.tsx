@@ -64,6 +64,8 @@ vi.mock("@/lib/hooks", async () => {
   });
   const state = () => db.getDb();
   return {
+    // The run strip counts the issues itself now; none in these tests.
+    useRunSnippets: () => ok({ snippets: [] }),
     usePageTitle: () => undefined,
     useRun: (runId: string) => ok(db.getRun(state(), runId)),
     useRuns: (filters = {}) => ok(db.listRuns(state(), filters, page)),
@@ -228,10 +230,10 @@ describe("the sidebar new-tab controls", () => {
   });
 });
 
-describe("the New QuixLab notebook headers", () => {
+describe("the Open in QuixLab headers", () => {
   it("marks the run detail control", () => {
     render(withClient(<RunDetailScreen runId={run.run_id} />));
-    const controls = screen.getAllByRole("button", { name: `New QuixLab notebook ${SUFFIX}` });
+    const controls = screen.getAllByRole("button", { name: `Open in QuixLab ${SUFFIX}` });
     expect(controls.length).toBeGreaterThan(0);
     for (const control of controls) {
       expectMarked(control);
