@@ -62,13 +62,13 @@ at 20 % instead of 25 %; wrong relaxation time constant; heater threshold set at
 | `BAT-SYS-TC-001` | T1 | BAT-SYS-PRF-001 | PASS | DC charging current held at or below I_current_Chr_Max |
 | `BAT-SYS-TC-002` | T1 | BAT-SYS-SAF-003 | PASS | Charging current derating ramps linearly to zero across the safety band |
 | `BAT-SYS-TC-003` | T1 | BAT-SYS-SAF-002 | **FAIL** | Battery temperature held at or below T_batt_max |
-| `BAT-SYS-TC-004` | T2 | BAT-SYS-FUN-001 | PASS | Technical state of charge tracks the integrated DC current |
-| `BAT-SYS-TC-005` | T2 | BAT-SYS-SAF-001 | PASS | Terminal voltage stays inside the Udc_min to Udc_Max window |
-| `BAT-SYS-TC-006` | T2 | BAT-SYS-FUN-002 | **FAIL** | Customer state of charge maps linearly from the technical value |
-| `BAT-SYS-TC-007` | T3 | BAT-SYS-FUN-003 | PASS | Cell voltages equalise while the battery system sleeps |
-| `BAT-SYS-TC-008` | T3 | BAT-SYS-PRF-002 | **FAIL** | Terminal voltage relaxes to the open-circuit voltage within the budget |
-| `BAT-SYS-TC-009` | T4 | BAT-SYS-FUN-004 | PASS | Heater provides the three specified power states |
-| `BAT-SYS-TC-010` | T4 | BAT-SYS-FUN-005 | **FAIL** | Heater commanded to maximum below the minimum battery temperature |
+| `BAT-SYS-TC-004` | ? | BAT-SYS-FUN-001 | ? | Technical state of charge tracks the integrated DC current |
+| `BAT-SYS-TC-005` | ? | BAT-SYS-SAF-001 | ? | Terminal voltage stays inside the Udc_min to Udc_Max window |
+| `BAT-SYS-TC-006` | ? | BAT-SYS-FUN-002 | ? | Customer state of charge maps linearly from the technical value |
+| `BAT-SYS-TC-007` | ? | BAT-SYS-FUN-003 | ? | Cell voltages equalise while the battery system sleeps |
+| `BAT-SYS-TC-008` | ? | BAT-SYS-PRF-002 | ? | Terminal voltage relaxes to the open-circuit voltage within the budget |
+| `BAT-SYS-TC-009` | ? | BAT-SYS-FUN-004 | ? | Heater provides the three specified power states |
+| `BAT-SYS-TC-010` | ? | BAT-SYS-FUN-005 | ? | Heater commanded to maximum below the minimum battery temperature |
 
 ## Ingestion pipeline (Tomas's `1148def` line — how a trace becomes data)
 
@@ -127,9 +127,9 @@ same change that moves the work. Nothing agreed in conversation stays only in co
 | ID | Status | Item | Notes |
 |---|---|---|---|
 | `BL-04` | **in progress** | Upstream plant polarity fix (dc-battery-sim, battery-sign current) | verified 53/53 in C:/repos/quixstreams-tests-polarity; commit there, then re-vendor here |
+| `BL-11` | **in progress** | Run the 10 implementations against the lake and write verdicts | user 2026-09-23 asked for a Run button instead of a jump to QuixLab. Spec at dev-planning/run-a-definition/spec.md; the verdict record it writes is defined in dev-planning/test-results-page/spec.md |
 | `BL-22` | **in progress** | Requirement status moves automatically when a run covers it; covering run id visible on the requirement | SPEC DONE (dev-planning/requirement-status-from-runs/spec.md) — not built |
 | `BL-33` | **in progress** | Versioned verifies-link between requirement and test definition, stored in the database | user 2026-09-22: hyperlinks both ways carrying the version of each side. Board model: link_id = link_type|from_id|to_id with NO version in the preimage, recording the confirmed pair (R@v, TC@w) separately from current versions; the difference is what makes a link suspect. Folded into dev-planning/review-page |
-| `BL-11` | to do | Run the 10 implementations against the lake and write verdicts | explicitly out of scope of BL-06; next feature |
 | `BL-19` | to do | Covered != Tested: TESTED needs a confirmed link at (R@v,TC@w) AND a pass pinned to TC version w | shapes BL-11 (running implementations -> verdicts) |
 | `BL-24` | to do | No verdict concept: results carry no pass/fail and name no definition | STALE as written: Verdict/VerdictOut, the POST path and the consuming fold shipped at d9dd5d4. What is missing is the WRITER — BL-11 |
 | `BL-25` | to do | Regenerate api/docs/openapi.v1.json (api/scripts/snapshot.sh) | 3 models gained fields, 2 routes added — contract-snapshot test red until refreshed |
@@ -149,10 +149,13 @@ same change that moves the work. Nothing agreed in conversation stays only in co
 | `BL-42` | to do | Test-vectors sink: decoded vectors into per-raster Iceberg tables | was test-vectors-sink (4 topics -> acc_pt_can_100hz etc. via QuixTSDataLakeSink). The battery line sinks raw CAN rows instead — decide whether per-raster tables are still wanted |
 | `BL-43` | to do | Mongo writer: stream results/summaries/verdicts into queryable collections | was mongo-writer with a custom document_matcher per collection; the new api/ writes its own Mongo, so this may be obsolete — confirm |
 | `BL-44` | to do | Parameter sets as DCM config events (/parameters, config-events) | the old chain turned parameter sets into DCM-shaped config events; our battery parameters are a DCM document but nothing consumes them at runtime |
-| `BL-47` | to do | No UI assigns a definition to a run | the only route replaces the whole set (_resolve_manual_links, api/api/services/queries_runs.py:1173). tm-multi-definition-runs/architecture.md claims the Test Run page does it — it does not. Needed now that traces no longer claim definitions |
-| `BL-48` | to do | Six run-detail tests mock @/lib/hooks wholesale and now throw on useWorkOrder | new-tab-marks, no-would-toasts, null-fields, quixlab-launch-context, signals-selection, signals-tab-filters — each needs useWorkOrder in its mock factory |
+| `BL-48` | to do | Six run-detail tests mock @/lib/hooks wholesale and now throw on useWorkOrder | GROWN: the six wholesale @/lib/hooks mocks now also need useAddRunDefinition, useRemoveRunDefinition and useTestDefinitions; frontend/tests/components/definitions-screen.test.tsx needs useTestDefinitionFacets and two changed empty-state strings |
 | `BL-51` | to do | Test Results page: requirement coverage, pass/fail counts, per-run outcomes | SPEC DONE (dev-planning/test-results-page/spec.md) — not built. GET /coverage + page at /test-results; needs BL-11 to write verdicts into the SHIPPED processed_results.verdict block |
 | `BL-59` | to do | PLANT_ORIGIN sha256 lines mix CRLF-worktree and LF-blob conventions | signals.json's hash matches CRLF worktree bytes; lexicon.py and parameters.json match the LF git blob; main.py's old hash matched neither (stale since 8d7847e). The two refreshed lines are LF git-blob and name the command; the signals.json line still is not |
+| `BL-62` | to do | Battery Sim widgets movable and resizable like a Quix Portal dashboard | user 2026-09-23. SPEC DONE (dev-planning/battery-sim-ui-grid/spec.md): GridStack 13.3.0 pinned (14.0.0 changed the float API), vendored to battery-sim-ui/static/ with Bootstrap, layout in localStorage, ResizeObserver redraws the chart canvas. Assets already fetched |
+| `BL-66` | to do | One test case across several work orders, keyed by SW version | user 2026-09-23. SPEC DONE (dev-planning/tc-across-sw-versions/spec.md) — not built. test_runs.sw_version is evidence, work_orders.sw_version is intent, neither resolves the other. definitions.work_order_id -> work_order_ids[]; 'orphaned' keeps its meaning. verification_state_by_sw partitions the fold so a pass on build A survives a fail on build B. Deploy is a no-op: no lake partition change, no re-sink |
+| `BL-67` | to do | delete_work_order cascades to definitions — data loss once a definition is shared | queries_runs.py:1870 delete_many({'work_order_id': wo_id}). Correct TODAY because a definition names one work order; the moment BL-66 makes them shared this deletes a definition another campaign still uses. Fix with BL-66: pull the id and delete only definitions left with an empty list |
+| `BL-68` | to do | Files: surface version_group and post re-uploads to the versions route | version/supersedes/version_group and POST|GET /files/{id}/versions all exist already. Missing: the connector posting to the versions route when a run already holds that filename ((run_id, filename) is the logical key), FileBody.version_group on the wire, and a 'v2 of 3' cell. No stored field, no migration |
 | `BL-13` | discuss | TM_RUN_KEY_PATTERN is an unbound project variable on decoder + connector (literal string) | harmless for us (header rung); tell Tomas |
 | `BL-14` | discuss | Legacy rows: 4 battery routes in mf4_signals_v5 (pre-marker decode) | leave or delete |
 | `BL-15` | discuss | Requirements seeding into the new TM model (requirements-files per definition) | seed markdown covers it per definition; direct upload route exists |
@@ -163,6 +166,8 @@ same change that moves the work. Nothing agreed in conversation stays only in co
 | `BL-46` | discuss | Requirements schema + validation (requirement-1.0.0.schema.json and friends) | the old backend validated every artifact against a JSON schema on ingest. The new line has none; our battery set is validated only by the generator |
 | `BL-50` | discuss | Spec contradiction: requirements page says not editable, authoring-controls gives full CRUD | requirements-page/spec.md vs authoring-controls/spec.md; the user asked for add/edit/remove on that page |
 | `BL-58` | discuss | Battery Sim UI loads Bootstrap from jsDelivr — unverified against the Portal's CSP when framed | page.py links cdn.jsdelivr.net with no SRI (a wrong hash silently kills the stylesheet). If the dashboard renders unstyled inside the Portal frame, vendor the one CSS file into battery-sim-ui/ — spec battery-sim-ui-v2 OQ6 documents the fallback |
+| `BL-64` | discuss | Car visual: no freely-licensed clean-background Taycan image exists | user asked for an internet image. Commons' CC BY 4.0 side view is a showroom photo with bystanders, a PORSCHE floor mat and a crest banner; press renders are copyrighted. Plan: redraw as a proper vector (scales, recolours, wheels genuinely spin). User can drop a licensed asset into battery-sim-ui/static/ instead |
+| `BL-65` | discuss | Plant derates DISCHARGE current, but SAF-003 specifies derating only for charging | plant/main.py:384 applies derating_factor to dc_current unconditionally, so a hot pack loses traction power too. BAT-SYS-SAF-003 states the derating applies to 'the actual charging current limit'. Measured live: 56.9 degC -> factor 0.578 -> 250 kW request delivered 144 kW. Vendored behaviour; the four traces depend on it |
 | `BL-01` | finished | DBC BATTERY_DC_V1 in jamaui DCM (type=dbc), decoder DBC_PLATFORM set | d527f90a…, 0 dropped, decoder resolves it |
 | `BL-02` | finished | Battery trace generator: 4 deterministic MF4s, 10 TCs, 6 pass / 4 fail | committed 8d7847e, pushed |
 | `BL-03` | finished | Requirements + parameters + test cases as the statement of record | CLAUDE.md tables generated from battery-trace-gen/data + specs |
@@ -178,6 +183,7 @@ same change that moves the work. Nothing agreed in conversation stays only in co
 | `BL-23` | finished | Requirements are not entities in the TM — only markdown files on a definition | answered 2026-09-22: requirements become entities with versions (BL-34), not a light registry — the user chose versioned links (BL-33) |
 | `BL-29` | finished | Test Runs nested under Work order; Test definitions under Test Run (nav + run detail) | sidebar indents runs under work orders and definitions under runs; run overview gained a Definitions panel |
 | `BL-30` | finished | Import form no longer claims a test definition | mf4-to-blob form: work order, run id, rig |
+| `BL-47` | finished | No UI assigns a definition to a run | done 389def1 (routes) + 1f40ce7 (UI): POST/DELETE /test-runs/{id}/definitions add or remove one member; the Test Run page has a picker. The manual tag lands on the whole definition_ids field, so a run stops taking planning links after the first edit - the panel says so |
 | `BL-49` | finished | Battery sim UI: pedals plus DC charging up to 250 kW | built and deployed 06cda3d: pedals, plug + 250 kW charge slider, heater/chiller, 4 rolling charts; crash-looped until BL-52 moved the app folder |
 | `BL-52` | finished | Battery Sim deployment crash-looped 158x: app folder carried no plant sources | fixed 64fcc66: battery-trace-gen is the application folder, entrypoint plant/main.py, slim plant/requirements.txt |
 | `BL-53` | finished | Sidebar flattened: no nesting, order Home / Requirements / Test definitions / Work orders / Test runs | fixed 7f42af3: depth/INDENT gone; Home, Requirements, Test definitions, Work orders, Test runs |
@@ -185,6 +191,9 @@ same change that moves the work. Nothing agreed in conversation stays only in co
 | `BL-55` | finished | QuixLab image moved from the pr-42 build to latest main | ghcr.io/quixio/quixlab:pr-42-c9939a4 (built 2026-08-19) -> main-a4c31e3 (commit a4c31e39, built 2026-09-11); pinned to the immutable tag, not the floating main |
 | `BL-56` | finished | Requirements collection was empty in jamaui — the page had nothing to show | found while smoke-testing BL-54. seed/ already sends requirements in the planning body (planning_sync.py:178) but had not been re-run since the collection shipped at 3b3910a. `python -m seed catalog` -> requirements_mirrored 10. NOTE: TM_API_URL is the BASE url, push.py appends /api/v1 itself |
 | `BL-57` | finished | Battery Sim v2: compact layout, a speed/smaller-battery knob, car with spinning wheels | built: TIME_SCALE x1-x50 tunable lexicon param (one statement in the vendored plant, PLANT_ORIGIN 5+6), Q_MAX_AH=25 deployment var, Bootstrap one-screen layout, SVG car with drive/coast/regen, pedal ceilings 60->250 kW and regen 20->80 kW. Four trace sha256s verified unmoved by a full regenerate |
+| `BL-60` | finished | Test definitions have no filters at all — API takes only `orphaned` | done e9ec3b4 (API) + 1f40ce7 (page): work_order/status/requirement/q filters, facets route, pills and hideable columns |
+| `BL-61` | finished | Requirements page: filters overlay instead of pushing the table down, hideable columns, row actions moved left | done e4ec13f: filters in a popover, columns declared once and hidden per browser, row actions moved to the second cell |
+| `BL-63` | finished | Battery Sim thermal model is 50x slower than the pack it now models | A_THERMAL 0.0002->0.001 and KE 1.6->8.0 (tau 52min -> 2.1min), initial temperature decoupled from A_THERMAL. Q_MAX_AH went 100->25 then back to 90: at 25 Ah the 250 kW pedal is 12.8C, so the pack hit 57 degC and the derating LUT throttled it to 58% - TIME_SCALE is the speed knob, not pack size |
 
 ## Working agreement
 - **QA is the user's**, in the Quix Portal. No Tester round unless asked; the lint/type gate

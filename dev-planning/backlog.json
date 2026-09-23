@@ -461,6 +461,27 @@
       "status": "discuss",
       "notes": "plant/main.py:384 applies derating_factor to dc_current unconditionally, so a hot pack loses traction power too. BAT-SYS-SAF-003 states the derating applies to 'the actual charging current limit'. Measured live: 56.9 degC -> factor 0.578 -> 250 kW request delivered 144 kW. Vendored behaviour; the four traces depend on it",
       "updated": "2026-09-23"
+    },
+    {
+      "id": "BL-66",
+      "title": "One test case across several work orders, keyed by SW version",
+      "status": "to do",
+      "notes": "user 2026-09-23. SPEC DONE (dev-planning/tc-across-sw-versions/spec.md) — not built. test_runs.sw_version is evidence, work_orders.sw_version is intent, neither resolves the other. definitions.work_order_id -> work_order_ids[]; 'orphaned' keeps its meaning. verification_state_by_sw partitions the fold so a pass on build A survives a fail on build B. Deploy is a no-op: no lake partition change, no re-sink",
+      "updated": "2026-09-23"
+    },
+    {
+      "id": "BL-67",
+      "title": "delete_work_order cascades to definitions — data loss once a definition is shared",
+      "status": "to do",
+      "notes": "queries_runs.py:1870 delete_many({'work_order_id': wo_id}). Correct TODAY because a definition names one work order; the moment BL-66 makes them shared this deletes a definition another campaign still uses. Fix with BL-66: pull the id and delete only definitions left with an empty list",
+      "updated": "2026-09-23"
+    },
+    {
+      "id": "BL-68",
+      "title": "Files: surface version_group and post re-uploads to the versions route",
+      "status": "to do",
+      "notes": "version/supersedes/version_group and POST|GET /files/{id}/versions all exist already. Missing: the connector posting to the versions route when a run already holds that filename ((run_id, filename) is the logical key), FileBody.version_group on the wire, and a 'v2 of 3' cell. No stored field, no migration",
+      "updated": "2026-09-23"
     }
   ]
 }
