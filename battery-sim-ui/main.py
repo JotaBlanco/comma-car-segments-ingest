@@ -48,8 +48,8 @@ DERATE_HARD_LIMIT_C = 60.0
 # in the same sense as the pedal ceilings above, served on /config and
 # overridable per deployment.
 VEHICLE_MASS_KG = float(os.getenv("VEHICLE_MASS_KG", "2000"))  # kg
-K_DRAG_N_PER_MPS2 = float(os.getenv("K_DRAG_N_PER_MPS2", "0.40"))  # N/(m/s)^2
-K_ROLL_N = float(os.getenv("K_ROLL_N", "196"))  # N
+K_DRAG_N_PER_MPS2 = float(os.getenv("K_DRAG_N_PER_MPS2", "1.20"))  # N/(m/s)^2
+K_ROLL_N = float(os.getenv("K_ROLL_N", "600"))  # N
 DRIVELINE_EFF = float(os.getenv("DRIVELINE_EFF", "0.90"))  # dimensionless
 V_FLOOR_MPS = float(os.getenv("V_FLOOR_MPS", "15"))  # m/s
 WHEEL_RADIUS_M = float(os.getenv("WHEEL_RADIUS_M", "0.34"))  # m

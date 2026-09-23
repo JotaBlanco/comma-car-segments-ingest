@@ -95,6 +95,11 @@ BODY_HTML = """<body class="bg-body">
                 <stop offset="70%"  stop-color="#2b2f35"/>
                 <stop offset="100%" stop-color="#191c20"/>
               </radialGradient>
+              <linearGradient id="lip" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stop-color="#b9bfc8"/>
+                <stop offset="50%"  stop-color="#767c85"/>
+                <stop offset="100%" stop-color="#40454c"/>
+              </linearGradient>
               <linearGradient id="spoke-face" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%"   stop-color="#9aa0a8"/>
                 <stop offset="55%"  stop-color="#5b6068"/>
@@ -106,37 +111,47 @@ BODY_HTML = """<body class="bg-body">
             <!-- Over the light bar the photograph already shows, so braking lights the car's
                  own lamp rather than a marker beside it. -->
             <rect class="car-lamp" x="62.5" y="100.4" width="30.5" height="3.6" rx="1.8"/>
+            <circle cx="118" cy="132" r="27.6" fill="#0e1013"/>
+            <circle cx="118" cy="132" r="26.0" fill="none" stroke="#24262b" stroke-width="1.1"/>
+            <circle cx="118" cy="132" r="13.5" fill="#3c4046"/>
+            <circle cx="118" cy="132" r="13.5" fill="none" stroke="#5a5f67" stroke-width="0.6"/>
+            <path d="M 104.2 127.4 A 14.5 14.5 0 0 0 104.2 136.6 L 107.6 135.6 A 11 11 0 0 1 107.6 128.4 Z" fill="#a8252b"/>
             <g id="wheel-rear" transform="rotate(0 118 132)">
-              <circle cx="118" cy="132" r="27.4" fill="#111316"/>
-              <circle cx="118" cy="132" r="21.2" fill="url(#rim-face)" stroke="#0d0f12" stroke-width="0.8"/>
-              <polygon points="124.40,133.90 138.00,135.30 138.00,128.70 124.40,130.10" fill="url(#spoke-face)"/>
-              <polygon points="122.06,137.30 132.24,146.43 136.12,141.09 124.29,134.22" fill="url(#spoke-face)"/>
-              <polygon points="118.17,138.67 121.04,152.04 127.32,150.00 121.78,137.50" fill="url(#spoke-face)"/>
-              <polygon points="114.22,137.50 108.68,150.00 114.96,152.04 117.83,138.67" fill="url(#spoke-face)"/>
-              <polygon points="111.71,134.22 99.88,141.09 103.76,146.43 113.94,137.30" fill="url(#spoke-face)"/>
-              <polygon points="111.60,130.10 98.00,128.70 98.00,135.30 111.60,133.90" fill="url(#spoke-face)"/>
-              <polygon points="113.94,126.70 103.76,117.57 99.88,122.91 111.71,129.78" fill="url(#spoke-face)"/>
-              <polygon points="117.83,125.33 114.96,111.96 108.68,114.00 114.22,126.50" fill="url(#spoke-face)"/>
-              <polygon points="121.78,126.50 127.32,114.00 121.04,111.96 118.17,125.33" fill="url(#spoke-face)"/>
-              <polygon points="124.29,129.78 136.12,122.91 132.24,117.57 122.06,126.70" fill="url(#spoke-face)"/>
-              <circle cx="118" cy="132" r="6.6" fill="#1b1e23" stroke="#3a3f47" stroke-width="0.8"/>
-              <circle cx="118" cy="132" r="1.9" fill="#8a2b2b"/>
+              <circle cx="118" cy="132" r="21.6" fill="url(#rim-face)"/>
+              <polygon points="125.29,132.77 138.40,132.47 138.07,128.28 125.07,130.08" fill="url(#spoke-face)"/>
+              <polygon points="125.07,133.92 138.07,135.72 138.40,131.53 125.29,131.23" fill="url(#spoke-face)"/>
+              <polygon points="119.52,139.17 123.86,151.55 127.74,149.93 122.01,138.13" fill="url(#spoke-face)"/>
+              <polygon points="118.36,139.32 120.66,152.23 124.75,151.26 120.98,138.69" fill="url(#spoke-face)"/>
+              <polygon points="111.65,135.66 101.22,143.62 103.95,146.81 113.41,137.71" fill="url(#spoke-face)"/>
+              <polygon points="111.15,134.60 99.58,140.78 101.77,144.37 112.56,136.90" fill="url(#spoke-face)"/>
+              <polygon points="112.56,127.10 101.77,119.63 99.58,123.22 111.15,129.40" fill="url(#spoke-face)"/>
+              <polygon points="113.41,126.29 103.95,117.19 101.22,120.38 111.65,128.34" fill="url(#spoke-face)"/>
+              <polygon points="120.98,125.31 124.75,112.74 120.66,111.77 118.36,124.68" fill="url(#spoke-face)"/>
+              <polygon points="122.01,125.87 127.74,114.07 123.86,112.45 119.52,124.83" fill="url(#spoke-face)"/>
+              <circle cx="118" cy="132" r="21.6" fill="none" stroke="url(#lip)" stroke-width="2.4"/>
+              <circle cx="118" cy="132" r="6.4" fill="#1a1d22" stroke="#4c515a" stroke-width="0.9"/>
+              <circle cx="118" cy="132" r="2.1" fill="#8a2b2b"/>
             </g>
+            <circle cx="318" cy="132" r="27.6" fill="#0e1013"/>
+            <circle cx="318" cy="132" r="26.0" fill="none" stroke="#24262b" stroke-width="1.1"/>
+            <circle cx="318" cy="132" r="13.5" fill="#3c4046"/>
+            <circle cx="318" cy="132" r="13.5" fill="none" stroke="#5a5f67" stroke-width="0.6"/>
+            <path d="M 304.2 127.4 A 14.5 14.5 0 0 0 304.2 136.6 L 307.6 135.6 A 11 11 0 0 1 307.6 128.4 Z" fill="#a8252b"/>
             <g id="wheel-front" transform="rotate(0 318 132)">
-              <circle cx="318" cy="132" r="27.4" fill="#111316"/>
-              <circle cx="318" cy="132" r="21.2" fill="url(#rim-face)" stroke="#0d0f12" stroke-width="0.8"/>
-              <polygon points="324.40,133.90 338.00,135.30 338.00,128.70 324.40,130.10" fill="url(#spoke-face)"/>
-              <polygon points="322.06,137.30 332.24,146.43 336.12,141.09 324.29,134.22" fill="url(#spoke-face)"/>
-              <polygon points="318.17,138.67 321.04,152.04 327.32,150.00 321.78,137.50" fill="url(#spoke-face)"/>
-              <polygon points="314.22,137.50 308.68,150.00 314.96,152.04 317.83,138.67" fill="url(#spoke-face)"/>
-              <polygon points="311.71,134.22 299.88,141.09 303.76,146.43 313.94,137.30" fill="url(#spoke-face)"/>
-              <polygon points="311.60,130.10 298.00,128.70 298.00,135.30 311.60,133.90" fill="url(#spoke-face)"/>
-              <polygon points="313.94,126.70 303.76,117.57 299.88,122.91 311.71,129.78" fill="url(#spoke-face)"/>
-              <polygon points="317.83,125.33 314.96,111.96 308.68,114.00 314.22,126.50" fill="url(#spoke-face)"/>
-              <polygon points="321.78,126.50 327.32,114.00 321.04,111.96 318.17,125.33" fill="url(#spoke-face)"/>
-              <polygon points="324.29,129.78 336.12,122.91 332.24,117.57 322.06,126.70" fill="url(#spoke-face)"/>
-              <circle cx="318" cy="132" r="6.6" fill="#1b1e23" stroke="#3a3f47" stroke-width="0.8"/>
-              <circle cx="318" cy="132" r="1.9" fill="#8a2b2b"/>
+              <circle cx="318" cy="132" r="21.6" fill="url(#rim-face)"/>
+              <polygon points="325.29,132.77 338.40,132.47 338.07,128.28 325.07,130.08" fill="url(#spoke-face)"/>
+              <polygon points="325.07,133.92 338.07,135.72 338.40,131.53 325.29,131.23" fill="url(#spoke-face)"/>
+              <polygon points="319.52,139.17 323.86,151.55 327.74,149.93 322.01,138.13" fill="url(#spoke-face)"/>
+              <polygon points="318.36,139.32 320.66,152.23 324.75,151.26 320.98,138.69" fill="url(#spoke-face)"/>
+              <polygon points="311.65,135.66 301.22,143.62 303.95,146.81 313.41,137.71" fill="url(#spoke-face)"/>
+              <polygon points="311.15,134.60 299.58,140.78 301.77,144.37 312.56,136.90" fill="url(#spoke-face)"/>
+              <polygon points="312.56,127.10 301.77,119.63 299.58,123.22 311.15,129.40" fill="url(#spoke-face)"/>
+              <polygon points="313.41,126.29 303.95,117.19 301.22,120.38 311.65,128.34" fill="url(#spoke-face)"/>
+              <polygon points="320.98,125.31 324.75,112.74 320.66,111.77 318.36,124.68" fill="url(#spoke-face)"/>
+              <polygon points="322.01,125.87 327.74,114.07 323.86,112.45 319.52,124.83" fill="url(#spoke-face)"/>
+              <circle cx="318" cy="132" r="21.6" fill="none" stroke="url(#lip)" stroke-width="2.4"/>
+              <circle cx="318" cy="132" r="6.4" fill="#1a1d22" stroke="#4c515a" stroke-width="0.9"/>
+              <circle cx="318" cy="132" r="2.1" fill="#8a2b2b"/>
             </g>
             <g id="charge-cable" visibility="hidden">
               <rect class="car-plug" x="4" y="114" width="16" height="20" rx="3"/>
