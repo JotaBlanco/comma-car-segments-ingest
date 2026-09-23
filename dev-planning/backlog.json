@@ -80,8 +80,8 @@
     {
       "id": "BL-11",
       "title": "Run the 10 implementations against the lake and write verdicts",
-      "status": "to do",
-      "notes": "explicitly out of scope of BL-06; next feature",
+      "status": "in progress",
+      "notes": "user 2026-09-23 asked for a Run button instead of a jump to QuixLab. Spec at dev-planning/run-a-definition/spec.md; the verdict record it writes is defined in dev-planning/test-results-page/spec.md",
       "updated": "2026-09-22"
     },
     {
@@ -333,7 +333,7 @@
       "id": "BL-47",
       "title": "No UI assigns a definition to a run",
       "status": "to do",
-      "notes": "the only route replaces the whole set (_resolve_manual_links, api/api/services/queries_runs.py:1173). tm-multi-definition-runs/architecture.md claims the Test Run page does it — it does not. Needed now that traces no longer claim definitions",
+      "notes": "confirmed 2026-09-23: definitions-panel.tsx is read-only and its own empty state says so; NO route in api/api/routers/ writes definition_ids. Only planning sync's _resolve_manual_links sets them, replacing the whole set. User asked for it directly",
       "updated": "2026-09-22"
     },
     {
@@ -418,6 +418,27 @@
       "title": "PLANT_ORIGIN sha256 lines mix CRLF-worktree and LF-blob conventions",
       "status": "to do",
       "notes": "signals.json's hash matches CRLF worktree bytes; lexicon.py and parameters.json match the LF git blob; main.py's old hash matched neither (stale since 8d7847e). The two refreshed lines are LF git-blob and name the command; the signals.json line still is not",
+      "updated": "2026-09-23"
+    },
+    {
+      "id": "BL-60",
+      "title": "Test definitions have no filters at all — API takes only `orphaned`",
+      "status": "in progress",
+      "notes": "user 2026-09-23. GET /test-definitions took only orphaned + pagination and had no facets route. Backend adding work_order/status/requirement/q filters + GET /test-definitions/facets; the page wiring follows",
+      "updated": "2026-09-23"
+    },
+    {
+      "id": "BL-61",
+      "title": "Requirements page: filters overlay instead of pushing the table down, hideable columns, row actions moved left",
+      "status": "in progress",
+      "notes": "user 2026-09-23: filter panel takes too much space, columns must be hideable, edit/delete belongs on the left not at the end",
+      "updated": "2026-09-23"
+    },
+    {
+      "id": "BL-62",
+      "title": "Battery Sim widgets movable and resizable like a Quix Portal dashboard",
+      "status": "to do",
+      "notes": "user 2026-09-23. SPEC DONE (dev-planning/battery-sim-ui-grid/spec.md): GridStack 13.3.0 pinned (14.0.0 changed the float API), vendored to battery-sim-ui/static/ with Bootstrap, layout in localStorage, ResizeObserver redraws the chart canvas. Assets already fetched",
       "updated": "2026-09-23"
     }
   ]
