@@ -12,18 +12,19 @@ interface FullHeightPageProps {
  * Fills the AppShell main column height so its Panel child can flex-fill and
  * scroll internally — page header + toolbar + pills stay pinned at the top,
  * the pager stays pinned at the panel bottom, and there is no whole-page
- * scroll on these screens. AppShell already gives its inner max-width column
- * `min-h-full flex flex-col`, so `flex-1 min-h-0` here consumes that height.
+ * scroll on these screens.
+ *
+ * `data-full-height` is the marker AppShell's two `:has()` rules read: they
+ * cut the shell's bottom padding to a hairline and give the max-width column a
+ * definite height, so `h-full` here resolves to the whole main column and no
+ * viewport arithmetic is duplicated out of the shell.
  *
  * Non-list pages (Home + detail screens) do NOT use this wrapper and keep the
  * shell's normal top-of-page scroll behavior.
  */
 export function FullHeightPage({ children, className }: FullHeightPageProps) {
   return (
-    // 142px = 52px topbar + 26px main pt + 64px main pb. An explicit cap is
-    // required: the shell column is min-h-full (it can grow past the viewport),
-    // so flex-1 alone never clamps the panel and the whole page scrolls.
-    <div className={cn("flex h-[calc(100dvh-142px)] min-h-0 flex-col", className)}>
+    <div data-full-height className={cn("flex h-full min-h-0 flex-col", className)}>
       {children}
     </div>
   );

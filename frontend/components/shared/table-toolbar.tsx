@@ -12,8 +12,9 @@
  * Collapsing is only safe because `ActiveFilterPills` sits under this on every
  * screen that uses it, naming each filter that is on whether the panel is open
  * or shut. A shut panel therefore hides controls, never state. `useDisclosure`
- * adds the second guard: a URL that already carries a filter opens the panel
- * on arrival, so a link a colleague pastes shows the filters it applies.
+ * adds the second guard by default: a URL that already carries a filter opens
+ * the panel on arrival, so a link a colleague pastes shows the filters it
+ * applies. A screen with a tall panel can decline that guard — see the hook.
  */
 
 import { useId, useState } from "react";
@@ -27,10 +28,14 @@ import { cn } from "@/lib/utils";
  * `useState` with an initialiser, not an effect: `activeCount` decides the
  * FIRST paint only. An effect would re-shut a panel the reader had since
  * opened every time a filter count changed.
+ *
+ * `openWhenFiltered={false}` keeps the panel shut on arrival even when the URL
+ * carries filters. Requirements passes it: twelve controls wrap to two rows
+ * there, and those rows come off the table. The pills name what is applied.
  */
-export function useDisclosure(activeCount: number) {
+export function useDisclosure(activeCount: number, openWhenFiltered = true) {
   const id = useId();
-  const [open, setOpen] = useState(() => activeCount > 0);
+  const [open, setOpen] = useState(() => openWhenFiltered && activeCount > 0);
   return {
     id,
     open,

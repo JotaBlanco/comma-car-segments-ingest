@@ -44,18 +44,22 @@ export function AppShell({ children, counts }: AppShellProps) {
         <Topbar />
         <Sidebar counts={counts} />
         {/* Main is bounded by the parent grid's `1fr` row (viewport - 52px topbar).
-            `overflow-y-auto` preserves normal page scrolling for Home + detail pages.
-            The inner `min-h-full flex flex-col` on the max-width column lets opt-in
-            list screens wrap content in `h-full flex flex-col` (see FullHeightPage)
-            so the Panel can flex-fill and scroll internally without a page scroll. */}
+            `overflow-y-auto` preserves normal page scrolling for Home + detail pages,
+            whose content grows past the column — hence `min-h-full`, not `h-full`.
+            A FullHeightPage inside marks itself `[data-full-height]`, and the two
+            `:has()` rules answer it: the bottom breathing room shrinks to a
+            hairline (that page cannot scroll, so 64px of it is only rows the
+            table never gets) and the max-width column takes a definite height,
+            which lets FullHeightPage size itself with `h-full`, not a viewport
+            calc restating the topbar and padding the shell owns. */}
         {/* tabIndex: pages with no interactive content (e.g. file detail) must stay
             keyboard-scrollable (axe scrollable-region-focusable, WCAG 2.1.1). */}
         <main
           id="main-content"
           tabIndex={0}
-          className="col-start-3 row-start-2 overflow-y-auto px-8 pt-[26px] pb-16 focus-visible:outline-2 focus-visible:-outline-offset-2"
+          className="col-start-3 row-start-2 overflow-y-auto px-8 pt-[26px] pb-16 focus-visible:outline-2 focus-visible:-outline-offset-2 [&:has([data-full-height])]:pb-2"
         >
-          <div className="mx-auto flex min-h-full w-full max-w-[1280px] flex-col">
+          <div className="mx-auto flex min-h-full w-full max-w-[1280px] flex-col [&:has([data-full-height])]:h-full">
             {children}
           </div>
         </main>

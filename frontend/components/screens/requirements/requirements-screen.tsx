@@ -97,7 +97,7 @@ export function RequirementsScreen() {
     (state.single.related_req !== undefined ? 1 : 0) +
     (state.single.has_verified_by !== undefined ? 1 : 0) +
     (state.single.has_latest_run !== undefined ? 1 : 0);
-  const disclosure = useDisclosure(activeOptionCount);
+  const disclosure = useDisclosure(activeOptionCount, false);
 
   const filters: RequirementListFilters = useMemo(() => {
     const next: RequirementListFilters = { page: state.page, page_size: state.pageSize };
