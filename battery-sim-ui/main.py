@@ -31,7 +31,7 @@ consumer_group = os.getenv("Quix__Deployment__Id", "battery-sim-ui")
 # without a rebuild (app.yaml FreeText vars). Discharge matches the charge
 # slider at the lexicon's 250 kW limit for requested_power_w; regen stays lower
 # because a real regen path is limited by the motor, not the pack.
-PEDAL_DISCHARGE_MAX_W = float(os.getenv("PEDAL_DISCHARGE_MAX_W", "250000"))
+PEDAL_DISCHARGE_MAX_W = float(os.getenv("PEDAL_DISCHARGE_MAX_W", "352000"))
 PEDAL_CHARGE_REGEN_MAX_W = float(os.getenv("PEDAL_CHARGE_REGEN_MAX_W", "80000"))
 DC_CHARGE_MAX_W = float(os.getenv("DC_CHARGE_MAX_W", "250000"))
 
@@ -40,6 +40,13 @@ DC_CHARGE_MAX_W = float(os.getenv("DC_CHARGE_MAX_W", "250000"))
 DERATE_BAND_START_C = 50.0
 DERATE_HARD_LIMIT_C = 60.0
 
+# Road load is a second-order polynomial in road speed:
+#     F_resist = K_ROLL_N + K_LIN_N_PER_MPS * v + K_DRAG_N_PER_MPS2 * v^2
+# The three coefficients and V_FLOOR_MPS are solved together against two stated
+# targets - 320 km/h top speed and 0-100 km/h in 3.0 s - with the launch capped
+# at 1.3 g, which is what sets the power: 0-100 in 3 s is an energy budget
+# (0.5 * m * v^2 = 772 kJ in 3 s), so no choice of drag makes 250 kW reach it.
+#
 # Vehicle display constants for the car visualisation. The plant is a pack
 # model and publishes no road speed, so the browser integrates one from the
 # achieved pack power and from the friction brake the pedal adds past half
@@ -48,10 +55,11 @@ DERATE_HARD_LIMIT_C = 60.0
 # in the same sense as the pedal ceilings above, served on /config and
 # overridable per deployment.
 VEHICLE_MASS_KG = float(os.getenv("VEHICLE_MASS_KG", "2000"))  # kg
-K_DRAG_N_PER_MPS2 = float(os.getenv("K_DRAG_N_PER_MPS2", "1.20"))  # N/(m/s)^2
-K_ROLL_N = float(os.getenv("K_ROLL_N", "600"))  # N
+K_DRAG_N_PER_MPS2 = float(os.getenv("K_DRAG_N_PER_MPS2", "0.3692"))  # N/(m/s)^2
+K_ROLL_N = float(os.getenv("K_ROLL_N", "200"))  # N
+K_LIN_N_PER_MPS = float(os.getenv("K_LIN_N_PER_MPS", "5.0"))  # N/(m/s)
 DRIVELINE_EFF = float(os.getenv("DRIVELINE_EFF", "0.90"))  # dimensionless
-V_FLOOR_MPS = float(os.getenv("V_FLOOR_MPS", "15"))  # m/s
+V_FLOOR_MPS = float(os.getenv("V_FLOOR_MPS", "12.41"))  # m/s
 WHEEL_RADIUS_M = float(os.getenv("WHEEL_RADIUS_M", "0.34"))  # m
 F_BRAKE_MAX_N = float(os.getenv("F_BRAKE_MAX_N", "14700"))  # N at 100 % brake pedal
 
@@ -109,6 +117,7 @@ def config_route():
             "vehicle_mass_kg": VEHICLE_MASS_KG,
             "k_drag_n_per_mps2": K_DRAG_N_PER_MPS2,
             "k_roll_n": K_ROLL_N,
+            "k_lin_n_per_mps": K_LIN_N_PER_MPS,
             "driveline_eff": DRIVELINE_EFF,
             "v_floor_mps": V_FLOOR_MPS,
             "wheel_radius_m": WHEEL_RADIUS_M,

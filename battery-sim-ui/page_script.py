@@ -320,6 +320,7 @@ DASHBOARD_JS = """
     VEH.mass_kg = CFG.vehicle_mass_kg;
     VEH.k_drag_n_per_mps2 = CFG.k_drag_n_per_mps2;
     VEH.k_roll_n = CFG.k_roll_n;
+    VEH.k_lin_n_per_mps = CFG.k_lin_n_per_mps;
     VEH.driveline_eff = CFG.driveline_eff;
     VEH.v_floor_mps = CFG.v_floor_mps;
     VEH.wheel_radius_m = CFG.wheel_radius_m;

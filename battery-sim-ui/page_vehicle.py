@@ -14,8 +14,9 @@ VEHICLE_JS = """
   // Display constants, seeded from GET /config (main.py's vehicle block).
   const VEH = {
     mass_kg: 2000.0,
-    k_drag_n_per_mps2: 0.40,
-    k_roll_n: 196.0,
+    k_drag_n_per_mps2: 0.3692,
+    k_roll_n: 200.0,
+    k_lin_n_per_mps: 5.0,
     driveline_eff: 0.90,
     v_floor_mps: 15.0,
     wheel_radius_m: 0.34,
@@ -74,17 +75,32 @@ VEHICLE_JS = """
     return over > 0 ? (over / (100 - BRAKE_FRICTION_PCT)) * VEH.f_brake_max_n : 0;
   }
 
+  // Longest sim-time slice one integration step may span. Explicit Euler over
+  // dtWall x TIME_SCALE is unstable once the slice is large: at x50 a 0.15 s
+  // frame is 7.5 s of sim time, and a stalled tab makes it minutes, which sent
+  // the car past 1000 km/h. Slicing bounds the step whatever the scale is.
+  const MAX_SIM_STEP_S = 0.05;
+  // A tab that was away comes back with a huge dtWall. The car advances by at
+  // most this much wall time per call; it does not teleport to catch up.
+  const MAX_WALL_STEP_S = 0.25;
+
   function vehicleStep(dtWallS) {
     if (car.stalled) return;
     if (car.charging) { car.v_mps = 0; return; }
 
-    const fTrac = (car.p_pack_w * VEH.driveline_eff) / Math.max(car.v_mps, VEH.v_floor_mps);
-    const fResist = VEH.k_drag_n_per_mps2 * car.v_mps * car.v_mps + VEH.k_roll_n;
-    const accel = (fTrac - fResist - frictionBrakeN()) / VEH.mass_kg;
-    // Drag, rolling and the discs only dissipate: a step that would carry the
-    // car past zero lands on zero, so full pedal stops it instead of reversing
-    // it, and at rest the brake contributes nothing.
-    car.v_mps = Math.max(0, car.v_mps + accel * dtWallS * car.time_scale);
+    const brakeN = frictionBrakeN();
+    let remaining = Math.min(dtWallS, MAX_WALL_STEP_S) * car.time_scale;
+    while (remaining > 0) {
+      const h = Math.min(remaining, MAX_SIM_STEP_S);
+      const v = car.v_mps;
+      const fTrac = (car.p_pack_w * VEH.driveline_eff) / Math.max(v, VEH.v_floor_mps);
+      const fResist = VEH.k_roll_n + VEH.k_lin_n_per_mps * v + VEH.k_drag_n_per_mps2 * v * v;
+      // Drag, rolling and the discs only dissipate: a step that would carry the
+      // car past zero lands on zero, so full pedal stops it instead of reversing
+      // it, and at rest the brake contributes nothing.
+      car.v_mps = Math.max(0, v + (fTrac - fResist - brakeN) / VEH.mass_kg * h);
+      remaining -= h;
+    }
 
     if (car.v_mps < 0.1) return;  // standstill: the wheels hold their angle
     const omega = car.v_mps / VEH.wheel_radius_m;

@@ -14,7 +14,7 @@ variables:
   - name: PEDAL_DISCHARGE_MAX_W
     inputType: FreeText
     description: Watts commanded at 100% accelerator (net_pct >= 0) - discharge ceiling
-    defaultValue: "250000"
+    defaultValue: "352000"
     required: false
   - name: PEDAL_CHARGE_REGEN_MAX_W
     inputType: FreeText
