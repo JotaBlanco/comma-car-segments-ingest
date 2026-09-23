@@ -80,66 +80,21 @@ BODY_HTML = """<body class="bg-body">
     <div class="col-12 col-md-8 col-lg-5 order-1 order-lg-2">
       <div class="card bg-body-tertiary h-100"><div class="card-body p-3 d-flex flex-column">
         <div class="ratio ratio-21x9">
-          <svg id="car-svg" viewBox="0 0 420 180" role="img"
+          <svg id="car-svg" viewBox="50 50 340 146" role="img"
                aria-label="Car driven by the achieved pack power; the wheels turn with the vehicle speed">
-            <defs>
-              <linearGradient id="grad-body" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%"   stop-color="#cce0f5"/>
-                <stop offset="20%"  stop-color="#5a9bd4"/>
-                <stop offset="58%"  stop-color="#1e5080"/>
-                <stop offset="100%" stop-color="#08182e"/>
-              </linearGradient>
-              <linearGradient id="grad-glass" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%"   stop-color="#2a4a6a"/>
-                <stop offset="100%" stop-color="#060e18"/>
-              </linearGradient>
-              <radialGradient id="grad-shadow" cx="50%" cy="30%" r="50%">
-                <stop offset="0%"   stop-color="#000" stop-opacity="0.45"/>
-                <stop offset="100%" stop-color="#000" stop-opacity="0"/>
-              </radialGradient>
-            </defs>
-            <ellipse cx="218" cy="161" rx="175" ry="8" fill="url(#grad-shadow)"/>
-            <line class="car-road" x1="0" y1="159" x2="420" y2="159"/>
-            <!-- Lower body carries the beltline and the wheel arches; the greenhouse is a
-                 separate shape sitting on it, so cabin and bonnet read as different
-                 surfaces. Overhangs x54/x383 (0.32 of the 200px wheelbase), sill y146,
-                 arches r33 on the wheel centres, roof y67. -->
-            <path class="car-body"
-              d="M 54 146 L 54 120
-                 C 54 110 60 105 72 104
-                 C 150 99 250 97 328 100
-                 C 352 102 372 108 380 120
-                 L 383 132 L 383 146
-                 L 348 146 A 33 33 0 0 1 288 146
-                 L 148 146 A 33 33 0 0 1 88 146
-                 Z"/>
-            <path class="car-cabin"
-              d="M 80 105
-                 C 104 86 148 70 196 67
-                 C 220 66 242 67 260 69
-                 C 280 73 294 85 306 102
-                 Z"/>
-            <path class="car-glass"
-              d="M 84 102
-                 C 108 89 150 76 196 73
-                 C 220 72 241 73 257 75
-                 C 273 79 285 88 295 100
-                 Z"/>
-            <line x1="212" y1="70" x2="212" y2="98"
-                  stroke="#0a1e30" stroke-width="4.5" stroke-linecap="round"/>
-            <path d="M 78 103 C 150 99 250 97 330 101"
-                  fill="none" stroke="#fff" stroke-width="1.2"
-                  stroke-opacity="0.30" stroke-linecap="round"/>
-            <path d="M 96 126 C 170 122 250 121 330 124"
-                  fill="none" stroke="#000" stroke-width="1"
-                  stroke-opacity="0.22" stroke-linecap="round"/>
-            <rect class="car-lamp" x="50" y="110" width="9" height="18" rx="2"/>
-            <path d="M 306 92 L 318 87 L 322 93 L 318 99 L 306 99 Z"
-                  fill="#2a5a80" stroke="#3a7aaa" stroke-width="0.8"/>
+            <!-- The car is a photograph, mirrored to face right and scaled so its wheels land
+                 on the two centres the rotation uses: image wheels (462,487) and (1017,487)
+                 at r=72, wheelbase 555px -> 200px here, scale 0.36036. Its own road line
+                 falls on y=159, so no drawn ground is needed. -->
+            <clipPath id="car-clip"><rect x="0" y="0" width="420" height="172"/></clipPath>
+            <g clip-path="url(#car-clip)">
+              <image href="/static/taycan.jpg" x="0" y="0" width="1440" height="812"
+                     transform="translate(-34.43,-43.49) scale(0.36036) translate(1440,0) scale(-1,1)"/>
+            </g>
+            <rect class="car-lamp" x="59" y="100" width="9" height="7" rx="2"/>
             <g id="wheel-rear" transform="rotate(0 118 132)">
-              <circle class="car-tyre" cx="118" cy="132" r="26"/>
-              <circle class="car-rim"  cx="118" cy="132" r="16"/>
-              <circle cx="118" cy="132" r="5" fill="#555"/>
+              <circle class="car-rim"  cx="118" cy="132" r="19"/>
+              <circle cx="118" cy="132" r="4" fill="#2b2f36"/>
               <line class="car-spoke" x1="118" y1="132" x2="118"   y2="116"/>
               <line class="car-spoke" x1="118" y1="132" x2="133.2" y2="127.1"/>
               <line class="car-spoke" x1="118" y1="132" x2="127.4" y2="144.9"/>
@@ -147,9 +102,8 @@ BODY_HTML = """<body class="bg-body">
               <line class="car-spoke" x1="118" y1="132" x2="102.8" y2="127.1"/>
             </g>
             <g id="wheel-front" transform="rotate(0 318 132)">
-              <circle class="car-tyre" cx="318" cy="132" r="26"/>
-              <circle class="car-rim"  cx="318" cy="132" r="16"/>
-              <circle cx="318" cy="132" r="5" fill="#555"/>
+              <circle class="car-rim"  cx="318" cy="132" r="19"/>
+              <circle cx="318" cy="132" r="4" fill="#2b2f36"/>
               <line class="car-spoke" x1="318" y1="132" x2="318"   y2="116"/>
               <line class="car-spoke" x1="318" y1="132" x2="333.2" y2="127.1"/>
               <line class="car-spoke" x1="318" y1="132" x2="327.4" y2="144.9"/>

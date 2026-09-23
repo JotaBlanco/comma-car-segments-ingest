@@ -155,3 +155,15 @@ pip install -r requirements.txt
 python main.py
 # Dashboard at http://localhost:80
 ```
+
+## The car image
+
+`static/taycan.jpg` is a Porsche press photograph of a Taycan, supplied by the user for
+this internal prototype. It is not cleared for public distribution — replace it before
+this dashboard is shown outside the team.
+
+The SVG mirrors it to face right and scales it so the photograph's own wheel centres,
+(462,487) and (1017,487) at r=72 in the 1440x812 original, land on (118,132) and
+(318,132) — the two points `page_vehicle.py` rotates about. The photograph keeps its
+tyres; only a rim and its spokes are drawn on top, so the wheels turn against real
+rubber. Its road line falls on y=159, so nothing draws a ground plane.
