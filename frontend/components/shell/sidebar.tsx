@@ -23,31 +23,17 @@ import {
 } from "lucide-react";
 import { NewTabMark } from "@/components/shared/new-tab-mark";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { formatCompact, formatInt } from "@/lib/format";
-import { useHomeSummary, usePlanningSyncStatus } from "@/lib/hooks";
+import { usePlanningSyncStatus } from "@/lib/hooks";
 import { getLakehouseUrl, listQuixLabs } from "@/lib/api/integrations";
 import { ftsConfigured } from "@/lib/fts";
 import { KIND_DEPLOYMENT, quixLabConfigured, setQuixLabPortalUrl } from "@/lib/quixlab";
 import { cn } from "@/lib/utils";
 
-export interface SidebarCounts {
-  runs?: string | number;
-  workOrders?: string | number;
-  definitions?: string | number;
-  requirements?: string | number;
-  files?: string | number;
-  signals?: string | number;
-}
-
-interface SidebarProps {
-  counts?: SidebarCounts;
-}
 
 interface NavEntry {
   label: string;
   href: string;
   icon: LucideIcon;
-  count?: string | number;
 }
 
 /* Proportions come from the Portal sidenav: a 232px panel collapses to a 56px
@@ -114,27 +100,9 @@ function storeCollapsed(next: boolean): void {
   for (const onChange of listeners) onChange();
 }
 
-export function Sidebar({ counts }: SidebarProps) {
+export function Sidebar() {
   const pathname = usePathname();
-  /* Contract §1: /home/summary also serves the sidebar counts.
-     §20: the sync status feeds the sidebar footer. */
-  const { data: summary } = useHomeSummary();
   const { data: sync } = usePlanningSyncStatus();
-  const summaryCounts = summary?.counts;
-  const resolved: SidebarCounts = counts ?? {
-    runs: summaryCounts !== undefined ? formatInt(summaryCounts.test_runs) : undefined,
-    workOrders: summaryCounts !== undefined ? formatInt(summaryCounts.work_orders) : undefined,
-    // An API built before this count sends no field. Read it as zero, or the
-    // sidebar prints NaN.
-    definitions:
-      summaryCounts !== undefined ? formatInt(summaryCounts.test_definitions ?? 0) : undefined,
-    // An API built before the requirement catalog lands sends no field —
-    // same fallback-to-zero rule as `definitions` above.
-    requirements:
-      summaryCounts !== undefined ? formatInt(summaryCounts.requirements ?? 0) : undefined,
-    files: summaryCounts !== undefined ? formatInt(summaryCounts.files) : undefined,
-    signals: summaryCounts !== undefined ? formatCompact(summaryCounts.signals) : undefined,
-  };
 
   const collapsed = useSyncExternalStore(subscribe, clientSnapshot, serverSnapshot);
 
@@ -211,19 +179,18 @@ export function Sidebar({ counts }: SidebarProps) {
 
   const registry: NavEntry[] = [
     { label: "Home", href: "/", icon: Home },
-    { label: "Requirements", href: "/requirements", icon: ListChecks, count: resolved.requirements },
+    { label: "Requirements", href: "/requirements", icon: ListChecks },
     /* The definitions list and the definition detail both ship. Without this
        entry the only way in is the Home "orphaned definitions" line. */
     {
       label: "Test definitions",
       href: "/definitions",
       icon: FlaskConical,
-      count: resolved.definitions,
     },
-    { label: "Work orders", href: "/work-orders", icon: ClipboardList, count: resolved.workOrders },
-    { label: "Test runs", href: "/runs", icon: Timer, count: resolved.runs },
-    { label: "Files", href: "/files", icon: FileText, count: resolved.files },
-    { label: "Signals", href: "/signals", icon: Activity, count: resolved.signals },
+    { label: "Work orders", href: "/work-orders", icon: ClipboardList },
+    { label: "Test runs", href: "/runs", icon: Timer },
+    { label: "Files", href: "/files", icon: FileText },
+    { label: "Signals", href: "/signals", icon: Activity },
     /* The lake's findings across every run. No count: the home summary reads the
        registry, and the issues live in the lake. */
     { label: "Issues", href: "/issues", icon: AlertTriangle },
@@ -262,9 +229,9 @@ export function Sidebar({ counts }: SidebarProps) {
   const isActive = (href: string): boolean =>
     href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
 
-  /* The rail hides the label and the count from the eye only. Both stay in the
-     accessible name, so a screen reader loses nothing, and the tooltip gives
-     the same two facts back to a mouse or to a keyboard. */
+  /* The rail hides the label from the eye only. It stays in the accessible
+     name, so a screen reader loses nothing, and the tooltip gives it back to a
+     mouse or to a keyboard. */
   const hideText = collapsed ? "sr-only" : undefined;
   const rowClass = collapsed ? "justify-center px-0" : undefined;
 
@@ -284,25 +251,6 @@ export function Sidebar({ counts }: SidebarProps) {
       >
         <Icon size={15} strokeWidth={2} className={cn("flex-none", active ? "opacity-100" : "opacity-65")} />
         <span className={hideText}>{entry.label}</span>
-        {entry.count !== undefined && (
-          /* The space keeps the count off the label in the accessible
-             name ("Test runs 12", not "Test runs12"). Flexbox drops a
-             whitespace-only item, so it changes no pixel.
-             a11y: on the active row's accent-soft tint, ink-3 falls below
-             4.5:1 in the dark theme — step up to ink-2 there. */
-          <>
-          {" "}
-          <span
-            className={cn(
-              "ml-auto font-mono text-[0.7rem]",
-              hideText,
-              active ? "text-ink-2" : "text-ink-3"
-            )}
-          >
-            {entry.count}
-          </span>
-          </>
-        )}
       </Link>
     );
     if (!collapsed) return link;
@@ -310,7 +258,7 @@ export function Sidebar({ counts }: SidebarProps) {
       <Tooltip key={entry.href}>
         <TooltipTrigger render={link} />
         <TooltipContent side="right">
-          {entry.count === undefined ? entry.label : `${entry.label} (${entry.count})`}
+          {entry.label}
         </TooltipContent>
       </Tooltip>
     );

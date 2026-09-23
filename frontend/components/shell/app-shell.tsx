@@ -4,15 +4,14 @@ import { AssistantProvider } from "@/components/assistant/assistant-provider";
 import { SignedOutScreen } from "@/components/account/signed-out-screen";
 import { AnnouncerProvider } from "@/lib/hooks/use-announce";
 import { FocusOnRouteChange } from "./focus-on-route-change";
-import { Sidebar, type SidebarCounts } from "./sidebar";
+import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 
 interface AppShellProps {
   children: ReactNode;
-  counts?: SidebarCounts;
 }
 
-export function AppShell({ children, counts }: AppShellProps) {
+export function AppShell({ children }: AppShellProps) {
   return (
     /* AppShell stays a server component: the client AssistantProvider renders
        these server children untouched, so only the topbar trigger and the
@@ -42,7 +41,7 @@ export function AppShell({ children, counts }: AppShellProps) {
           ones, so auto placement here would put main in the wrong column. */}
       <div className="grid h-screen grid-cols-[auto_auto_minmax(0,1fr)_auto] grid-rows-[52px_1fr]">
         <Topbar />
-        <Sidebar counts={counts} />
+        <Sidebar />
         {/* Main is bounded by the parent grid's `1fr` row (viewport - 52px topbar).
             `overflow-y-auto` preserves normal page scrolling for Home + detail pages,
             whose content grows past the column — hence `min-h-full`, not `h-full`.
