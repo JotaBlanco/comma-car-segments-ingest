@@ -121,7 +121,7 @@ async function mountBoth() {
   const view = render(<Harness withFrame />);
   const frame = view.container.querySelector("iframe");
   if (frame === null) throw new Error("the frame did not render");
-  await waitFor(() => expect(frame.getAttribute("src")).toBe(lab.embed_url));
+  await waitFor(() => expect(frame.getAttribute("src")).toBe(`${lab.embed_url}&theme=light`));
 
   const child = frame.contentWindow;
   if (child === null) throw new Error("the frame has no child window");
@@ -276,7 +276,7 @@ describe("the pick reaches the QuixLab frame", () => {
     // The same element, and the address set once. A reload would drop the
     // QuixLab session the token handshake just bought.
     expect(view.container.querySelector("iframe")).toBe(frame);
-    expect(frame.getAttribute("src")).toBe(lab.embed_url);
+    expect(frame.getAttribute("src")).toBe(`${lab.embed_url}&theme=light`);
   });
 
   it("drops a list QuixLab would refuse, and says so", async () => {
@@ -289,7 +289,7 @@ describe("the pick reaches the QuixLab frame", () => {
     );
     const frame = view.container.querySelector("iframe");
     if (frame === null) throw new Error("the frame did not render");
-    await waitFor(() => expect(frame.getAttribute("src")).toBe(lab.embed_url));
+    await waitFor(() => expect(frame.getAttribute("src")).toBe(`${lab.embed_url}&theme=light`));
 
     const child = frame.contentWindow;
     if (child === null) throw new Error("the frame has no child window");

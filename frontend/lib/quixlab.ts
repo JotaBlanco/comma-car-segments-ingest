@@ -167,6 +167,31 @@ export function openQuixLabNode(nodeId: string | null, runId: string, url?: stri
  */
 export const EMBED_QUERY = "isIframe=true";
 
+/** The two themes this product has, spelled as QuixLab spells them. */
+export type QuixLabTheme = "light" | "dark";
+
+/**
+ * The theme this page shows right now, read from the class the theme
+ * provider keeps on `<html>` (`components/theme/theme-provider.tsx`).
+ */
+export function currentTheme(): QuixLabTheme {
+  return typeof document !== "undefined" && document.documentElement.classList.contains("dark")
+    ? "dark"
+    : "light";
+}
+
+/**
+ * An embed address carrying the theme QuixLab should paint in.
+ *
+ * QuixLab reads `?theme=light|dark` before its first paint and keeps it
+ * (`quixlab/src/quixlab/server/static/index.html`), so a light Test Manager
+ * never frames a dark canvas. A later switch travels by message instead
+ * (`QUIXLAB_THEME`), so the frame is never reloaded for a theme.
+ */
+export function withTheme(embedUrl: string, theme: QuixLabTheme): string {
+  return `${embedUrl}${embedUrl.includes("?") ? "&" : "?"}theme=${theme}`;
+}
+
 /**
  * The longest signal list QuixLab accepts. It answers 400 for a longer one.
  *

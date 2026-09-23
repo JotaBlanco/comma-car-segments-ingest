@@ -37,8 +37,16 @@ vi.mock("@/lib/api/run-quixlab", async (importOriginal) => ({
   openNotebook,
 }));
 
-import { QuixLabPanel } from "@/components/screens/run-detail/quixlab-panel";
-import { QuixLabFrame } from "@/components/shared/quixlab-frame";
+vi.mock("@/lib/quixlab-ready", () => ({ waitForLab: vi.fn(() => Promise.resolve(true)) }));
+
+import {
+  FRAME_PATIENCE_MS,
+  FRAME_RELOADS,
+  QuixLabFrame,
+  QuixLabPanel,
+} from "@/components/screens/run-detail/quixlab-panel";
+// The shared frame the /quixlab page mounts; the run panel frames its lab with its own.
+import { QuixLabFrame as SharedQuixLabFrame } from "@/components/shared/quixlab-frame";
 import { ApiError } from "@/lib/api/client";
 import { setActivePortalToken } from "@/lib/portal/token-store";
 import type { Notebook, RunQuixLab } from "@/lib/api/run-quixlab";
@@ -104,12 +112,12 @@ interface Posted {
 /** Mount the frame and watch every message it posts into the child window. */
 async function mountFrame(target = instance(), runId = RUN_ID) {
   const view = render(
-    <QuixLabFrame embedUrl={target.embed_url} origin={target.origin} runId={runId} />,
+    <SharedQuixLabFrame embedUrl={target.embed_url} origin={target.origin} runId={runId} />,
   );
   const frame = view.container.querySelector("iframe");
   if (frame === null) throw new Error("the frame did not render");
   // The effect sets the src, so the listener is mounted before the load.
-  await waitFor(() => expect(frame.getAttribute("src")).toBe(target.embed_url));
+  await waitFor(() => expect(frame.getAttribute("src")).toBe(`${target.embed_url}&theme=light`));
 
   const child = frame.contentWindow;
   if (child === null) throw new Error("the frame has no child window");
@@ -229,12 +237,81 @@ describe("the frame opens one named run", () => {
     const { frame } = await mountFrame();
 
     const src = frame.getAttribute("src") ?? "";
-    expect(src).toBe(`${SHARED_ORIGIN}?isIframe=true`);
+    expect(src).toBe(`${SHARED_ORIGIN}?isIframe=true&theme=light`);
     for (const secret of ["token", "secret", "password", "bearer"]) {
       expect(src.toLowerCase()).not.toContain(secret);
     }
     // A sandbox without allow-same-origin kills QuixLab's session cookie.
     expect(frame.hasAttribute("sandbox")).toBe(false);
+  });
+});
+
+describe("the frame follows this page's theme", () => {
+  afterEach(() => document.documentElement.classList.remove("dark"));
+
+  it("loads the lab in the theme this page shows", async () => {
+    document.documentElement.classList.add("dark");
+    const view = render(<QuixLabFrame instance={instance()} runId={RUN_ID} />);
+    const frame = view.container.querySelector("iframe");
+
+    await waitFor(() =>
+      expect(frame?.getAttribute("src")).toBe(`${SHARED_ORIGIN}?isIframe=true&theme=dark`),
+    );
+  });
+
+  it("posts the switch down, and never reloads the frame for it", async () => {
+    const { posted, frame } = await mountFrame();
+    const before = frame.getAttribute("src");
+
+    document.documentElement.classList.add("dark");
+    await waitFor(() => expect(posted).toHaveLength(1));
+
+    expect(posted[0]).toEqual({ message: { type: "QUIXLAB_THEME", theme: "dark" }, target: SHARED_ORIGIN });
+    expect(frame.getAttribute("src")).toBe(before);
+  });
+});
+
+describe("the frame reloads a lab that says nothing", () => {
+  /* The ingress answers for a lab still starting with its own error page,
+     which never posts a message and never refreshes itself. */
+  beforeEach(() => vi.useFakeTimers({ shouldAdvanceTime: true }));
+  afterEach(() => vi.useRealTimers());
+
+  it("reloads after FRAME_PATIENCE_MS of silence, with a cache-busting counter", async () => {
+    const { frame, view } = await mountFrame();
+    const first = frame.getAttribute("src");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(FRAME_PATIENCE_MS + 10);
+    });
+
+    expect(frame.getAttribute("src")).toBe(`${first}&reload=1`);
+    expect(view.getByRole("status").textContent).toContain("reloaded (1 of");
+  });
+
+  it("stops the clock the moment the lab speaks, whatever it says", async () => {
+    const { frame } = await mountFrame();
+    const first = frame.getAttribute("src");
+
+    fire(SHARED_ORIGIN, { type: "QUIXLAB_READY" });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(FRAME_PATIENCE_MS * 3);
+    });
+
+    expect(frame.getAttribute("src")).toBe(first);
+  });
+
+  it("gives up after FRAME_RELOADS and says what to do", async () => {
+    const { frame, view } = await mountFrame();
+
+    for (let i = 0; i <= FRAME_RELOADS; i += 1) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(FRAME_PATIENCE_MS + 10);
+      });
+    }
+
+    expect(frame.getAttribute("src")).toContain(`&reload=${FRAME_RELOADS}`);
+    expect(view.getByRole("alert").textContent).toContain("did not answer");
   });
 });
 
@@ -287,7 +364,7 @@ describe("the notebooks", () => {
       if (found === null) throw new Error("no frame yet");
       return found;
     }, { timeout: 5000 });
-    await waitFor(() => expect(frame.getAttribute("src")).toBe(`${LAB_ORIGIN}?isIframe=true`));
+    await waitFor(() => expect(frame.getAttribute("src")).toBe(`${LAB_ORIGIN}?isIframe=true&theme=light`));
     expect(getNotebookLab).toHaveBeenCalledWith(RUN_ID, "nb-1");
     expect(view.getByRole("button", { name: "Save and Close" })).toBeTruthy();
   });

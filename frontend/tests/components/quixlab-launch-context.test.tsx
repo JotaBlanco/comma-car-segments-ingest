@@ -129,6 +129,8 @@ vi.mock("@/lib/api/run-quixlab", async (importOriginal) => ({
   openNotebook,
 }));
 
+vi.mock("@/lib/quixlab-ready", () => ({ waitForLab: vi.fn(() => Promise.resolve(true)) }));
+
 import { FileDetailScreen } from "@/components/screens/files/file-detail-screen";
 import { RunDetailScreen } from "@/components/screens/run-detail/run-detail-screen";
 import { SignalDetailScreen } from "@/components/screens/signals/signal-detail-screen";

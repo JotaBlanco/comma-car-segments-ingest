@@ -30,6 +30,8 @@ vi.mock("@/lib/api/run-quixlab", async (importOriginal) => ({
   openNotebook,
 }));
 
+vi.mock("@/lib/quixlab-ready", () => ({ waitForLab: vi.fn(() => Promise.resolve(true)) }));
+
 import { QuixLabPanel } from "@/components/screens/run-detail/quixlab-panel";
 import type { Notebook, RunQuixLab } from "@/lib/api/run-quixlab";
 import { setActivePortalToken } from "@/lib/portal/token-store";
@@ -37,7 +39,7 @@ import { setQuixLabUrl } from "@/lib/quixlab";
 
 const RUN_ID = "RUN-2026-0042";
 const ORIGIN = "https://tm-lab-ana-run42.dev.quix.io";
-const EMBED_URL = `${ORIGIN}?isIframe=true`;
+const EMBED_URL = `${ORIGIN}?isIframe=true&theme=light`;
 
 const lab: RunQuixLab = {
   id: "dep-lab",

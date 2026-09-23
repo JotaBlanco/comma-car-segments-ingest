@@ -9,6 +9,7 @@ import {
   type Notebook,
   type RunQuixLab,
 } from "@/lib/api/run-quixlab";
+import { waitForLab } from "@/lib/quixlab-ready";
 
 /**
  * Launching one person's QuixLab for one run, without losing the click.
@@ -28,7 +29,9 @@ import {
  *
  * **Why it waits rather than redirecting at once.** A freshly created
  * deployment answers `Building`: the address exists and nothing serves on it.
- * Sending a person there shows them a 502 that never refreshes itself.
+ * Sending a person there shows them a 502 that never refreshes itself. And
+ * `Running` is not the end of it: the pod is scheduled, the server inside is
+ * not yet listening, so the tab also waits for the lab's own probe.
  */
 
 /** How often the lab is asked whether it is up. */
@@ -115,6 +118,8 @@ export interface LaunchDeps {
   /** A saved notebook, its lab started. */
   open(runId: string, notebookId: string): Promise<Notebook>;
   read(runId: string, notebookId: string): Promise<RunQuixLab>;
+  /** True once the lab answers its probe; see `lib/quixlab-ready.ts`. */
+  ready(url: string): Promise<boolean>;
   wait(ms: number): Promise<void>;
   now(): number;
 }
@@ -123,6 +128,7 @@ const LIVE: LaunchDeps = {
   list: listNotebooks,
   create: createNotebook,
   open: openNotebook,
+  ready: waitForLab,
   wait: sleep,
   now: () => Date.now(),
   read: getNotebookLab,
@@ -158,7 +164,11 @@ export async function launchRunQuixLab(
 
   if (!tab.alive()) return lab;
   if (running(lab)) {
-    tab.go(lab.url);
+    // Running is the Portal's word for a scheduled pod; the server inside takes
+    // longer, and a tab sent there now lands on the ingress's error page.
+    tab.say("Your QuixLab is up — waiting for it to answer…");
+    await deps.ready(lab.url);
+    if (tab.alive()) tab.go(lab.url);
     return lab;
   }
   // The build outlasted the wait. A link is honest; a redirect into a 502 that

@@ -61,12 +61,13 @@ function deps(
   answers: RunQuixLab[],
   clock = { at: 0 },
   saved: Notebook[] = [],
-): LaunchDeps & { reads: number; created: number; opened: string[] } {
+): LaunchDeps & { reads: number; created: number; opened: string[]; readied: string[] } {
   const queue = [...answers];
   const out = {
     reads: 0,
     created: 0,
     opened: [] as string[],
+    readied: [] as string[],
     list: () => Promise.resolve(saved),
     create: () => {
       out.created += 1;
@@ -79,6 +80,10 @@ function deps(
     read: () => {
       out.reads += 1;
       return Promise.resolve(queue.shift()!);
+    },
+    ready: (url: string) => {
+      out.readied.push(url);
+      return Promise.resolve(true);
     },
     wait: (ms: number) => {
       clock.at += ms;
@@ -110,6 +115,42 @@ describe("launchRunQuixLab", () => {
     expect(d.reads).toBe(0);
     expect(d.created).toBe(1);
     expect(tab.offered).toEqual([]);
+  });
+
+  it("waits for the lab to ANSWER before sending the tab, Running or not", async () => {
+    // Running is the pod; the server inside listens later, and a tab sent
+    // early lands on the ingress's error page.
+    const tab = fakeTab();
+    const d = deps([lab("Running")]);
+    const order: string[] = [];
+    const slow = {
+      ...d,
+      ready: (url: string) => {
+        order.push(`ready ${url}`);
+        return Promise.resolve(true);
+      },
+    };
+    tab.go = (url: string) => order.push(`go ${url}`);
+
+    await launchRunQuixLab("r1", tab, slow);
+
+    expect(order).toEqual(["ready https://tm-lab-a.dev.quix.io", "go https://tm-lab-a.dev.quix.io"]);
+  });
+
+  it("does not send a tab the person closed while the lab was answering", async () => {
+    const tab = fakeTab();
+    const d = deps([lab("Running")]);
+    const closing = {
+      ...d,
+      ready: () => {
+        tab.open = false;
+        return Promise.resolve(true);
+      },
+    };
+
+    await launchRunQuixLab("r1", tab, closing);
+
+    expect(tab.went).toEqual([]);
   });
 
   it("opens the NEWEST saved notebook rather than making another", async () => {

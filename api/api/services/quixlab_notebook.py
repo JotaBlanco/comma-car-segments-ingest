@@ -61,38 +61,50 @@ def lake_tree(table: str, parts: dict[str, str]) -> list[str]:
     return out
 
 
-def _where(parts: dict[str, str]) -> str:
-    """The partition filter, one column per line, outermost first.
+def partition_path(parts: dict[str, str]) -> str:
+    """The run's own folder of the lake, as one `column=value/...` path.
 
-    Only the columns the run actually names are written. They are partition
-    columns, so each one prunes folders rather than rows — a run with no work
-    order still gets a working query, just a wider one.
+    This is what a person ticks in QuixLab's partition tree, and what the
+    dataset node below carries: `ql.lake_partitions(table, [path])`. Only the
+    columns the run actually names are written, outermost first — a run with
+    no work order still gets a working folder, just a wider one.
     """
-    terms = []
+    # Every value is checked, whether or not it lands in the path: a bad one is a bug.
     for column in PARTITIONS:
         value = (parts.get(column) or "").strip()
-        if value:
-            terms.append(f"{column} = {_literal(value, column)}")
-    if not terms:
-        raise UnsafeValue("the notebook needs at least one partition to filter on")
-    # The first term carries the WHERE, the rest carry an AND.
-    return "\n".join(
-        [f"    WHERE {terms[0]}"] + [f"      AND {term}" for term in terms[1:]]
-    )
+        if value and not _SAFE.fullmatch(value):
+            raise UnsafeValue(f"{column} is not a value this notebook may name")
+    segments = []
+    for column in PARTITIONS:
+        value = (parts.get(column) or "").strip()
+        if not value:
+            break
+        segments.append(f"{column}={value}")
+    if not segments:
+        raise UnsafeValue("the notebook needs at least one partition to open on")
+    return "/".join(segments)
 
 
 def notebook_source(*, run_id: str, table: str, parts: dict[str, str]) -> str:
     """The whole `analysis.py` for one run.
 
-    Three nodes, and no more: the lake query, a per-signal summary, and a plot.
+    Three nodes, and no more: the run's data, a per-signal summary, and a plot.
     A starting point is the point — a person opens the lab to ask their own
     question, and a canvas full of somebody else's cells is in the way.
+
+    **The data is a partition dataset, in the middle of the canvas.** The node
+    body is `ql.lake_partitions(table, [<the run's folder>])`, which QuixLab
+    shows as its partition picker with the run's folders ticked, not as SQL:
+    a person widens or narrows the selection by clicking, and the rows are
+    loaded when the lab boots (QuixLab runs every node at boot), so the data
+    is on screen when they arrive. The two cells sit either side of it, and
+    the first view fits all three, with the data in the centre.
     """
     if not _SAFE.fullmatch(table or ""):
         raise UnsafeValue("the lake table is not a name this notebook may query")
     filters = dict(parts)
     filters["run_id"] = run_id
-    where = _where(filters)
+    path = partition_path(filters)
     tree = lake_tree(table, filters)
     return f'''"""Analysis of test run {run_id}.
 
@@ -100,7 +112,8 @@ Test Manager wrote this notebook into the run's own folder, which is this
 QuixLab's project root. Everything you add here — cells, chats, results —
 stays with the run.
 
-The dataset below is the whole run. Narrow it, or add a cell of your own.
+The dataset in the middle is the whole run: its folders of the lake, ticked.
+Click it to widen or narrow the selection, or add a cell of your own.
 """
 
 import quixlab as ql
@@ -111,22 +124,22 @@ canvas = ql.Canvas(
 )
 
 
-@canvas.dataset(position=(-60, -60), size=(820, 520), code_height=210)
+@canvas.dataset(
+    position=(-420, -300),
+    size=(840, 600),
+    code_height=160,
+    viz={{"datasetMode": "partitions", "type": "table"}},
+)
 def samples():
-    """Every sample this run recorded, newest partition columns pruned first."""
-    return ql.sql("""
-    SELECT timestamp, protocol, bus, signal, value, unit
-    FROM {table}
-{where}
-    ORDER BY timestamp
-    """)
+    return ql.lake_partitions({table!r}, [{path!r}])
 
 
-@canvas.cell(position=(820, -60), size=(560, 380), code_height=200)
+@canvas.cell(position=(-1320, -300), size=(840, 600), code_height=200)
 def inventory(samples):
     """What the run carries: one row per signal, with its range."""
     summary = (
-        samples.groupby(["protocol", "bus", "signal"])["value"]
+        samples.df()
+        .groupby(["protocol", "bus", "signal"])["value"]
         .agg(["count", "min", "max", "mean"])
         .reset_index()
         .sort_values("count", ascending=False)
@@ -135,13 +148,14 @@ def inventory(samples):
     return summary
 
 
-@canvas.cell(position=(820, 360), size=(820, 520), code_height=200)
+@canvas.cell(position=(480, -300), size=(840, 600), code_height=200)
 def timeline(samples):
     """The busiest few signals over time."""
     import pandas as pd
 
-    busiest = samples["signal"].value_counts().head(6).index.tolist()
-    frame = samples[samples["signal"].isin(busiest)].copy()
+    rows = samples.df()
+    busiest = rows["signal"].value_counts().head(6).index.tolist()
+    frame = rows[rows["signal"].isin(busiest)].copy()
     frame["timestamp"] = pd.to_datetime(frame["timestamp"], unit="ms")
     wide = (
         frame.pivot_table(index="timestamp", columns="signal", values="value", aggfunc="mean")
@@ -163,4 +177,4 @@ def timeline(samples):
 '''
 
 
-__all__ = ["PARTITIONS", "UnsafeValue", "lake_tree", "notebook_source"]
+__all__ = ["PARTITIONS", "UnsafeValue", "lake_tree", "notebook_source", "partition_path"]

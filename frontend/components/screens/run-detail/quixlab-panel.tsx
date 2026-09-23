@@ -20,11 +20,14 @@ import {
 import { keys } from "@/lib/hooks/keys";
 import { getActivePortalToken } from "@/lib/portal/token-store";
 import {
+  currentTheme,
   EMBED_QUERY,
   KIND_DEPLOYMENT,
   MAX_QUIXLAB_SIGNALS,
+  withTheme,
   type QuixLabInstance,
 } from "@/lib/quixlab";
+import { waitForLab } from "@/lib/quixlab-ready";
 import { GIVE_UP_MS, POLL_MS } from "@/lib/run-quixlab";
 import { cn } from "@/lib/utils";
 import { SHELL_BREAKOUT_CLASS } from "@/lib/shell-breakout";
@@ -52,11 +55,26 @@ import { SHELL_BREAKOUT_CLASS } from "@/lib/shell-breakout";
  * save and stops the lab; opening the notebook again is a start, not a build.
  */
 
-/** The two message names QuixLab sends up, and the two this panel sends down. */
+/** The message names QuixLab sends up, and the ones this panel sends down. */
 const REQUEST_AUTH_TOKEN = "REQUEST_AUTH_TOKEN";
 const AUTH_TOKEN = "AUTH_TOKEN";
 const REQUEST_TM_IMPORT = "REQUEST_TM_IMPORT";
 const TM_IMPORT = "TM_IMPORT";
+/** Posted down when this page switches theme (`quixlab/src/quixlab/server/embed.py`). */
+const QUIXLAB_THEME = "QUIXLAB_THEME";
+
+/**
+ * How long the frame waits to hear ANYTHING from the lab after a load.
+ *
+ * QuixLab speaks within a second of loading — `QUIXLAB_READY` from its script,
+ * `REQUEST_AUTH_TOKEN` from its sign-in gate. The ingress error page a lab
+ * still starting answers with says nothing, ever, and never refreshes itself;
+ * a frame that heard nothing in this long is on that page and is reloaded.
+ */
+export const FRAME_PATIENCE_MS = 12_000;
+
+/** How many silent loads are retried before the frame stops reloading itself. */
+export const FRAME_RELOADS = 8;
 
 /**
  * One person's lab in the shape the frame below already takes.
@@ -105,6 +123,10 @@ export function QuixLabFrame({
      not an error: QuixLab keeps asking, and it shows its own sign-in form. The
      note below says so, instead of leaving a person with a blank frame. */
   const [waitingForToken, setWaitingForToken] = useState(false);
+  /* How many times the frame was reloaded for silence, and whether it gave up.
+     Zero once the lab has spoken. */
+  const [reloads, setReloads] = useState(0);
+  const [stalled, setStalled] = useState(false);
 
   const { origin, embed_url: embedUrl } = instance;
 
@@ -119,10 +141,44 @@ export function QuixLabFrame({
   }, [signals]);
 
   useEffect(() => {
+    /* The silence watchdog. Any message from the lab's origin proves the frame
+       holds QuixLab; until one arrives, each load gets FRAME_PATIENCE_MS and is
+       then loaded again with a cache-busting counter. */
+    let heard = false;
+    let attempt = 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    // The theme at load time rides on the address; a later switch goes by message.
+    const src = withTheme(embedUrl, currentTheme());
+
+    function load() {
+      const frame = frameRef.current;
+      if (frame === null) return;
+      frame.src = attempt === 0 ? src : `${src}&reload=${attempt}`;
+      timer = setTimeout(onSilence, FRAME_PATIENCE_MS);
+    }
+
+    function onSilence() {
+      timer = null;
+      if (heard) return;
+      if (attempt >= FRAME_RELOADS) {
+        setStalled(true);
+        return;
+      }
+      attempt += 1;
+      setReloads(attempt);
+      load();
+    }
+
     function onMessage(event: MessageEvent) {
       // The origin check is first and it is the whole point. Any page can post
       // a well-shaped message; only the browser sets `event.origin`.
       if (event.origin !== origin) return;
+      if (!heard) {
+        heard = true;
+        if (timer !== null) clearTimeout(timer);
+        setReloads(0);
+        setStalled(false);
+      }
       const data = event.data as { type?: unknown } | null;
       if (typeof data !== "object" || data === null) return;
 
@@ -167,9 +223,28 @@ export function QuixLabFrame({
        mounted. A listener mounted after the load loses the first
        REQUEST_AUTH_TOKEN, and that first message is the one that gives the
        frame its session. */
-    if (frameRef.current !== null) frameRef.current.src = embedUrl;
-    return () => window.removeEventListener("message", onMessage);
+    load();
+    return () => {
+      window.removeEventListener("message", onMessage);
+      if (timer !== null) clearTimeout(timer);
+    };
   }, [origin, embedUrl, runId]);
+
+  /* The theme follows this page. The provider toggles the `dark` class on
+     <html>; the observer posts every change down, and QuixLab repaints in
+     place — no reload, so the session and the canvas survive the switch. */
+  useEffect(() => {
+    if (typeof MutationObserver === "undefined") return undefined;
+    let last = currentTheme();
+    const observer = new MutationObserver(() => {
+      const theme = currentTheme();
+      if (theme === last) return;
+      last = theme;
+      frameRef.current?.contentWindow?.postMessage({ type: QUIXLAB_THEME, theme }, origin);
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, [origin]);
 
   return (
     /* Expanding changes THIS element's classes, and nothing else. The iframe
@@ -187,6 +262,18 @@ export function QuixLabFrame({
         <p role="status" className="border-b border-line-2 px-4 py-2 text-[0.78rem] text-ink-3">
           QuixLab asked for a sign-in token and this browser holds none yet. QuixLab
           asks you to sign in, and the run opens once it has a session.
+        </p>
+      )}
+      {reloads > 0 && !stalled && (
+        <p role="status" className="border-b border-line-2 px-4 py-2 text-[0.78rem] text-ink-3">
+          QuixLab has not answered yet — the frame is being reloaded ({reloads} of{" "}
+          {FRAME_RELOADS}). A lab that has just started takes a moment to listen.
+        </p>
+      )}
+      {stalled && (
+        <p role="alert" className="border-b border-line-2 px-4 py-2 text-[0.78rem] text-ink-3">
+          QuixLab did not answer after {FRAME_RELOADS} reloads. Check the deployment in
+          the Portal, then Save and Close and open the notebook again.
         </p>
       )}
       <iframe
@@ -285,6 +372,9 @@ export function QuixLabPanel({
             lab = await getNotebookLab(runId, notebook.notebook_id);
           }
           if (running(lab)) {
+            // Running is the pod; the server inside listens a little later.
+            setProgress({ notebookId, text: "Starting… (waiting for QuixLab to answer)" });
+            await waitForLab(lab.url);
             setActive({ notebook, lab });
             setExpanded(false);
           } else {

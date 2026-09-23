@@ -208,10 +208,29 @@ def test_the_notebook_names_the_run_and_compiles() -> None:
     )
 
     compile(source, "analysis.py", "exec")  # a notebook that will not parse is no notebook
-    assert f"run_id = '{RUN}'" in source
-    assert "platform = 'sn002'" in source
-    assert "FROM pcap_data_v1" in source
-    assert source.count("WHERE") == 1, "one WHERE, the rest are ANDs"
+    # The data is a PARTITION dataset with the run's own folder ticked - QuixLab
+    # draws it as its picker, not as SQL, and runs it at boot.
+    folder = f"platform=sn002/work_order=WO-1/test_definition=TD-1/run_id={RUN}"
+    assert f"return ql.lake_partitions('pcap_data_v1', ['{folder}'])" in source
+    assert '"datasetMode": "partitions"' in source
+    assert "SELECT" not in source, "no SQL to read; the picker is the query"
+    # In the middle: the dataset straddles the origin, the two cells sit either side.
+    assert "@canvas.dataset(\n    position=(-420, -300),\n    size=(840, 600)," in source
+    assert "position=(-1320, -300)" in source and "position=(480, -300)" in source
+    # Dependents take the rows through .df(): the dataset is lazy until asked.
+    assert source.count("samples.df()") == 2
+
+
+def test_the_notebook_folder_names_only_the_partitions_the_run_has() -> None:
+    assert (
+        quixlab_notebook.partition_path({"platform": "sn002", "work_order": ""}) == "platform=sn002"
+    )
+    assert (
+        quixlab_notebook.partition_path({"platform": "sn002", "work_order": "WO-1", "run_id": "r"})
+        == "platform=sn002/work_order=WO-1"
+    ), "a missing middle column ends the folder; the run id alone would be a lie"
+    with pytest.raises(quixlab_notebook.UnsafeValue):
+        quixlab_notebook.partition_path({})
 
 
 def test_the_notebook_refuses_a_value_it_cannot_safely_carry() -> None:
@@ -406,7 +425,7 @@ def test_a_new_notebook_is_listed_and_its_lab_opens_on_its_own_folder(
     key, source = written[0]
     assert key == f"{WORKSPACE}/quixlab-runs/{RUN}/{notebook_id}/analysis.py"
     assert body["lab"]["notebook"] == f"blob://{key}"
-    assert f"run_id = '{RUN}'" in source, "the notebook queries THIS run"
+    assert f"/run_id={RUN}'" in source, "the notebook opens on THIS run's folder"
     assert body["lab"]["url"] == "https://tm-lab.dev.quix.io"
     assert body["lab"]["created"] is True
     assert body["name"] == "Flutter sweep"
