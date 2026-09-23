@@ -23,8 +23,8 @@ to this app and we stream it into blob storage through the fsspec writer:
                                 metadata message.
 
 Both paths mint the pipeline key once via `metadata.make_upload_id`, write
-under `blob_prefix`, keep `state.py` progress current and emit the same
-`mf4_metadata` message, so everything downstream is identical.
+under `<workspace>/<BLOB_ROOT>/<run_id>/`, keep `state.py` progress current and
+emit the same `mf4_metadata` message, so everything downstream is identical.
 """
 
 
@@ -33,6 +33,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import re
 from typing import Any, Optional
 
 import anyio
@@ -52,7 +53,12 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("mf4-to-blob")
 
 OUTPUT_TOPIC = os.environ.get("output", "mf4_metadata")
-BLOB_PREFIX = os.environ.get("blob_prefix", "mf4-uploads/")
+# The root every artefact of ONE TEST RUN hangs from. The Test Manager API
+# reads the same variable name and writes each definition's test implementation
+# into the same `<workspace>/<root>/<run_id>/` folder, so a run's recording and
+# the module that judges it sit together. It stays outside `data-lake/`, so the
+# lakehouse catalog never scans these objects.
+BLOB_ROOT = os.environ.get("BLOB_ROOT", "jama_ui").strip().strip("/") or "jama_ui"
 MAX_FILE_BYTES = int(os.environ.get("max_file_bytes", str(5 * 1024 * 1024 * 1024)))
 COLLISION_POLICY = os.environ.get("collision_policy", "suffix").lower()
 CONCURRENCY_HINT = int(os.environ.get("concurrency_hint", "3"))
@@ -61,6 +67,29 @@ SAS_TTL_SECONDS = int(os.environ.get("sas_ttl_seconds", "1800"))
 # sas    -> force browser-to-Azure SAS (501 on a non-Azure backend)
 # direct -> force server-side streaming upload, even on Azure
 UPLOAD_MODE = os.environ.get("upload_mode", "auto").strip().lower() or "auto"
+
+# SAG reads the first folder under the bucket as the workspace and grants a
+# deployment a write under that folder only; the fsspec filesystem quixportal
+# builds is scoped to the BUCKET, so the key carries the workspace itself
+# (`api/ingest/store.py::default_blob_prefix`, which stamps the Test Manager's
+# keys the same way). Outside a deployment the variable is unset and the key
+# stays bare.
+WORKSPACE_VARIABLE = "Quix__Workspace__Id"
+
+# The run folder an upload that claimed no run lands in. This app mints the key
+# before anything opens the file, and the run id of such an upload is resolved
+# further down the ladder, from the MF4 header or the route
+# (`mf4-decoder/identity.py`). The Test Manager API spells it the same way
+# (`api/api/services/file_writes.py::UNASSIGNED_RUN`).
+UNASSIGNED_RUN = "unassigned"
+
+# A key segment keeps these characters. `file_writes._safe_segment` reduces the
+# sibling `.py` with the same rule, so one run's two artefacts cannot land in
+# two differently spelled folders.
+_UNSAFE_SEGMENT = re.compile(r"[^A-Za-z0-9._-]")
+
+# One segment stays short enough for any object store.
+_SEGMENT_LIMIT = 120
 
 app = FastAPI()
 
@@ -97,6 +126,14 @@ def _resolve_upload_mode() -> tuple[Optional[str], str]:
         return provider, UPLOAD_MODE
     is_azure = provider is not None and provider.lower() == "azure"
     return provider, "sas" if is_azure else "direct"
+
+
+def _run_folder(declared: dict[str, str]) -> str:
+    """The `<workspace>/<BLOB_ROOT>/<run_id>` folder this upload's MF4 lands in."""
+    workspace = os.environ.get(WORKSPACE_VARIABLE, "").strip().strip("/")
+    root = f"{workspace}/{BLOB_ROOT}" if workspace else BLOB_ROOT
+    run = _UNSAFE_SEGMENT.sub("_", (declared.get("run_id") or "").strip()).lstrip(".")
+    return f"{root}/{run[:_SEGMENT_LIMIT] or UNASSIGNED_RUN}"
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -148,7 +185,9 @@ async def upload_sas(req: SasRequest, request: Request):
             status_code=413,
         )
 
-    blob_path, collision_err = blob.resolve_blob_path(req.filename, BLOB_PREFIX, COLLISION_POLICY)
+    blob_path, collision_err = blob.resolve_blob_path(
+        req.filename, _run_folder(declared), COLLISION_POLICY
+    )
     if collision_err:
         return JSONResponse(
             {"status": "error", "message": collision_err, "blobPath": blob_path},
@@ -309,7 +348,9 @@ async def upload_direct(
             status_code=413,
         )
 
-    blob_path, collision_err = blob.resolve_blob_path(filename, BLOB_PREFIX, COLLISION_POLICY)
+    blob_path, collision_err = blob.resolve_blob_path(
+        filename, _run_folder(declared), COLLISION_POLICY
+    )
     if collision_err:
         return JSONResponse(
             {"status": "error", "message": collision_err, "blobPath": blob_path},

@@ -47,11 +47,17 @@ RESULT_FOLDER = "test-manager/results"
 # document from a processed result.
 REQUIREMENTS_FOLDER = "test-manager/requirements"
 
-# The folder every test implementation lands in — one `.py` per test definition,
-# the executable third artefact of the chain beside the requirement and the test
-# case. A sibling of the two folders above, and never the importer's dated MF4
-# prefix: an implementation belongs to a definition, not to an upload day.
-IMPLEMENTATION_FOLDER = "test-manager/implementations"
+# The root every artefact of ONE TEST RUN hangs from. MF4 Import reads the same
+# variable name and writes each trace under `<root>/<run_id>/`; this service
+# writes each test implementation into the same folder, so the bytes that were
+# recorded and the bytes that judge them sit side by side. The root stays
+# outside `data-lake/`, so the lakehouse catalog never scans these objects.
+BLOB_ROOT_VARIABLE = "BLOB_ROOT"
+DEFAULT_BLOB_ROOT = "jama_ui"
+
+# The run folder an artefact lands in when no run carries it. MF4 Import spells
+# it the same way, and the two services must keep spelling it the same.
+UNASSIGNED_RUN = "unassigned"
 
 # A key segment keeps these characters. Anything else becomes an underscore, so
 # a filename can never carry a path, a scheme or a traversal into the key.
@@ -65,6 +71,11 @@ def _safe_segment(value: str, fallback: str) -> str:
     """Turn one caller string into one safe key segment."""
     cleaned = _UNSAFE.sub("_", (value or "").strip()).lstrip(".")
     return cleaned[:_SEGMENT_LIMIT] or fallback
+
+
+def blob_root() -> str:
+    """The root folder every per-run artefact of this estate hangs from."""
+    return os.environ.get(BLOB_ROOT_VARIABLE, "").strip().strip("/") or DEFAULT_BLOB_ROOT
 
 
 def result_blob_key(run_id: str, filename: str) -> str:
@@ -130,21 +141,29 @@ def requirements_blob_key(td_id: str, filename: str) -> str:
     return f"{prefix}/{definition}/{uuid.uuid4().hex}-{name}"
 
 
-def implementation_blob_key(td_id: str, filename: str, digest: str) -> str:
+def implementation_blob_key(run_id: str | None, filename: str, digest: str) -> str:
     """Build the key one uploaded test implementation lands on.
 
     The workspace folder leads the key, as it does on the two writers above.
-    The name carries the first 8 hex of the content DIGEST where those two
-    carry a uuid: the digest keeps two different uploads apart just as well,
-    and it makes the key name the exact bytes — which is the point of this
-    artefact, since a verdict cites `sha256:<digest>` as its `tool_version`.
-    Re-uploading identical bytes therefore lands on the same key.
+    Under it the key is `<blob_root()>/<run_id>/<digest8>-<name>`, the folder MF4
+    Import writes the run's trace into, so a reader of one run's folder finds
+    the recording and the module that judges it together. ``run_id`` is None
+    when no run carries the definition yet, and the artefact then waits in
+    ``UNASSIGNED_RUN``.
+
+    The name carries the first 8 hex of the content DIGEST where the two
+    writers above carry a uuid: the digest keeps two different uploads apart
+    just as well, and it makes the key name the exact bytes — which is the
+    point of this artefact, since a verdict cites `sha256:<digest>` as its
+    `tool_version`. Re-uploading identical bytes onto the same run therefore
+    lands on the same key.
     """
     workspace = os.environ.get(WORKSPACE_VARIABLE, "").strip().strip("/")
-    prefix = f"{workspace}/{IMPLEMENTATION_FOLDER}" if workspace else IMPLEMENTATION_FOLDER
-    definition = _safe_segment(td_id, "unknown-definition")
+    root = blob_root()
+    prefix = f"{workspace}/{root}" if workspace else root
+    run = _safe_segment(run_id or "", UNASSIGNED_RUN)
     name = _safe_segment(filename, "implementation.py")
-    return f"{prefix}/{definition}/{digest[:8]}-{name}"
+    return f"{prefix}/{run}/{digest[:8]}-{name}"
 
 
 @runtime_checkable
@@ -302,13 +321,16 @@ def get_file_writer() -> FileBytesWriter:
 
 
 __all__ = [
-    "IMPLEMENTATION_FOLDER",
+    "BLOB_ROOT_VARIABLE",
+    "DEFAULT_BLOB_ROOT",
     "REQUIREMENTS_FOLDER",
     "RESULT_FOLDER",
+    "UNASSIGNED_RUN",
     "BlobFileWrites",
     "FileBytesWriter",
     "LocalFileWrites",
     "UnavailableFileWrites",
+    "blob_root",
     "build_blob_writer",
     "build_default_writer",
     "get_file_writer",

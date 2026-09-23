@@ -28,6 +28,10 @@ deployments:
         label: MF4 Import
         icon: upload_file
         order: 0
+    variables:
+      - name: BLOB_ROOT
+        description: The root folder every artefact of one test run hangs from. This deployment writes the trace to BLOB_ROOT/<run_id>/ and the Test Manager API writes that run's test implementation .py into the same folder, so the two must carry the SAME value.
+        value: jama_ui
     blobStorage:
       bind: true
   - name: MF4 Decoder
@@ -124,6 +128,9 @@ deployments:
       - name: TM_FTS_URL
         description: The Flight Test Station's public URL. This estate deploys no station, so it stays EMPTY and the run screen's station panel and the Workbooks nav entry hide themselves. Setting it lights both up against whatever is deployed there.
         value: ''
+      - name: BLOB_ROOT
+        description: The root folder every artefact of one test run hangs from. A definition's test implementation .py lands in BLOB_ROOT/<run_id>/, beside the trace MF4 Import wrote there, so this deployment and MF4 Import must carry the SAME value.
+        value: jama_ui
     blobStorage:
       bind: true
   - name: Planning Sync Mock
@@ -457,6 +464,10 @@ deployments:
       enabled: true
       urlPrefix: battery-sim
     plugin:
+      embeddedView:
+        enabled: true
+        hideHeader: true
+        default: true
       sidebarItem:
         show: true
         label: Battery Sim

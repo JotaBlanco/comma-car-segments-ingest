@@ -878,6 +878,12 @@ def upload_implementation(
     upload REPLACES the pointer; the bytes of the previous one stay in the
     store under their own digest, so a verdict that cited them still resolves.
 
+    **The bytes land in the run's folder, beside that run's MF4**
+    (`implementation_blob_key`). A definition names no run, so the newest run
+    carrying it is the one, and a definition no run carries yet waits in
+    `UNASSIGNED_RUN`. The pointer is what a read follows, so an implementation
+    stored before this layout still downloads from wherever it lies.
+
     The order of the checks copies the binary requirements route:
 
     1. the stated body length, before Starlette spools it - 413 `file_too_large`;
@@ -908,7 +914,8 @@ def upload_implementation(
     except FileBytesUnavailable as error:
         raise ApiError(503, error.detail, "storage_unreachable") from error
 
-    key = implementation_blob_key(td_id, filename, digest)
+    run_id = queries_runs.latest_run_id_for_definition(db, td_id)
+    key = implementation_blob_key(run_id, filename, digest)
     try:
         writer.write(key, _chunks(file))
     except FileBytesUnavailable as error:

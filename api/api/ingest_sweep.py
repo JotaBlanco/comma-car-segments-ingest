@@ -64,11 +64,11 @@ DEFAULT_INTERVAL_SECONDS = 300.0
 PREFIX_VAR = "TM_WATCH_PREFIX"
 DEFAULT_WATCH_FOLDER = "test-manager/dropbox"
 
-# The folder mf4-import writes every object it accepts into. Its deployment
-# sets `blob_prefix`, and the code default and the demo descriptor both name
-# this folder (test-manager-demo `mf4-import/main.py`, `quix.yaml`). mf4-import
-# writes it at the bucket root, with no workspace folder in front.
-IMPORT_WRITE_FOLDER = "mf4-uploads"
+# The root folder mf4-import writes every object it accepts into. Both services
+# read the same `BLOB_ROOT`, because a run's trace and its test implementation
+# share one folder — mismatched values split them silently, which is why the
+# default is spelled the same in both places.
+IMPORT_WRITE_FOLDER = os.environ.get("BLOB_ROOT", "").strip().strip("/") or "jama_ui"
 
 # The sweep posts measurement files and nothing else.
 WATCHED_SUFFIX = ".mf4"

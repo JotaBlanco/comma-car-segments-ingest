@@ -1620,6 +1620,23 @@ def test_definition_facets(db: Database) -> dict:
     }
 
 
+def latest_run_id_for_definition(db: Database, td_id: str) -> str | None:
+    """The newest run carrying this definition, or None when no run carries it.
+
+    The sort is the one `get_test_definition_detail` lists a definition's runs
+    with, so the run a stored artefact is filed under is the run that screen
+    names first. A definition sits on several runs in the model and on exactly
+    one in this estate, and the newest is the one a person is working on when
+    they upload.
+    """
+    run = db["test_runs"].find_one(
+        {"definition_ids": td_id},
+        {"_id": 1},
+        sort=[("first_data_at", DESCENDING), ("_id", ASCENDING)],
+    )
+    return str(run["_id"]) if run else None
+
+
 def get_test_definition_detail(db: Database, td_id: str) -> dict:
     """Read one definition, with its work order and the runs that carry it.
 

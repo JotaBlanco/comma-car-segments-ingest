@@ -10,7 +10,6 @@ from __future__ import annotations
 import logging
 import os
 import uuid
-from datetime import datetime, timezone
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -73,24 +72,24 @@ def safe_remove(blob_path: str) -> None:
         logger.warning("Could not remove partial blob %s: %s", blob_path, e)
 
 
-def resolve_blob_path(filename: str, prefix: str, policy: str) -> tuple[str, Optional[str]]:
-    """Resolve the target blob path per collision policy.
+def resolve_blob_path(filename: str, folder: str, policy: str) -> tuple[str, Optional[str]]:
+    """Resolve the target blob path inside `folder`, per collision policy.
 
     Returns (blob_path, error). On `reject` collision, error is set and
     blob_path is still the proposed target (caller returns 409 to client).
-    Date partitioning (YYYY/MM/DD) is added under the prefix so listings
-    stay reasonable.
+    `folder` is the run folder `main._run_folder` built, and the object lands
+    directly in it: the Test Manager writes the run's test implementation
+    there too, and a date level between the two would separate them.
     """
     safe_name = _sanitize(filename)
     stem, ext = _splitext(safe_name)
-    today = datetime.now(timezone.utc)
-    dated_prefix = f"{prefix.rstrip('/')}/{today.strftime('%Y/%m/%d')}"
+    folder = folder.rstrip("/")
 
     if policy == "overwrite":
-        return f"{dated_prefix}/{safe_name}", None
+        return f"{folder}/{safe_name}", None
 
     if policy == "reject":
-        candidate = f"{dated_prefix}/{safe_name}"
+        candidate = f"{folder}/{safe_name}"
         try:
             if get_fs().exists(candidate):
                 return candidate, "blob already exists"
@@ -99,7 +98,7 @@ def resolve_blob_path(filename: str, prefix: str, policy: str) -> tuple[str, Opt
         return candidate, None
 
     suffix = uuid.uuid4().hex[:8]
-    return f"{dated_prefix}/{stem}-{suffix}{ext}", None
+    return f"{folder}/{stem}-{suffix}{ext}", None
 
 
 def _sanitize(name: str) -> str:

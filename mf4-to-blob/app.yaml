@@ -6,10 +6,10 @@ variables:
     description: Kafka topic for MF4 metadata messages (one per uploaded file)
     defaultValue: mf4_metadata
     required: true
-  - name: blob_prefix
+  - name: BLOB_ROOT
     inputType: FreeText
-    description: Path prefix inside the blob container/bucket (trailing slash kept)
-    defaultValue: mf4-uploads/
+    description: The root folder every artefact of one test run hangs from — the MF4 lands in BLOB_ROOT/<run_id>/ and the Test Manager API writes that run's test implementation .py beside it. The SAME value must be set on the Test Manager API deployment. Upper case, because it is a shared fact and not one of this app's own settings.
+    defaultValue: jama_ui
     required: false
   - name: max_file_bytes
     inputType: FreeText

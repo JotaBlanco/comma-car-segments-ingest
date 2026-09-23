@@ -50,6 +50,10 @@ variables:
     inputType: FreeText
     description: Where file bytes are read from. blob = the workspace blob storage the pipeline writes.
     defaultValue: blob
+  - name: BLOB_ROOT
+    inputType: FreeText
+    description: The root folder every artefact of one test run hangs from — a definition's test implementation .py lands in BLOB_ROOT/<run_id>/, beside the MF4 that MF4 Import wrote there. The SAME value must be set on the MF4 Import deployment. No TM_ prefix, because the root is not the Test Manager's alone.
+    defaultValue: jama_ui
   - name: TM_MCP_URL
     inputType: FreeText
     description: Override for the assistant's MCP host. Blank uses the platform-injected value, which self-corrects on a rename — prefer blank.
