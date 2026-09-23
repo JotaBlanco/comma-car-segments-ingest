@@ -328,6 +328,7 @@ export function QuixLabPanel({
   runId,
   signals = WHOLE_RUN,
   createOnMount = false,
+  openOnMount = null,
   onCreateHandled,
   flat = false,
 }: {
@@ -336,7 +337,9 @@ export function QuixLabPanel({
   signals?: readonly string[];
   /** True when the page was opened with a request to create a notebook ("Open in → New QuixLab notebook"). */
   createOnMount?: boolean;
-  /** Called once that request has been acted on, so a reload does not create another. */
+  /** A notebook id the page was opened with a request to open (the Workflows page's Open). */
+  openOnMount?: string | null;
+  /** Called once either request has been acted on, so a reload does not repeat it. */
   onCreateHandled?: () => void;
   /** True inside a tab: no border and no margin of its own. */
   flat?: boolean;
@@ -438,6 +441,15 @@ export function QuixLabPanel({
     onCreateHandled?.();
     start(null);
   }, [createOnMount, onCreateHandled, start]);
+
+  /* The Workflows page's Open lands here the same way, with the notebook's id. */
+  const openRequested = useRef<string | null>(null);
+  useEffect(() => {
+    if (openOnMount === null || openRequested.current === openOnMount) return;
+    openRequested.current = openOnMount;
+    onCreateHandled?.();
+    start(openOnMount);
+  }, [openOnMount, onCreateHandled, start]);
 
   /* Stop halts this viewer's lab on a notebook without opening it: a lab left running
      costs a container, and QuixLab has already pushed every edit to the notebook's folder. */

@@ -21,4 +21,5 @@ export * from "./use-assistant-status";
 export * from "./use-assistant-chat";
 export * from "./use-saved-searches";
 export * from "./use-snippets";
+export * from "./use-notebooks";
 export * from "./use-lake-tree";

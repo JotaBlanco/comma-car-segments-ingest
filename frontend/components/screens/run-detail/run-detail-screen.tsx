@@ -781,9 +781,12 @@ export function RunDetailScreen({ runId }: { runId: string }) {
      than the table under it. */
   const [shownSignals, setShownSignals] = useState<number | null>(null);
 
-  /* "Open in → New QuixLab notebook" arrives as `?tab=notebooks&notebook=new`; the
-     Notebooks tab creates one and hands the request back, which clears it from the URL. */
-  const createNotebookRequested = activeTab === "notebooks" && searchParams.get("notebook") === "new";
+  /* "Open in → New QuixLab notebook" arrives as `?tab=notebooks&notebook=new`, and the
+     Workflows page's Open as `?tab=notebooks&notebook=<id>`; the Notebooks tab acts on
+     either once and hands the request back, which clears it from the URL. */
+  const notebookParam = activeTab === "notebooks" ? searchParams.get("notebook") : null;
+  const createNotebookRequested = notebookParam === "new";
+  const openNotebookRequested = notebookParam !== null && notebookParam !== "new" ? notebookParam : null;
   const onCreateHandled = useCallback(() => {
     const params = new URLSearchParams(searchParams);
     params.delete("notebook");
@@ -981,6 +984,7 @@ export function RunDetailScreen({ runId }: { runId: string }) {
               signals={pickedSignals}
               flat
               createOnMount={createNotebookRequested}
+              openOnMount={openNotebookRequested}
               onCreateHandled={onCreateHandled}
             />
           </TabsContent>

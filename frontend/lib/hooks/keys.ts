@@ -44,6 +44,10 @@ export function normalizeFilters<T extends Record<string, unknown>>(
 export const keys = {
   home: ["home"] as const,
   /* Read straight from the lake through the FE's own /api/lake handlers. */
+  notebooks: {
+    /** Every notebook of every run: the Workflows page. */
+    all: ["notebooks"] as const,
+  },
   lake: {
     /* One level of the partition tree, keyed by the path it hangs under: a
        level already opened is not read again when the dialog reopens. */

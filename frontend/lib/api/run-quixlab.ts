@@ -57,6 +57,11 @@ export function listNotebooks(runId: string): Promise<Notebook[]> {
   return api.get<Notebook[]>(path(runId));
 }
 
+/** Every notebook of every run, newest first, each with this viewer's lab: the Workflows page. */
+export function listAllNotebooks(): Promise<Notebook[]> {
+  return api.get<Notebook[]>("/notebooks");
+}
+
 /** A new notebook on this run, its starter file written, and this viewer's lab started on it. */
 export function createNotebook(runId: string, name?: string): Promise<Notebook> {
   return api.post<Notebook>(path(runId), name === undefined ? {} : { name });

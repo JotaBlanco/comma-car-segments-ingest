@@ -483,6 +483,43 @@ def test_the_list_carries_this_viewer_s_labs_in_one_portal_read(client, routed_d
     assert portal["calls"] == [], "a list makes nothing"
 
 
+def test_the_workflows_list_carries_every_run_s_notebooks_in_one_portal_read(
+    client, routed_db, portal
+) -> None:
+    """GET /notebooks is the Workflows page: all runs, newest first, this viewer's labs."""
+    _seed(routed_db)
+    other_run = "sn059_20170302T091407312Z"
+    routed_db["test_runs"].insert_one(
+        {**routed_db["test_runs"].find_one({"_id": RUN}), "_id": other_run}
+    )
+    _notebook(routed_db)
+    routed_db["notebooks"].insert_one(
+        {
+            "_id": "nb-9",
+            "run_id": other_run,
+            "name": "Wing deflection",
+            "created_by": "Ana",
+            "created_at": datetime(2026, 9, 23, 9, 0, tzinfo=UTC),
+            "saved_at": None,
+        }
+    )
+    running_elsewhere = {
+        **_lab_row("nb-9", status="Running"),
+        "name": quixlab_provision.lab_name("user-a", "nb-9", other_run),
+    }
+    portal["deployments"] = [TEMPLATE_ROW, STOPPED_LAB, running_elsewhere]
+
+    rows = client.get("/api/v1/notebooks", headers=VIEWER).json()
+
+    assert [row["notebook_id"] for row in rows] == ["nb-9", NB], "newest first, every run"
+    assert rows[0]["run_id"] == other_run
+    assert rows[0]["lab"]["status"] == "Running"
+    assert rows[1]["lab"]["status"] == "Stopped"
+    assert portal["calls"] == [], "a list makes nothing"
+    # Without a token the notebooks are still listed, with no lab on them.
+    assert [row["lab"] for row in client.get("/api/v1/notebooks").json()] == [None, None]
+
+
 def test_a_lab_is_never_cloned_from_another_lab(client, routed_db, portal, written) -> None:
     """A lab is built from the QuixLab library item too. Without the name
     filter the first lab becomes the template for the next, and every pinned

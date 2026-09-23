@@ -134,6 +134,42 @@ def _ensure(
     )
 
 
+@router.get("/notebooks", response_model=list[Notebook])
+def list_all_notebooks(
+    request: Request, db: Annotated[Database, Depends(get_db)]
+) -> list[Notebook]:
+    """Every notebook of every run, newest first: the Workflows page.
+
+    One Mongo read and, when the caller sent a token, one Portal read for this viewer's
+    labs on all of them. Like the run's own list it makes nothing, and a person not
+    signed in to the platform still sees what is there.
+    """
+    rows = list(db[COLLECTION].find({}).sort("created_at", -1))
+    token = (request.headers.get("x-portal-token") or "").strip()
+    labs: dict[tuple[str, str], quixlab_provision.Lab] = {}
+    if token and rows:
+        identity = _identity(token)
+        labs = _portal(
+            quixlab_provision.find_labs_across_runs,
+            token,
+            notebooks=[(row["run_id"], row["_id"]) for row in rows],
+            user_id=identity.user_id,
+        )
+    return [
+        Notebook.model_validate(
+            {
+                **row,
+                "lab": (
+                    _lab_dto(labs[(row["run_id"], row["_id"])])
+                    if (row["run_id"], row["_id"]) in labs
+                    else None
+                ),
+            }
+        )
+        for row in rows
+    ]
+
+
 @router.get("/test-runs/{run_id}/notebooks", response_model=list[Notebook])
 def list_notebooks(
     run_id: str, request: Request, db: Annotated[Database, Depends(get_db)]

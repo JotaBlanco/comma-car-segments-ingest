@@ -371,24 +371,39 @@ def find_lab(token: str, *, run_id: str, notebook_id: str, user_id: str) -> Lab 
 
 
 def find_labs(token: str, *, run_id: str, notebook_ids: list[str], user_id: str) -> dict[str, Lab]:
-    """This viewer's labs for these notebooks, by notebook id, in ONE Portal read.
+    """This viewer's labs for these notebooks of one run, by notebook id, in ONE Portal read.
 
     A run's notebook list wants the state of every lab on it, and a listing that
     read the Portal once per notebook would take seconds on a run with a dozen.
     Notebooks with no lab are simply absent from the answer.
     """
+    found = find_labs_across_runs(
+        token, notebooks=[(run_id, notebook_id) for notebook_id in notebook_ids], user_id=user_id
+    )
+    return {notebook_id: lab for (_run, notebook_id), lab in found.items()}
+
+
+def find_labs_across_runs(
+    token: str, *, notebooks: list[tuple[str, str]], user_id: str
+) -> dict[tuple[str, str], Lab]:
+    """This viewer's labs for `(run_id, notebook_id)` pairs of ANY runs, in ONE Portal read.
+
+    The Workflows page lists every notebook of every run, and the Portal read is the
+    same one whichever run a lab belongs to: the name carries the run, so one listing
+    of the workspace's deployments answers for all of them.
+    """
     workspace = quix_identity.workspace_id()
-    if not notebook_ids or not quix_identity.portal_url() or not workspace:
+    if not notebooks or not quix_identity.portal_url() or not workspace:
         return {}
     with _client() as client:
         rows = _deployment_rows(client, token, workspace)
-    labs: dict[str, Lab] = {}
-    for notebook_id in notebook_ids:
+    labs: dict[tuple[str, str], Lab] = {}
+    for run_id, notebook_id in notebooks:
         name = lab_name(user_id, notebook_id, run_id)
         row = _find(rows, name)
         if row is not None:
             pointer = notebook_pointer(notebook_key(run_id, notebook_id))
-            labs[notebook_id] = _lab_from_row(row, pointer, name)
+            labs[(run_id, notebook_id)] = _lab_from_row(row, pointer, name)
     return labs
 
 

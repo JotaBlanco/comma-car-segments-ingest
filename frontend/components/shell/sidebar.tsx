@@ -20,6 +20,7 @@ import {
   PanelLeftOpen,
   ScrollText,
   Timer,
+  Workflow,
   type LucideIcon,
 } from "lucide-react";
 import { NewTabMark } from "@/components/shared/new-tab-mark";
@@ -196,6 +197,9 @@ export function Sidebar() {
     /* The lake's findings across every run. No count: the home summary reads the
        registry, and the issues live in the lake. */
     { label: "Issues", href: "/issues", icon: AlertTriangle },
+    /* Every QuixLab notebook of every run, with Open, Start, Stop and Delete. No count:
+       the list is one read of its own. */
+    { label: "Workflows", href: "/workflows", icon: Workflow },
     /* Saved station dashboards. Kept in this browser, so no count from the API.
 
        Gated on the Flight Test Station being configured, because a workbook IS
