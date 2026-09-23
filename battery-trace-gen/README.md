@@ -46,14 +46,22 @@ produce the `input` messages.
 
 | Trace | File | Duration | Requirements | Expected |
 |---|---|---|---|---|
-| T1 | `T1_charge_thermal.mf4` | 900 s | PRF-001, SAF-003, SAF-002 | pass, pass, **FAIL** |
-| T2 | `T2_discharge_sweep.mf4` | 1 440 s | FUN-001, SAF-001, FUN-002 | pass, pass, **FAIL** |
-| T3 | `T3_sleep_balance.mf4` | 1 800 s | FUN-003, PRF-002 | pass, **FAIL** |
-| T4 | `T4_cold_heater.mf4` | 600 s | FUN-004, FUN-005 | pass, **FAIL** |
+| T1 | `TAS-1001_T1_charge_thermal.mf4` | 900 s | PRF-001, SAF-003, SAF-002 | pass, pass, **FAIL** |
+| T2 | `TAS-1002_T2_discharge_sweep.mf4` | 1 440 s | FUN-001, SAF-001, FUN-002 | pass, pass, **FAIL** |
+| T3 | `TAS-1003_T3_sleep_balance.mf4` | 1 800 s | FUN-003, PRF-002 | pass, **FAIL** |
+| T4 | `TAS-1004_T4_cold_heater.mf4` | 600 s | FUN-004, FUN-005 | pass, **FAIL** |
 
 Each failure comes from one rigged parameter declared in the scenario's `defects` block
 and repeated in `out/manifest.json`. None comes from a missing channel, a broken signal
 or a schema error.
+
+## Why the run key leads the filename
+
+MF4 Import mints a SAS and the browser uploads straight to Azure, so that service
+never holds the file's bytes and cannot read `test.run_key` out of the HD comment
+the way the decoder does. The filename is the only thing it can parse, and it
+matches the decoder's third rung, `TM_RUN_KEY_PATTERN` (default `TAS-\d+`). A run
+id typed on the upload form still wins, exactly as it wins the decoder's ladder.
 
 ## Sign convention
 

@@ -102,7 +102,15 @@ class Scenario:
 
     @property
     def output_name(self) -> str:
-        return f"{self.path.stem}.mf4"
+        r"""The MF4 filename, led by the run key.
+
+        MF4 Import mints a SAS and the browser uploads straight to Azure, so that
+        service never sees the file's bytes and cannot read the run key out of the
+        HD comment. The filename is the only thing it can parse, and it matches the
+        decoder's third rung, `TM_RUN_KEY_PATTERN` (default `TAS-\d+`).
+        """
+        run_key = (self.test.get("run_key") or "").strip()
+        return f"{run_key}_{self.path.stem}.mf4" if run_key else f"{self.path.stem}.mf4"
 
 
 class SetpointSchedule:

@@ -128,11 +128,26 @@ def _resolve_upload_mode() -> tuple[Optional[str], str]:
     return provider, "sas" if is_azure else "direct"
 
 
-def _run_folder(declared: dict[str, str]) -> str:
-    """The `<workspace>/<BLOB_ROOT>/<run_id>` folder this upload's MF4 lands in."""
+#: The decoder's third rung, so a trace that names its run in the filename lands in
+#: that run's folder without anyone typing it (`mf4-decoder/identity.py`).
+RUN_KEY_PATTERN = re.compile(os.environ.get("TM_RUN_KEY_PATTERN", "").strip() or r"TAS-\d+")
+
+
+def _run_folder(declared: dict[str, str], filename: str = "") -> str:
+    """The `<workspace>/<BLOB_ROOT>/<run_id>` folder this upload's MF4 lands in.
+
+    The declared run id wins, exactly as it wins the decoder's ladder. Falling back
+    to the filename matters because the browser uploads straight to Azure through a
+    SAS, so this service never holds the bytes and cannot read the run key out of
+    the HD comment the way the decoder does.
+    """
     workspace = os.environ.get(WORKSPACE_VARIABLE, "").strip().strip("/")
     root = f"{workspace}/{BLOB_ROOT}" if workspace else BLOB_ROOT
-    run = _UNSAFE_SEGMENT.sub("_", (declared.get("run_id") or "").strip()).lstrip(".")
+    run = (declared.get("run_id") or "").strip()
+    if not run:
+        found = RUN_KEY_PATTERN.search(filename or "")
+        run = found.group(0) if found else ""
+    run = _UNSAFE_SEGMENT.sub("_", run).lstrip(".")
     return f"{root}/{run[:_SEGMENT_LIMIT] or UNASSIGNED_RUN}"
 
 
@@ -186,7 +201,7 @@ async def upload_sas(req: SasRequest, request: Request):
         )
 
     blob_path, collision_err = blob.resolve_blob_path(
-        req.filename, _run_folder(declared), COLLISION_POLICY
+        req.filename, _run_folder(declared, req.filename), COLLISION_POLICY
     )
     if collision_err:
         return JSONResponse(
@@ -349,7 +364,7 @@ async def upload_direct(
         )
 
     blob_path, collision_err = blob.resolve_blob_path(
-        filename, _run_folder(declared), COLLISION_POLICY
+        filename, _run_folder(declared, filename), COLLISION_POLICY
     )
     if collision_err:
         return JSONResponse(
