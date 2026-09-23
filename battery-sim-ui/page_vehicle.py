@@ -39,6 +39,7 @@ VEHICLE_JS = """
     current_a: 0,
     brake_pct: 0,     // pedal travel, from the browser's own control state
     v_mps: 0,
+    dist_m: 0,
     angle_deg: 0,
     time_scale: 1,    // last applied.parameters.TIME_SCALE echo from the plant
     charging: false,
@@ -99,6 +100,9 @@ VEHICLE_JS = """
       // car past zero lands on zero, so full pedal stops it instead of reversing
       // it, and at rest the brake contributes nothing.
       car.v_mps = Math.max(0, v + (fTrac - fResist - brakeN) / VEH.mass_kg * h);
+      // Trapezoid over the slice, so distance is right under hard acceleration
+      // and braking rather than lagging a step behind.
+      car.dist_m += (v + car.v_mps) * 0.5 * h;
       remaining -= h;
     }
 
@@ -114,6 +118,8 @@ VEHICLE_JS = """
         .setAttribute('transform', 'rotate(' + car.angle_deg.toFixed(1) + ' ' + cx + ' ' + cy + ')');
     }
     document.getElementById('speed-kph').textContent = (car.v_mps * 3.6).toFixed(0);
+    const km = car.dist_m / 1000;
+    document.getElementById('dist-km').textContent = km < 10 ? km.toFixed(2) : km.toFixed(1);
     document.getElementById('mode-chip').textContent = vehicleMode();
     document.getElementById('car-svg').classList.toggle('opacity-50', car.stalled);
     document.querySelectorAll('.car-lamp')

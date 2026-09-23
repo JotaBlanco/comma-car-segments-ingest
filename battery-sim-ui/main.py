@@ -62,6 +62,9 @@ DRIVELINE_EFF = float(os.getenv("DRIVELINE_EFF", "0.90"))  # dimensionless
 V_FLOOR_MPS = float(os.getenv("V_FLOOR_MPS", "12.41"))  # m/s
 WHEEL_RADIUS_M = float(os.getenv("WHEEL_RADIUS_M", "0.34"))  # m
 F_BRAKE_MAX_N = float(os.getenv("F_BRAKE_MAX_N", "14700"))  # N at 100 % brake pedal
+# Regen force ceiling. With the 80 kW power ceiling the brake is force-limited
+# below 80000/2400 = 33 m/s and power-limited above it.
+F_REGEN_MAX_N = float(os.getenv("F_REGEN_MAX_N", "2400"))  # N
 
 # The plant's TIME_SCALE lexicon range. The slider's ends are exactly these,
 # so no value it can emit is out of range and the knob never snaps back.
@@ -82,22 +85,29 @@ flask_app = Flask(__name__)
 CORS(flask_app)
 
 
-def requested_power_w(accel_pct, brake_pct, charge_plug, charge_rate_w):
+def requested_power_w(accel_pct, brake_pct, charge_plug, charge_rate_w, speed_mps=0.0):
     """Powertrain-sign watts for the plant's `requested_power_w` signal.
 
     Charging (plug in) is a third mode: pedals are ignored, the charge slider
     commands positive power directly up to DC_CHARGE_MAX_W. Off the plug,
     net_pct = accel - brake drives discharge (negative W, up to
-    PEDAL_DISCHARGE_MAX_W) or regen (positive W, up to
-    PEDAL_CHARGE_REGEN_MAX_W) - the plant's power/current sign flip
-    (PLANT_ORIGIN) is crossed once, here.
+    PEDAL_DISCHARGE_MAX_W) or regen (positive W) - the plant's power/current
+    sign flip (PLANT_ORIGIN) is crossed once, here.
+
+    Regen is recovered kinetic energy, so its ceiling is a FORCE and the power
+    it can return is that force times road speed: a stopped car recovers
+    nothing however hard the pedal is pressed. Below
+    PEDAL_CHARGE_REGEN_MAX_W / F_REGEN_MAX_N the brake is force-limited, above
+    it power-limited, which is how a real recuperating brake behaves. The
+    browser carries the speed because the plant models a pack, not a car.
     """
     if charge_plug:
         return max(0.0, min(DC_CHARGE_MAX_W, charge_rate_w))
     net_pct = max(-100.0, min(100.0, accel_pct - brake_pct))
     if net_pct >= 0:
         return -net_pct / 100.0 * PEDAL_DISCHARGE_MAX_W
-    return -net_pct / 100.0 * PEDAL_CHARGE_REGEN_MAX_W
+    available_w = min(PEDAL_CHARGE_REGEN_MAX_W, F_REGEN_MAX_N * max(0.0, speed_mps))
+    return -net_pct / 100.0 * available_w
 
 
 @flask_app.route("/")
@@ -122,6 +132,7 @@ def config_route():
             "v_floor_mps": V_FLOOR_MPS,
             "wheel_radius_m": WHEEL_RADIUS_M,
             "f_brake_max_n": F_BRAKE_MAX_N,
+            "f_regen_max_n": F_REGEN_MAX_N,
             "time_scale_min": TIME_SCALE_MIN,
             "time_scale_max": TIME_SCALE_MAX,
         }
@@ -144,6 +155,7 @@ def command_route():
         float(data.get("brake_pct", 0)),
         bool(data.get("charge_plug", False)),
         float(data.get("charge_rate_w", 0)),
+        float(data.get("speed_mps", 0)),
     )
     signals = {
         "requested_power_w": power_w,

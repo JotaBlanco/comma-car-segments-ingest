@@ -59,7 +59,9 @@ DASHBOARD_JS = """
     fetch('/command', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(extra ? Object.assign({}, state, extra) : state),
+      // The plant models a pack and knows no road speed, but regen power is
+      // force x speed - so the browser, which integrates the speed, carries it.
+      body: JSON.stringify(Object.assign({ speed_mps: car.v_mps }, state, extra || {})),
     }).catch(() => {});
   }
 
@@ -69,6 +71,7 @@ DASHBOARD_JS = """
   document.getElementById('reset-btn').addEventListener('click', () => {
     postCommand({ reset: 1 });
     car.v_mps = 0;
+    car.dist_m = 0;
     Object.values(series).forEach((s) => { s.buf.length = 0; });
     drawActive();
   });

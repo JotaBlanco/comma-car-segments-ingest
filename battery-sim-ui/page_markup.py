@@ -164,6 +164,7 @@ BODY_HTML = """<body class="bg-body">
         </div>
         <div class="d-flex align-items-baseline justify-content-between mt-2">
           <div><span class="fs-3" id="speed-kph">0</span> <span class="small text-secondary">km/h</span></div>
+          <div><span class="fs-6" id="dist-km">0.00</span> <span class="small text-secondary">km travelled</span></div>
           <span class="badge text-bg-secondary" id="mode-chip">Coast</span>
         </div>
       </div></div>

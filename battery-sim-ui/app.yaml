@@ -61,6 +61,11 @@ variables:
     description: Car visualisation - wheel rolling radius in m
     defaultValue: "0.34"
     required: false
+  - name: F_REGEN_MAX_N
+    inputType: FreeText
+    description: Regen force ceiling in N. Regen returns force x speed, capped by PEDAL_CHARGE_REGEN_MAX_W, so a stopped car recovers nothing
+    defaultValue: "2400"
+    required: false
   - name: F_BRAKE_MAX_N
     inputType: FreeText
     description: Car visualisation - friction (disc) brake force in N at 100 percent pedal, blended on top of regen above 50 percent. 14700 N is 0.749 g on its own and 0.900 g blended at 30 m/s
