@@ -94,60 +94,28 @@ async function embed() {
   return { user, view, frame };
 }
 
-const expandControl = (view: ReturnType<typeof render>) =>
-  view.getByRole("button", { name: /the QuixLab frame$/ });
-
 /** The panel element itself — the one that claims the content area. */
 const panel = (view: ReturnType<typeof render>) =>
   view.container.firstElementChild as HTMLElement;
 
-describe("the embedded frame takes more room", () => {
-  it("offers no expand control before a frame exists", async () => {
+describe("an open notebook takes the whole content area", () => {
+  it("offers no expand control: there is no small mode to leave", async () => {
     const view = render(withClient(<QuixLabPanel runId={RUN_ID} />));
 
     await view.findByRole("button", { name: "Open Notebook 1" });
     expect(view.queryByRole("button", { name: /the QuixLab frame$/ })).toBeNull();
-  });
-
-  it("names the control, and the name says which way it goes", async () => {
-    const { user, view } = await embed();
-
-    const control = expandControl(view);
-    expect(control).toHaveAccessibleName("Expand the QuixLab frame");
-    expect(control).toHaveAttribute("aria-pressed", "false");
-
-    await user.click(control);
-
-    expect(expandControl(view)).toHaveAccessibleName("Collapse the QuixLab frame");
-    expect(expandControl(view)).toHaveAttribute("aria-pressed", "true");
-  });
-
-  it("gives the panel the content area, and the height of the viewport", async () => {
-    const { user, view } = await embed();
-
     expect(panel(view).className).not.toContain("fixed");
+  });
 
-    await user.click(expandControl(view));
+  it("opens full size at once, the height of the viewport", async () => {
+    const { view } = await embed();
 
     // `fixed` + `bottom-0` is the viewport's own height, never a pixel count.
     const className = panel(view).className;
     expect(className).toContain("fixed");
     expect(className).toContain("bottom-0");
     expect(className).toContain("top-[52px]");
-  });
-
-  it("keeps the SAME frame node across a toggle, so the session survives", async () => {
-    const { user, view, frame } = await embed();
-
-    await user.click(expandControl(view));
-    expect(view.container.querySelector("iframe")).toBe(frame);
-    expect(frame.getAttribute("src")).toBe(EMBED_URL);
-
-    await user.click(expandControl(view));
-    expect(view.container.querySelector("iframe")).toBe(frame);
-    expect(frame.getAttribute("src")).toBe(EMBED_URL);
-    // Never a sandbox: QuixLab needs same-origin storage for its session cookie.
-    expect(frame.hasAttribute("sandbox")).toBe(false);
+    expect(view.queryByRole("button", { name: /the QuixLab frame$/ })).toBeNull();
   });
 
   it("keeps the SAME frame node when the signal pick appears above it", async () => {
@@ -162,25 +130,13 @@ describe("the embedded frame takes more room", () => {
     expect(view.container.textContent).toContain("“Open in a tab” opens the whole run");
   });
 
-  it("leaves the expanded panel on Escape", async () => {
+  it("gives the content area back on Save and Close", async () => {
     const { user, view } = await embed();
-
-    await user.click(expandControl(view));
     expect(panel(view).className).toContain("fixed");
 
-    await user.keyboard("{Escape}");
-
-    expect(panel(view).className).not.toContain("fixed");
-    expect(expandControl(view)).toHaveAccessibleName("Expand the QuixLab frame");
-  });
-
-  it("drops the expanded panel when a person closes the frame", async () => {
-    const { user, view } = await embed();
-
-    await user.click(expandControl(view));
     await user.click(view.getByRole("button", { name: "Save and Close" }));
 
-    expect(panel(view).className).not.toContain("fixed");
+    await waitFor(() => expect(panel(view).className).not.toContain("fixed"));
     expect(view.container.querySelector("iframe")).toBeNull();
   });
 });

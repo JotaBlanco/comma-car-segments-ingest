@@ -145,7 +145,9 @@ const orphanFile = listFiles(db, { unlinked: true }, PAGE).items[0];
 const signal = listSignals(db, {}, PAGE).items[0];
 
 const QUIXLAB = "https://quixlab-abc123.dev.quix.io";
-const LAUNCH = /Open in QuixLab/;
+const LAUNCH = /New QuixLab notebook/;
+/* The file page opens the shared QuixLab on the file's run, as it always did. */
+const FILE_LAUNCH = /Open in QuixLab/;
 
 let opened: string[];
 let open: ReturnType<typeof vi.spyOn>;
@@ -230,7 +232,7 @@ describe("the file detail launch control", () => {
   it("carries the run the file belongs to", async () => {
     render(<FileDetailScreen fileId={linkedFile.file_id} />);
 
-    await userEvent.setup().click(screen.getByRole("button", { name: LAUNCH }));
+    await userEvent.setup().click(screen.getByRole("button", { name: FILE_LAUNCH }));
 
     expect(opened).toHaveLength(1);
     expect(new URL(opened[0]).searchParams.get("run")).toBe(linkedFile.run_id);
@@ -241,7 +243,7 @@ describe("the file detail launch control", () => {
 
     render(<FileDetailScreen fileId={orphanFile.file_id} />);
 
-    expect(screen.queryByRole("button", { name: LAUNCH })).toBeNull();
+    expect(screen.queryByRole("button", { name: FILE_LAUNCH })).toBeNull();
   });
 });
 

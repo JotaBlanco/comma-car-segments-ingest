@@ -356,23 +356,11 @@ export function QuixLabPanel({
   const [removing, setRemoving] = useState<string | null>(null);
   const [stopping, setStopping] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  /* Portal frames the Test Manager, and the Test Manager frames QuixLab, so
-     QuixLab renders in a small box. Expanded lifts the panel over the content
-     area, the same recipe the Explore tab uses. That state belongs to Explore
-     and stays there — this panel never renders on the Explore tab. */
-  const [expanded, setExpanded] = useState(false);
-
-  // Escape leaves the expanded frame, the same key the Explore focus layout
-  // answers. The frame keeps the keyboard while QuixLab has it, so the listener
-  // sits on the window and not on the panel.
-  useEffect(() => {
-    if (!expanded) return undefined;
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setExpanded(false);
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [expanded]);
+  /* Portal frames the Test Manager, and the Test Manager frames QuixLab, so a
+     notebook in a panel-sized box is unusable. An open notebook therefore always
+     takes the whole content area, the rectangle the Explore tab claims, and the
+     way out is Save and Close. */
+  const expanded = active !== null;
 
   const refresh = useCallback(
     () => void queryClient.invalidateQueries({ queryKey: keys.runs.notebooks(runId) }),
@@ -406,7 +394,6 @@ export function QuixLabPanel({
             setProgress({ notebookId, text: "Starting… (waiting for QuixLab to answer)" });
             await waitForLab(lab.url);
             setActive({ notebook, lab });
-            setExpanded(false);
           } else {
             setError("The QuixLab is still starting. Try again in a moment.");
           }
@@ -432,7 +419,6 @@ export function QuixLabPanel({
       try {
         await closeNotebook(runId, active.notebook.notebook_id);
         setActive(null);
-        setExpanded(false);
         refresh();
         toast.success(`${active.notebook.name} saved; QuixLab stopped.`);
       } catch (caught: unknown) {
@@ -534,18 +520,6 @@ export function QuixLabPanel({
               >
                 <span>Open in a tab</span>
                 <NewTabMark iconClassName="size-3 opacity-80" />
-              </Button>
-            )}
-            {instance !== null && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="font-semibold"
-                aria-pressed={expanded}
-                aria-label={expanded ? "Collapse the QuixLab frame" : "Expand the QuixLab frame"}
-                onClick={() => setExpanded((on) => !on)}
-              >
-                {expanded ? "Collapse" : "Expand"}
               </Button>
             )}
             {active !== null && (

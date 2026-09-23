@@ -53,29 +53,19 @@ function fakeTab(): LaunchTab & { said: string[]; went: string[]; offered: strin
   return state;
 }
 
-/**
- * A run with no notebook: `create` answers the first lab state and `read` the
- * rest. `saved` lists notebooks instead, and `open` answers the first state.
- */
+/** `create` answers the first lab state and `read` the rest. */
 function deps(
   answers: RunQuixLab[],
   clock = { at: 0 },
-  saved: Notebook[] = [],
-): LaunchDeps & { reads: number; created: number; opened: string[]; readied: string[] } {
+): LaunchDeps & { reads: number; created: number; readied: string[] } {
   const queue = [...answers];
   const out = {
     reads: 0,
     created: 0,
-    opened: [] as string[],
     readied: [] as string[],
-    list: () => Promise.resolve(saved),
     create: () => {
       out.created += 1;
       return Promise.resolve(notebook("nb-new", queue.shift()!));
-    },
-    open: (_runId: string, id: string) => {
-      out.opened.push(id);
-      return Promise.resolve(notebook(id, queue.shift()!));
     },
     read: () => {
       out.reads += 1;
@@ -153,21 +143,21 @@ describe("launchRunQuixLab", () => {
     expect(tab.went).toEqual([]);
   });
 
-  it("opens the NEWEST saved notebook rather than making another", async () => {
+  it("always makes a NEW notebook: two clicks are two notebooks", async () => {
     const tab = fakeTab();
-    const d = deps([lab("Running")], { at: 0 }, [notebook("nb-old"), notebook("nb-new")]);
+    const d = deps([lab("Running"), lab("Running")]);
 
     await launchRunQuixLab("r1", tab, d);
+    await launchRunQuixLab("r1", tab, d);
 
-    expect(d.created).toBe(0);
-    expect(d.opened).toEqual(["nb-new"]);
-    expect(tab.went).toEqual(["https://tm-lab-a.dev.quix.io"]);
+    expect(d.created).toBe(2);
+    expect(tab.went).toEqual(["https://tm-lab-a.dev.quix.io", "https://tm-lab-a.dev.quix.io"]);
   });
 
-  it("reads the lab when the open answered none, rather than sending the tab nowhere", async () => {
+  it("reads the lab when the create answered none, rather than sending the tab nowhere", async () => {
     const tab = fakeTab();
-    const d = deps([lab("Running")], { at: 0 }, [notebook("nb-1")]);
-    const bare = { ...d, open: (_r: string, id: string) => Promise.resolve(notebook(id, null)) };
+    const d = deps([lab("Running")]);
+    const bare = { ...d, create: () => Promise.resolve(notebook("nb-new", null)) };
 
     await launchRunQuixLab("r1", tab, bare);
 

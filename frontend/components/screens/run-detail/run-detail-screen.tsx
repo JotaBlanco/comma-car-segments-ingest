@@ -42,7 +42,6 @@ import { EditRunDialog } from "./edit-run-dialog";
 import { ExploreTab } from "./explore-tab/explore-tab";
 import { FilesTab } from "./files-tab";
 import { InvalidFlagDialog, type InvalidFlagMode } from "./invalid-flag-dialog";
-import { FtsPanel } from "./fts-panel";
 import { QuixLabPanel } from "./quixlab-panel";
 import { ResultsTab } from "./results-tab";
 import { RunNoteDialog } from "./run-note-dialog";
@@ -456,7 +455,7 @@ function RunActions({
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
         <path d="M5 3l14 9-14 9V3z" />
       </svg>
-      <span>Open in QuixLab</span>
+      <span>New QuixLab notebook</span>
       <NewTabMark iconClassName="size-3 opacity-80" />
     </Button>
   );
@@ -906,7 +905,6 @@ export function RunDetailScreen({ runId }: { runId: string }) {
           onClearInvalid={() => setFlagMode("clear")}
           onEdit={() => setEditOpen(true)}
           onDelete={() => setDeleteOpen(true)}
-          signals={pickedSignals}
         />
       )}
 
@@ -1045,7 +1043,6 @@ function StandardRunHeader({
   onClearInvalid,
   onEdit,
   onDelete,
-  signals,
 }: {
   run: TestRun;
   isInvalid: boolean;
@@ -1053,8 +1050,6 @@ function StandardRunHeader({
   onClearInvalid: () => void;
   onEdit: () => void;
   onDelete: () => void;
-  /** The signals picked on the Signals tab. Empty means the whole run. */
-  signals: readonly string[];
 }) {
   return (
     <>
@@ -1146,8 +1141,6 @@ function StandardRunHeader({
           hold the run's DATA, this is its planning identity, and the Explore
           layout drops this header whole — metadata and definitions with it. */}
       <DefinitionsPanel run={run} />
-      {/* Same run, same pick, in the Flight Test Station. */}
-      <FtsPanel runId={run.run_id} signals={signals} />
     </>
   );
 }

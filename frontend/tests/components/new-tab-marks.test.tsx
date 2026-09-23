@@ -228,10 +228,10 @@ describe("the sidebar new-tab controls", () => {
   });
 });
 
-describe("the Open in QuixLab headers", () => {
+describe("the New QuixLab notebook headers", () => {
   it("marks the run detail control", () => {
     render(withClient(<RunDetailScreen runId={run.run_id} />));
-    const controls = screen.getAllByRole("button", { name: `Open in QuixLab ${SUFFIX}` });
+    const controls = screen.getAllByRole("button", { name: `New QuixLab notebook ${SUFFIX}` });
     expect(controls.length).toBeGreaterThan(0);
     for (const control of controls) {
       expectMarked(control);
