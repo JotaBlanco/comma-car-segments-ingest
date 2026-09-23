@@ -82,33 +82,37 @@ BODY_HTML = """<body class="bg-body">
         <div class="ratio ratio-21x9">
           <svg id="car-svg" viewBox="50 50 340 146" role="img"
                aria-label="Car driven by the achieved pack power; the wheels turn with the vehicle speed">
-            <!-- The car is a photograph, mirrored to face right and scaled so its wheels land
-                 on the two centres the rotation uses: image wheels (462,487) and (1017,487)
-                 at r=72, wheelbase 555px -> 200px here, scale 0.36036. Its own road line
-                 falls on y=159, so no drawn ground is needed. -->
-            <clipPath id="car-clip"><rect x="0" y="0" width="420" height="172"/></clipPath>
-            <g clip-path="url(#car-clip)">
-              <image href="/static/taycan.jpg" x="0" y="0" width="1440" height="812"
-                     transform="translate(-34.43,-43.49) scale(0.36036) translate(1440,0) scale(-1,1)"/>
-            </g>
-            <rect class="car-lamp" x="59" y="100" width="9" height="7" rx="2"/>
+            <!-- The car is a photograph with its background cut away, mirrored to face right and
+                 scaled so the photograph's own wheel centres land on the two points the rotation
+                 uses: image (1017,487) -> (118,132) and (462,487) -> (318,132), r=76 -> 27.4,
+                 scale 0.36036. Each wheel is the SAME photograph clipped to its own wheel circle
+                 and carried inside the rotating group, so real rubber turns. -->
+            <defs>
+              <clipPath id="clip-wheel-rear" clipPathUnits="userSpaceOnUse">
+                <circle cx="1017" cy="487" r="76"/>
+              </clipPath>
+              <clipPath id="clip-wheel-front" clipPathUnits="userSpaceOnUse">
+                <circle cx="462" cy="487" r="76"/>
+              </clipPath>
+            </defs>
+            <image href="/static/taycan.png" x="0" y="0" width="1440" height="812"
+                   transform="translate(-34.43,-43.49) scale(0.36036) translate(1440,0) scale(-1,1)"/>
+            <!-- Over the light bar the photograph already shows, so braking lights the car's
+                 own lamp rather than a marker beside it. -->
+            <rect class="car-lamp" x="62.5" y="100.4" width="30.5" height="3.6" rx="1.8"/>
             <g id="wheel-rear" transform="rotate(0 118 132)">
-              <circle class="car-rim"  cx="118" cy="132" r="19"/>
-              <circle cx="118" cy="132" r="4" fill="#2b2f36"/>
-              <line class="car-spoke" x1="118" y1="132" x2="118"   y2="116"/>
-              <line class="car-spoke" x1="118" y1="132" x2="133.2" y2="127.1"/>
-              <line class="car-spoke" x1="118" y1="132" x2="127.4" y2="144.9"/>
-              <line class="car-spoke" x1="118" y1="132" x2="108.6" y2="144.9"/>
-              <line class="car-spoke" x1="118" y1="132" x2="102.8" y2="127.1"/>
+              <g transform="translate(-34.43,-43.49) scale(0.36036) translate(1440,0) scale(-1,1)">
+                <g clip-path="url(#clip-wheel-rear)">
+                  <image href="/static/taycan.png" x="0" y="0" width="1440" height="812"/>
+                </g>
+              </g>
             </g>
             <g id="wheel-front" transform="rotate(0 318 132)">
-              <circle class="car-rim"  cx="318" cy="132" r="19"/>
-              <circle cx="318" cy="132" r="4" fill="#2b2f36"/>
-              <line class="car-spoke" x1="318" y1="132" x2="318"   y2="116"/>
-              <line class="car-spoke" x1="318" y1="132" x2="333.2" y2="127.1"/>
-              <line class="car-spoke" x1="318" y1="132" x2="327.4" y2="144.9"/>
-              <line class="car-spoke" x1="318" y1="132" x2="308.6" y2="144.9"/>
-              <line class="car-spoke" x1="318" y1="132" x2="302.8" y2="127.1"/>
+              <g transform="translate(-34.43,-43.49) scale(0.36036) translate(1440,0) scale(-1,1)">
+                <g clip-path="url(#clip-wheel-front)">
+                  <image href="/static/taycan.png" x="0" y="0" width="1440" height="812"/>
+                </g>
+              </g>
             </g>
             <g id="charge-cable" visibility="hidden">
               <rect class="car-plug" x="4" y="114" width="16" height="20" rx="3"/>

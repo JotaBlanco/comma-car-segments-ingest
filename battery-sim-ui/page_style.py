@@ -82,10 +82,8 @@ STYLE_CSS = """
     width: 4px; height: 11px; background: #0078d4; border-radius: 2px;
   }
   .temp-glyph { flex-shrink: 0; }
-  .car-rim { fill: #23262c; stroke: #101216; stroke-width: 1; }
-  .car-spoke { stroke: #8d939d; stroke-width: 1.6; stroke-linecap: round; }
-  .car-lamp { fill: #4a1f1f; }
-  .car-lamp.on { fill: #ff3b30; }
+  .car-lamp { fill: #ff3b30; opacity: 0; transition: opacity .12s; }
+  .car-lamp.on { opacity: 0.85; filter: drop-shadow(0 0 2.5px #ff3b30); }
   .car-plug { fill: #3a3a3a; stroke: #6c757d; stroke-width: 2; }
   .car-cable { stroke: #6c757d; stroke-width: 3; fill: none; }
   .car-flow { fill: #27ae60; }
