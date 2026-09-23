@@ -19,8 +19,15 @@
 /** How often the probe is asked. */
 export const READY_POLL_MS = 2_000;
 
-/** How long a lab is waited for before the caller proceeds regardless. */
-export const READY_GIVE_UP_MS = 3 * 60_000;
+/**
+ * How long a lab is waited for before the caller proceeds regardless.
+ *
+ * Short on purpose. A lab built from an image without the CORS header on `/healthz` never
+ * answers this probe at all, and a person cannot tell that from a lab still starting; so
+ * the probe buys a few seconds of grace for the common case, and the frame's own watchdog
+ * (`FRAME_PATIENCE_MS`, reloading until the lab speaks) covers the rest.
+ */
+export const READY_GIVE_UP_MS = 15_000;
 
 export interface ReadyDeps {
   probe(url: string): Promise<boolean>;

@@ -377,6 +377,8 @@ export function QuixLabPanel({
           }
           if (running(lab)) {
             // Running is the pod; the server inside listens a little later.
+            // A lab that never answers the probe is framed anyway after a few seconds: the
+            // frame reloads itself until QuixLab speaks (`FRAME_PATIENCE_MS`).
             setProgress({ notebookId, text: "Starting… (waiting for QuixLab to answer)" });
             await waitForLab(lab.url);
             setActive({ notebook, lab });
