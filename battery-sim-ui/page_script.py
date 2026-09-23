@@ -8,9 +8,9 @@ liveness verdict (vehicleSetStalled).
 DASHBOARD_JS = """
   const POLL_MS = 150;          // ~6.7 Hz, within the 5-10 Hz polling band
   const SEND_THROTTLE_MS = 150; // matches poll cadence; plant ticks at 10 Hz
-  const MAX_POINTS = 400;       // 60 s of WALL clock at POLL_MS - at time
-                                // scale N that window spans N x 60 s of sim
-                                // time, which is what the x N chart suffix says
+  const MAX_POINTS = 800;       // 120 s of WALL clock at POLL_MS - at time
+                                // scale N that window spans N x 120 s of sim
+                                // time, which is what the x axis states
 
   let CFG = {
     pedal_discharge_max_w: 250000,
@@ -196,6 +196,33 @@ DASHBOARD_JS = """
   // Plot box inset from the canvas, leaving room for the two scales.
   const PAD = { l: 46, r: 8, t: 8, b: 20 };
 
+  // A gridline step from the 1-2-5 ladder, so the labels land on round numbers
+  // whatever the data does.
+  function niceStep(span) {
+    const raw = span / 4;
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const n = raw / mag;
+    return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * mag;
+  }
+
+  // The window's own range, not the signal's full scale: a pack sitting between
+  // 48 and 52 % should fill the plot, not a flat line across a 0-100 axis. The
+  // declared range is the floor for a short buffer and the fallback for a flat
+  // one, and a banded series keeps its band in view.
+  function boundsOf(s) {
+    const buf = s.buf;
+    if (buf.length < 2) return { lo: s.min, hi: s.max, step: s.step };
+    let lo = Infinity, hi = -Infinity;
+    for (const v of buf) { if (v < lo) lo = v; if (v > hi) hi = v; }
+    if (s.bands) { lo = Math.min(lo, CFG.derate_band_start_c); hi = Math.max(hi, CFG.derate_hard_limit_c); }
+    let span = hi - lo;
+    if (!(span > 0)) { span = Math.max(1, Math.abs(hi) * 0.1); }
+    const step = niceStep(span * 1.15);
+    lo = Math.floor((lo - span * 0.07) / step) * step;
+    hi = Math.ceil((hi + span * 0.07) / step) * step;
+    return { lo, hi, step };
+  }
+
   function drawChart(s) {
     const canvas = document.getElementById('chart-main');
     const ctx = canvas.getContext('2d');
@@ -205,7 +232,8 @@ DASHBOARD_JS = """
     const x0 = PAD.l, x1 = w - PAD.r, y0 = PAD.t, y1 = h - PAD.b;
     const plotW = x1 - x0, plotH = y1 - y0;
     if (plotW < 20 || plotH < 20) return;
-    const yOf = (v) => y1 - ((v - s.min) / (s.max - s.min)) * plotH;
+    const b = boundsOf(s);
+    const yOf = (v) => y1 - ((v - b.lo) / (b.hi - b.lo)) * plotH;
 
     if (s.bands) {
       ctx.save();
@@ -222,11 +250,11 @@ DASHBOARD_JS = """
     ctx.fillStyle = '#8b939e';
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
-    for (let v = s.min; v <= s.max + 1e-9; v += s.step) {
+    for (let v = b.lo; v <= b.hi + 1e-9; v += b.step) {
       const y = yOf(v);
       ctx.strokeStyle = v === 0 ? '#555c66' : '#2a2f36';
       ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
-      ctx.fillText(String(v), x0 - 6, y);
+      ctx.fillText(Math.abs(v) < 1e-9 ? '0' : v.toFixed(b.step < 1 ? 1 : 0), x0 - 6, y);
     }
 
     // The window is MAX_POINTS polls of SIM time, so the scale stretches with
