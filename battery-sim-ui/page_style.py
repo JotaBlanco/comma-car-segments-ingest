@@ -83,12 +83,13 @@ STYLE_CSS = """
   }
 
   .car-road { stroke: #3a3a3a; stroke-width: 3; }
-  .car-body { fill: url(#grad-body); stroke: #5a9bd4; stroke-width: 1.5; }
+  .car-body { fill: url(#grad-body); stroke: #5a9bd4; stroke-width: 1; }
+  .car-cabin { fill: #16324a; stroke: #2c5f88; stroke-width: 1; }
   .car-glass { fill: url(#grad-glass); }
   .temp-glyph { flex-shrink: 0; }
   .car-tyre { fill: #171717; stroke: #555; stroke-width: 2; }
-  .car-rim { fill: #3a3a3a; }
-  .car-spoke { stroke: #b9b9b9; stroke-width: 3; stroke-linecap: round; }
+  .car-rim { fill: #4a4e5a; }
+  .car-spoke { stroke: #c0c4cc; stroke-width: 2.5; stroke-linecap: round; }
   .car-lamp { fill: #4a1f1f; }
   .car-lamp.on { fill: #ff3b30; }
   .car-plug { fill: #3a3a3a; stroke: #6c757d; stroke-width: 2; }

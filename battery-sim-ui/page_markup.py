@@ -84,42 +84,81 @@ BODY_HTML = """<body class="bg-body">
                aria-label="Car driven by the achieved pack power; the wheels turn with the vehicle speed">
             <defs>
               <linearGradient id="grad-body" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#4a7fbf"/>
-                <stop offset="100%" stop-color="#1e4a80"/>
+                <stop offset="0%"   stop-color="#cce0f5"/>
+                <stop offset="20%"  stop-color="#5a9bd4"/>
+                <stop offset="58%"  stop-color="#1e5080"/>
+                <stop offset="100%" stop-color="#08182e"/>
               </linearGradient>
               <linearGradient id="grad-glass" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#1e3f58"/>
-                <stop offset="100%" stop-color="#0c1e2e"/>
+                <stop offset="0%"   stop-color="#2a4a6a"/>
+                <stop offset="100%" stop-color="#060e18"/>
               </linearGradient>
+              <radialGradient id="grad-shadow" cx="50%" cy="30%" r="50%">
+                <stop offset="0%"   stop-color="#000" stop-opacity="0.45"/>
+                <stop offset="100%" stop-color="#000" stop-opacity="0"/>
+              </radialGradient>
             </defs>
-            <ellipse cx="217" cy="162" rx="180" ry="9" fill="#000" opacity="0.35"/>
+            <ellipse cx="218" cy="161" rx="175" ry="8" fill="url(#grad-shadow)"/>
             <line class="car-road" x1="0" y1="159" x2="420" y2="159"/>
-            <path class="car-body" d="M38 150 L36 130 L44 108 L68 72 L92 60 L148 46 L235 44 L296 54 L318 76 L362 86 L392 106 L400 132 L396 150 Z"/>
-            <rect class="car-lamp" x="34" y="118" width="8" height="28" rx="2"/>
-            <path class="car-glass" d="M108 66 L148 48 L235 46 L295 56 L313 79 L305 92 L152 92 L94 88 Z"/>
-            <path class="car-glass" d="M295 56 L316 81 L305 92 L294 72 Z"/>
-            <path class="car-glass" d="M70 76 L108 66 L94 88 L72 86 Z"/>
+            <!-- Lower body carries the beltline and the wheel arches; the greenhouse is a
+                 separate shape sitting on it, so cabin and bonnet read as different
+                 surfaces. Overhangs x54/x383 (0.32 of the 200px wheelbase), sill y146,
+                 arches r33 on the wheel centres, roof y67. -->
+            <path class="car-body"
+              d="M 54 146 L 54 120
+                 C 54 110 60 105 72 104
+                 C 150 99 250 97 328 100
+                 C 352 102 372 108 380 120
+                 L 383 132 L 383 146
+                 L 348 146 A 33 33 0 0 1 288 146
+                 L 148 146 A 33 33 0 0 1 88 146
+                 Z"/>
+            <path class="car-cabin"
+              d="M 80 105
+                 C 104 86 148 70 196 67
+                 C 220 66 242 67 260 69
+                 C 280 73 294 85 306 102
+                 Z"/>
+            <path class="car-glass"
+              d="M 84 102
+                 C 108 89 150 76 196 73
+                 C 220 72 241 73 257 75
+                 C 273 79 285 88 295 100
+                 Z"/>
+            <line x1="212" y1="70" x2="212" y2="98"
+                  stroke="#0a1e30" stroke-width="4.5" stroke-linecap="round"/>
+            <path d="M 78 103 C 150 99 250 97 330 101"
+                  fill="none" stroke="#fff" stroke-width="1.2"
+                  stroke-opacity="0.30" stroke-linecap="round"/>
+            <path d="M 96 126 C 170 122 250 121 330 124"
+                  fill="none" stroke="#000" stroke-width="1"
+                  stroke-opacity="0.22" stroke-linecap="round"/>
+            <rect class="car-lamp" x="50" y="110" width="9" height="18" rx="2"/>
+            <path d="M 306 92 L 318 87 L 322 93 L 318 99 L 306 99 Z"
+                  fill="#2a5a80" stroke="#3a7aaa" stroke-width="0.8"/>
             <g id="wheel-rear" transform="rotate(0 118 132)">
               <circle class="car-tyre" cx="118" cy="132" r="26"/>
-              <circle class="car-rim" cx="118" cy="132" r="14"/>
-              <line class="car-spoke" x1="118" y1="132" x2="118" y2="110"/>
-              <line class="car-spoke" x1="118" y1="132" x2="138.9" y2="125.2"/>
-              <line class="car-spoke" x1="118" y1="132" x2="130.9" y2="149.8"/>
-              <line class="car-spoke" x1="118" y1="132" x2="105.1" y2="149.8"/>
-              <line class="car-spoke" x1="118" y1="132" x2="97.1" y2="125.2"/>
+              <circle class="car-rim"  cx="118" cy="132" r="16"/>
+              <circle cx="118" cy="132" r="5" fill="#555"/>
+              <line class="car-spoke" x1="118" y1="132" x2="118"   y2="116"/>
+              <line class="car-spoke" x1="118" y1="132" x2="133.2" y2="127.1"/>
+              <line class="car-spoke" x1="118" y1="132" x2="127.4" y2="144.9"/>
+              <line class="car-spoke" x1="118" y1="132" x2="108.6" y2="144.9"/>
+              <line class="car-spoke" x1="118" y1="132" x2="102.8" y2="127.1"/>
             </g>
             <g id="wheel-front" transform="rotate(0 318 132)">
               <circle class="car-tyre" cx="318" cy="132" r="26"/>
-              <circle class="car-rim" cx="318" cy="132" r="14"/>
-              <line class="car-spoke" x1="318" y1="132" x2="318" y2="110"/>
-              <line class="car-spoke" x1="318" y1="132" x2="338.9" y2="125.2"/>
-              <line class="car-spoke" x1="318" y1="132" x2="330.9" y2="149.8"/>
-              <line class="car-spoke" x1="318" y1="132" x2="305.1" y2="149.8"/>
-              <line class="car-spoke" x1="318" y1="132" x2="297.1" y2="125.2"/>
+              <circle class="car-rim"  cx="318" cy="132" r="16"/>
+              <circle cx="318" cy="132" r="5" fill="#555"/>
+              <line class="car-spoke" x1="318" y1="132" x2="318"   y2="116"/>
+              <line class="car-spoke" x1="318" y1="132" x2="333.2" y2="127.1"/>
+              <line class="car-spoke" x1="318" y1="132" x2="327.4" y2="144.9"/>
+              <line class="car-spoke" x1="318" y1="132" x2="308.6" y2="144.9"/>
+              <line class="car-spoke" x1="318" y1="132" x2="302.8" y2="127.1"/>
             </g>
             <g id="charge-cable" visibility="hidden">
               <rect class="car-plug" x="4" y="114" width="16" height="20" rx="3"/>
-              <path class="car-cable" d="M20 124 L48 124"/>
+              <path class="car-cable" d="M20 124 L56 124"/>
               <rect class="car-flow" id="charge-flow" x="20" y="121" width="0" height="6" rx="3"/>
             </g>
           </svg>
