@@ -63,6 +63,8 @@ const REQUEST_TM_IMPORT = "REQUEST_TM_IMPORT";
 const TM_IMPORT = "TM_IMPORT";
 /** Posted down when this page switches theme (`quixlab/src/quixlab/server/embed.py`). */
 const QUIXLAB_THEME = "QUIXLAB_THEME";
+/** Posted up by the lab's app the moment its script runs. */
+const QUIXLAB_READY = "QUIXLAB_READY";
 
 /**
  * How long the frame waits to hear ANYTHING from the lab after a load.
@@ -182,6 +184,17 @@ export function QuixLabFrame({
       }
       const data = event.data as { type?: unknown } | null;
       if (typeof data !== "object" || data === null) return;
+
+      /* A page of the lab has just loaded — its gate asking for a token, or its app saying
+         READY — so hand it the theme now, whatever its address carried. The address alone
+         proved fragile: a hop inside the lab can drop the query, and then the page paints
+         in its own stored theme. */
+      if (data.type === REQUEST_AUTH_TOKEN || data.type === QUIXLAB_READY) {
+        frameRef.current?.contentWindow?.postMessage(
+          { type: QUIXLAB_THEME, theme: currentTheme() },
+          origin,
+        );
+      }
 
       if (data.type === REQUEST_AUTH_TOKEN) {
         /* Read the token NOW, never at mount. QuixLab asks again 60 s before

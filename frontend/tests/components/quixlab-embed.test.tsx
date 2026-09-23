@@ -123,12 +123,16 @@ async function mountFrame(target = instance(), runId = RUN_ID) {
   const child = frame.contentWindow;
   if (child === null) throw new Error("the frame has no child window");
   const posted: Posted[] = [];
+  // The theme is posted on its own: every fresh page of the lab gets one, so it is kept
+  // apart from the messages the handshake tests count.
+  const themes: Posted[] = [];
   const spy = vi.spyOn(child, "postMessage");
   spy.mockImplementation(((message: unknown, targetOrigin: unknown) => {
-    posted.push({ message, target: targetOrigin });
+    const kind = (message as { type?: unknown } | null)?.type;
+    (kind === "QUIXLAB_THEME" ? themes : posted).push({ message, target: targetOrigin });
   }) as typeof child.postMessage);
 
-  return { view, frame, posted };
+  return { view, frame, posted, themes };
 }
 
 /** The panel invalidates the results queries on Save and Close, so it needs a client. */
@@ -262,14 +266,30 @@ describe("the frame follows this page's theme", () => {
   });
 
   it("posts the switch down, and never reloads the frame for it", async () => {
-    const { posted, frame } = await mountFrame();
+    const { themes, frame } = await mountFrame();
     const before = frame.getAttribute("src");
 
     document.documentElement.classList.add("dark");
-    await waitFor(() => expect(posted).toHaveLength(1));
+    await waitFor(() => expect(themes).toHaveLength(1));
 
-    expect(posted[0]).toEqual({ message: { type: "QUIXLAB_THEME", theme: "dark" }, target: SHARED_ORIGIN });
+    expect(themes[0]).toEqual({ message: { type: "QUIXLAB_THEME", theme: "dark" }, target: SHARED_ORIGIN });
     expect(frame.getAttribute("src")).toBe(before);
+  });
+
+  it("hands the theme to every page of the lab as it loads, whatever its address carried", async () => {
+    // The gate asks for a token; the app says READY after the gate's jump dropped the query.
+    setActivePortalToken("token-one");
+    const { themes } = await mountFrame();
+
+    fire(SHARED_ORIGIN, { type: "REQUEST_AUTH_TOKEN" });
+    fire(SHARED_ORIGIN, { type: "QUIXLAB_READY" });
+    fire("https://attacker.example", { type: "QUIXLAB_READY" });
+
+    expect(themes.map((p) => p.message)).toEqual([
+      { type: "QUIXLAB_THEME", theme: "light" },
+      { type: "QUIXLAB_THEME", theme: "light" },
+    ]);
+    expect(themes.every((p) => p.target === SHARED_ORIGIN)).toBe(true);
   });
 });
 
