@@ -16,9 +16,6 @@
 "AUDI_Q3_MK2": {
 "pt": "vw_mqb"
 },
-"BATTERY_DC_V1": {
-"pt": "BATTERY_DC_V1"
-},
 "BUICK_REGAL": {
 "chassis": "gm_global_a_chassis",
 "pt": "gm_global_a_powertrain_generated",
@@ -459,6 +456,9 @@
 },
 "NISSAN_XTRAIL": {
 "pt": "nissan_x_trail_2017_generated"
+},
+"Porsche_Taycan": {
+"pt": "Porsche_Taycan"
 },
 "RAM 1500 5TH GEN": {
 "pt": "chrysler_ram_dt_generated"

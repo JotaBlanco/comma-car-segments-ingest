@@ -157,7 +157,7 @@ def write(
         "dcm.config_id": dbc.config_id,
         "dbc.name": DBC_NAME,
         "dbc.sha256": dbc.sha256,
-        "dbc.version": f"{DBC_NAME} 1.0",
+        "dbc.version": dbc.version,
         "dbc.source": "hand-authored (comma-car-segments-ingest)",
         "bus.channels": bus_channels,
         "frames.total": str(log.count),

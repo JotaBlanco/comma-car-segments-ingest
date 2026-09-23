@@ -54,7 +54,7 @@ deployments:
         description: Rung 3 of the run-key ladder, shared with the TS Metadata sink. ONE project value with two readers, because the decoder and the connector must resolve the same run for the same file - a different pattern on either side splits a file's catalogue from its samples silently.
         variableKey: TM_RUN_KEY_PATTERN
       - name: DBC_PLATFORM
-        value: BATTERY_DC_V1
+        value: Porsche_Taycan
     blobStorage:
       bind: true
   - name: MF4 DataLake Sink

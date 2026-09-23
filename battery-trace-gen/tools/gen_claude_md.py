@@ -70,7 +70,7 @@ the pipeline consumes lives beside the generator and must stay identical to them
 | 11 parameters (values the requirement tokens resolve to) | `battery-trace-gen/data/battery-dc-parameters.json` |
 | 10 test cases (one per requirement, `covers_req_ids`, pass criteria) | `battery-trace-gen/specs/battery-dc-test-specs.json` |
 | Expected verdicts per trace (6 pass / 4 fail, mechanism for each fail) | `battery-trace-gen/out/manifest.csv` (generated) |
-| CAN database `BATTERY_DC_V1` (8 frames, 249 signals, 4 nodes) | `dcm-seed-dbc/dbc/BATTERY_DC_V1.dbc` |
+| CAN database `BATTERY_DC_V1` (8 frames, 249 signals, 4 nodes) | `dcm-seed-dbc/dbc/Porsche_Taycan.dbc` |
 | Spec / architecture / test reports | `dev-planning/battery-can-traces/` |
 
 Regenerate this file with `battery-trace-gen/tools/gen_claude_md.py` after editing any
@@ -101,7 +101,7 @@ MF4 Import  --mf4_metadata-->  MF4 Decoder  --"samples" + ONE "file_complete" ma
                                                                   partitions platform/work_order/run_id
 ```
 - **DBC comes from DCM**, not the file: `type=dbc`, `target_key=<platform>`; the decoder runs
-  with `DBC_PLATFORM=BATTERY_DC_V1` because MF4 Import never emits `platform`. The DBC file
+  with `DBC_PLATFORM=Porsche_Taycan` because MF4 Import never emits `platform`. The DBC file
   must be named `<PLATFORM>.dbc` (`dcm-seed-dbc` keys by basename) and carry no `VAL_` tables.
 - **Run-id ladder** (`mf4-decoder/identity.py`, mirrored by `tm-connector`): `declared.run_id`
   → HD-comment `test.run_key` → `TAS-\\d+` in the filename → minted `<platform>_<route>`.

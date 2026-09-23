@@ -18,7 +18,7 @@ from seed import sources
 #: Where the rendered evidence points: the lake's `platform` partition level,
 #: which every trace states in its own MF4 header. Not the work order's
 #: `project`, which is a programme name (`planning_payload.WORK_ORDER_PROJECT`).
-LAKE_PLATFORM = "BATTERY_DC_V1"
+LAKE_PLATFORM = "Porsche_Taycan"
 
 _TOKEN = re.compile(r"\{([A-Za-z0-9_]+)\}")
 

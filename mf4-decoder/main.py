@@ -836,7 +836,9 @@ def process(metadata: dict, state: State):
             # on it for the platform fallback. There is no `test_definition`
             # column — a run fulfils a SET of definitions, and a row can sit in
             # only one directory, so the registry answers run -> definitions.
-            "work_order": metadata.get("work_order") or declared.get("work_order_id"),
+            "work_order": identity.resolve_work_order(
+                metadata, declared, header_properties
+            ),
         }
 
         logger.info(

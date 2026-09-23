@@ -1,5 +1,5 @@
 {
-  "platform": "BATTERY_DC_V1",
+  "platform": "Porsche_Taycan",
   "device": "a3f1c07d9b4e2610",
   "bus_name": "battery_hs_can1",
   "bus_channel": 1,

@@ -1,4 +1,4 @@
-"""Post BATTERY_DC_V1 and the battery test-spec set to DCM.
+"""Post the battery CAN database, under the platform key, and the test-spec set to DCM.
 
     CONFIG_API_URL=http://config-api-svc python feed_dcm.py
 
@@ -7,7 +7,7 @@ The DBC half is what the ``dcm-seed-dbc`` Job already does, in the same serialis
 from a workstation and running the Job in the environment produce the same document.
 Use the Job where one is deployed:
 
-    DCM_TYPE=dbc DBC_NAMES=BATTERY_DC_V1 PLATFORM=BATTERY_DC_V1 REPLACE=true
+    DCM_TYPE=dbc DBC_NAMES=Porsche_Taycan PLATFORM=Porsche_Taycan REPLACE=true
 
 The test-spec half has no Job. It follows the type-suffix convention of
 ``dev-planning/dcm-requirements-source/spec.md`` section 4.4; the ``-test-specs`` ingest

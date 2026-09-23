@@ -12,7 +12,7 @@ competing writer on the same `(type, target_key)` pair would desynchronise the
 version counter there.
 
 `project` is the programme name a person reads on the work-order list. It is NOT
-the platform: the platform is `BATTERY_DC_V1`, stated by every trace's own MF4
+the platform: the platform is `Porsche_Taycan`, stated by every trace's own MF4
 header (`bus/mf4.py`, `<common_properties>/platform`), and that is what the lake
 partitions on. The sink falls back to this `project` only for a file whose header
 names no platform — ours all do, so no partition directory carries this value.

@@ -77,14 +77,15 @@ zero. `generate.py` refuses a scenario that sets either non-zero.
 
 ## Re-seeding the DBC
 
-`BATTERY_DC_V1.dbc` has exactly one home, `dcm-seed-dbc/dbc/BATTERY_DC_V1.dbc`. The
+The database has exactly one home, `dcm-seed-dbc/dbc/Porsche_Taycan.dbc` — the basename is
+the platform key DCM and the decoder meet on, not the database's own name. The
 generator reads it from there and stamps its sha256 into every MF4 header, so the bytes
 DCM serialises and the bytes the header names cannot drift apart.
 
 Seeding needs no new code — the existing Job does it:
 
 ```
-DCM_TYPE=dbc  DBC_NAMES=BATTERY_DC_V1  PLATFORM=BATTERY_DC_V1
+DCM_TYPE=dbc  DBC_NAMES=Porsche_Taycan  PLATFORM=Porsche_Taycan
 CONFIG_API_URL=http://config-api-svc  REPLACE=true
 ```
 
@@ -100,11 +101,11 @@ CONFIG_API_URL=http://config-api-svc python feed_dcm.py
 Four things must be true in the environment that ingests these traces, or nothing
 reaches the lake.
 
-1. **`mf4-decoder` sets `DBC_PLATFORM=BATTERY_DC_V1`.** `mf4-to-blob/metadata.py:87-98`
+1. **`mf4-decoder` sets `DBC_PLATFORM=Porsche_Taycan`.** `mf4-to-blob/metadata.py:87-98`
    never emits a `platform` field, so `mf4-decoder/main.py:938-940` falls through to
    this environment variable. Without it the lookup key is `"unknown"` and no
    configuration resolves.
-2. **The DBC file is named `BATTERY_DC_V1.dbc`.** `dcm-seed-dbc/main.py:108` keys DCM by
+2. **The DBC file is named `Porsche_Taycan.dbc`.** `dcm-seed-dbc/main.py:108` keys DCM by
    the file *basename* while the decoder looks up by *platform*; the two only meet if
    they are the same string.
 3. **The MF4 header carries `bus.channels = 1=battery_hs_can1`.** Without it

@@ -1,4 +1,4 @@
-"""The run key, resolved the same way here as in tm-connector.
+"""Who a file is — its run key and its work order — resolved as tm-connector does.
 
 🔴 THE DECODER AND THE CONNECTOR MUST LAND ON THE SAME ANSWER.
 
@@ -29,6 +29,12 @@ lands in one run — the unit an engineer actually reasons about.
 The minted id is written back into the `declared` bag the decoder forwards, so
 the connector reads it on RUNG 1 and cannot climb to a different answer. That is
 the whole reason the mint lives in the bag rather than in a field of its own.
+
+The work order climbs the same ladder one rung shorter (`resolve_work_order`):
+declared, then the `test.work_order` the file states about itself. There is no
+mint — a campaign is assigned, never derived from the bytes — and no row is
+dropped for the want of one; the sink files a file that claims none under
+`unassigned`.
 """
 
 from __future__ import annotations
@@ -46,6 +52,10 @@ DEFAULT_RUN_KEY_PATTERN = r"TAS-\d+"
 # connector's `test.run_key` (`connector/identity.py::HEADER_RUN_FIELDS`); the
 # spelling is shared, so a rename has to happen in both files.
 HEADER_RUN_KEY = "test.run_key"
+
+# The `<common_properties>` key a producer states its campaign in. Same spelling
+# as the connector's (`connector/identity.py::HEADER_RUN_FIELDS`).
+HEADER_WORK_ORDER = "test.work_order"
 
 # Everything the run key is minted from. Both are provenance columns the decoder
 # already resolves, and both are the literal "unknown" when the file states none
@@ -120,6 +130,34 @@ def resolve_run_key(
         if stated is not None:
             return stated
     return find_run_key(filename, run_key_pattern)
+
+
+def resolve_work_order(
+    metadata: object,
+    declared: object,
+    header_properties: object,
+) -> str | None:
+    """The work order: declared first, then what the file states about itself.
+
+    `metadata["work_order"]` and `declared["work_order_id"]` are one claim in two
+    spellings, the lake's and the registry's, both written from the field typed
+    on the import page (`mf4-to-blob/metadata.py::build_metadata`). Declared
+    outranks the header for the same reason it does in the connector
+    (`connector/identity.py::LINKAGE_FIELDS`), so the two sides place a file in
+    the same campaign. None means it claims none, which the sink reads as
+    `unassigned`.
+    """
+    if isinstance(metadata, dict):
+        stated = _clean(metadata.get("work_order"))
+        if stated is not None:
+            return stated
+    if isinstance(declared, dict):
+        stated = _clean(declared.get("work_order_id"))
+        if stated is not None:
+            return stated
+    if isinstance(header_properties, dict):
+        return _clean(header_properties.get(HEADER_WORK_ORDER))
+    return None
 
 
 def resolve_identity(
