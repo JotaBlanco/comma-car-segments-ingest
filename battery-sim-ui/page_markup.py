@@ -2,9 +2,9 @@
 
 Bootstrap owns every layout and breakpoint decision - `row`/`col-*` for the
 grid, `order-*` for the phone stacking order (header, car, state, controls,
-charts), `d-none d-*-block` for the two elements that collapse, and `ratio` so
-the car and the charts size themselves from their column width. The four main
-columns live in ONE `row` because `order-*` only reorders siblings.
+chart), `d-none d-*-block` for the two elements that collapse, and `ratio` so
+the car sizes itself from its column width. All columns live in ONE `row`
+because `order-*` only reorders siblings.
 
 Opens <body> but does not close it: page.py appends the <script> block and the
 closing tags.
@@ -50,7 +50,15 @@ BODY_HTML = """<body class="bg-body">
             <div class="meas-label">Terminal Voltage</div>
           </div>
           <div class="col-6">
-            <div class="meas-value" id="temp-value">--- &deg;C</div>
+            <div class="meas-value d-flex align-items-center gap-1" id="temp-cell">
+              <span id="temp-value">--- °C</span>
+              <svg class="temp-glyph" width="10" height="20" viewBox="0 0 10 20" aria-hidden="true">
+                <rect x="3.5" y="1" width="3" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/>
+                <circle cx="5" cy="17" r="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+                <rect x="4.2" y="8" width="1.6" height="6" fill="currentColor"/>
+                <circle cx="5" cy="17" r="1.8" fill="currentColor"/>
+              </svg>
+            </div>
             <div class="meas-label">Battery Temperature</div>
           </div>
           <div class="col-6">
@@ -74,34 +82,45 @@ BODY_HTML = """<body class="bg-body">
         <div class="ratio ratio-21x9">
           <svg id="car-svg" viewBox="0 0 420 180" role="img"
                aria-label="Car driven by the achieved pack power; the wheels turn with the vehicle speed">
-            <line class="car-road" x1="0" y1="159" x2="420" y2="159"></line>
-            <path class="car-body" d="M56 142 L52 110 L98 106 L140 74 L266 74 L316 106 L374 116 L380 134 L372 142 Z"></path>
-            <path class="car-glass" d="M146 104 L176 82 L206 82 L206 104 Z"></path>
-            <path class="car-glass" d="M216 82 L258 82 L292 104 L216 104 Z"></path>
-            <rect class="car-lamp" x="49" y="110" width="10" height="12" rx="2"></rect>
-            <rect class="car-lamp" x="49" y="126" width="10" height="9" rx="2"></rect>
+            <defs>
+              <linearGradient id="grad-body" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#4a7fbf"/>
+                <stop offset="100%" stop-color="#1e4a80"/>
+              </linearGradient>
+              <linearGradient id="grad-glass" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#1e3f58"/>
+                <stop offset="100%" stop-color="#0c1e2e"/>
+              </linearGradient>
+            </defs>
+            <ellipse cx="217" cy="162" rx="180" ry="9" fill="#000" opacity="0.35"/>
+            <line class="car-road" x1="0" y1="159" x2="420" y2="159"/>
+            <path class="car-body" d="M38 150 L36 130 L44 108 L68 72 L92 60 L148 46 L235 44 L296 54 L318 76 L362 86 L392 106 L400 132 L396 150 Z"/>
+            <rect class="car-lamp" x="34" y="118" width="8" height="28" rx="2"/>
+            <path class="car-glass" d="M108 66 L148 48 L235 46 L295 56 L313 79 L305 92 L152 92 L94 88 Z"/>
+            <path class="car-glass" d="M295 56 L316 81 L305 92 L294 72 Z"/>
+            <path class="car-glass" d="M70 76 L108 66 L94 88 L72 86 Z"/>
             <g id="wheel-rear" transform="rotate(0 118 132)">
-              <circle class="car-tyre" cx="118" cy="132" r="26"></circle>
-              <circle class="car-rim" cx="118" cy="132" r="14"></circle>
-              <line class="car-spoke" x1="118" y1="132" x2="118" y2="110"></line>
-              <line class="car-spoke" x1="118" y1="132" x2="138.9" y2="125.2"></line>
-              <line class="car-spoke" x1="118" y1="132" x2="130.9" y2="149.8"></line>
-              <line class="car-spoke" x1="118" y1="132" x2="105.1" y2="149.8"></line>
-              <line class="car-spoke" x1="118" y1="132" x2="97.1" y2="125.2"></line>
+              <circle class="car-tyre" cx="118" cy="132" r="26"/>
+              <circle class="car-rim" cx="118" cy="132" r="14"/>
+              <line class="car-spoke" x1="118" y1="132" x2="118" y2="110"/>
+              <line class="car-spoke" x1="118" y1="132" x2="138.9" y2="125.2"/>
+              <line class="car-spoke" x1="118" y1="132" x2="130.9" y2="149.8"/>
+              <line class="car-spoke" x1="118" y1="132" x2="105.1" y2="149.8"/>
+              <line class="car-spoke" x1="118" y1="132" x2="97.1" y2="125.2"/>
             </g>
             <g id="wheel-front" transform="rotate(0 318 132)">
-              <circle class="car-tyre" cx="318" cy="132" r="26"></circle>
-              <circle class="car-rim" cx="318" cy="132" r="14"></circle>
-              <line class="car-spoke" x1="318" y1="132" x2="318" y2="110"></line>
-              <line class="car-spoke" x1="318" y1="132" x2="338.9" y2="125.2"></line>
-              <line class="car-spoke" x1="318" y1="132" x2="330.9" y2="149.8"></line>
-              <line class="car-spoke" x1="318" y1="132" x2="305.1" y2="149.8"></line>
-              <line class="car-spoke" x1="318" y1="132" x2="297.1" y2="125.2"></line>
+              <circle class="car-tyre" cx="318" cy="132" r="26"/>
+              <circle class="car-rim" cx="318" cy="132" r="14"/>
+              <line class="car-spoke" x1="318" y1="132" x2="318" y2="110"/>
+              <line class="car-spoke" x1="318" y1="132" x2="338.9" y2="125.2"/>
+              <line class="car-spoke" x1="318" y1="132" x2="330.9" y2="149.8"/>
+              <line class="car-spoke" x1="318" y1="132" x2="305.1" y2="149.8"/>
+              <line class="car-spoke" x1="318" y1="132" x2="297.1" y2="125.2"/>
             </g>
             <g id="charge-cable" visibility="hidden">
-              <rect class="car-plug" x="4" y="112" width="16" height="22" rx="3"></rect>
-              <path class="car-cable" d="M20 123 L48 123"></path>
-              <rect class="car-flow" id="charge-flow" x="20" y="120" width="0" height="6" rx="3"></rect>
+              <rect class="car-plug" x="4" y="114" width="16" height="20" rx="3"/>
+              <path class="car-cable" d="M20 124 L48 124"/>
+              <rect class="car-flow" id="charge-flow" x="20" y="121" width="0" height="6" rx="3"/>
             </g>
           </svg>
         </div>
@@ -113,32 +132,20 @@ BODY_HTML = """<body class="bg-body">
     </div>
 
     <div class="col-12 col-lg-4 order-4 order-lg-3">
-      <div class="row g-2">
-        <div class="col-6">
-          <div class="card bg-body-tertiary h-100"><div class="card-body p-2">
-            <h2 class="chart-title">SOC % <span class="chart-scale">&times;1</span></h2>
-            <div class="ratio ratio-21x9"><canvas id="chart-soc"></canvas></div>
-          </div></div>
+      <div class="card bg-body-tertiary h-100"><div class="card-body p-2 d-flex flex-column gap-2">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-1">
+          <ul class="nav nav-pills chart-tabs" id="chart-tabs">
+            <li class="nav-item"><button class="nav-link active" data-series="soc">SOC %</button></li>
+            <li class="nav-item"><button class="nav-link" data-series="current">Current A</button></li>
+            <li class="nav-item"><button class="nav-link" data-series="temp">Temperature &deg;C</button></li>
+            <li class="nav-item"><button class="nav-link" data-series="voltage">Voltage V</button></li>
+          </ul>
+          <span class="badge text-bg-secondary chart-scale">&times;1</span>
         </div>
-        <div class="col-6">
-          <div class="card bg-body-tertiary h-100"><div class="card-body p-2">
-            <h2 class="chart-title">Current A &mdash; + discharge / &minus; charge <span class="chart-scale">&times;1</span></h2>
-            <div class="ratio ratio-21x9"><canvas id="chart-current"></canvas></div>
-          </div></div>
+        <div class="flex-grow-1 position-relative" style="min-height:0">
+          <canvas id="chart-main" style="display:block;width:100%;height:100%"></canvas>
         </div>
-        <div class="col-6">
-          <div class="card bg-body-tertiary h-100"><div class="card-body p-2">
-            <h2 class="chart-title">Temperature &deg;C &mdash; amber &ge;50, red &ge;60 <span class="chart-scale">&times;1</span></h2>
-            <div class="ratio ratio-21x9"><canvas id="chart-temp"></canvas></div>
-          </div></div>
-        </div>
-        <div class="col-6">
-          <div class="card bg-body-tertiary h-100"><div class="card-body p-2">
-            <h2 class="chart-title">Terminal Voltage V <span class="chart-scale">&times;1</span></h2>
-            <div class="ratio ratio-21x9"><canvas id="chart-voltage"></canvas></div>
-          </div></div>
-        </div>
-      </div>
+      </div></div>
     </div>
 
     <div class="col-12 order-3 order-lg-4">
@@ -184,7 +191,12 @@ BODY_HTML = """<body class="bg-body">
         <div class="col-6 col-sm-3 col-lg-1">
           <div class="card bg-body-tertiary h-100"><div class="card-body p-3 text-center">
             <div class="meas-label mb-2">Chiller</div>
-            <div class="knob mx-auto" id="chiller-knob"><div class="knob-marker"></div></div>
+            <div class="knob-wrap mx-auto">
+              <span class="knob-label knob-label-off" data-pos="0">OFF</span>
+              <span class="knob-label knob-label-mid" data-pos="1">1</span>
+              <span class="knob-label knob-label-on" data-pos="2">2</span>
+              <div class="knob" id="chiller-knob"><div class="knob-marker"></div></div>
+            </div>
             <div class="small text-secondary mt-2" id="chiller-pos">OFF</div>
           </div></div>
         </div>
@@ -192,7 +204,12 @@ BODY_HTML = """<body class="bg-body">
         <div class="col-6 col-sm-3 col-lg-1">
           <div class="card bg-body-tertiary h-100"><div class="card-body p-3 text-center">
             <div class="meas-label mb-2">Heater</div>
-            <div class="knob mx-auto" id="heater-knob"><div class="knob-marker"></div></div>
+            <div class="knob-wrap mx-auto">
+              <span class="knob-label knob-label-off" data-pos="0">OFF</span>
+              <span class="knob-label knob-label-mid" data-pos="1">1</span>
+              <span class="knob-label knob-label-on" data-pos="2">2</span>
+              <div class="knob" id="heater-knob"><div class="knob-marker"></div></div>
+            </div>
             <div class="small text-secondary mt-2" id="heater-pos">OFF</div>
           </div></div>
         </div>

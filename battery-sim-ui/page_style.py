@@ -55,7 +55,14 @@ STYLE_CSS = """
     transition: background-color 0.5s ease; margin-top: -2px;
   }
 
-  .chart-title { font-size: 10px; line-height: 1.25; color: #8a8a8a; letter-spacing: .3px; margin: 0 0 4px; }
+  .chart-tabs .nav-link { font-size: 11px; padding: 3px 8px; }
+
+  .knob-wrap { position: relative; width: 72px; height: 72px; display: flex; align-items: center; justify-content: center; }
+  .knob-label { position: absolute; font-size: 9px; color: #555; user-select: none; line-height: 1; }
+  .knob-label-off { left: 2px; bottom: 2px; }
+  .knob-label-mid { top: 0; left: 50%; transform: translateX(-50%); }
+  .knob-label-on  { right: 2px; bottom: 2px; }
+  .knob-label.active { color: #0078d4; font-weight: 600; }
 
   #speed-top { max-width: 220px; }
 
@@ -76,8 +83,9 @@ STYLE_CSS = """
   }
 
   .car-road { stroke: #3a3a3a; stroke-width: 3; }
-  .car-body { fill: #2f6fb0; stroke: #8fc2ee; stroke-width: 2; }
-  .car-glass { fill: #14324e; }
+  .car-body { fill: url(#grad-body); stroke: #5a9bd4; stroke-width: 1.5; }
+  .car-glass { fill: url(#grad-glass); }
+  .temp-glyph { flex-shrink: 0; }
   .car-tyre { fill: #171717; stroke: #555; stroke-width: 2; }
   .car-rim { fill: #3a3a3a; }
   .car-spoke { stroke: #b9b9b9; stroke-width: 3; stroke-linecap: round; }

@@ -130,40 +130,59 @@ DASHBOARD_JS = """
 
   function wireKnob(which) {
     const knob = document.getElementById(which + '-knob');
+    const posLabel = document.getElementById(which + '-pos');
+    function applyPos(pos) {
+      knob.style.transform = `rotate(${KNOB_ANGLES[pos]}deg)`;
+      posLabel.textContent = KNOB_LABELS[pos];
+      knob.parentElement.querySelectorAll('.knob-label').forEach((el, i) => {
+        el.classList.toggle('active', i === pos);
+      });
+    }
+    applyPos(state[which + '_setting']);
     knob.addEventListener('click', () => {
       const next = (state[which + '_setting'] + 1) % 3;
       state[which + '_setting'] = next;
-      knob.style.transform = `rotate(${KNOB_ANGLES[next]}deg)`;
-      document.getElementById(which + '-pos').textContent = KNOB_LABELS[next];
+      applyPos(next);
       scheduleSend();
     });
+    return applyPos;
   }
-  wireKnob('chiller');
-  wireKnob('heater');
+  const applyChiller = wireKnob('chiller');
+  const applyHeater = wireKnob('heater');
 
-  // --- Rolling charts -----------------------------------------------------
+  document.querySelectorAll('#chart-tabs .nav-link').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#chart-tabs .nav-link').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeSeries = btn.dataset.series;
+      sizeCanvas();
+      drawActive();
+    });
+  });
+
+  // --- Rolling chart -------------------------------------------------------
   // Fixed scales taken from signals.json's own declared min/max per signal,
   // not invented - so a chart's range never silently drifts from the plant's
-  // contract.
+  // contract. All four buffers fill on every poll; switching tabs reveals
+  // history rather than resetting it.
+  let activeSeries = 'soc';
   const series = {
-    soc: { buf: [], min: 0, max: 100, canvas: 'chart-soc' },
-    current: { buf: [], min: -400, max: 400, canvas: 'chart-current' },
-    temp: { buf: [], min: -40, max: 70, canvas: 'chart-temp', bands: true },
-    voltage: { buf: [], min: 600, max: 900, canvas: 'chart-voltage' },
+    soc: { buf: [], min: 0, max: 100 },
+    current: { buf: [], min: -400, max: 400 },
+    temp: { buf: [], min: -40, max: 70, bands: true },
+    voltage: { buf: [], min: 600, max: 900 },
   };
   const ACCENT = '#0078d4';
 
-  // The canvases are sized by their Bootstrap .ratio wrapper, so the drawing
-  // buffer is taken from the laid-out box rather than fixed in the markup.
-  function sizeCanvases() {
-    Object.values(series).forEach((s) => {
-      const canvas = document.getElementById(s.canvas);
-      canvas.width = canvas.clientWidth;
-      canvas.height = canvas.clientHeight;
-    });
-    Object.values(series).forEach(drawChart);
+  // The canvas is sized from its flex-grow parent; clientWidth/Height are
+  // valid after layout completes (first call deferred via rAF at startup).
+  function sizeCanvas() {
+    const canvas = document.getElementById('chart-main');
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
   }
-  window.addEventListener('resize', sizeCanvases);
+  function drawActive() { drawChart(series[activeSeries]); }
+  window.addEventListener('resize', () => { sizeCanvas(); drawActive(); });
 
   function pushPoint(key, value) {
     const buf = series[key].buf;
@@ -172,7 +191,7 @@ DASHBOARD_JS = """
   }
 
   function drawChart(s) {
-    const canvas = document.getElementById(s.canvas);
+    const canvas = document.getElementById('chart-main');
     const ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
     ctx.clearRect(0, 0, w, h);
@@ -226,6 +245,10 @@ DASHBOARD_JS = """
       car.time_scale = echoed;
       if (!speedTouched) { state.time_scale = echoed; showSpeed(echoed); }
     }
+    const echoChiller = data.applied?.parameters?.CHILLER_SETTING;
+    if (echoChiller !== undefined) { state.chiller_setting = echoChiller; applyChiller(echoChiller); }
+    const echoHeater = data.applied?.parameters?.HEATER_SETTING;
+    if (echoHeater !== undefined) { state.heater_setting = echoHeater; applyHeater(echoHeater); }
 
     vehicleOnTick(v, iAch, state.charge_plug);
 
@@ -254,13 +277,14 @@ DASHBOARD_JS = """
       document.getElementById('thermo-fill').style.backgroundColor = color;
       document.getElementById('thermo-bulb').style.backgroundColor = color;
       document.getElementById('temp-value').textContent = temp.toFixed(1) + ' °C';
+      document.getElementById('temp-cell').style.color = color;
     }
 
     pushPoint('soc', soc);
     pushPoint('current', iAch);
     pushPoint('temp', temp !== null ? temp : 0);
     pushPoint('voltage', v);
-    Object.values(series).forEach(drawChart);
+    drawActive();
   }
 
   let lastGoodPoll = 0;
@@ -298,6 +322,6 @@ DASHBOARD_JS = """
     VEH.wheel_radius_m = CFG.wheel_radius_m;
   }
 
-  sizeCanvases();
+  requestAnimationFrame(sizeCanvas);
   loadConfig().then(poll);
 """
