@@ -129,12 +129,9 @@ same change that moves the work. Nothing agreed in conversation stays only in co
 | `BL-04` | **in progress** | Upstream plant polarity fix (dc-battery-sim, battery-sign current) | verified 53/53 in C:/repos/quixstreams-tests-polarity; commit there, then re-vendor here |
 | `BL-22` | **in progress** | Requirement status moves automatically when a run covers it; covering run id visible on the requirement | SPEC DONE (dev-planning/requirement-status-from-runs/spec.md) — not built |
 | `BL-33` | **in progress** | Versioned verifies-link between requirement and test definition, stored in the database | user 2026-09-22: hyperlinks both ways carrying the version of each side. Board model: link_id = link_type|from_id|to_id with NO version in the preimage, recording the confirmed pair (R@v, TC@w) separately from current versions; the difference is what makes a link suspect. Folded into dev-planning/review-page |
-| `BL-51` | **in progress** | Test Results page: requirement coverage, pass/fail counts, per-run outcomes | user 2026-09-23. Spec being written to dev-planning/test-results-page/spec.md; sits on BL-11 (verdicts), BL-19 (Covered!=Tested), BL-24 (no verdict concept), BL-38 (coverage matrix) |
-| `BL-52` | **in progress** | Battery Sim deployment crash-looped 158x: app folder carried no plant sources | Quix builds each app with its OWN folder as docker context, so COPY . . in battery-sim-plant never carried battery-trace-gen/plant and WORKDIR created an empty dir. Fix: battery-trace-gen becomes the app folder, entrypoint plant/main.py |
-| `BL-53` | **in progress** | Sidebar flattened: no nesting, order Home / Requirements / Test definitions / Work orders / Test runs | user 2026-09-23 reversed BL-29's nesting for requirements; depth/INDENT mechanism from 144ae1b removed |
 | `BL-11` | to do | Run the 10 implementations against the lake and write verdicts | explicitly out of scope of BL-06; next feature |
 | `BL-19` | to do | Covered != Tested: TESTED needs a confirmed link at (R@v,TC@w) AND a pass pinned to TC version w | shapes BL-11 (running implementations -> verdicts) |
-| `BL-24` | to do | No verdict concept: results carry no pass/fail and name no definition | BL-22 defines the contract; BL-11 writes it |
+| `BL-24` | to do | No verdict concept: results carry no pass/fail and name no definition | STALE as written: Verdict/VerdictOut, the POST path and the consuming fold shipped at d9dd5d4. What is missing is the WRITER — BL-11 |
 | `BL-25` | to do | Regenerate api/docs/openapi.v1.json (api/scripts/snapshot.sh) | 3 models gained fields, 2 routes added — contract-snapshot test red until refreshed |
 | `BL-26` | to do | Requirements page in the Test Manager (list + detail) | SPEC DONE (dev-planning/requirements-page/spec.md) — not built |
 | `BL-27` | to do | Requirement attribute columns per the Miro SYS.2 board | SPEC DONE (dev-planning/requirements-page/spec.md) — not built |
@@ -154,6 +151,7 @@ same change that moves the work. Nothing agreed in conversation stays only in co
 | `BL-44` | to do | Parameter sets as DCM config events (/parameters, config-events) | the old chain turned parameter sets into DCM-shaped config events; our battery parameters are a DCM document but nothing consumes them at runtime |
 | `BL-47` | to do | No UI assigns a definition to a run | the only route replaces the whole set (_resolve_manual_links, api/api/services/queries_runs.py:1173). tm-multi-definition-runs/architecture.md claims the Test Run page does it — it does not. Needed now that traces no longer claim definitions |
 | `BL-48` | to do | Six run-detail tests mock @/lib/hooks wholesale and now throw on useWorkOrder | new-tab-marks, no-would-toasts, null-fields, quixlab-launch-context, signals-selection, signals-tab-filters — each needs useWorkOrder in its mock factory |
+| `BL-51` | to do | Test Results page: requirement coverage, pass/fail counts, per-run outcomes | SPEC DONE (dev-planning/test-results-page/spec.md) — not built. GET /coverage + page at /test-results; needs BL-11 to write verdicts into the SHIPPED processed_results.verdict block |
 | `BL-13` | discuss | TM_RUN_KEY_PATTERN is an unbound project variable on decoder + connector (literal string) | harmless for us (header rung); tell Tomas |
 | `BL-14` | discuss | Legacy rows: 4 battery routes in mf4_signals_v5 (pre-marker decode) | leave or delete |
 | `BL-15` | discuss | Requirements seeding into the new TM model (requirements-files per definition) | seed markdown covers it per definition; direct upload route exists |
@@ -179,6 +177,10 @@ same change that moves the work. Nothing agreed in conversation stays only in co
 | `BL-29` | finished | Test Runs nested under Work order; Test definitions under Test Run (nav + run detail) | sidebar indents runs under work orders and definitions under runs; run overview gained a Definitions panel |
 | `BL-30` | finished | Import form no longer claims a test definition | mf4-to-blob form: work order, run id, rig |
 | `BL-49` | finished | Battery sim UI: pedals plus DC charging up to 250 kW | built and deployed 06cda3d: pedals, plug + 250 kW charge slider, heater/chiller, 4 rolling charts; crash-looped until BL-52 moved the app folder |
+| `BL-52` | finished | Battery Sim deployment crash-looped 158x: app folder carried no plant sources | fixed 64fcc66: battery-trace-gen is the application folder, entrypoint plant/main.py, slim plant/requirements.txt |
+| `BL-53` | finished | Sidebar flattened: no nesting, order Home / Requirements / Test definitions / Work orders / Test runs | fixed 7f42af3: depth/INDENT gone; Home, Requirements, Test definitions, Work orders, Test runs |
+| `BL-54` | finished | GET /requirements/facets is called by the page but declared nowhere — every filter dropdown is empty | added GET /requirements/facets above the {req_id} route; one $group + $reduce/$setUnion fold, retired rows included because list_requirements filters none either |
+| `BL-55` | finished | QuixLab image moved from the pr-42 build to latest main | ghcr.io/quixio/quixlab:pr-42-c9939a4 (built 2026-08-19) -> main-a4c31e3 (commit a4c31e39, built 2026-09-11); pinned to the immutable tag, not the floating main |
 
 ## Working agreement
 - **QA is the user's**, in the Quix Portal. No Tester round unless asked; the lint/type gate

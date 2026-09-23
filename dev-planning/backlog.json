@@ -172,7 +172,7 @@
       "id": "BL-24",
       "title": "No verdict concept: results carry no pass/fail and name no definition",
       "status": "to do",
-      "notes": "BL-22 defines the contract; BL-11 writes it",
+      "notes": "STALE as written: Verdict/VerdictOut, the POST path and the consuming fold shipped at d9dd5d4. What is missing is the WRITER — BL-11",
       "updated": "2026-09-22"
     },
     {
@@ -360,22 +360,36 @@
     {
       "id": "BL-51",
       "title": "Test Results page: requirement coverage, pass/fail counts, per-run outcomes",
-      "status": "in progress",
-      "notes": "user 2026-09-23. Spec being written to dev-planning/test-results-page/spec.md; sits on BL-11 (verdicts), BL-19 (Covered!=Tested), BL-24 (no verdict concept), BL-38 (coverage matrix)",
+      "status": "to do",
+      "notes": "SPEC DONE (dev-planning/test-results-page/spec.md) — not built. GET /coverage + page at /test-results; needs BL-11 to write verdicts into the SHIPPED processed_results.verdict block",
       "updated": "2026-09-23"
     },
     {
       "id": "BL-52",
       "title": "Battery Sim deployment crash-looped 158x: app folder carried no plant sources",
-      "status": "in progress",
-      "notes": "Quix builds each app with its OWN folder as docker context, so COPY . . in battery-sim-plant never carried battery-trace-gen/plant and WORKDIR created an empty dir. Fix: battery-trace-gen becomes the app folder, entrypoint plant/main.py",
+      "status": "finished",
+      "notes": "fixed 64fcc66: battery-trace-gen is the application folder, entrypoint plant/main.py, slim plant/requirements.txt",
       "updated": "2026-09-23"
     },
     {
       "id": "BL-53",
       "title": "Sidebar flattened: no nesting, order Home / Requirements / Test definitions / Work orders / Test runs",
-      "status": "in progress",
-      "notes": "user 2026-09-23 reversed BL-29's nesting for requirements; depth/INDENT mechanism from 144ae1b removed",
+      "status": "finished",
+      "notes": "fixed 7f42af3: depth/INDENT gone; Home, Requirements, Test definitions, Work orders, Test runs",
+      "updated": "2026-09-23"
+    },
+    {
+      "id": "BL-54",
+      "title": "GET /requirements/facets is called by the page but declared nowhere — every filter dropdown is empty",
+      "status": "finished",
+      "notes": "added GET /requirements/facets above the {req_id} route; one $group + $reduce/$setUnion fold, retired rows included because list_requirements filters none either",
+      "updated": "2026-09-23"
+    },
+    {
+      "id": "BL-55",
+      "title": "QuixLab image moved from the pr-42 build to latest main",
+      "status": "finished",
+      "notes": "ghcr.io/quixio/quixlab:pr-42-c9939a4 (built 2026-08-19) -> main-a4c31e3 (commit a4c31e39, built 2026-09-11); pinned to the immutable tag, not the floating main",
       "updated": "2026-09-23"
     }
   ]
