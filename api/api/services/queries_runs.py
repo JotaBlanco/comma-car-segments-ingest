@@ -1171,9 +1171,9 @@ _LINK_ERRORS = {
 def _resolve_manual_links(db: Database, changes: dict) -> dict:
     """Check each stated link. Return the values the edit writes.
 
-    A person states ONE `definition_id` and it REPLACES the run's set, so the
-    edit dialog is also the only way to take a definition off a run: a planning
-    push unions its links and never removes one.
+    A person states ONE `definition_id` and it REPLACES the run's set. A
+    planning push unions its links and never removes one; `add_run_definition`
+    and `remove_run_definition` move one member and leave the rest alone.
     """
     values = dict(changes)
     for field, (code, label) in _LINK_ERRORS.items():
@@ -1235,6 +1235,80 @@ def patch_run(db: Database, run_id: str, changes: dict, actor: str, note: str | 
         db["journal_entries"].insert_many(entries)
 
     return get_run(db, run_id)
+
+
+def _require_definition(db: Database, definition_id: str) -> None:
+    """Refuse a definition id the planning mirror does not hold.
+
+    The code and the message are `_resolve_manual_links`', so the two ways a
+    person links a definition to a run refuse an unknown id identically.
+    """
+    code, label = _LINK_ERRORS["definition_id"]
+    if db[_CLAIM_MIRRORS["definition_id"]].find_one({"_id": definition_id}) is None:
+        raise ApiError(422, f"No {label} {definition_id} is mirrored here", code)
+
+
+def add_run_definition(
+    db: Database, run_id: str, definition_id: str, actor: str, note: str | None
+) -> dict:
+    """Add one definition to a run's set and leave the other members alone.
+
+    A definition the run already carries writes nothing and answers the run as
+    it stands.
+    """
+    run = _require_run(db, run_id)
+    _require_definition(db, definition_id)
+
+    stored = run.get("definition_ids") or []
+    if definition_id in stored:
+        return with_counts(db, run)
+    return _write_definition_set(db, run, sorted({*stored, definition_id}), actor, note)
+
+
+def remove_run_definition(db: Database, run_id: str, definition_id: str, actor: str) -> dict:
+    """Take one definition off a run's set and leave the other members alone.
+
+    A definition the run does not carry writes nothing and answers the run as
+    it stands.
+    """
+    run = _require_run(db, run_id)
+    _require_definition(db, definition_id)
+
+    stored = run.get("definition_ids") or []
+    if definition_id not in stored:
+        return with_counts(db, run)
+    return _write_definition_set(
+        db, run, [stored_id for stored_id in stored if stored_id != definition_id], actor, None
+    )
+
+
+def _write_definition_set(
+    db: Database, run: dict, definition_ids: list[str], actor: str, note: str | None
+) -> dict:
+    """Store a run's new definition set at manual provenance, and journal it.
+
+    The source tag is what keeps the edit: `planning_sync._write_link` writes
+    `definition_ids` at `api:planning`, which ranks below `manual`, so the next
+    sync pass skips the field whole. The tag sits on the FIELD, so one added or
+    removed member makes the run's whole set the person's, and planning stops
+    unioning new links into it.
+    """
+    update: dict = {}
+    entry = set_field(
+        update,
+        "definition_ids",
+        definition_ids,
+        Source.MANUAL,
+        actor,
+        note=note,
+        current_doc=run,
+        field_label=_FIELD_LABELS["definition_ids"],
+    )
+    update["updated_at"] = datetime.now(UTC)
+    update["status"] = derive_status({**run, **plain_values(update)})
+    db["test_runs"].update_one({"_id": run["_id"]}, {"$set": update})
+    db["journal_entries"].insert_one(entry)
+    return get_run(db, run["_id"])
 
 
 def set_invalid_flag(db: Database, run_id: str, reason: str, actor: str) -> dict:

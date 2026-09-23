@@ -557,8 +557,9 @@ def _write_link(
 
     The definitions MERGE. A run fulfils a set of them, planning states one per
     link, and the union is what makes two links for one run additive and a
-    re-post of the same links a no-op. A definition leaves a run only through
-    `PATCH /test-runs/{run_id}`.
+    re-post of the same links a no-op. A definition leaves a run through
+    `DELETE /test-runs/{run_id}/definitions/{definition_id}`, or through
+    `PATCH /test-runs/{run_id}`, which replaces the set.
     """
     update: dict = {}
     entries: list[dict] = []

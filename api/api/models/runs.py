@@ -248,8 +248,9 @@ class RunPatchRequest(RequestModel):
     a mirrored row, and the write carries the `manual` tag, so the next sync
     pass reads that tag and leaves the value alone.
 
-    `definition_id` sets the run's definitions to exactly that one id. It is
-    the only way to REMOVE a definition: a planning push unions its links.
+    `definition_id` REPLACES the run's whole definition set with that one id.
+    `POST /test-runs/{run_id}/definitions` and its DELETE move one member and
+    leave the rest alone.
     """
 
     description: str | None = None
@@ -271,6 +272,17 @@ class RunPatchRequest(RequestModel):
         if isinstance(data, dict) and isinstance(data.get("custom_properties"), dict):
             check_custom_properties(data["custom_properties"])
         return data
+
+
+class RunDefinitionRequest(RequestModel):
+    """Body of POST /test-runs/{run_id}/definitions.
+
+    One definition id, ADDED to the run's set. The body states no actor: the
+    route reads the verified caller, as the definition property route does.
+    """
+
+    definition_id: str
+    note: str | None = None
 
 
 class InvalidFlagRequest(RequestModel):

@@ -160,6 +160,14 @@ ROUTE_ERRORS: dict[str, tuple[tuple[int, str], ...]] = {
         (409, "not_flagged"),
         (422, "reason_required"),
     ),
+    "POST /api/v1/test-runs/{run_id}/definitions": (
+        (404, "run_not_found"),
+        (422, "unknown_definition"),
+    ),
+    "DELETE /api/v1/test-runs/{run_id}/definitions/{definition_id}": (
+        (404, "run_not_found"),
+        (422, "unknown_definition"),
+    ),
     "GET /api/v1/test-runs/{run_id}/files": ((404, "run_not_found"),),
     "GET /api/v1/test-runs/{run_id}/lineage": ((404, "run_not_found"),),
     "GET /api/v1/test-runs/{run_id}/journal": ((404, "run_not_found"),),

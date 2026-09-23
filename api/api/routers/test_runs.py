@@ -27,6 +27,7 @@ from api.models.runs import (
     CUSTOM_GROUP_PREFIX,
     InvalidFlagRequest,
     LineageResponse,
+    RunDefinitionRequest,
     RunDeleteRequest,
     RunDeletionReport,
     RunDetail,
@@ -355,6 +356,53 @@ def clear_run_invalid(
         run_id,
         reason=body.reason.strip(),
         actor=journal_actor(identity, body.actor),
+    )
+
+
+@router.post("/test-runs/{run_id}/definitions")
+def add_definition_to_run(
+    run_id: str,
+    body: RunDefinitionRequest,
+    db: Annotated[Database, Depends(get_db)],
+    identity: Annotated[Identity, Depends(require_token)],
+) -> RunDetail:
+    """Put one test definition on a run, leaving the rest of the set alone.
+
+    A definition the run already carries answers 200 and the run unchanged, so
+    a double click is not an error. The write carries the `manual` source tag,
+    which a later planning sync reads and obeys.
+
+    The refusals: 404 `run_not_found`, 422 `unknown_definition`.
+    """
+    # A person pressed Add, so the actor is the verified caller. The body
+    # states no actor, the way the definition property route states none.
+    return queries_runs.add_run_definition(
+        db,
+        run_id,
+        body.definition_id,
+        actor=journal_actor_or_id(identity, identity.display_name),
+        note=body.note,
+    )
+
+
+@router.delete("/test-runs/{run_id}/definitions/{definition_id}")
+def remove_definition_from_run(
+    run_id: str,
+    definition_id: str,
+    db: Annotated[Database, Depends(get_db)],
+    identity: Annotated[Identity, Depends(require_token)],
+) -> RunDetail:
+    """Take one test definition off a run, leaving the rest of the set alone.
+
+    A definition the run does not carry answers 200 and the run unchanged.
+
+    The refusals: 404 `run_not_found`, 422 `unknown_definition`.
+    """
+    return queries_runs.remove_run_definition(
+        db,
+        run_id,
+        definition_id,
+        actor=journal_actor_or_id(identity, identity.display_name),
     )
 
 
