@@ -8,15 +8,13 @@ fake producer. Two things are different here:
 * ``main.time`` is replaced with a shim whose ``sleep`` is the host's turn. The plant
   produces a payload and then sleeps, so the sleep hook is exactly the boundary between
   tick k and tick k+1 and the whole run is single-threaded and deterministic.
-* ``run_simulation`` keeps ``q_act``, ``heat``, ``v_rc1`` and ``v_rc2`` as function
-  locals, not module globals, so initial SOC and pack temperature cannot be assigned
-  directly. They are primed instead through the two module-level quantities the
-  function derives them from — ``Q_MAX`` (``q_act = Q_MAX / 2``) and ``A_THERMAL``
-  (``temperature = A_THERMAL * heat`` with ``heat`` starting at 100 kJ) — and both are
-  put back inside ``get_producer()``, which the function calls after initialising its
-  state and before its first tick. Restoring ``A_THERMAL`` there triggers the plant's
-  own documented heat rebase on tick 0, so temperature is continuous and every tick
-  runs with the scenario's real thermal mass.
+* ``run_simulation`` keeps ``q_act`` as a function local, not a module global, so the
+  initial SOC is primed through the quantity the function derives it from — ``Q_MAX``
+  (``q_act = Q_MAX / 2``) — and put back inside ``get_producer()``, which the function
+  calls after initialising its state and before its first tick. The initial pack
+  temperature needs no such trick: the plant reads ``INITIAL_TEMPERATURE_C`` and
+  derives ``heat`` from it, so the host sets that constant to the scenario's value and
+  ``A_THERMAL`` stays at the scenario's real thermal mass throughout.
 """
 
 from __future__ import annotations
@@ -31,9 +29,6 @@ from types import ModuleType, SimpleNamespace
 from typing import Any
 
 PLANT_DIR = Path(__file__).resolve().parent
-
-#: ``run_simulation``'s own starting value for the heat state, in joules.
-INITIAL_HEAT_J = 100_000.0
 
 TickCallback = Callable[[int, dict[str, Any]], dict[str, float]]
 
@@ -142,19 +137,14 @@ def drive(
     the plant applies on tick k+1 — a deterministic 100 ms actuation delay.
     """
     module = handle.module
-    nominal_a_thermal = module.params["A_THERMAL"]
 
+    module.INITIAL_TEMPERATURE_C = t_batt_c
     with module.state_lock:
         module.cmd.update(initial_cmd)
-        module.params["A_THERMAL"] = t_batt_c / INITIAL_HEAT_J
-        module._recompute_derived()
     module.Q_MAX = 2.0 * (soc_pct / 100.0 * handle.q_max_as)
 
     def restore() -> None:
         module.Q_MAX = handle.q_max_as
-        with module.state_lock:
-            module.params["A_THERMAL"] = nominal_a_thermal
-            module._recompute_derived()
 
     driver = _Driver(module, ticks=ticks, on_tick=on_tick, restore=restore)
     module.time = SimpleNamespace(sleep=driver.sleep, monotonic=time.monotonic)

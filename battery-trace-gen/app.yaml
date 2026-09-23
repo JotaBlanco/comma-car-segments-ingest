@@ -16,6 +16,16 @@ variables:
     description: Pack capacity in Ah. Read once at startup into Q_MAX - a change needs a restart, and a live write is refused
     defaultValue: "25"
     required: false
+  - name: A_THERMAL
+    inputType: FreeText
+    description: Inverse thermal mass in degC/J. Thermal capacity is 1/A_THERMAL and the time constant is that over KE, so the stock 0.0002 gives 5000 J/degC and 52 minutes - far slower than the 25 Ah pack now moves. Tunable, so a live write moves it too
+    defaultValue: "0.001"
+    required: false
+  - name: KE
+    inputType: FreeText
+    description: Heat exchange to ambient in W/degC. The stock 1.6 pulls only 32 W across a 20 degC gap, so the ambient slider moved the pack 0.4 degC/min and looked dead. Tunable
+    defaultValue: "8.0"
+    required: false
 dockerfile: dockerfile
 runEntryPoint: plant/main.py
 defaultFile: plant/main.py

@@ -11,8 +11,9 @@ files       main.py, lexicon.py, signals.json, parameters.json
              below is the one exception and is written by Tester.)
 
 Upstream is deliberately NOT changed. quixstreams-tests@devDB keeps powertrain sign
-for its dashboard; this copy diverges, and the divergence is the six edits below.
-Edits (1)-(4) are the polarity patch; (5) and (6) are the live-speed control.
+for its dashboard; this copy diverges, and the divergence is the nine edits below.
+Edits (1)-(4) are the polarity patch; (5) and (6) are the live-speed control; (7)-(9)
+are the reset command and the startup temperature a reset restores.
 
 
 WHY THE PATCH
@@ -28,14 +29,14 @@ The conversion is made once, immediately after the solver, so `dc_voltage`, both
 updates and the KT2*I**2 heating term are untouched and become correct by construction.
 
 
-THE SIX EDITS
--------------
-(1) main.py:374 — inserted immediately after `dc_current = solve_dc_current(...)`
+THE NINE EDITS
+--------------
+(1) main.py:386 — inserted immediately after `dc_current = solve_dc_current(...)`
 
     +            # Battery perspective from here on: positive = discharge. See PLANT_ORIGIN.
     +            dc_current = -dc_current
 
-(2) main.py:377,379 — the two saturation guards, comparisons flipped
+(2) main.py:389,391 — the two saturation guards, comparisons flipped
 
     -            if q_act <= 0.0 and dc_current < 0.0:
     +            if q_act <= 0.0 and dc_current > 0.0:
@@ -44,27 +45,27 @@ THE SIX EDITS
     +            if q_act >= Q_MAX and dc_current < 0.0:
                      dc_current = 0.0
 
-(3) main.py:390 — coulomb counting
+(3) main.py:402 — coulomb counting
 
     -            q_act += dc_current * SAMPLE_TIME
     +            q_act -= dc_current * SAMPLE_TIME
 
-(4) signals.json:143 — `dc_current_a` description
+(4) signals.json:165 — `dc_current_a` description
 
     -      "description": "DC current after temperature derating. Negative = discharge, positive = charge.",
     +      "description": "DC current after temperature derating. Positive = discharge, negative = charge (battery perspective).",
 
-(5) main.py:455 — the inter-tick sleep, divided by the new TIME_SCALE parameter
+(5) main.py:467 — the inter-tick sleep, divided by the new TIME_SCALE parameter
 
     -            time.sleep(SAMPLE_TIME)
     +            time.sleep(SAMPLE_TIME / p["TIME_SCALE"])
 
     Only the wall-clock sleep is divided. The integration step stays SAMPLE_TIME at
-    main.py:116 (both ALPHA), 390 (coulomb counting) and 414 (heat), so the published
+    main.py:121 (both ALPHA), 402 (coulomb counting) and 426 (heat), so the published
     series is identical at any speed and the four trace sha256s are unaffected — the
     offline generator never sleeps at all: plant/loader.py:160 replaces main.time with
     a shim whose sleep discards its argument. `p` is the per-tick snapshot taken under
-    state_lock at main.py:338, the same read the rest of the loop body uses.
+    state_lock at main.py:343, the same read the rest of the loop body uses.
     TIME_SCALE's lexicon min of 1.0 is what makes the divide safe; there is no guard.
 
 (6) parameters.json — TIME_SCALE appended as the 19th descriptor
@@ -81,16 +82,97 @@ THE SIX EDITS
     alone would leave the merged view and the [STARTUP] log reporting a stale number.
 
 
+(7) signals.json:88-109 — `reset` appended to the input signals, after `heater_setting`
+
+    +      "name": "reset",  "label": "Reset",  "datatype": "enum",
+    +      "unit": null,  "default": 0,  "direction": "input",  "tunable": null,
+    +      "enum": [{"value": 0, "label": "Idle"}, {"value": 1, "label": "Reset"}]
+
+    Reformatted here for width; the descriptor and its description are in the file.
+    `enum` and not `bool`: it is the datatype the lexicon already uses for a two- or
+    three-position control (chiller_setting, heater_setting), `coerce` returns the
+    canonical member value for it, and `_startup_value` already has the int branch —
+    a bool entry would be the lexicon's first and main.py:66 says so in as many words.
+
+    The four trace sha256s are unaffected. The generator writes `cmd` only through
+    `adapter.to_plant` (runner.py:86-91 via loader.py:97 and :148), whose return value
+    names the four setpoints and never `reset`, so `cmd["reset"]` holds its startup
+    default 0 for the whole run and the branch in (8) is never taken. It reads back
+    `adapter.from_plant`, which takes five keys out of the payload, so the extra signal
+    in the periodic "applied" echo reaches nothing — the same argument that held when
+    (6) added TIME_SCALE to the echoed parameter set.
+
+(8) main.py:346-352 and main.py:58 — act on `reset` once, under the tick's own lock
+
+    +                if setpoints["reset"]:
+    +                    cmd["reset"] = 0
+    +                    q_act = Q_MAX / 2.0
+    +                    v_rc1 = v_rc2 = 0.0
+    +                    a_thermal_prev = p["A_THERMAL"]
+    +                    heat = INITIAL_TEMPERATURE_C / a_thermal_prev
+    +                    temperature = a_thermal_prev * heat
+
+    Appended to the `with state_lock` block that already takes `setpoints` and `p`, so
+    the flag is read, acted on and cleared without a second acquisition. Clearing `cmd`
+    rather than `setpoints` is what makes it momentary: the write lands once, the next
+    tick sees 0. The restored set is exactly the state the initialisation block binds —
+    `last_echo` is echo scheduling, not model state, and stays. Setpoints and parameters
+    are untouched by design: pedals, ambient, heater/chiller and every tunable including
+    TIME_SCALE are the operator's and survive a reset.
+
+    Setting `a_thermal_prev` makes the rebase at main.py:361 a no-op on this tick, so a
+    reset that arrives in the same message as an A_THERMAL write lands on the written
+    value and not on a rebase of it. `apply_updates` already logs the write at INFO, so
+    nothing is logged here.
+
+    +    "reset": "RESET",     — main.py:58, in _ENV_FOR
+
+    Not optional: `cmd` is built at import from every `direction: input` descriptor and
+    indexes `_ENV_FOR[name]` (main.py:80-83). Without the entry the new signal raises
+    KeyError at import and the service never starts.
+
+(9) main.py:105 and main.py:335 — the initial pack temperature, not the initial heat
+
+    +    INITIAL_TEMPERATURE_C = 20.0
+
+    -    heat = 100_000.0
+         with state_lock:
+             a_thermal_prev = params["A_THERMAL"]
+    +    heat = INITIAL_TEMPERATURE_C / a_thermal_prev
+         temperature = a_thermal_prev * heat
+
+    The startup temperature was A_THERMAL x 100 000 J, i.e. a function of the thermal
+    mass: 20 °C at the stock 0,0002, but 100 °C at 0,001 — clamped on the first tick to
+    MAX_BATTERY_TEMP, so the service would boot at its ceiling. Deriving `heat` from the
+    temperature inverts the dependency: the model starts at 20 °C whatever A_THERMAL is,
+    and retuning A_THERMAL changes only how fast it moves. The `heat_j` descriptor's
+    `default` of 100 000 is now the value at the stock A_THERMAL only; it is an output
+    descriptor, read by nothing in main.py (SIGNAL_SPEC keeps `direction: input` only).
+
+    The four trace sha256s hold, because plant/loader.py moved onto the constant in the
+    same change. It used to prime each scenario's initial pack temperature by doctoring
+    A_THERMAL to t_batt_c / 100 000 and restoring it inside get_producer(), which left
+    the plant to rebase `heat` on tick 0; it now sets module.INITIAL_TEMPERATURE_C =
+    t_batt_c and leaves A_THERMAL at the scenario's real thermal mass, so no rebase
+    fires and tick 0 opens on the same two doubles as before — T1 35 °C / 175 000 J,
+    T2 and T3 25 °C / 125 000 J, T4 20 °C / 100 000 J, each a bit-exact round trip at
+    the stock A_THERMAL of 0,0002. Had loader.py not moved, all four traces would have
+    started at 20 °C and T1's expected FAIL, not just its digest, would have been at
+    risk. loader.py is host code and not vendored — see the file list at the top — so
+    it is named here only as the reason this edit is hash-safe.
+
+
 Nothing else differs from the source. lexicon.py is byte-identical to the commit above.
 
 sha256 of the vendored copies
-    main.py         fe84a14727fed8afde5d800571f7115260d243858176436c84e14f9362e8caba
-    signals.json    9b207550631d89cb3d97b4f62bcf58bd560561255ed2700bed6805873033a86a
+    main.py         76df1d231055c06e2dd65b7be29489867fe225bf46660e167fc3953bd815f560
+    signals.json    74d69d84df787f5a895e2e641941f24872dbc2022d96b01257d74852d031c4d2
     lexicon.py      0b708068e9a4ab2bf5568ce33b93ad7234eadfa2e3ca5a31a6ff0989c28ad5d0
     parameters.json 80d1522fdf62049cdd096304bede6399607d0d3a663a4051d2d6b2faf9f32ea7
 
-The main.py and parameters.json lines are hashed from the git blob, i.e. the
-LF-normalised bytes: `git show HEAD:battery-trace-gen/plant/<file> | sha256sum`.
+All four lines are hashed from the git blob, i.e. the LF-normalised bytes:
+`git show HEAD:battery-trace-gen/plant/<file> | sha256sum`. The signals.json line
+was CRLF worktree bytes until (7) and is now on the same convention as the rest.
 
 
 CONSTRAINTS THE PATCH IMPOSES ON EVERY SCENARIO

@@ -48,13 +48,14 @@ SIGNAL_SPEC = {s["name"]: s for s in LEXICON["signals"] if s["direction"] == "in
 # signal or a parameter any of these.
 RESERVED_KEYS = ("signals", "parameters", "meta")
 
-# The four input signals predate the lexicon and keep their original env var names;
-# renaming them would be a deployment change for no gain.
+# Env var name per input signal. The four that predate the lexicon keep their original
+# names; renaming them would be a deployment change for no gain.
 _ENV_FOR = {
     "requested_power_w": "REQUESTED_POWER",
     "ambient_temp_c": "AMBIENT_TEMP",
     "chiller_setting": "CHILLER_SETTING",
     "heater_setting": "HEATER_SETTING",
+    "reset": "RESET",
 }
 
 
@@ -98,6 +99,10 @@ DERATING_LUT = [
     (50.0, 1.0),
     (60.0, 0.0),
 ]
+
+# Pack temperature at startup and after a reset. `heat` is derived from it, so retuning
+# A_THERMAL changes the thermal mass without moving the temperature the model starts at.
+INITIAL_TEMPERATURE_C = 20.0
 
 _echo_due = True  # first tick after startup always carries the "applied" block
 _dropped_messages = 0
@@ -325,9 +330,9 @@ def run_simulation(producer_app, out_topic):
     q_act = Q_MAX / 2.0
     v_rc1 = 0.0
     v_rc2 = 0.0
-    heat = 100_000.0
     with state_lock:
         a_thermal_prev = params["A_THERMAL"]
+    heat = INITIAL_TEMPERATURE_C / a_thermal_prev
     temperature = a_thermal_prev * heat
     last_echo = 0.0
 
@@ -338,6 +343,13 @@ def run_simulation(producer_app, out_topic):
                 p = dict(params)
                 echo_due = _echo_due
                 _echo_due = False
+                if setpoints["reset"]:
+                    cmd["reset"] = 0
+                    q_act = Q_MAX / 2.0
+                    v_rc1 = v_rc2 = 0.0
+                    a_thermal_prev = p["A_THERMAL"]
+                    heat = INITIAL_TEMPERATURE_C / a_thermal_prev
+                    temperature = a_thermal_prev * heat
 
             now = time.monotonic()
             echo_due = echo_due or (now - last_echo >= APPLIED_ECHO_PERIOD_S)

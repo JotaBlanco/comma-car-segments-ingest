@@ -332,15 +332,15 @@
     {
       "id": "BL-47",
       "title": "No UI assigns a definition to a run",
-      "status": "to do",
-      "notes": "confirmed 2026-09-23: definitions-panel.tsx is read-only and its own empty state says so; NO route in api/api/routers/ writes definition_ids. Only planning sync's _resolve_manual_links sets them, replacing the whole set. User asked for it directly",
+      "status": "finished",
+      "notes": "done 389def1 (routes) + 1f40ce7 (UI): POST/DELETE /test-runs/{id}/definitions add or remove one member; the Test Run page has a picker. The manual tag lands on the whole definition_ids field, so a run stops taking planning links after the first edit - the panel says so",
       "updated": "2026-09-22"
     },
     {
       "id": "BL-48",
       "title": "Six run-detail tests mock @/lib/hooks wholesale and now throw on useWorkOrder",
       "status": "to do",
-      "notes": "new-tab-marks, no-would-toasts, null-fields, quixlab-launch-context, signals-selection, signals-tab-filters — each needs useWorkOrder in its mock factory",
+      "notes": "GROWN: the six wholesale @/lib/hooks mocks now also need useAddRunDefinition, useRemoveRunDefinition and useTestDefinitions; frontend/tests/components/definitions-screen.test.tsx needs useTestDefinitionFacets and two changed empty-state strings",
       "updated": "2026-09-22"
     },
     {
@@ -423,15 +423,15 @@
     {
       "id": "BL-60",
       "title": "Test definitions have no filters at all — API takes only `orphaned`",
-      "status": "in progress",
-      "notes": "user 2026-09-23. GET /test-definitions took only orphaned + pagination and had no facets route. Backend adding work_order/status/requirement/q filters + GET /test-definitions/facets; the page wiring follows",
+      "status": "finished",
+      "notes": "done e9ec3b4 (API) + 1f40ce7 (page): work_order/status/requirement/q filters, facets route, pills and hideable columns",
       "updated": "2026-09-23"
     },
     {
       "id": "BL-61",
       "title": "Requirements page: filters overlay instead of pushing the table down, hideable columns, row actions moved left",
-      "status": "in progress",
-      "notes": "user 2026-09-23: filter panel takes too much space, columns must be hideable, edit/delete belongs on the left not at the end",
+      "status": "finished",
+      "notes": "done e4ec13f: filters in a popover, columns declared once and hidden per browser, row actions moved to the second cell",
       "updated": "2026-09-23"
     },
     {
@@ -439,6 +439,20 @@
       "title": "Battery Sim widgets movable and resizable like a Quix Portal dashboard",
       "status": "to do",
       "notes": "user 2026-09-23. SPEC DONE (dev-planning/battery-sim-ui-grid/spec.md): GridStack 13.3.0 pinned (14.0.0 changed the float API), vendored to battery-sim-ui/static/ with Bootstrap, layout in localStorage, ResizeObserver redraws the chart canvas. Assets already fetched",
+      "updated": "2026-09-23"
+    },
+    {
+      "id": "BL-63",
+      "title": "Battery Sim thermal model is 50x slower than the pack it now models",
+      "status": "in progress",
+      "notes": "user 2026-09-23: temperature frozen at 20.0 and ambient has no effect. Both real: C=1/A_THERMAL=5000 J/degC and KE=1.6 W/degC give tau=52 min (0.10 degC/min idle, 0.38 degC/min across a 20 degC ambient gap) while Q_MAX_AH=25 moves SOC in seconds. Staged A_THERMAL=0.001 + KE=8.0 -> tau 2.1 min. Initial temperature is A_THERMAL*100000, so the plant must decouple it first or the sim boots at the 60 degC clamp",
+      "updated": "2026-09-23"
+    },
+    {
+      "id": "BL-64",
+      "title": "Car visual: no freely-licensed clean-background Taycan image exists",
+      "status": "discuss",
+      "notes": "user asked for an internet image. Commons' CC BY 4.0 side view is a showroom photo with bystanders, a PORSCHE floor mat and a crest banner; press renders are copyrighted. Plan: redraw as a proper vector (scales, recolours, wheels genuinely spin). User can drop a licensed asset into battery-sim-ui/static/ instead",
       "updated": "2026-09-23"
     }
   ]

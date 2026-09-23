@@ -425,6 +425,10 @@ deployments:
         value: battery-data
       - name: Q_MAX_AH
         value: "25"
+      - name: A_THERMAL
+        value: "0.001"
+      - name: KE
+        value: "8.0"
   - name: Battery Sim UI
     group: Battery
     application: battery-sim-ui

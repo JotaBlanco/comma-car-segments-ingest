@@ -86,6 +86,28 @@
       "tunable": null
     },
     {
+      "name": "reset",
+      "label": "Reset",
+      "description": "Momentary command. Writing 1 restores the simulation state — stored charge, both RC branch voltages and the thermal state — to its startup values on the next tick, and the plant clears the flag back to 0 once it has acted. Setpoints and parameters are left as they are.",
+      "datatype": "enum",
+      "unit": null,
+      "default": 0,
+      "min": null,
+      "max": null,
+      "enum": [
+        {
+          "value": 0,
+          "label": "Idle"
+        },
+        {
+          "value": 1,
+          "label": "Reset"
+        }
+      ],
+      "direction": "input",
+      "tunable": null
+    },
+    {
       "name": "soc_percent",
       "label": "State of Charge",
       "description": "Stored charge as a percentage of Q_max. Starts at 50 % (q_act = Q_max / 2).",

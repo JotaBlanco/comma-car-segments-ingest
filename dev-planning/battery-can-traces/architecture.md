@@ -71,24 +71,26 @@ resolved through configuration rather than code:
   with the other would make the temperature rise disagree with the published power — a
   failure indistinguishable from a bug.
 
-### 2.3 Initial state is injected through `Q_MAX` and `A_THERMAL`
+### 2.3 Initial state is injected through `Q_MAX` and `INITIAL_TEMPERATURE_C`
 
 The spec assumed `q_act`, `heat`, `v_rc1` and `v_rc2` were module globals. They are
-**function locals** of `run_simulation`, so they cannot be assigned. They are primed
-instead through the two module-level quantities the function derives them from:
+**function locals** of `run_simulation`, so they cannot be assigned. Initial SOC is
+primed through the quantity the function derives it from:
 
 ```
-q_act       = Q_MAX / 2                  -> set main.Q_MAX = 2 * q_target before the run
-temperature = A_THERMAL * 100 000 J      -> set params["A_THERMAL"] = T0 / 100 000
+q_act = Q_MAX / 2        -> set main.Q_MAX = 2 * q_target before the run
 ```
 
-Both are restored inside `get_producer()`, which `run_simulation` calls **after**
+`Q_MAX` is restored inside `get_producer()`, which `run_simulation` calls **after**
 initialising its state and **before** its first loop iteration — the only point at which
-the primed values can be put back without a tick seeing them. Restoring `A_THERMAL`
-there triggers the plant's own documented heat rebase (`heat = temperature / A_THERMAL`)
-on tick 0, so the temperature is continuous at `T0` and every tick runs with the
-scenario's real thermal mass. No tick ever observes a doctored `Q_MAX` or `A_THERMAL`;
-`soc_percent`, `ocv` and the thermal gain are correct from the first published sample.
+a primed value can be put back without a tick seeing it.
+
+The initial pack temperature needs no such trick. The plant reads
+`INITIAL_TEMPERATURE_C` and derives `heat` from it, so the host sets that constant to
+the scenario's `t_batt_c` and `A_THERMAL` stays at the scenario's real thermal mass
+throughout. Until PLANT_ORIGIN (9) this was done by doctoring `A_THERMAL` to
+`T0 / 100 000` and restoring it to trigger the plant's heat rebase on tick 0; that back
+door tied the starting temperature to the thermal mass, so retuning one moved the other.
 
 ### 2.4 The sleep hook is the tick boundary
 
@@ -293,10 +295,10 @@ tick k+1 and that delay is never compensated anywhere — no integrator, no lead
 ## 6. Deviations from the spec, and why
 
 1. **§3 "assign the module-level state variables (`q_act`, `heat`, `v_rc1`, `v_rc2`)".**
-   They are function locals of `run_simulation`, not module globals. Initial SOC and pack
-   temperature are primed through `Q_MAX` and `A_THERMAL` and restored inside
-   `get_producer()` (§2.3 above). `v_rc1` and `v_rc2` start at zero, which every scenario
-   wants. No plant edit was needed.
+   They are function locals of `run_simulation`, not module globals. Initial SOC is
+   primed through `Q_MAX` and restored inside `get_producer()`; the pack temperature is
+   set through `INITIAL_TEMPERATURE_C` (§2.3 above). `v_rc1` and `v_rc2` start at zero,
+   which every scenario wants.
 2. **§4 "100 Hz frames land on every tick" at `dt = 0,1 s`.** Arithmetically impossible;
    a 0,1 s tick is 10 Hz. Resolved with a 100 Hz bus grid and zero-order hold between
    plant ticks (§2.6). Every frame count, bus load and lake-row figure in §5 and §18 is
