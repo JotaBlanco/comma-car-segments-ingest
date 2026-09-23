@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import {
   CustomPropertiesEditor,
@@ -37,6 +37,7 @@ import { useActor, usePatchRun, useWorkOrders } from "@/lib/hooks";
 import { NO_ACTOR_MESSAGE } from "@/lib/hooks/use-actor";
 import { sourced } from "@/types";
 import type { RunPatchBody, TestRun, WorkOrderListItem } from "@/types";
+import { PICKER_SEARCH_DEBOUNCE_MS, useDebouncedQuery } from "./use-debounced-query";
 
 interface EditRunDialogProps {
   run: TestRun;
@@ -56,7 +57,7 @@ interface EditRunDialogProps {
  * because that one id REPLACES the run's whole set (`_resolve_manual_links`,
  * `api/api/services/queries_runs.py`), so a run covering three definitions
  * would silently lose two. The run screen's "Test definitions this run covers"
- * panel shows the set this form cannot edit.
+ * panel adds and removes one member at a time instead.
  */
 const FIELDS = [
   { key: "description", label: "Description", placeholder: "E-machine efficiency map" },
@@ -70,19 +71,6 @@ type EditableField = (typeof FIELDS)[number]["key"];
     combobox narrows by `?q=` server-side, so no mirrored work order is ever
     out of reach — the old `<select>` truncated at the first 200. */
 const WORK_ORDER_PAGE_SIZE = 200;
-
-/** Keystroke-to-request debounce for the picker's `?q=` search. */
-const WORK_ORDER_SEARCH_DEBOUNCE_MS = 250;
-
-/** The typed picker text, trailing-edge debounced into a `?q=` value. */
-function useDebouncedQuery(value: string, delayMs: number): string {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delayMs);
-    return () => clearTimeout(timer);
-  }, [value, delayMs]);
-  return debounced;
-}
 
 /** One sentence a person can act on, per refusal the route answers. */
 const FAILURES: Record<string, string> = {
@@ -130,7 +118,7 @@ export function EditRunDialog({ run, open, onOpenChange }: EditRunDialogProps) {
   // The typed text becomes a server-side `?q=` (debounced), so every mirrored
   // work order is reachable — not only the first page. A closed dialog asks
   // for nothing.
-  const debouncedQuery = useDebouncedQuery(workOrderQuery.trim(), WORK_ORDER_SEARCH_DEBOUNCE_MS);
+  const debouncedQuery = useDebouncedQuery(workOrderQuery.trim(), PICKER_SEARCH_DEBOUNCE_MS);
   const workOrders = useWorkOrders(
     debouncedQuery.length > 0
       ? { page_size: WORK_ORDER_PAGE_SIZE, q: debouncedQuery }

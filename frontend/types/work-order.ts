@@ -215,7 +215,34 @@ export interface DefinitionCustomProperties {
   custom_properties: Record<string, string>;
 }
 
+/**
+ * `GET /test-definitions/facets` — the distinct filter values of the WHOLE
+ * definition mirror, sorted ascending. The three dropdowns of the Test
+ * definitions page read this one answer, so each offers every value the
+ * mirror holds rather than the values of the page on screen.
+ *
+ * `statuses` is `string[]` and not `DefinitionStatus[]`: the API derives it
+ * from planned versus actual runs and reports the states the mirror really
+ * holds, which is a subset of the two the union allows.
+ */
+export interface TestDefinitionFacets {
+  work_orders: string[];
+  statuses: string[];
+  requirements: string[];
+}
+
+/**
+ * `GET /test-definitions` query. `work_order`, `status` and `requirement` are
+ * repeated params (OR inside one key, AND across keys), `q` is a
+ * case-insensitive substring over `td_id` and `title`, and `orphaned` is the
+ * tri-state the Home panel deep-links. The route whitelists no sort key: it
+ * always orders by the id ascending.
+ */
 export type TestDefinitionListFilters = PageParams & {
+  q?: string;
+  work_order?: readonly string[];
+  status?: readonly DefinitionStatus[];
+  requirement?: readonly string[];
   orphaned?: boolean;
 };
 

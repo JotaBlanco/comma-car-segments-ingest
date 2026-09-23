@@ -1,9 +1,12 @@
 "use client";
 
+import { X } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Panel, PanelHead } from "@/components/shared/panel";
 import { DefinitionStatusBadge } from "@/components/shared/status-badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -13,8 +16,24 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useWorkOrder } from "@/lib/hooks";
+import { ApiError } from "@/lib/api/client";
+import { useAddRunDefinition, useRemoveRunDefinition, useWorkOrder } from "@/lib/hooks";
 import type { TestRun, WorkOrderDefinition } from "@/types";
+import { DefinitionPicker } from "./definition-picker";
+
+/** One sentence a person can act on, per refusal the two routes answer. */
+const FAILURES: Record<string, string> = {
+  run_not_found: "The registry holds no run under this id any more. Reload the screen.",
+  unknown_definition:
+    "The registry mirrors no test definition under that id. Run a planning sync, then try again.",
+};
+
+function messageFor(error: unknown): string {
+  if (error instanceof ApiError) {
+    return FAILURES[error.code] ?? `The registry refused it: ${error.detail}`;
+  }
+  return "The change never reached the registry. Check the connection and try again.";
+}
 
 /** Title and status of one covered definition, or what stands in for them. */
 function DefinitionCells({
@@ -56,46 +75,106 @@ function DefinitionCells({
 }
 
 /**
- * The test definitions one run covers.
+ * The test definitions one run covers, and the controls that assign them.
  *
  * `definition_ids` is the run's whole set and the ids alone render without any
  * further read. The titles come from the run's work order, which mirrors one
  * row per definition, so one request resolves every title — and it is the read
  * the work-order screen has usually cached already.
+ *
+ * Add and remove each move ONE member (`POST`/`DELETE
+ * /test-runs/{run_id}/definitions`) and answer the whole run, so the panel
+ * redraws from the answer. Both are no-ops on a member already there or
+ * already gone, so neither control checks the set before it calls.
  */
 export function DefinitionsPanel({ run }: { run: TestRun }) {
   const ids = run.definition_ids ?? [];
+  const [picking, setPicking] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+
+  const addDefinition = useAddRunDefinition(run.run_id);
+  const removeDefinition = useRemoveRunDefinition(run.run_id);
+
   // No ids, nothing to resolve: the empty string keeps the query disabled.
   const workOrderQuery = useWorkOrder(ids.length > 0 ? (run.work_order_id ?? "") : "");
   const mirrored = new Map<string, WorkOrderDefinition>(
     (workOrderQuery.data?.definitions ?? []).map((definition) => [definition.td_id, definition]),
   );
 
+  const add = (tdId: string) => {
+    setFailure(null);
+    addDefinition.mutate(tdId, {
+      onSuccess: () => setPicking(false),
+      onError: (error) => setFailure(messageFor(error)),
+    });
+  };
+
+  const remove = (tdId: string) => {
+    setFailure(null);
+    removeDefinition.mutate(tdId, { onError: (error) => setFailure(messageFor(error)) });
+  };
+
   return (
     <Panel className="mt-4">
       <PanelHead
         title="Test definitions this run covers"
         action={
-          ids.length > 0 && (
-            <span className="font-mono text-[0.68rem] text-ink-3">{ids.length} covered</span>
-          )
+          <div className="flex items-center gap-3">
+            {ids.length > 0 && (
+              <span className="font-mono text-[0.68rem] text-ink-3">{ids.length} covered</span>
+            )}
+            <Button
+              variant="outline"
+              size="xs"
+              disabled={picking}
+              onClick={() => {
+                setFailure(null);
+                setPicking(true);
+              }}
+            >
+              Add definition
+            </Button>
+          </div>
         }
       />
+      {picking && (
+        <DefinitionPicker
+          workOrderId={run.work_order_id ?? ""}
+          pending={addDefinition.isPending}
+          onPick={add}
+          onCancel={() => setPicking(false)}
+        />
+      )}
+      <p className="border-b border-line-2 px-4 py-2 text-[0.7rem] text-ink-3">
+        Assigning a definition here makes this run&rsquo;s set manual — a later planning sync
+        leaves it alone.
+      </p>
+      {failure !== null && (
+        <div
+          role="alert"
+          className="border-b border-line-2 px-4 py-2 text-[0.76rem] text-red"
+        >
+          {failure}
+        </div>
+      )}
       <Table aria-label="Test definitions this run covers">
         <TableHeader>
           <TableRow>
             <TableHead>Definition</TableHead>
             <TableHead>Title</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead>
+              <span className="sr-only">Remove</span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {ids.length === 0 && (
             <TableRow className="hover:bg-transparent">
-              <TableCell colSpan={3} className="p-0!">
+              <TableCell colSpan={4} className="p-0!">
                 <EmptyState
                   title="No test definitions on this run"
-                  message="A trace no longer claims the definitions it answers. Today a planning link assigns them — this screen offers no control for it yet."
+                  message="Nothing says yet which test cases this run answers. Press Add definition to assign one."
                 />
               </TableCell>
             </TableRow>
@@ -114,6 +193,17 @@ export function DefinitionsPanel({ run }: { run: TestRun }) {
                 definition={mirrored.get(tdId)}
                 resolving={workOrderQuery.isLoading}
               />
+              <TableCell className="text-right">
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label={`Remove ${tdId} from this run`}
+                  disabled={removeDefinition.isPending}
+                  onClick={() => remove(tdId)}
+                >
+                  <X />
+                </Button>
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>

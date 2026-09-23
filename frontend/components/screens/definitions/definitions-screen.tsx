@@ -1,65 +1,100 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
-import { RowLink, RowLinkLabel } from "@/components/shared/row-link";
+import { useMemo, type ReactNode } from "react";
+import { ActiveFilterPills } from "@/components/shared/active-filter-pills";
 import { ErrorState } from "@/components/shared/error-state";
 import { FullHeightPage } from "@/components/shared/full-height-page";
 import { LoadingRows } from "@/components/shared/loading-rows";
 import { PageHeader } from "@/components/shared/page-header";
 import { Panel, PanelHead, TableScrollArea } from "@/components/shared/panel";
-import { SourceBadge } from "@/components/shared/source-badge";
-import { ToneBadge } from "@/components/shared/status-badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { RowLink } from "@/components/shared/row-link";
+import { SourceBadge, type SourceKind } from "@/components/shared/source-badge";
+import { TableEmptyState } from "@/components/shared/table-empty-state";
 import { TablePager } from "@/components/shared/table-pager";
-import { useTestDefinitions } from "@/lib/hooks";
-import type { TestDefinitionListFilters } from "@/types";
+import { TableSearchInput } from "@/components/shared/table-search-input";
+import { ToolbarRow } from "@/components/shared/table-toolbar";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useTestDefinitionFacets, useTestDefinitions } from "@/lib/hooks";
+import { useTableState } from "@/lib/table-state";
+import type { DefinitionStatus, TestDefinitionListFilters } from "@/types";
+import { buildDefinitionPills } from "./definitions-active-pills";
+import { useHiddenColumns } from "./definitions-column-visibility";
+import { DEFINITION_COLUMNS } from "./definitions-columns";
+import { DefinitionsColumnsMenu } from "./definitions-columns-menu";
+import { DefinitionsFiltersPopover } from "./definitions-filters-popover";
+import { DEFINITIONS_TABLE_CONFIG } from "./definitions-table-config";
 
 /**
- * Test definitions — minimal list (TR-001).
+ * Test definitions — the read-only mirror of the planning system, filtered.
  *
- * The Home panel links here with `?orphaned=true`. The screen reads that one
- * param and passes it to the API. It offers no sort control and no other
- * filter.
+ * Every filter lives in the URL (`@/lib/table-state`), so a narrowed view is a
+ * link a colleague can open and a reload keeps. The Home panel's
+ * `?orphaned=true` is one such link and needs no special case here.
+ *
+ * The data columns are declared once in `definitions-columns.tsx`, and both
+ * the header and the body map the visible slice of that list, so a column
+ * hidden from the Columns menu leaves the table whole.
  */
 
-const DEFINITION_COLUMNS = 6;
+const PATHNAME = "/definitions";
+
+function ColHead({
+  children,
+  source,
+  align,
+}: {
+  children: ReactNode;
+  source: SourceKind;
+  align?: "right";
+}) {
+  return (
+    <TableHead className={align === "right" ? "text-right!" : undefined}>
+      <span className="inline-flex items-center gap-1.5">
+        {children}
+        <SourceBadge source={source} />
+      </span>
+    </TableHead>
+  );
+}
 
 export function DefinitionsScreen() {
-  const searchParams = useSearchParams();
-  const orphanedOnly = searchParams.get("orphaned") === "true";
+  const table = useTableState(DEFINITIONS_TABLE_CONFIG, PATHNAME);
+  const { state } = table;
 
-  /* The list route pages like every other list, but the screen used to read
-     `data.items` alone: page 2 of the mirror was unreachable, and the table
-     silently showed the first 20 definitions as if they were all of them.
-     Local state suffices — the screen owns no other URL param beyond
-     `orphaned`, which stays where it is. */
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const activeOptionCount =
+    (state.multi.work_order?.length ?? 0) +
+    (state.multi.status?.length ?? 0) +
+    (state.multi.requirement?.length ?? 0) +
+    (state.single.orphaned !== undefined ? 1 : 0);
 
-  /* Flipping between "all" and "orphaned" changes the row set, so a page deep
-     in one set means nothing in the other — back to page 1. State is adjusted
-     during render (the pattern react.dev names for "reset state when a prop
-     changes"), not in an effect: an effect would render the stale page once
-     and fetch it. */
-  const [prevOrphanedOnly, setPrevOrphanedOnly] = useState(orphanedOnly);
-  if (prevOrphanedOnly !== orphanedOnly) {
-    setPrevOrphanedOnly(orphanedOnly);
-    setPage(1);
-  }
+  const hiddenColumns = useHiddenColumns();
+  const columns = useMemo(() => {
+    const hidden = new Set(hiddenColumns);
+    return DEFINITION_COLUMNS.filter((column) => column.pinned === true || !hidden.has(column.id));
+  }, [hiddenColumns]);
+  /* This table carries no checkbox and no actions cell, so the visible data
+     columns are exactly what a loading, error or empty row spans. */
+  const colCount = columns.length;
 
-  const filters: TestDefinitionListFilters = useMemo(
-    () => ({
-      ...(orphanedOnly ? { orphaned: true } : {}),
-      page,
-      page_size: pageSize,
-    }),
-    [orphanedOnly, page, pageSize],
-  );
+  const filters: TestDefinitionListFilters = useMemo(() => {
+    const next: TestDefinitionListFilters = { page: state.page, page_size: state.pageSize };
+    if ((state.multi.work_order ?? []).length > 0) next.work_order = state.multi.work_order;
+    if ((state.multi.status ?? []).length > 0) {
+      next.status = state.multi.status as readonly DefinitionStatus[];
+    }
+    if ((state.multi.requirement ?? []).length > 0) next.requirement = state.multi.requirement;
+    if (state.single.orphaned !== undefined) next.orphaned = state.single.orphaned === "true";
+    if (state.q.length > 0) next.q = state.q;
+    return next;
+  }, [state]);
 
   const { data, isPending, isError, refetch } = useTestDefinitions(filters);
-  const definitions = data?.items;
-  const showEmpty = !isPending && !isError && definitions !== undefined && definitions.length === 0;
+  const { data: facets } = useTestDefinitionFacets();
+  const rows = data?.items ?? [];
+
+  const pills = useMemo(() => buildDefinitionPills(table), [table]);
+  const showEmpty = !isPending && !isError && rows.length === 0 && pills.length > 0;
+  const showBaselineEmpty = !isPending && !isError && rows.length === 0 && pills.length === 0;
 
   return (
     <FullHeightPage>
@@ -72,73 +107,76 @@ export function DefinitionsScreen() {
           </span>
         }
       />
+
+      <ToolbarRow
+        actions={
+          <>
+            <DefinitionsFiltersPopover
+              table={table}
+              facets={facets}
+              activeCount={activeOptionCount}
+            />
+            <DefinitionsColumnsMenu hidden={hiddenColumns} />
+          </>
+        }
+      >
+        <TableSearchInput
+          value={state.q}
+          onDebouncedChange={(value) => table.setQ(value)}
+          placeholder="Filter definitions…"
+        />
+      </ToolbarRow>
+
+      <div className="mb-2.5" />
+      <ActiveFilterPills pills={pills} onClearAll={() => table.clearAll()} />
+
       <Panel className="flex min-h-0 flex-1 flex-col">
-        <PanelHead title={orphanedOnly ? "Orphaned definitions" : "Mirrored definitions"} />
+        <PanelHead
+          title={state.single.orphaned === "true" ? "Orphaned definitions" : "Mirrored definitions"}
+        />
         <TableScrollArea>
           <Table aria-label="Test definitions">
             <TableHeader>
               <TableRow>
-                <TableHead>Definition</TableHead>
-                <TableHead>Title</TableHead>
-                <TableHead>Work order</TableHead>
-                <TableHead className="text-right!">Planned runs</TableHead>
-                <TableHead className="text-right!">Actual runs</TableHead>
-                <TableHead>Link</TableHead>
+                {columns.map((column) => (
+                  <ColHead key={column.id} source={column.source} align={column.align}>
+                    {column.label}
+                  </ColHead>
+                ))}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isPending && <LoadingRows rows={4} cols={DEFINITION_COLUMNS} />}
+              {isPending && <LoadingRows rows={4} cols={colCount} />}
               {isError && (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={DEFINITION_COLUMNS} className="p-0!">
+                  <TableCell colSpan={colCount} className="p-0!">
                     <ErrorState onRetry={() => void refetch()} />
                   </TableCell>
                 </TableRow>
               )}
-              {showEmpty && (
+              {showBaselineEmpty && (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={DEFINITION_COLUMNS} className="p-0!">
+                  <TableCell colSpan={colCount} className="p-0!">
                     <span className="grid place-items-center px-4 py-7 text-[0.78rem] text-ink-3">
-                      {orphanedOnly ? "No orphaned test definitions." : "No test definitions mirrored yet."}
+                      No test definitions mirrored yet.
                     </span>
                   </TableCell>
                 </TableRow>
               )}
-              {definitions?.map((definition) => (
-                <RowLink
-                  key={definition.td_id}
-                  href={`/definitions/${encodeURIComponent(definition.td_id)}`}
-                >
-                  <TableCell>
-                    <RowLinkLabel>
-                      <span className="font-mono text-[0.78rem]">{definition.td_id}</span>
-                    </RowLinkLabel>
-                  </TableCell>
-                  <TableCell className="whitespace-normal">{definition.title}</TableCell>
-                  <TableCell>
-                    {definition.work_order_id === null ? (
-                      <span className="text-ink-3">—</span>
-                    ) : (
-                      <span className="font-mono text-[0.78rem]">{definition.work_order_id}</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-[0.78rem]">
-                    {definition.planned_runs}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-[0.78rem]">
-                    {definition.actual_runs}
-                  </TableCell>
-                  <TableCell>
-                    {definition.orphaned ? (
-                      <ToneBadge tone="amber" dot>
-                        Orphaned
-                      </ToneBadge>
-                    ) : (
-                      <ToneBadge tone="green" dot>
-                        Linked
-                      </ToneBadge>
-                    )}
-                  </TableCell>
+              {showEmpty && (
+                <TableEmptyState
+                  colSpan={colCount}
+                  onClearAll={() => table.clearAll()}
+                  message="No test definitions match the current filters."
+                />
+              )}
+              {rows.map((row) => (
+                <RowLink key={row.td_id} href={`/definitions/${encodeURIComponent(row.td_id)}`}>
+                  {columns.map((column) => (
+                    <TableCell key={column.id} className={column.cellClassName}>
+                      {column.cell(row)}
+                    </TableCell>
+                  ))}
                 </RowLink>
               ))}
             </TableBody>
@@ -152,11 +190,8 @@ export function DefinitionsScreen() {
             pageSize={data.page_size}
             total={data.total}
             totalPages={data.total_pages}
-            onPageChange={setPage}
-            onPageSizeChange={(size) => {
-              setPageSize(size);
-              setPage(1);
-            }}
+            onPageChange={(page) => table.setPage(page)}
+            onPageSizeChange={(size) => table.setPageSize(size)}
           />
         )}
       </Panel>

@@ -102,6 +102,7 @@ export const keys = {
     all: ["test-definitions"] as const,
     list: (filters: TestDefinitionListFilters) =>
       ["test-definitions", "list", normalizeFilters(filters)] as const,
+    facets: ["test-definitions", "facets"] as const,
     detail: (tdId: string) => ["test-definitions", "detail", tdId] as const,
     journal: (tdId: string, params: PageParams & { kind?: JournalKind }) =>
       ["test-definitions", "detail", tdId, "journal", params] as const,

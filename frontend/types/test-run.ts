@@ -161,6 +161,19 @@ export interface RunPatchBody {
   note?: string;
 }
 
+/**
+ * Body of `POST /test-runs/{run_id}/definitions` — ONE id, added to the run's
+ * set, the rest of the members untouched. `RunPatchBody.definition_id`
+ * replaces the whole set instead.
+ *
+ * It states no actor: the route reads the verified caller
+ * (`api/api/routers/test_runs.py`, `add_definition_to_run`).
+ */
+export interface RunDefinitionBody {
+  definition_id: string;
+  note?: string;
+}
+
 export interface InvalidFlagBody {
   reason: string;
   actor: string;

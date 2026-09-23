@@ -13,6 +13,7 @@ import type {
   RunGroupPage,
   RunListFilters,
   RunListResponse,
+  RunDefinitionBody,
   RunDeleteBody,
   RunDeletionReport,
   RunPatchBody,
@@ -48,6 +49,21 @@ export const runsApi = {
     api.delete<TestRun>(
       `/test-runs/${encodeURIComponent(runId)}/invalid-flag`,
       body,
+    ),
+  /* One member of the run's definition set, added or removed, the rest left
+     alone — `PATCH` with `definition_id` replaces the whole set instead. Both
+     answer the whole run, so the caller redraws from the answer. Adding an id
+     the run already carries, or removing one it does not, answers 200 and the
+     run unchanged. */
+  addDefinition: (runId: string, body: RunDefinitionBody) =>
+    api.post<TestRun>(
+      `/test-runs/${encodeURIComponent(runId)}/definitions`,
+      body,
+    ),
+  removeDefinition: (runId: string, definitionId: string) =>
+    api.delete<TestRun>(
+      `/test-runs/${encodeURIComponent(runId)}/definitions/${encodeURIComponent(definitionId)}`,
+      undefined,
     ),
   addNote: (runId: string, body: NoteCreateBody) =>
     api.post<JournalEntry>(

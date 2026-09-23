@@ -19,6 +19,17 @@ export function useTestDefinitions(filters: TestDefinitionListFilters = {}) {
   });
 }
 
+/* The filter options of the Test definitions screen. The list route serves
+   one filtered page, so a work order, a status or a requirement outside that
+   page could never be picked if the dropdowns were built from the rows on
+   screen — the same bug `runs-screen.tsx:60-70` records for rigs. */
+export function useTestDefinitionFacets() {
+  return useQuery({
+    queryKey: keys.testDefinitions.facets,
+    queryFn: () => testDefinitionsApi.facets(),
+  });
+}
+
 export function useTestDefinition(tdId: string) {
   return useQuery({
     queryKey: keys.testDefinitions.detail(tdId),

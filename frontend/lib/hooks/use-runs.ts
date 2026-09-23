@@ -179,6 +179,44 @@ export function useClearInvalid(runId: string, actor: string | null) {
   });
 }
 
+/* The two hooks below move ONE member of the run's definition set. They carry
+   no actor: the route reads the verified caller, so the body states none.
+
+   Both routes answer the whole run, so the answer goes straight into the
+   detail cache and the panel redraws from it. The invalidations that follow
+   are for the other screens: the definitions list and the work order both
+   count a definition's actual runs, and that count moves the moment a run
+   gains or loses one. */
+
+export function useAddRunDefinition(runId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (definitionId: string) =>
+      runsApi.addDefinition(runId, { definition_id: definitionId }),
+    onSuccess: (run) => {
+      queryClient.setQueryData(keys.runs.detail(runId), run);
+      void queryClient.invalidateQueries({ queryKey: keys.runs.all });
+      void queryClient.invalidateQueries({ queryKey: keys.testDefinitions.all });
+      void queryClient.invalidateQueries({ queryKey: keys.workOrders.all });
+      void queryClient.invalidateQueries({ queryKey: keys.home });
+    },
+  });
+}
+
+export function useRemoveRunDefinition(runId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (definitionId: string) => runsApi.removeDefinition(runId, definitionId),
+    onSuccess: (run) => {
+      queryClient.setQueryData(keys.runs.detail(runId), run);
+      void queryClient.invalidateQueries({ queryKey: keys.runs.all });
+      void queryClient.invalidateQueries({ queryKey: keys.testDefinitions.all });
+      void queryClient.invalidateQueries({ queryKey: keys.workOrders.all });
+      void queryClient.invalidateQueries({ queryKey: keys.home });
+    },
+  });
+}
+
 /** Add a free-text note — `POST /test-runs/{run_id}/journal`. */
 export function useAddRunNote(runId: string, actor: string | null) {
   const queryClient = useQueryClient();

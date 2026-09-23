@@ -9,6 +9,7 @@ import type {
   RequirementsFileCreate,
   RequirementsFileEdit,
   TestDefinitionDetail,
+  TestDefinitionFacets,
   TestDefinitionListFilters,
   TestDefinitionListResponse,
 } from "@/types";
@@ -23,6 +24,7 @@ function requirementsPath(tdId: string): string {
 export const testDefinitionsApi = {
   list: (filters: TestDefinitionListFilters = {}) =>
     api.get<TestDefinitionListResponse>("/test-definitions", { ...filters }),
+  facets: () => api.get<TestDefinitionFacets>("/test-definitions/facets"),
   get: (tdId: string) =>
     api.get<TestDefinitionDetail>(`/test-definitions/${encodeURIComponent(tdId)}`),
   /** The definition's own history — contract §8b. Same shape as the run journal. */
