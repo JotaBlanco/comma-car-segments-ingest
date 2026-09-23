@@ -19,15 +19,23 @@ import userEvent from "@testing-library/user-event";
 
 /* The panel no longer lists the workspace's QuixLabs: it lists the run's
    notebooks, and opens each in a lab of this viewer's own. */
-const { closeNotebook, createNotebook, deleteNotebook, getNotebookLab, listNotebooks, openNotebook } =
-  vi.hoisted(() => ({
-    closeNotebook: vi.fn(),
-    createNotebook: vi.fn(),
-    deleteNotebook: vi.fn(),
-    getNotebookLab: vi.fn(),
-    listNotebooks: vi.fn(),
-    openNotebook: vi.fn(),
-  }));
+const {
+  closeNotebook,
+  createNotebook,
+  deleteNotebook,
+  getNotebookLab,
+  listNotebooks,
+  openNotebook,
+  stopNotebook,
+} = vi.hoisted(() => ({
+  closeNotebook: vi.fn(),
+  createNotebook: vi.fn(),
+  deleteNotebook: vi.fn(),
+  getNotebookLab: vi.fn(),
+  listNotebooks: vi.fn(),
+  openNotebook: vi.fn(),
+  stopNotebook: vi.fn(),
+}));
 vi.mock("@/lib/api/run-quixlab", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/run-quixlab")>()),
   closeNotebook,
@@ -36,6 +44,7 @@ vi.mock("@/lib/api/run-quixlab", async (importOriginal) => ({
   getNotebookLab,
   listNotebooks,
   openNotebook,
+  stopNotebook,
 }));
 
 vi.mock("@/lib/quixlab-ready", () => ({ waitForLab: vi.fn(() => Promise.resolve(true)) }));
@@ -145,6 +154,7 @@ beforeEach(() => {
   closeNotebook.mockReset();
   createNotebook.mockReset();
   deleteNotebook.mockReset();
+  stopNotebook.mockReset();
   getNotebookLab.mockReset();
   listNotebooks.mockReset();
   openNotebook.mockReset();
@@ -415,6 +425,43 @@ describe("the notebooks", () => {
 
     const alert = await waitFor(() => view.getByRole("alert"));
     expect(alert.textContent).toContain("no QuixLab deployment to clone");
+  });
+});
+
+describe("stopping a notebook from the list", () => {
+  it("offers Stop only where a lab is up, stops it and refreshes", async () => {
+    listNotebooks.mockResolvedValue([
+      notebook({ lab: lab() }),
+      notebook({ notebook_id: "nb-2", name: "Parked", lab: lab({ status: "Stopped" }) }),
+      notebook({ notebook_id: "nb-3", name: "Never opened" }),
+    ]);
+    stopNotebook.mockResolvedValue(notebook({ lab: lab({ status: "Stopping" }) }));
+    const view = render(withClient(<QuixLabPanel runId={RUN_ID} />));
+    const stop = await view.findByRole("button", { name: "Stop Notebook 1" });
+    expect(view.queryByRole("button", { name: "Stop Parked" })).toBeNull();
+    expect(view.queryByRole("button", { name: "Stop Never opened" })).toBeNull();
+
+    listNotebooks.mockResolvedValue([notebook({ lab: lab({ status: "Stopped" }) })]);
+    await userEvent.setup().click(stop);
+
+    await waitFor(() => expect(stopNotebook).toHaveBeenCalledWith(RUN_ID, "nb-1"));
+    await waitFor(() => expect(view.queryByRole("button", { name: "Stop Notebook 1" })).toBeNull());
+    expect(view.getByText(/QuixLab stopped/)).toBeTruthy();
+  });
+});
+
+describe("arriving from Open in → New QuixLab notebook", () => {
+  it("creates one notebook on mount, once, and hands the request back", async () => {
+    createNotebook.mockResolvedValue(notebook({ lab: lab() }));
+    const handled = vi.fn();
+    const view = render(withClient(<QuixLabPanel runId={RUN_ID} createOnMount onCreateHandled={handled} />));
+
+    await waitFor(() => expect(createNotebook).toHaveBeenCalledWith(RUN_ID));
+    await waitFor(() => expect(view.container.querySelector("iframe")).not.toBeNull());
+    view.rerender(withClient(<QuixLabPanel runId={RUN_ID} createOnMount onCreateHandled={handled} />));
+
+    expect(createNotebook).toHaveBeenCalledTimes(1);
+    expect(handled).toHaveBeenCalledTimes(1);
   });
 });
 

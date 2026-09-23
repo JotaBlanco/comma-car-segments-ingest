@@ -1,6 +1,6 @@
 "use client";
 
-import { Compass, LayoutDashboard, Plus } from "lucide-react";
+import { Compass, LayoutDashboard, NotebookPen, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -17,11 +17,16 @@ import { cn } from "@/lib/utils";
 import { createWorkbook, useWorkbooks, workbookHref } from "@/lib/workbooks";
 
 /**
- * "Open in a workbook": the saved station dashboards, each opened on this run
- * and, from an issue, on its signal and period, and the Explorer among the
- * choices when an entry for it is given. The station runs inside the Test
- * Manager, so this needs no station URL to show.
+ * "Open in": the saved station dashboards, each opened on this run and, from
+ * an issue, on its signal and period; the Explorer among the choices when an
+ * entry for it is given; and a new QuixLab notebook on the run. The station
+ * runs inside the Test Manager, so this needs no station URL to show.
  */
+
+/** The run page's Notebooks tab, asked to create a notebook on arrival. */
+export function newNotebookHref(run: string): string {
+  return `/runs/${encodeURIComponent(run)}?tab=notebooks&notebook=new`;
+}
 export function WorkbookMenu({
   run,
   signals = [],
@@ -29,7 +34,7 @@ export function WorkbookMenu({
   issue = null,
   explore = null,
   iconOnly = false,
-  label = "Open in a workbook",
+  label = "Open in",
 }: {
   run: string | null;
   signals?: readonly string[];
@@ -92,6 +97,11 @@ export function WorkbookMenu({
         >
           <Plus /> New workbook
         </DropdownMenuItem>
+        {run !== null && (
+          <DropdownMenuItem onClick={() => router.push(newNotebookHref(run))}>
+            <NotebookPen /> New QuixLab notebook
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -318,6 +318,32 @@ def close_notebook(
     return Notebook.model_validate({**row, "lab": _lab_dto(stopped or lab)})
 
 
+@router.post("/test-runs/{run_id}/notebooks/{notebook_id}/stop", response_model=Notebook)
+def stop_notebook(
+    run_id: str, notebook_id: str, request: Request, db: Annotated[Database, Depends(get_db)]
+) -> Notebook:
+    """Stop this viewer's lab on the notebook, and record nothing.
+
+    The list's Stop control: a lab left running costs a container, and a person who is
+    not in the notebook has nothing to save. QuixLab pushes every edit to the notebook's
+    folder as it goes, so nothing is lost either; `saved_at` stays what Save and Close
+    last wrote. 404 when there is no lab to stop.
+    """
+    token = _viewer(request)
+    identity = _identity(token)
+    row = _notebook(db, run_id, notebook_id)
+    lab = _portal(
+        quixlab_provision.stop_lab,
+        token,
+        run_id=run_id,
+        notebook_id=notebook_id,
+        user_id=identity.user_id,
+    )
+    if lab is None:
+        raise ApiError(404, "no QuixLab on this notebook yet", "quixlab_not_found")
+    return Notebook.model_validate({**row, "lab": _lab_dto(lab)})
+
+
 @router.delete("/test-runs/{run_id}/notebooks/{notebook_id}", status_code=204)
 def delete_notebook(
     run_id: str, notebook_id: str, request: Request, db: Annotated[Database, Depends(get_db)]

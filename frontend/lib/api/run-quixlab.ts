@@ -82,6 +82,11 @@ export function closeNotebook(runId: string, notebookId: string): Promise<Notebo
   return api.post<Notebook>(`${path(runId, notebookId)}/close`, {});
 }
 
+/** Stop this viewer's lab on the notebook and record nothing: the list's Stop control. */
+export function stopNotebook(runId: string, notebookId: string): Promise<Notebook> {
+  return api.post<Notebook>(`${path(runId, notebookId)}/stop`, {});
+}
+
 /** Forget a notebook: this viewer's lab on it removed, then the row. */
 export function deleteNotebook(runId: string, notebookId: string): Promise<void> {
   return api.deleteVoid(path(runId, notebookId), {});

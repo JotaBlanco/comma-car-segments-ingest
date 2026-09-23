@@ -23,8 +23,11 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
+import { listNotebooks } from "@/lib/api/run-quixlab";
+import { keys } from "@/lib/hooks/keys";
 import { SHELL_BREAKOUT_CLASS } from "@/lib/shell-breakout";
 import { formatArrival, formatInt } from "@/lib/format";
 import { usePageTitle, useRun, useRunJournal } from "@/lib/hooks";
@@ -52,7 +55,15 @@ import { SignalsTab } from "./signals-tab";
  * `lib/table-state.ts` strips default sort/page — plain `/runs/<id>` links stay
  * clean and identical states map to one URL.
  */
-const RUN_DETAIL_TABS = ["signals", "files", "results", "anomalies", "journal", "explore"] as const;
+const RUN_DETAIL_TABS = [
+  "signals",
+  "files",
+  "results",
+  "notebooks",
+  "anomalies",
+  "journal",
+  "explore",
+] as const;
 type RunDetailTab = (typeof RUN_DETAIL_TABS)[number];
 const DEFAULT_RUN_TAB: RunDetailTab = "signals";
 
@@ -771,6 +782,20 @@ export function RunDetailScreen({ runId }: { runId: string }) {
      than the table under it. */
   const [shownSignals, setShownSignals] = useState<number | null>(null);
 
+  /* "Open in → New QuixLab notebook" arrives as `?tab=notebooks&notebook=new`; the
+     Notebooks tab creates one and hands the request back, which clears it from the URL. */
+  const createNotebookRequested = activeTab === "notebooks" && searchParams.get("notebook") === "new";
+  const onCreateHandled = useCallback(() => {
+    const params = new URLSearchParams(searchParams);
+    params.delete("notebook");
+    const query = params.toString();
+    router.replace(query.length > 0 ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [searchParams, router, pathname]);
+  const notebooks = useQuery({
+    queryKey: keys.runs.notebooks(runId),
+    queryFn: () => listNotebooks(runId),
+  });
+
   const onTabChange = useCallback(
     (value: string) => {
       const tab = parseRunTab(value);
@@ -910,6 +935,12 @@ export function RunDetailScreen({ runId }: { runId: string }) {
             Processed results{" "}
             <span className="font-mono text-[0.68rem] text-ink-3">{run.result_count}</span>
           </TabsTrigger>
+          <TabsTrigger value="notebooks" className={tabTriggerClass}>
+            Notebooks{" "}
+            {notebooks.data !== undefined && (
+              <span className="font-mono text-[0.68rem] text-ink-3">{notebooks.data.length}</span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="anomalies" className={tabTriggerClass}>
             Issues{" "}
             {snippetCount !== null && (
@@ -944,6 +975,16 @@ export function RunDetailScreen({ runId }: { runId: string }) {
           </TabsContent>
           <TabsContent value="results">
             <ResultsTab runId={run.run_id} />
+          </TabsContent>
+          <TabsContent value="notebooks">
+            {/* The run's QuixLab notebooks, on the pick from the Signals tab. */}
+            <QuixLabPanel
+              runId={run.run_id}
+              signals={pickedSignals}
+              flat
+              createOnMount={createNotebookRequested}
+              onCreateHandled={onCreateHandled}
+            />
           </TabsContent>
           <TabsContent value="anomalies">
             <AnomaliesTab runId={run.run_id} onCountChange={setSnippetCount} />
@@ -1105,9 +1146,6 @@ function StandardRunHeader({
           hold the run's DATA, this is its planning identity, and the Explore
           layout drops this header whole — metadata and definitions with it. */}
       <DefinitionsPanel run={run} />
-      {/* Pick a QuixLab, then open THIS run in it. The panel hides itself when
-          no QuixLab resolves, the same rule the launch control above follows. */}
-      <QuixLabPanel runId={run.run_id} signals={signals} />
       {/* Same run, same pick, in the Flight Test Station. */}
       <FtsPanel runId={run.run_id} signals={signals} />
     </>

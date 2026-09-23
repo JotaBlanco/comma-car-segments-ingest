@@ -647,6 +647,24 @@ def test_a_notebook_that_cannot_be_read_back_saves_nothing_and_stops_nothing(
     assert not any(c[1].endswith("/stop") for c in portal["calls"])
 
 
+def test_stop_halts_the_lab_and_records_no_save(client, routed_db, portal) -> None:
+    """The list's Stop: the container goes, the notebook stays as QuixLab left it."""
+    _seed(routed_db)
+    _notebook(routed_db)
+    portal["deployments"] = [TEMPLATE_ROW, RUNNING_LAB]
+
+    response = client.post(f"{PATH}/{NB}/stop", headers=VIEWER)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["lab"]["status"] == "Stopping"
+    assert response.json()["saved_at"] is None
+    assert [c for c in portal["calls"] if c[1].endswith("/stop")] == [
+        ("PUT", "/deployments/dep-lab/stop")
+    ]
+    portal["deployments"] = [TEMPLATE_ROW]
+    assert client.post(f"{PATH}/{NB}/stop", headers=VIEWER).status_code == 404
+
+
 def test_closing_with_no_lab_is_a_404(client, routed_db, portal, notebook_in_blob) -> None:
     _seed(routed_db)
     _notebook(routed_db)

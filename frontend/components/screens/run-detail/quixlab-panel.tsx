@@ -15,6 +15,7 @@ import {
   listNotebooks,
   openNotebook,
   running,
+  stopNotebook,
   type Notebook,
   type RunQuixLab,
 } from "@/lib/api/run-quixlab";
@@ -326,10 +327,19 @@ function when(iso: string): string {
 export function QuixLabPanel({
   runId,
   signals = WHOLE_RUN,
+  createOnMount = false,
+  onCreateHandled,
+  flat = false,
 }: {
   runId: string;
   /** The pick from the Signals tab. Empty means the whole run. */
   signals?: readonly string[];
+  /** True when the page was opened with a request to create a notebook ("Open in → New QuixLab notebook"). */
+  createOnMount?: boolean;
+  /** Called once that request has been acted on, so a reload does not create another. */
+  onCreateHandled?: () => void;
+  /** True inside a tab: no border and no margin of its own. */
+  flat?: boolean;
 }) {
   const queryClient = useQueryClient();
   /* The list asks and never creates, so opening a run costs no deployment. The labs
@@ -344,6 +354,7 @@ export function QuixLabPanel({
   /** The notebook whose Delete was clicked once; a second click removes it. */
   const [confirming, setConfirming] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [stopping, setStopping] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   /* Portal frames the Test Manager, and the Test Manager frames QuixLab, so
      QuixLab renders in a small box. Expanded lifts the panel over the content
@@ -432,6 +443,37 @@ export function QuixLabPanel({
     })();
   }, [runId, active, refresh]);
 
+  /* "Open in → New QuixLab notebook" lands here with the request in the URL; it is acted
+     on once, then handed back so a reload does not make a second notebook. */
+  const createRequested = useRef(false);
+  useEffect(() => {
+    if (!createOnMount || createRequested.current) return;
+    createRequested.current = true;
+    onCreateHandled?.();
+    start(null);
+  }, [createOnMount, onCreateHandled, start]);
+
+  /* Stop halts this viewer's lab on a notebook without opening it: a lab left running
+     costs a container, and QuixLab has already pushed every edit to the notebook's folder. */
+  const stop = useCallback(
+    (notebook: Notebook) => {
+      setStopping(notebook.notebook_id);
+      setError(null);
+      void (async () => {
+        try {
+          await stopNotebook(runId, notebook.notebook_id);
+          refresh();
+          toast.success(`QuixLab on ${notebook.name} stopped.`);
+        } catch (caught: unknown) {
+          setError(caught instanceof ApiError ? caught.message : "The QuixLab could not be stopped");
+        } finally {
+          setStopping(null);
+        }
+      })();
+    },
+    [runId, refresh],
+  );
+
   /* Delete asks twice on the same button rather than in a dialog: the first click arms it,
      the second removes the notebook and this viewer's lab on it. Any other click disarms. */
   const remove = useCallback(
@@ -465,12 +507,12 @@ export function QuixLabPanel({
   return (
     <Panel
       className={cn(
-        "mt-4",
+        flat ? "rounded-none border-0" : "mt-4",
         /* Expanded covers the content area, below the topbar and between the
            sidebar and the assistant dock — the same rectangle the Explore tab
            claims, from the same constant. The height is the viewport's, so a
            tall screen gains from it. */
-        expanded && cn(SHELL_BREAKOUT_CLASS, "mt-0 rounded-none"),
+        expanded && cn(SHELL_BREAKOUT_CLASS, "mt-0 rounded-none border"),
       )}
     >
       <PanelHead
@@ -550,6 +592,7 @@ export function QuixLabPanel({
           {rows.map((notebook) => {
             const mine = progress !== null && progress.notebookId === notebook.notebook_id;
             const lab = notebook.lab;
+            const up = lab !== null && !["stopped", "stopping", ""].includes(lab.status.trim().toLowerCase());
             const state =
               lab === null
                 ? notebook.saved_at === null
@@ -585,6 +628,23 @@ export function QuixLabPanel({
                 >
                   {mine ? progress.text : "Open"}
                 </Button>
+                {up && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="font-semibold"
+                    disabled={busy || stopping !== null}
+                    aria-busy={stopping === notebook.notebook_id}
+                    aria-label={`Stop ${notebook.name}`}
+                    title="Stop your QuixLab on this notebook; the notebook keeps every edit"
+                    onClick={() => {
+                      setConfirming(null);
+                      stop(notebook);
+                    }}
+                  >
+                    {stopping === notebook.notebook_id ? "Stopping…" : "Stop"}
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
