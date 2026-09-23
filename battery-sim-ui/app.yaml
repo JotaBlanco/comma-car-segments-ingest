@@ -14,17 +14,47 @@ variables:
   - name: PEDAL_DISCHARGE_MAX_W
     inputType: FreeText
     description: Watts commanded at 100% accelerator (net_pct >= 0) - discharge ceiling
-    defaultValue: "60000"
+    defaultValue: "250000"
     required: false
   - name: PEDAL_CHARGE_REGEN_MAX_W
     inputType: FreeText
     description: Watts commanded at 100% brake (net_pct < 0) - regen/charge ceiling
-    defaultValue: "20000"
+    defaultValue: "80000"
     required: false
   - name: DC_CHARGE_MAX_W
     inputType: FreeText
     description: Watts commanded at full charge-rate slider while the charge plug is on
     defaultValue: "250000"
+    required: false
+  - name: VEHICLE_MASS_KG
+    inputType: FreeText
+    description: Car visualisation - vehicle mass in kg
+    defaultValue: "2000"
+    required: false
+  - name: K_DRAG_N_PER_MPS2
+    inputType: FreeText
+    description: Car visualisation - aerodynamic drag coefficient in N per (m/s)^2
+    defaultValue: "0.40"
+    required: false
+  - name: K_ROLL_N
+    inputType: FreeText
+    description: Car visualisation - constant rolling resistance in N
+    defaultValue: "196"
+    required: false
+  - name: DRIVELINE_EFF
+    inputType: FreeText
+    description: Car visualisation - pack-to-wheel efficiency, 0 to 1
+    defaultValue: "0.90"
+    required: false
+  - name: V_FLOOR_MPS
+    inputType: FreeText
+    description: Car visualisation - launch floor in m/s; tractive force below this speed is held at its value here, which is what bounds launch acceleration
+    defaultValue: "15"
+    required: false
+  - name: WHEEL_RADIUS_M
+    inputType: FreeText
+    description: Car visualisation - wheel rolling radius in m
+    defaultValue: "0.34"
     required: false
 dockerfile: dockerfile
 runEntryPoint: main.py

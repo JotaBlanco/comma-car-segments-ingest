@@ -444,9 +444,9 @@ deployments:
         required: true
         value: ui-data
       - name: PEDAL_DISCHARGE_MAX_W
-        value: "60000"
+        value: "250000"
       - name: PEDAL_CHARGE_REGEN_MAX_W
-        value: "20000"
+        value: "80000"
       - name: DC_CHARGE_MAX_W
         value: "250000"
     publicAccess:

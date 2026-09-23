@@ -28,15 +28,34 @@ output_topic_name = os.environ["output"]
 consumer_group = os.getenv("Quix__Deployment__Id", "battery-sim-ui")
 
 # Pedal/charge power ceilings - named constants, overridable per deployment
-# without a rebuild (app.yaml FreeText vars). See spec sec 2c/3c.
-PEDAL_DISCHARGE_MAX_W = float(os.getenv("PEDAL_DISCHARGE_MAX_W", "60000"))
-PEDAL_CHARGE_REGEN_MAX_W = float(os.getenv("PEDAL_CHARGE_REGEN_MAX_W", "20000"))
+# without a rebuild (app.yaml FreeText vars). Discharge matches the charge
+# slider at the lexicon's 250 kW limit for requested_power_w; regen stays lower
+# because a real regen path is limited by the motor, not the pack.
+PEDAL_DISCHARGE_MAX_W = float(os.getenv("PEDAL_DISCHARGE_MAX_W", "250000"))
+PEDAL_CHARGE_REGEN_MAX_W = float(os.getenv("PEDAL_CHARGE_REGEN_MAX_W", "80000"))
 DC_CHARGE_MAX_W = float(os.getenv("DC_CHARGE_MAX_W", "250000"))
 
 # The plant's DERATING_LUT (battery-trace-gen/plant/main.py) is fixed and not
 # exposed on any topic, so its breakpoints are mirrored here for chart shading.
 DERATE_BAND_START_C = 50.0
 DERATE_HARD_LIMIT_C = 60.0
+
+# Vehicle display constants for the car visualisation. The plant is a pack
+# model and publishes no road speed, so the browser integrates one from the
+# achieved pack power (see page_vehicle.py). None of these has provenance in
+# this repository - they are display constants in the same sense as the pedal
+# ceilings above, served on /config and overridable per deployment.
+VEHICLE_MASS_KG = float(os.getenv("VEHICLE_MASS_KG", "2000"))  # kg
+K_DRAG_N_PER_MPS2 = float(os.getenv("K_DRAG_N_PER_MPS2", "0.40"))  # N/(m/s)^2
+K_ROLL_N = float(os.getenv("K_ROLL_N", "196"))  # N
+DRIVELINE_EFF = float(os.getenv("DRIVELINE_EFF", "0.90"))  # dimensionless
+V_FLOOR_MPS = float(os.getenv("V_FLOOR_MPS", "15"))  # m/s
+WHEEL_RADIUS_M = float(os.getenv("WHEEL_RADIUS_M", "0.34"))  # m
+
+# The plant's TIME_SCALE lexicon range. The slider's ends are exactly these,
+# so no value it can emit is out of range and the knob never snaps back.
+TIME_SCALE_MIN = 1.0
+TIME_SCALE_MAX = 50.0
 
 latest = {}
 latest_lock = threading.Lock()
@@ -84,6 +103,14 @@ def config_route():
             "dc_charge_max_w": DC_CHARGE_MAX_W,
             "derate_band_start_c": DERATE_BAND_START_C,
             "derate_hard_limit_c": DERATE_HARD_LIMIT_C,
+            "vehicle_mass_kg": VEHICLE_MASS_KG,
+            "k_drag_n_per_mps2": K_DRAG_N_PER_MPS2,
+            "k_roll_n": K_ROLL_N,
+            "driveline_eff": DRIVELINE_EFF,
+            "v_floor_mps": V_FLOOR_MPS,
+            "wheel_radius_m": WHEEL_RADIUS_M,
+            "time_scale_min": TIME_SCALE_MIN,
+            "time_scale_max": TIME_SCALE_MAX,
         }
     )
 
@@ -111,7 +138,13 @@ def command_route():
         "chiller_setting": int(data.get("chiller_setting", 0)),
         "heater_setting": int(data.get("heater_setting", 0)),
     }
-    msg = output_topic.serialize(key="ui-command", value={"signals": signals})
+    # TIME_SCALE is a plant PARAMETER, not a signal: the plant divides its
+    # inter-tick sleep by it and nothing else. handle_command applies the two
+    # objects independently.
+    parameters = {"TIME_SCALE": float(data["time_scale"])}
+    msg = output_topic.serialize(
+        key="ui-command", value={"signals": signals, "parameters": parameters}
+    )
     producer.produce(output_topic.name, value=msg.value, key=msg.key)
     return Response(status=200)
 

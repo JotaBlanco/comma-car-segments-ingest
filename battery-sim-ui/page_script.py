@@ -1,0 +1,303 @@
+"""The dashboard script: controls, polling, rolling charts.
+
+Shares one <script> scope with page_vehicle.py and calls into it with each
+poll (vehicleOnTick) and with the liveness verdict (vehicleSetStalled).
+"""
+
+DASHBOARD_JS = """
+  const POLL_MS = 150;          // ~6.7 Hz, within the 5-10 Hz polling band
+  const SEND_THROTTLE_MS = 150; // matches poll cadence; plant ticks at 10 Hz
+  const MAX_POINTS = 400;       // 60 s of WALL clock at POLL_MS - at time
+                                // scale N that window spans N x 60 s of sim
+                                // time, which is what the x N chart suffix says
+
+  let CFG = {
+    pedal_discharge_max_w: 250000,
+    pedal_charge_regen_max_w: 80000,
+    dc_charge_max_w: 250000,
+    derate_band_start_c: 50.0,
+    derate_hard_limit_c: 60.0,
+    time_scale_min: 1,
+    time_scale_max: 50,
+  };
+
+  // Raw 0-100 % pedal/charge/ambient/heater/chiller state plus the time scale.
+  // requested_power_w is never computed or stored here - the server is the
+  // single source of truth for the pedal law (main.py requested_power_w());
+  // the sign the browser cares about is battery-sign, computed independently
+  // below. The whole object is POSTed on every change.
+  const state = {
+    accel_pct: 0, brake_pct: 0,
+    charge_plug: false, charge_rate_w: 0,
+    ambient_temp_c: 15, heater_setting: 0, chiller_setting: 0,
+    time_scale: 1,
+  };
+
+  const KNOB_ANGLES = [-135, 0, 135];
+  const KNOB_LABELS = ['OFF', '1', '2'];
+
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  // Commanded power in battery-sign (+ discharge / - charge), derived purely
+  // from local pedal/charge state and the fetched ceilings - never from the
+  // plant's powertrain-sign requested_power_w, which this page never reads.
+  function commandedPowerBatterySignW() {
+    if (state.charge_plug) return -state.charge_rate_w;
+    const net = clamp(state.accel_pct - state.brake_pct, -100, 100);
+    return net >= 0
+      ? (net / 100) * CFG.pedal_discharge_max_w
+      : (net / 100) * CFG.pedal_charge_regen_max_w;
+  }
+
+  let sendTimer = null;
+  function scheduleSend() {
+    if (sendTimer) return;
+    sendTimer = setTimeout(() => { sendTimer = null; postCommand(); }, SEND_THROTTLE_MS);
+  }
+  function postCommand() {
+    fetch('/command', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(state),
+    }).catch(() => {});
+  }
+
+  const accelSlider = document.getElementById('accel-slider');
+  const brakeSlider = document.getElementById('brake-slider');
+  const chargeSlider = document.getElementById('charge-slider');
+  const plugToggle = document.getElementById('plug-toggle');
+  const ambientSlider = document.getElementById('ambient-slider');
+  const speedSliders = document.querySelectorAll('.speed-slider');
+
+  accelSlider.addEventListener('input', () => {
+    state.accel_pct = Number(accelSlider.value);
+    document.getElementById('accel-val').textContent = state.accel_pct + ' %';
+    scheduleSend();
+  });
+  brakeSlider.addEventListener('input', () => {
+    state.brake_pct = Number(brakeSlider.value);
+    document.getElementById('brake-val').textContent = state.brake_pct + ' %';
+    scheduleSend();
+  });
+
+  plugToggle.addEventListener('change', () => {
+    state.charge_plug = plugToggle.checked;
+    accelSlider.disabled = state.charge_plug;
+    brakeSlider.disabled = state.charge_plug;
+    chargeSlider.disabled = !state.charge_plug;
+    if (state.charge_plug) {
+      state.accel_pct = 0; state.brake_pct = 0;
+      accelSlider.value = 0; brakeSlider.value = 0;
+      document.getElementById('accel-val').textContent = '0 %';
+      document.getElementById('brake-val').textContent = '0 %';
+    } else {
+      state.charge_rate_w = 0;
+      chargeSlider.value = 0;
+      document.getElementById('charge-val').textContent = '0.0 kW';
+    }
+    scheduleSend();
+  });
+
+  chargeSlider.addEventListener('input', () => {
+    state.charge_rate_w = Number(chargeSlider.value);
+    document.getElementById('charge-val').textContent = (state.charge_rate_w / 1000).toFixed(1) + ' kW';
+    scheduleSend();
+  });
+
+  ambientSlider.addEventListener('input', () => {
+    state.ambient_temp_c = Number(ambientSlider.value);
+    document.getElementById('ambient-val').textContent = state.ambient_temp_c + ' °C';
+    scheduleSend();
+  });
+
+  // Sim speed: two sliders (header at >= sm, controls row below it), wired as
+  // one class so both show the same value. `speedTouched` is what stops the
+  // plant's echo from moving a knob the user is holding; until the first
+  // touch the echo is exactly what restores the knob across a reload.
+  let speedTouched = false;
+  function showSpeed(n) {
+    speedSliders.forEach((el) => { el.value = n; });
+    document.querySelectorAll('.speed-badge').forEach((el) => { el.textContent = '×' + n; });
+    document.querySelectorAll('.chart-scale').forEach((el) => { el.textContent = '×' + n; });
+  }
+  speedSliders.forEach((el) => el.addEventListener('input', () => {
+    speedTouched = true;
+    state.time_scale = Number(el.value);
+    car.time_scale = state.time_scale;
+    showSpeed(state.time_scale);
+    scheduleSend();
+  }));
+
+  function wireKnob(which) {
+    const knob = document.getElementById(which + '-knob');
+    knob.addEventListener('click', () => {
+      const next = (state[which + '_setting'] + 1) % 3;
+      state[which + '_setting'] = next;
+      knob.style.transform = `rotate(${KNOB_ANGLES[next]}deg)`;
+      document.getElementById(which + '-pos').textContent = KNOB_LABELS[next];
+      scheduleSend();
+    });
+  }
+  wireKnob('chiller');
+  wireKnob('heater');
+
+  // --- Rolling charts -----------------------------------------------------
+  // Fixed scales taken from signals.json's own declared min/max per signal,
+  // not invented - so a chart's range never silently drifts from the plant's
+  // contract.
+  const series = {
+    soc: { buf: [], min: 0, max: 100, canvas: 'chart-soc' },
+    current: { buf: [], min: -400, max: 400, canvas: 'chart-current' },
+    temp: { buf: [], min: -40, max: 70, canvas: 'chart-temp', bands: true },
+    voltage: { buf: [], min: 600, max: 900, canvas: 'chart-voltage' },
+  };
+  const ACCENT = '#0078d4';
+
+  // The canvases are sized by their Bootstrap .ratio wrapper, so the drawing
+  // buffer is taken from the laid-out box rather than fixed in the markup.
+  function sizeCanvases() {
+    Object.values(series).forEach((s) => {
+      const canvas = document.getElementById(s.canvas);
+      canvas.width = canvas.clientWidth;
+      canvas.height = canvas.clientHeight;
+    });
+    Object.values(series).forEach(drawChart);
+  }
+  window.addEventListener('resize', sizeCanvases);
+
+  function pushPoint(key, value) {
+    const buf = series[key].buf;
+    buf.push(value);
+    if (buf.length > MAX_POINTS) buf.shift();
+  }
+
+  function drawChart(s) {
+    const canvas = document.getElementById(s.canvas);
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    const yOf = (v) => h - ((v - s.min) / (s.max - s.min)) * h;
+
+    if (s.bands) {
+      ctx.fillStyle = 'rgba(240,192,32,0.18)';
+      ctx.fillRect(0, yOf(CFG.derate_hard_limit_c), w, yOf(CFG.derate_band_start_c) - yOf(CFG.derate_hard_limit_c));
+      ctx.fillStyle = 'rgba(231,76,60,0.18)';
+      ctx.fillRect(0, 0, w, yOf(CFG.derate_hard_limit_c));
+    }
+
+    if (s.min < 0 && s.max > 0) {
+      ctx.strokeStyle = '#444';
+      ctx.beginPath();
+      ctx.moveTo(0, yOf(0));
+      ctx.lineTo(w, yOf(0));
+      ctx.stroke();
+    }
+
+    const buf = s.buf;
+    if (buf.length < 2) return;
+    ctx.strokeStyle = ACCENT;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    buf.forEach((v, i) => {
+      const x = (i / (MAX_POINTS - 1)) * w;
+      const y = yOf(v);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+
+  function thermoColor(t) {
+    if (t < 0) return '#3498db';
+    if (t < CFG.derate_band_start_c) return '#27ae60';
+    if (t < CFG.derate_hard_limit_c) return '#f0c020';
+    return '#e74c3c';
+  }
+
+  function updateUI(data) {
+    const soc = Number(data.soc_percent) || 0;
+    const v = Number(data.dc_voltage_v) || 0;
+    const iAch = Number(data.dc_current_a) || 0;
+    const temp = data.temperature_c !== undefined ? Number(data.temperature_c) : null;
+    const derate = data.derating_factor !== undefined ? Number(data.derating_factor) : 1.0;
+
+    const echoed = data.applied?.parameters?.TIME_SCALE;
+    if (echoed !== undefined) {
+      car.time_scale = echoed;
+      if (!speedTouched) { state.time_scale = echoed; showSpeed(echoed); }
+    }
+
+    vehicleOnTick(v, iAch, state.charge_plug);
+
+    document.getElementById('soc-pct').textContent = soc.toFixed(1) + ' %';
+    const fill = document.getElementById('soc-fill');
+    fill.style.height = clamp(soc, 0, 100).toFixed(1) + '%';
+    fill.style.backgroundColor = soc <= 20 ? '#e74c3c' : soc <= 50 ? '#f0c020' : '#27ae60';
+
+    document.getElementById('voltage').textContent = v.toFixed(1);
+    document.getElementById('current-ach').textContent = (iAch >= 0 ? '+' : '') + iAch.toFixed(1);
+
+    const commandedW = commandedPowerBatterySignW();
+    const iCmd = v > 1 ? commandedW / v : 0;
+    document.getElementById('current-cmd').textContent = (iCmd >= 0 ? '+' : '') + iCmd.toFixed(1);
+
+    const derateEl = document.getElementById('derate-value');
+    derateEl.textContent = (derate * 100).toFixed(0) + ' %';
+    derateEl.classList.toggle('warn', derate < 1.0);
+    document.getElementById('derate-label').textContent =
+      derate >= 1.0 ? 'Derating Factor (nominal)' : 'Derating Factor (ACTIVE)';
+
+    if (temp !== null) {
+      const pct = ((temp - (-40)) / (70 - (-40))) * 100;
+      const color = thermoColor(temp);
+      document.getElementById('thermo-fill').style.height = clamp(pct, 0, 100).toFixed(1) + '%';
+      document.getElementById('thermo-fill').style.backgroundColor = color;
+      document.getElementById('thermo-bulb').style.backgroundColor = color;
+      document.getElementById('temp-value').textContent = temp.toFixed(1) + ' °C';
+    }
+
+    pushPoint('soc', soc);
+    pushPoint('current', iAch);
+    pushPoint('temp', temp !== null ? temp : 0);
+    pushPoint('voltage', v);
+    Object.values(series).forEach(drawChart);
+  }
+
+  let lastGoodPoll = 0;
+  async function poll() {
+    try {
+      const r = await fetch('/battery/data');
+      if (r.ok) {
+        const data = await r.json();
+        if (Object.keys(data).length > 0) {
+          updateUI(data);
+          lastGoodPoll = Date.now();
+        }
+      }
+    } catch (_) { /* transient poll failure, retried next tick */ }
+    const live = Date.now() - lastGoodPoll < POLL_MS * 4;
+    document.getElementById('live-dot').classList.toggle('ok', live);
+    document.getElementById('live-text').textContent = live ? 'live' : 'connecting…';
+    vehicleSetStalled(!live);
+    setTimeout(poll, POLL_MS);
+  }
+
+  async function loadConfig() {
+    const r = await fetch('/config');
+    CFG = await r.json();
+    chargeSlider.max = CFG.dc_charge_max_w;
+    speedSliders.forEach((el) => {
+      el.min = CFG.time_scale_min;
+      el.max = CFG.time_scale_max;
+    });
+    VEH.mass_kg = CFG.vehicle_mass_kg;
+    VEH.k_drag_n_per_mps2 = CFG.k_drag_n_per_mps2;
+    VEH.k_roll_n = CFG.k_roll_n;
+    VEH.driveline_eff = CFG.driveline_eff;
+    VEH.v_floor_mps = CFG.v_floor_mps;
+    VEH.wheel_radius_m = CFG.wheel_radius_m;
+  }
+
+  sizeCanvases();
+  loadConfig().then(poll);
+"""

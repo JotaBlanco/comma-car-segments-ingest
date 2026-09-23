@@ -4,12 +4,13 @@
 
 A live, browser-driven front end for the vendored `dc-battery-sim` plant. Two
 Quix Cloud services, joined by two Kafka topics: `Battery Sim` (application
-folder `battery-trace-gen`) runs the model unmodified and ticks its state at
-10 Hz; `battery-sim-ui` serves a Flask
-page that polls that state and turns pedal/charge/ambient/heater/chiller input
-into the plant's write envelope. A non-specialist pushes an accelerator or
-brake slider, or plugs in and sets a charge rate, and watches SOC, terminal
-voltage, current and temperature respond within one poll cycle.
+folder `battery-trace-gen`) runs the model and ticks its state every
+`SAMPLE_TIME / TIME_SCALE` seconds; `battery-sim-ui` serves a Flask
+page that polls that state and turns pedal/charge/ambient/heater/chiller/
+sim-speed input into the plant's write envelope. A non-specialist pushes an
+accelerator or brake slider, or plugs in and sets a charge rate, and watches
+SOC, terminal voltage, current and temperature respond within one poll cycle —
+and watches a car accelerate, coast and regen-brake on the same numbers.
 
 ## Why this architecture
 
@@ -27,8 +28,10 @@ convention is how they quietly diverge.
 a `latest` dict under a lock, `GET /battery/data` at 150 ms, `POST /command`)
 already implements exactly this shape with no extra dependency. A WebSocket
 under Flask/waitress would need one. The brief's polling directive (5–10 Hz)
-is followed literally: `POLL_MS = 150` in `page.py`, giving ~6.7 Hz, comfortably
-under the plant's own 10 Hz tick rate.
+is followed literally: `POLL_MS = 150` in `page_script.py`, giving ~6.7 Hz,
+comfortably under the plant's own 10 Hz tick rate at `TIME_SCALE = 1`. Above
+×1 the plant outruns the poll and the browser samples it — see *Simulation
+speed*.
 
 **The folder that owns the vendored plant is the application folder.**
 `battery-trace-gen/` is the `Battery Sim` application, and the deployed
@@ -76,17 +79,18 @@ Two signed quantities exist in this system and they never share an axis:
 
 1. **`requested_power_w`** — powertrain-sign (negative = discharge). This is
    the plant's *input* signal. It is produced by `battery-sim-ui/main.py` onto
-   `ui-data` and is **never read back, stored, or rendered anywhere in
-   `page.py`**. The browser does not even ask for it — `/battery/data`'s raw
-   JSON blob (the plant's tick, relayed verbatim) contains
-   `requested_power_w` and its `applied.signals.requested_power_w` echo, but
-   the page's `updateUI()` never touches those keys.
+   `ui-data` and is **never read back, stored, or rendered anywhere in the
+   page modules**. The browser does not even ask for it — `/battery/data`'s
+   raw JSON blob (the plant's tick, relayed verbatim) contains
+   `requested_power_w` and its `applied.signals.requested_power_w` echo, and
+   `updateUI()` touches neither. The one key it does read out of the echo is
+   `applied.parameters.TIME_SCALE` (see *Simulation speed* below).
 2. **`dc_current_a`** — battery-sign (positive = discharge), the plant's
    *output* current after `PLANT_ORIGIN`'s patch. Every place it renders — the
    "achieved" readout, the "commanded (est.)" readout, the current chart's
    title — carries the literal label `"battery-sign: + discharge / − charge"`.
 
-**Commanded current is not derived from the wire.** `page.py`'s
+**Commanded current is not derived from the wire.** `page_script.py`'s
 `commandedPowerBatterySignW()` recomputes commanded power independently,
 client-side, in battery-sign, from the browser's own pedal/charge/plug state
 and the ceilings fetched from `/config` — the same formula as
@@ -117,13 +121,23 @@ FreeText variables, no rebuild required):
 
 | Constant | Default | `app.yaml` variable |
 |---|---|---|
-| Accelerator ceiling | 60,000 W | `PEDAL_DISCHARGE_MAX_W` |
-| Brake/regen ceiling | 20,000 W | `PEDAL_CHARGE_REGEN_MAX_W` |
+| Accelerator ceiling | 250,000 W | `PEDAL_DISCHARGE_MAX_W` |
+| Brake/regen ceiling | 80,000 W | `PEDAL_CHARGE_REGEN_MAX_W` |
 | Charge-slider ceiling | 250,000 W | `DC_CHARGE_MAX_W` |
+
+The accelerator ceiling was 60 kW and the regen ceiling 20 kW until the pedals
+were found to move the pack ~4× slower than the charge plug: at ~780 V, 60 kW
+is 77 A against the plug's 320 A, so the achieved-current readout looked stuck
+(the plant has no current slew — `dc_current_a` follows `requested_power_w`
+inside one 0.1 s tick, `battery-trace-gen/plant/main.py:372`). Discharge is now
+symmetric with the charge slider at the lexicon's own ±250 kW limit for
+`requested_power_w`; regen stays lower because a real regen path is limited by
+the motor, not the pack. Deployment values in `quix.yaml` override these
+defaults.
 
 Charging is a third mode, not a pedal blend: toggling the plug switch
 client-side disables and zeroes both pedal sliders and enables the charge
-slider (`page.py`'s `plugToggle` change handler); `requested_power_w()`
+slider (`page_script.py`'s `plugToggle` change handler); `requested_power_w()`
 enforces the same rule server-side regardless of what the browser sends, so a
 stale client can't put the plant into an inconsistent state.
 
@@ -150,20 +164,122 @@ exposed on any topic), and the commanded-vs-achieved current pair, which only
 diverges once derating engages. This is the accurate way to satisfy "don't let
 the clamp read as a bug" for *this* deployment.
 
+## Layout — Bootstrap 5.3, stylesheet only
+
+The page is one module-level HTML string served verbatim by Flask: no npm, no
+bundler, no build step, no `static/` directory. That rules out anything needing
+a compile, which is what picks a plain stylesheet over Tailwind (whose Play CDN
+compiles in the browser and is not for production) and over the hand-rolled CSS
+v1 shipped (zero `@media` rules and a fixed `max-width: 1080px`, so it neither
+filled a 1440 px display nor survived a phone).
+
+Bootstrap owns **every** layout and breakpoint decision — `row`/`col-*`,
+`order-*`, `d-none d-*-block`, `ratio`. The surviving `<style>` block
+(`page_style.py`) is widget internals only and carries no `@media` rule; if a
+rule would need one, it belongs in a Bootstrap class instead.
+
+Two consequences worth knowing. The four main columns — state, car, charts,
+controls — live in **one** `row`, because `order-*` reorders siblings only and
+the phone order (car → state → controls → charts) crosses what would otherwise
+be two rows. And the chart canvases take their drawing buffer from their
+laid-out box (`sizeCanvases()` on load and on `resize`) rather than from fixed
+`width`/`height` attributes, because a `.ratio` wrapper sizes them from the
+column width.
+
+The stylesheet is fetched by the user's browser from jsDelivr, not by the
+container. A CSP on a framing page could block it; the fallback is to vendor
+`bootstrap.min.css` into the app folder and serve it from Flask, with no change
+to any class name.
+
+## Simulation speed — the one new write
+
+The sim-speed slider writes `TIME_SCALE` as a plant **parameter**, not a
+signal: `POST /command` now produces `{"signals": {...}, "parameters":
+{"TIME_SCALE": N}}` on the same `output_topic.serialize()` +
+`producer.produce()` call — no new route, no second produce, no new topic.
+`handle_command` in the plant already applies the two objects independently.
+
+The slider's `min`/`max` are exactly the lexicon descriptor's, so no value it
+can emit is out of range and the knob never snaps back — the lexicon rejects
+rather than clamps, and a second range check in front of it would be a guard
+against a value that cannot arrive.
+
+Its position is restored from `applied.parameters.TIME_SCALE`, the echo the
+plant already publishes on every change and every `APPLIED_ECHO_PERIOD_S`
+otherwise. Forcing ×1 on load would mean every reload silently wrote a
+parameter the user never touched. The echo always drives the vehicle
+integrator's clock; it stops driving the knob's *position* once the user has
+touched the slider, so it cannot fight a drag.
+
+Because the browser samples ~6.7 Hz while the plant publishes up to 500 msg/s
+at ×50, the charts decimate — the 60-second rolling window is wall clock and
+now spans 50× more sim time. Each chart title carries a `×N` suffix so a reader
+knows which clock they are looking at.
+
+## The car — a vehicle model in the browser
+
+The plant publishes no road speed; it is a pack model. Speed is derived in the
+browser from the two published signals that carry achieved electrical power,
+`P_pack = dc_voltage_v × dc_current_a` (battery-sign, so positive is power
+leaving the pack), through a first-order longitudinal model integrated in **sim
+time** (`dt_wall × TIME_SCALE`). Integrating in sim time is what keeps the
+picture coherent: at ×20 the SOC drains 20× faster and the car drives 20×
+faster. A wall-time integrator would show a car crawling while the battery
+empties, which reads as a bug.
+
+Driving the wheels from the *achieved* current rather than from the browser's
+own pedal state is the same commanded-vs-achieved framing as the current
+readouts: when derating engages, `dc_current_a` falls and the car visibly stops
+pulling with the pedal still down. That is the mechanism this dashboard exists
+to show.
+
+Drive / Coast / Regen are the sign of `dc_current_a` — exact tests, no
+invented deadband: with `R0 = 0` the plant returns exactly `0.0` when the
+requested power is exactly 0, and both pedals at 0 send exactly 0. Charging is
+the one case decided by the browser's own plug state, because a negative
+current alone cannot tell a plug from regen. A stalled poll (the existing
+`POLL_MS * 4` liveness test) freezes the integrator and desaturates the car
+rather than extrapolating — a car still driving on dead data is the one wrong
+answer. The mode is spelled out in a chip beside the km/h readout, so no state
+depends on colour.
+
+Rendering is inline SVG with `requestAnimationFrame` advancing the angle while
+the poll only updates ω. At 6.7 Hz a fast wheel would jump whole revolutions
+per poll — a strobe, not a wheel. CSS `@keyframes` was rejected for the same
+reason it always is here: changing `animation-duration` restarts the animation,
+so every speed change would snap the wheel back to 0°. The *displayed* angular
+rate is capped at 2 rev/s so five spokes do not alias at 60 fps; `v` integrates
+unclamped and the km/h readout carries the true value.
+
+The six vehicle constants (`VEHICLE_MASS_KG`, `K_DRAG_N_PER_MPS2`, `K_ROLL_N`,
+`DRIVELINE_EFF`, `V_FLOOR_MPS`, `WHEEL_RADIUS_M`) have no provenance in this
+repository — no vehicle model does. They are display constants in exactly the
+sense the pedal ceilings are: named in `main.py`, served on `/config`,
+overridable per deployment as FreeText variables. `V_FLOOR_MPS` is the launch
+floor — tractive force below it is held at its value there — which is both what
+keeps `P/v` finite at standstill and the only thing bounding launch
+acceleration. It is `15` rather than the `5` the spec assumed, because the spec
+sized it against a 60 kW accelerator ceiling: at the 250 kW ceiling this build
+ships, 5 m/s would give a 22 m/s² (2.3 g) launch. At 15 m/s the launch is
+~7.4 m/s², roughly 0–100 km/h in 5 s, and terminal speed at full pedal is
+~290 km/h.
+
 ## Data flow
 
 ```
 Browser                     battery-sim-ui (Flask + QuixStreams)         Battery Sim (vendored plant)
 --------                    -------------------------------------        ----------------------------
-GET /config      ────────►  static constants (ceilings, derate band)
-GET /battery/data (150ms) ◄──── latest{} (updated by sdf.update() from `battery-data`)  ◄──── ticks every 100ms
-                                                                                              (SAMPLE_TIME)
+GET /config      ────────►  static constants (ceilings, derate band,
+                            six vehicle constants, TIME_SCALE range)
+GET /battery/data (150ms) ◄──── latest{} (updated by sdf.update() from `battery-data`)  ◄──── ticks every
+                                                                                              SAMPLE_TIME / TIME_SCALE
 POST /command    ────────►  requested_power_w() computes powertrain-sign W  ────────►  ui-data
   {accel_pct, brake_pct,      { "signals": {requested_power_w, ambient_temp_c,          (consumed, validated
-   charge_plug, charge_rate_w,             chiller_setting, heater_setting} }            against signals.json,
-   ambient_temp_c,                                                                       rejected not clamped)
-   heater_setting,
-   chiller_setting}
+   charge_plug, charge_rate_w,             chiller_setting, heater_setting},             against signals.json /
+   ambient_temp_c,            "parameters": {TIME_SCALE} }                               parameters.json,
+   heater_setting,                                                                       rejected not clamped)
+   chiller_setting,
+   time_scale}
 ```
 
 `battery-sim-ui` runs two `Application` instances (consumer on the main
@@ -180,7 +296,11 @@ extracted uiservice template and `quixstreams-idioms` §1.
 | `battery-trace-gen/plant/requirements.txt` | new | The service's deps only: `quixstreams==3.23.1` (matches `PLANT_ORIGIN`'s pin), `python-dotenv` — the one file added inside the vendored folder |
 | `battery-trace-gen/README.md` | modified | Gained *The `Battery Sim` deployment* section; the folder is no longer offline-only |
 | `battery-sim-ui/main.py` | new | Flask + QuixStreams glue, `requested_power_w()` control law, `/config`/`/battery/data`/`/command` routes |
-| `battery-sim-ui/page.py` | new | `PAGE_HTML` module-level string: dashboard markup, CSS, vanilla JS (polling, charts, control law mirror for display only) |
+| `battery-sim-ui/page.py` | modified | The document skeleton; assembles `PAGE_HTML` from the four modules below and carries the Bootstrap `<link>` |
+| `battery-sim-ui/page_style.py` | new | Widget-internal CSS only — battery, thermometer, rotated pedal tracks, knobs, SVG car fills. No `@media` rule by construction |
+| `battery-sim-ui/page_markup.py` | new | The Bootstrap grid, the inline SVG car, the controls |
+| `battery-sim-ui/page_vehicle.py` | new | The browser-side vehicle model and the `requestAnimationFrame` wheel loop |
+| `battery-sim-ui/page_script.py` | new | Controls, polling, rolling charts, the control-law mirror for display only |
 | `battery-sim-ui/setup_logging.py` | new | Trimmed from the template; now actually called (`main.py` invokes `get_logger()`, the template shipped it unused) |
 | `battery-sim-ui/app.yaml` | new | Topics + the three pedal/charge ceiling FreeText variables |
 | `battery-sim-ui/dockerfile` | new | Canonical `quix-python-base-image` dockerfile, unmodified |
