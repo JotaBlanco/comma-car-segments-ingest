@@ -11,9 +11,11 @@ registry's mirror write (`api/api/planning_sync._mirror_work_orders` ->
 competing writer on the same `(type, target_key)` pair would desynchronise the
 version counter there.
 
-`project` is the PLATFORM id, not a programme name. It doubles as the lake's
-platform fallback for a file whose own header named none, and a partition
-directory holding a space would be the cost of reading better on a list.
+`project` is the programme name a person reads on the work-order list. It is NOT
+the platform: the platform is `BATTERY_DC_V1`, stated by every trace's own MF4
+header (`bus/mf4.py`, `<common_properties>/platform`), and that is what the lake
+partitions on. The sink falls back to this `project` only for a file whose header
+names no platform — ours all do, so no partition directory carries this value.
 """
 
 from __future__ import annotations
@@ -22,7 +24,7 @@ from seed import requirements_md, sources
 
 WORK_ORDER_ID = "WO-BAT-2026-001"
 WORK_ORDER_TITLE = "Battery DC system qualification — BATTERY_DC_V1"
-WORK_ORDER_PROJECT = "BATTERY_DC_V1"
+WORK_ORDER_PROJECT = "Porsche Taycan"
 WORK_ORDER_STATUS = "active"
 WORK_ORDER_REQUESTOR = "ludvik@quix.io"
 WORK_ORDER_DEPARTMENT = "Battery Systems Validation"

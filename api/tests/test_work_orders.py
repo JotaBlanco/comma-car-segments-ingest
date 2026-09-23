@@ -195,20 +195,29 @@ def test_a_work_order_without_definitions_or_runs_reads_empty(client, routed_db)
     assert body["runs"] == []
 
 
-# --- the mirror is read-only ------------------------------------------------
+# --- planning owns the content; delete is the one write ---------------------
 
 
-def test_the_mirror_rejects_writes(client, routed_db) -> None:
-    """No write route exists, so the method is not allowed."""
+def test_the_mirror_rejects_content_writes(client, routed_db) -> None:
+    """Planning authors a work order, so no route edits one in place."""
     seed_mirror(routed_db)
 
     for response in (
         client.post("/api/v1/work-orders", json={"title": "x"}),
         client.put("/api/v1/work-orders/WO-2026-0847", json={"title": "x"}),
         client.patch("/api/v1/work-orders/WO-2026-0847", json={"title": "x"}),
-        client.delete("/api/v1/work-orders/WO-2026-0847"),
     ):
         assert response.status_code == 405
+
+
+def test_a_work_order_holding_runs_cannot_be_deleted(client, routed_db) -> None:
+    """The refusal that stops a campaign holding evidence from leaving."""
+    seed_mirror(routed_db)
+
+    response = client.delete("/api/v1/work-orders/WO-2026-0847")
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "work_order_has_runs"
 
 
 def test_the_mirror_carries_no_field_sources(client, routed_db) -> None:

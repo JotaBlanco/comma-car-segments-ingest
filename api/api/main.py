@@ -225,6 +225,10 @@ ROUTE_ERRORS: dict[str, tuple[tuple[int, str], ...]] = {
         (422, "custom_property_value_too_long"),
     ),
     "GET /api/v1/work-orders/{wo_id}": ((404, "wo_not_found"),),
+    "DELETE /api/v1/work-orders/{wo_id}": (
+        (404, "wo_not_found"),
+        (409, "work_order_has_runs"),
+    ),
     "GET /api/v1/files/export": EXPORT_ERRORS,
     "GET /api/v1/files/{file_id}": ((404, "file_not_found"),),
     "PATCH /api/v1/files/{file_id}": (

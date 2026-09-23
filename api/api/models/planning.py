@@ -274,6 +274,13 @@ class WorkOrderDetail(ApiModel):
     runs: list[WorkOrderRun]
 
 
+class WorkOrderDeletionReport(ApiModel):
+    """What one work-order delete removed. The number is the database's own."""
+
+    wo_id: str
+    definitions: int
+
+
 class SyncResult(ApiModel):
     work_orders: int
     definitions: int

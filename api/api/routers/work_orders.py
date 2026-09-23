@@ -1,19 +1,24 @@
-"""Contract #10 and #11. Owner: Lane A. Read-only mirror — no write routes."""
+"""Contract #10 and #11. Owner: Lane A. The reads, plus the one destructive
+write: a mirrored work order can be deleted, never edited.
+"""
 
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 from pymongo.database import Database
 
+from api.auth import journal_actor_or_id, require_token
 from api.db import get_db
 from api.models.common import Pagination, Source, pagination_params
 from api.models.planning import (
+    WorkOrderDeletionReport,
     WorkOrderDetail,
     WorkOrderFacets,
     WorkOrderPage,
     WorkOrderStatus,
 )
 from api.models.sorting import reject_sort_params
+from api.quix_identity import Identity
 from api.services import queries_runs
 
 router = APIRouter(tags=["work-orders"])
@@ -73,3 +78,21 @@ def get_work_order(
 ) -> WorkOrderDetail:
     """Serve the whole work-order screen: definitions plus the runs rollup."""
     return queries_runs.get_work_order_detail(db, wo_id)
+
+
+@router.delete("/work-orders/{wo_id}")
+def delete_work_order(
+    wo_id: str,
+    db: Annotated[Database, Depends(get_db)],
+    identity: Annotated[Identity, Depends(require_token)],
+) -> WorkOrderDeletionReport:
+    """Delete a work order and the test definitions under it. There is no undo.
+
+    A work order any test run names is refused 409 `work_order_has_runs`, so a
+    campaign that holds evidence cannot leave by accident; an unknown id is 404
+    `wo_not_found`. `queries_runs.delete_work_order` owns the order.
+    """
+    # A person pressed Delete, so the actor is the verified caller.
+    return queries_runs.delete_work_order(
+        db, wo_id, actor=journal_actor_or_id(identity, identity.display_name)
+    )

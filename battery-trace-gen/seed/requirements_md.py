@@ -15,8 +15,9 @@ import re
 
 from seed import sources
 
-#: Where the rendered evidence points. `platform` doubles as the work order's
-#: `project`, which is what the lake falls back to for a file naming no platform.
+#: Where the rendered evidence points: the lake's `platform` partition level,
+#: which every trace states in its own MF4 header. Not the work order's
+#: `project`, which is a programme name (`planning_payload.WORK_ORDER_PROJECT`).
 LAKE_PLATFORM = "BATTERY_DC_V1"
 
 _TOKEN = re.compile(r"\{([A-Za-z0-9_]+)\}")

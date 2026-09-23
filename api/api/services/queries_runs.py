@@ -1,9 +1,10 @@
 """Lane A queries over the run registry and the planning mirror.
 
 The run upsert, list, detail, patch and invalid flag live here, next to the
-file rollup helper, the mirror reads, the Home summary, the one search box
-and the lineage chain. Every write goes through the provenance helpers, so
-each stored value keeps its source tag and its journal line.
+file rollup helper, the mirror reads, the work-order delete, the Home summary,
+the one search box and the lineage chain. Every write goes through the
+provenance helpers, so each stored value keeps its source tag and its journal
+line.
 """
 
 from datetime import UTC, datetime, timedelta
@@ -1811,3 +1812,44 @@ def get_work_order_detail(db: Database, wo_id: str) -> dict:
         )
 
     return {**work_order, "definitions": definitions, "runs": runs}
+
+
+def delete_work_order(db: Database, wo_id: str, *, actor: str) -> dict:
+    """Delete one work order and the test definitions under it. Return what went.
+
+    The definitions go with it: a definition whose work order is gone reads
+    `orphaned` on every screen, which is a state to repair rather than one to
+    create.
+
+    Raises 404 `wo_not_found`, and 409 `work_order_has_runs` when a run still
+    names the work order — the same count `list_work_orders` shows as
+    `run_count`. The journal keeps every entry the work order ever had and
+    gains a `work_order.deleted` one, so the audit trail outlives the row.
+    """
+    if db["work_orders"].find_one({"_id": wo_id}, {"_id": 1}) is None:
+        raise ApiError(404, f"Work order {wo_id} not found", "wo_not_found")
+
+    runs = db["test_runs"].count_documents({"work_order_id": wo_id})
+    if runs:
+        raise ApiError(
+            409,
+            f"Work order {wo_id} still carries {runs} test run(s). Move or delete "
+            f"them first — a run whose work order is gone loses its campaign.",
+            "work_order_has_runs",
+        )
+
+    definitions = db["test_definitions"].count_documents({"work_order_id": wo_id})
+    # Audit before the record goes, as `run_deletion.delete_run` does.
+    db["journal_entries"].insert_one(
+        add_event(
+            "work_order",
+            wo_id,
+            "work_order.deleted",
+            Source.MANUAL,
+            actor,
+            note=f"Deleted the work order and the {definitions} test definition(s) under it.",
+        )
+    )
+    removed = db["test_definitions"].delete_many({"work_order_id": wo_id}).deleted_count
+    db["work_orders"].delete_one({"_id": wo_id})
+    return {"wo_id": wo_id, "definitions": removed}
