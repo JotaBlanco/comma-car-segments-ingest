@@ -407,7 +407,7 @@ deployments:
           targetPort: 27017
   - name: Battery Sim
     group: Battery
-    application: battery-sim-plant
+    application: battery-trace-gen
     version: latest
     deploymentType: Service
     resources:

@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-22",
+  "updated": "2026-09-23",
   "statuses": [
     "to do",
     "discuss",
@@ -88,7 +88,7 @@
       "id": "BL-12",
       "title": "Wave 2: visualisation service (battery, gas/brake pedals) from uiservice.zip on Tomas's API",
       "status": "finished",
-      "notes": "superseded by BL-49 — built as battery-sim-plant + battery-sim-ui",
+      "notes": "superseded by BL-49 — built as the Battery Sim (battery-trace-gen) + Battery Sim UI deployments",
       "updated": "2026-09-22"
     },
     {
@@ -347,7 +347,7 @@
       "id": "BL-49",
       "title": "Battery sim UI: pedals plus DC charging up to 250 kW",
       "status": "finished",
-      "notes": "built and deployed 06cda3d: pedals, plug + 250 kW charge slider, heater/chiller, 4 rolling charts",
+      "notes": "built and deployed 06cda3d: pedals, plug + 250 kW charge slider, heater/chiller, 4 rolling charts; crash-looped until BL-52 moved the app folder",
       "updated": "2026-09-22"
     },
     {
@@ -356,6 +356,27 @@
       "status": "discuss",
       "notes": "requirements-page/spec.md vs authoring-controls/spec.md; the user asked for add/edit/remove on that page",
       "updated": "2026-09-22"
+    },
+    {
+      "id": "BL-51",
+      "title": "Test Results page: requirement coverage, pass/fail counts, per-run outcomes",
+      "status": "in progress",
+      "notes": "user 2026-09-23. Spec being written to dev-planning/test-results-page/spec.md; sits on BL-11 (verdicts), BL-19 (Covered!=Tested), BL-24 (no verdict concept), BL-38 (coverage matrix)",
+      "updated": "2026-09-23"
+    },
+    {
+      "id": "BL-52",
+      "title": "Battery Sim deployment crash-looped 158x: app folder carried no plant sources",
+      "status": "in progress",
+      "notes": "Quix builds each app with its OWN folder as docker context, so COPY . . in battery-sim-plant never carried battery-trace-gen/plant and WORKDIR created an empty dir. Fix: battery-trace-gen becomes the app folder, entrypoint plant/main.py",
+      "updated": "2026-09-23"
+    },
+    {
+      "id": "BL-53",
+      "title": "Sidebar flattened: no nesting, order Home / Requirements / Test definitions / Work orders / Test runs",
+      "status": "in progress",
+      "notes": "user 2026-09-23 reversed BL-29's nesting for requirements; depth/INDENT mechanism from 144ae1b removed",
+      "updated": "2026-09-23"
     }
   ]
 }

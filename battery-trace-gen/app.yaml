@@ -12,5 +12,5 @@ variables:
     defaultValue: battery-data
     required: true
 dockerfile: dockerfile
-runEntryPoint: main.py
-defaultFile: main.py
+runEntryPoint: plant/main.py
+defaultFile: plant/main.py

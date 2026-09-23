@@ -5,8 +5,9 @@ Offline generator for four synthetic battery CAN traces. It drives the vendored
 frames against `BATTERY_DC_V1`, and writes MF4 bus-log files that between them exercise
 all ten `BAT-SYS-*` requirements with exactly four declared failures.
 
-Nothing here is a Quix deployment. It runs on a workstation; the output enters the
-platform through the existing MF4 Import path.
+The generator itself runs on a workstation; its output enters the platform through the
+existing MF4 Import path. The same plant also runs live in Quix — see *The `Battery Sim`
+deployment* below.
 
 ## Run it
 
@@ -17,6 +18,25 @@ python generate.py --scenario all           # or --scenario T1
 
 Traces, the expected-verdict manifest and its flat CSV land in `out/`, which is
 gitignored.
+
+## The `Battery Sim` deployment
+
+This folder is also the Quix application behind the `Battery Sim` service
+(`quix.yaml`), and the deployed entrypoint is `plant/main.py` — the vendored
+`dc-battery-sim` QuixStreams service, running live instead of offline. `app.yaml` and
+`dockerfile` here serve that deployment only; the generator ignores them.
+
+Quix builds an application with that application's own folder as the docker build
+context, so the plant must live *inside* the application folder — which is why the
+folder that owns the vendored copy is the application folder. The dockerfile installs
+`plant/requirements.txt` (the service's two deps: `quixstreams`, `python-dotenv`), not
+the generator's `requirements.txt`, and then `WORKDIR`s into `plant/` so that
+`main.py`'s flat imports (`from lexicon import ...`) resolve.
+
+Topics: `input` (`ui-data`, pedal/charge/ambient/heater/chiller writes from Battery Sim
+UI), `output` (`battery-data`, pack state every 100 ms). See
+`docs/architecture-battery-sim-ui.md` for the control laws and sign conventions that
+produce the `input` messages.
 
 | Trace | File | Duration | Requirements | Expected |
 |---|---|---|---|---|
@@ -108,6 +128,7 @@ page in the Test Manager.
 ## Layout
 
 ```
+app.yaml, dockerfile   the Quix `Battery Sim` deployment (entrypoint plant/main.py)
 generate.py            CLI: load scenarios, run, write MF4 + manifest
 runner.py              the per-tick loop
 scenario.py            scenarios, identity and setpoints as data

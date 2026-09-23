@@ -3,8 +3,9 @@
 ## What this is
 
 A live, browser-driven front end for the vendored `dc-battery-sim` plant. Two
-Quix Cloud services, joined by two Kafka topics: `battery-sim-plant` runs the
-model unmodified and ticks its state at 10 Hz; `battery-sim-ui` serves a Flask
+Quix Cloud services, joined by two Kafka topics: `Battery Sim` (application
+folder `battery-trace-gen`) runs the model unmodified and ticks its state at
+10 Hz; `battery-sim-ui` serves a Flask
 page that polls that state and turns pedal/charge/ambient/heater/chiller input
 into the plant's write envelope. A non-specialist pushes an accelerator or
 brake slider, or plugs in and sets a charge rate, and watches SOC, terminal
@@ -29,20 +30,29 @@ under Flask/waitress would need one. The brief's polling directive (5–10 Hz)
 is followed literally: `POLL_MS = 150` in `page.py`, giving ~6.7 Hz, comfortably
 under the plant's own 10 Hz tick rate.
 
-**A root-level plumbing folder for the plant, not a nested `application:`
-path.** `quix.yaml`'s `application:` field is documented and used everywhere in
-this repo as a root-level directory name; neither the Quix docs
-(`yaml-2-0.html`, `pipeline-descriptor.html`) nor the `quix-service-create`
-skill show a nested path being accepted, and inventing one to test only in
-production was judged too risky for a deploy-time discovery. `battery-sim-plant/`
-is a root-level folder carrying only `app.yaml` + `dockerfile` +
-`requirements.txt` + `README.md` — no vendored file is duplicated. The Quix
-build always copies the whole repository into the image before `WORKDIR`ing
-into `MAINAPPPATH` (see the canonical dockerfile in `quix-python-base-image`);
-`battery-sim-plant/dockerfile` exploits exactly that by hardcoding its final
-`WORKDIR`/`ENTRYPOINT` to `battery-trace-gen/plant` instead of `${MAINAPPPATH}`,
-so the requirements file comes from the plumbing folder but the code that runs
-is the one, unedited, vendored copy.
+**The folder that owns the vendored plant is the application folder.**
+`battery-trace-gen/` is the `Battery Sim` application, and the deployed
+entrypoint is `plant/main.py`. This is forced by how Quix builds: the docker
+build context is the *application's own folder*, not the repository root, so
+nothing outside the application folder can be `COPY`ed into the image. An
+earlier arrangement — a root-level `battery-sim-plant/` carrying only build
+files, whose dockerfile `WORKDIR`ed across to the sibling `battery-trace-gen/plant`
+— failed for exactly that reason: `COPY . .` carried only the four build files,
+`WORKDIR` then silently *created* an empty `/app/battery-trace-gen/plant`, and
+the container crash-looped on `can't open file '/app/battery-trace-gen/plant/main.py'`.
+Making the owning folder the application folder keeps the single vendored copy
+(`PLANT_ORIGIN`) and adds no duplication: the generator and the live service
+share one `plant/`, and the only new file inside it is `plant/requirements.txt`
+(the service's two deps), which keeps the sim image from installing the
+generator's asammdf/cantools/numpy.
+
+The `COPY` paths and the final `WORKDIR` in `battery-trace-gen/dockerfile` are
+parameterised by `${MAINAPPPATH}`, so the image is correct whether the build
+context is the application folder (`MAINAPPPATH=.`, giving `/app/./plant`) or
+the repository root (`MAINAPPPATH=battery-trace-gen`, giving
+`/app/battery-trace-gen/plant`). The final `WORKDIR` lands in `plant/`
+because `plant/main.py` uses flat imports (`from lexicon import ...`) and so
+needs its own directory as the script directory.
 
 **Server-side control law, one function.** `requested_power_w()` in
 `battery-sim-ui/main.py` is the single place the pedal/charge law is computed.
@@ -143,7 +153,7 @@ the clamp read as a bug" for *this* deployment.
 ## Data flow
 
 ```
-Browser                     battery-sim-ui (Flask + QuixStreams)         battery-sim-plant (vendored)
+Browser                     battery-sim-ui (Flask + QuixStreams)         Battery Sim (vendored plant)
 --------                    -------------------------------------        ----------------------------
 GET /config      ────────►  static constants (ceilings, derate band)
 GET /battery/data (150ms) ◄──── latest{} (updated by sdf.update() from `battery-data`)  ◄──── ticks every 100ms
@@ -165,10 +175,10 @@ extracted uiservice template and `quixstreams-idioms` §1.
 
 | Path | New/modified | Why |
 |---|---|---|
-| `battery-sim-plant/app.yaml` | new | Declares `input`/`output` topics for the plant deployment |
-| `battery-sim-plant/dockerfile` | new | Base-image-skill dockerfile, `WORKDIR`/`ENTRYPOINT` hardcoded to `battery-trace-gen/plant` |
-| `battery-sim-plant/requirements.txt` | new | Trimmed: `quixstreams==3.23.1` (matches `PLANT_ORIGIN`'s pin), `python-dotenv` |
-| `battery-sim-plant/README.md` | new | Explains the plumbing-folder/nested-path decision |
+| `battery-trace-gen/app.yaml` | new | Declares `input`/`output` topics for the plant deployment; `runEntryPoint: plant/main.py` |
+| `battery-trace-gen/dockerfile` | new | Base-image-skill dockerfile; installs `plant/requirements.txt`, final `WORKDIR "/app/${MAINAPPPATH}/plant"` |
+| `battery-trace-gen/plant/requirements.txt` | new | The service's deps only: `quixstreams==3.23.1` (matches `PLANT_ORIGIN`'s pin), `python-dotenv` — the one file added inside the vendored folder |
+| `battery-trace-gen/README.md` | modified | Gained *The `Battery Sim` deployment* section; the folder is no longer offline-only |
 | `battery-sim-ui/main.py` | new | Flask + QuixStreams glue, `requested_power_w()` control law, `/config`/`/battery/data`/`/command` routes |
 | `battery-sim-ui/page.py` | new | `PAGE_HTML` module-level string: dashboard markup, CSS, vanilla JS (polling, charts, control law mirror for display only) |
 | `battery-sim-ui/setup_logging.py` | new | Trimmed from the template; now actually called (`main.py` invokes `get_logger()`, the template shipped it unused) |
@@ -203,11 +213,11 @@ of it.
   overrides that and brings it into Phase 1; built as specified there (third
   mode, disabled pedals, commanded-vs-achieved current, derating band shown).
 - **Plant deployment path:** spec flagged the nested-`application:` question as
-  open and gave an explicit fallback. Verified against the Quix docs (no
-  example of a nested path) and against this repo's own `quix.yaml` (zero
-  nested entries); took the fallback, named `battery-sim-plant/` rather than
-  spec's suggested `battery-sim/` to avoid colliding with the UI's
-  `publicAccess.urlPrefix: battery-sim`.
+  open and gave an explicit fallback. The fallback was built first (a root-level
+  `battery-sim-plant/` holding only build files) and crash-looped in the
+  environment 158 times; `application:` stays a root-level folder name, but it
+  now names `battery-trace-gen`, the folder that actually contains the plant.
+  See "Why this architecture" for the build-context rule that forces this.
 - **`page.py` split from `main.py`:** the spec's file inventory (written before
   the template was known to be Flask, not FastAPI-with-`static/`) didn't
   anticipate a page this size. Kept the "one module-level HTML string, no
@@ -235,11 +245,9 @@ of it.
 - **Dataviz skill:** absent in this environment; used the extracted template's
   existing minimal palette instead of a skill-driven one (see "Why this
   architecture").
-- **Nested `application:` path:** not verified against Quix Cloud directly
-  (no deploy performed, per constraints) — verified against docs and this
-  repo's own convention only. If Quix Cloud does in fact accept a nested path,
-  `battery-sim-plant/` remains correct (it just becomes an unnecessary indirection,
-  not a broken one).
+- **Nested `application:` path:** still unverified and no longer needed —
+  `battery-trace-gen` is a root-level folder, so the question does not arise
+  for this deployment.
 - **Momentary vs. held pedals:** decided **held**, not momentary/spring-back —
   the sliders keep whatever value the user leaves them at, matching a bench
   control panel rather than a physical pedal. No auto-return-to-zero-on-release

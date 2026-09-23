@@ -129,6 +129,9 @@ same change that moves the work. Nothing agreed in conversation stays only in co
 | `BL-04` | **in progress** | Upstream plant polarity fix (dc-battery-sim, battery-sign current) | verified 53/53 in C:/repos/quixstreams-tests-polarity; commit there, then re-vendor here |
 | `BL-22` | **in progress** | Requirement status moves automatically when a run covers it; covering run id visible on the requirement | SPEC DONE (dev-planning/requirement-status-from-runs/spec.md) — not built |
 | `BL-33` | **in progress** | Versioned verifies-link between requirement and test definition, stored in the database | user 2026-09-22: hyperlinks both ways carrying the version of each side. Board model: link_id = link_type|from_id|to_id with NO version in the preimage, recording the confirmed pair (R@v, TC@w) separately from current versions; the difference is what makes a link suspect. Folded into dev-planning/review-page |
+| `BL-51` | **in progress** | Test Results page: requirement coverage, pass/fail counts, per-run outcomes | user 2026-09-23. Spec being written to dev-planning/test-results-page/spec.md; sits on BL-11 (verdicts), BL-19 (Covered!=Tested), BL-24 (no verdict concept), BL-38 (coverage matrix) |
+| `BL-52` | **in progress** | Battery Sim deployment crash-looped 158x: app folder carried no plant sources | Quix builds each app with its OWN folder as docker context, so COPY . . in battery-sim-plant never carried battery-trace-gen/plant and WORKDIR created an empty dir. Fix: battery-trace-gen becomes the app folder, entrypoint plant/main.py |
+| `BL-53` | **in progress** | Sidebar flattened: no nesting, order Home / Requirements / Test definitions / Work orders / Test runs | user 2026-09-23 reversed BL-29's nesting for requirements; depth/INDENT mechanism from 144ae1b removed |
 | `BL-11` | to do | Run the 10 implementations against the lake and write verdicts | explicitly out of scope of BL-06; next feature |
 | `BL-19` | to do | Covered != Tested: TESTED needs a confirmed link at (R@v,TC@w) AND a pass pinned to TC version w | shapes BL-11 (running implementations -> verdicts) |
 | `BL-24` | to do | No verdict concept: results carry no pass/fail and name no definition | BL-22 defines the contract; BL-11 writes it |
@@ -169,13 +172,13 @@ same change that moves the work. Nothing agreed in conversation stays only in co
 | `BL-08` | finished | Seed the Test Manager: 1 work order, 10 definitions, 4 run links via POST /planning/sync | seeded: WO-BAT-2026-001 + 10 definitions live in jamaui |
 | `BL-09` | finished | Regenerate traces with test.* claims + new timestamps, upload, verify battery_data_v1 and registration | 4 traces uploaded; runs TAS-1001..1004 registered; rows landing in battery_data_v1 |
 | `BL-10` | finished | Commit + push battery feature and TM adaptation; rebase onto Portal auto-commits | pushed 7a758ef..8d7847e |
-| `BL-12` | finished | Wave 2: visualisation service (battery, gas/brake pedals) from uiservice.zip on Tomas's API | superseded by BL-49 — built as battery-sim-plant + battery-sim-ui |
+| `BL-12` | finished | Wave 2: visualisation service (battery, gas/brake pedals) from uiservice.zip on Tomas's API | superseded by BL-49 — built as the Battery Sim (battery-trace-gen) + Battery Sim UI deployments |
 | `BL-16` | finished | Old backend/ Test Manager + DCM-source design | superseded by Tomas's api/; archived as archive/dcm-source-on-old-backend |
 | `BL-21` | finished | Parallel agents when code paths are disjoint; QA by the user in the Portal; no Tester round | working agreement 2026-09-22 |
 | `BL-23` | finished | Requirements are not entities in the TM — only markdown files on a definition | answered 2026-09-22: requirements become entities with versions (BL-34), not a light registry — the user chose versioned links (BL-33) |
 | `BL-29` | finished | Test Runs nested under Work order; Test definitions under Test Run (nav + run detail) | sidebar indents runs under work orders and definitions under runs; run overview gained a Definitions panel |
 | `BL-30` | finished | Import form no longer claims a test definition | mf4-to-blob form: work order, run id, rig |
-| `BL-49` | finished | Battery sim UI: pedals plus DC charging up to 250 kW | built and deployed 06cda3d: pedals, plug + 250 kW charge slider, heater/chiller, 4 rolling charts |
+| `BL-49` | finished | Battery sim UI: pedals plus DC charging up to 250 kW | built and deployed 06cda3d: pedals, plug + 250 kW charge slider, heater/chiller, 4 rolling charts; crash-looped until BL-52 moved the app folder |
 
 ## Working agreement
 - **QA is the user's**, in the Quix Portal. No Tester round unless asked; the lint/type gate

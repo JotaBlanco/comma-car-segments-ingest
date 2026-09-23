@@ -3,7 +3,7 @@
 Browser dashboard for the DC battery plant: pedals, a charge control, ambient/
 heater/chiller controls, and live gauges + rolling charts. Runs as a Quix
 service that bridges the browser with the Kafka pipeline the plant
-(`battery-sim-plant/`) reads and writes.
+(`battery-trace-gen/plant/`, deployed as `Battery Sim`) reads and writes.
 
 ```
 battery-data  ──►  Battery Sim UI  ──►  ui-data
