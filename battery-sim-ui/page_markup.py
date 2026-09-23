@@ -84,16 +84,22 @@ BODY_HTML = """<body class="bg-body">
                aria-label="Car driven by the achieved pack power; the wheels turn with the vehicle speed">
             <!-- The car is a photograph with its background cut away, mirrored to face right and
                  scaled so the photograph's own wheel centres land on the two points the rotation
-                 uses: image (1017,487) -> (118,132) and (462,487) -> (318,132), r=76 -> 27.4,
+                 uses: image (1017,487) -> (118,132) and (462,487) -> (318,132),
                  scale 0.36036. Each wheel is the SAME photograph clipped to its own wheel circle
-                 and carried inside the rotating group, so real rubber turns. -->
+                 drawn head-on as a ten-spoke alloy. A clip of the photograph cannot work here: the
+                 tyre is in perspective and the arch occludes its top, so any circle wide enough to
+                 hold the wheel also swings red bodywork round with it. -->
             <defs>
-              <clipPath id="clip-wheel-rear" clipPathUnits="userSpaceOnUse">
-                <circle cx="1017" cy="487" r="76"/>
-              </clipPath>
-              <clipPath id="clip-wheel-front" clipPathUnits="userSpaceOnUse">
-                <circle cx="462" cy="487" r="76"/>
-              </clipPath>
+              <radialGradient id="rim-face" cx="38%" cy="32%" r="72%">
+                <stop offset="0%"   stop-color="#4a4f57"/>
+                <stop offset="70%"  stop-color="#2b2f35"/>
+                <stop offset="100%" stop-color="#191c20"/>
+              </radialGradient>
+              <linearGradient id="spoke-face" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stop-color="#9aa0a8"/>
+                <stop offset="55%"  stop-color="#5b6068"/>
+                <stop offset="100%" stop-color="#3a3e45"/>
+              </linearGradient>
             </defs>
             <image href="/static/taycan.png" x="0" y="0" width="1440" height="812"
                    transform="translate(-34.43,-43.49) scale(0.36036) translate(1440,0) scale(-1,1)"/>
@@ -101,18 +107,36 @@ BODY_HTML = """<body class="bg-body">
                  own lamp rather than a marker beside it. -->
             <rect class="car-lamp" x="62.5" y="100.4" width="30.5" height="3.6" rx="1.8"/>
             <g id="wheel-rear" transform="rotate(0 118 132)">
-              <g transform="translate(-34.43,-43.49) scale(0.36036) translate(1440,0) scale(-1,1)">
-                <g clip-path="url(#clip-wheel-rear)">
-                  <image href="/static/taycan.png" x="0" y="0" width="1440" height="812"/>
-                </g>
-              </g>
+              <circle cx="118" cy="132" r="27.4" fill="#111316"/>
+              <circle cx="118" cy="132" r="21.2" fill="url(#rim-face)" stroke="#0d0f12" stroke-width="0.8"/>
+              <polygon points="124.40,133.90 138.00,135.30 138.00,128.70 124.40,130.10" fill="url(#spoke-face)"/>
+              <polygon points="122.06,137.30 132.24,146.43 136.12,141.09 124.29,134.22" fill="url(#spoke-face)"/>
+              <polygon points="118.17,138.67 121.04,152.04 127.32,150.00 121.78,137.50" fill="url(#spoke-face)"/>
+              <polygon points="114.22,137.50 108.68,150.00 114.96,152.04 117.83,138.67" fill="url(#spoke-face)"/>
+              <polygon points="111.71,134.22 99.88,141.09 103.76,146.43 113.94,137.30" fill="url(#spoke-face)"/>
+              <polygon points="111.60,130.10 98.00,128.70 98.00,135.30 111.60,133.90" fill="url(#spoke-face)"/>
+              <polygon points="113.94,126.70 103.76,117.57 99.88,122.91 111.71,129.78" fill="url(#spoke-face)"/>
+              <polygon points="117.83,125.33 114.96,111.96 108.68,114.00 114.22,126.50" fill="url(#spoke-face)"/>
+              <polygon points="121.78,126.50 127.32,114.00 121.04,111.96 118.17,125.33" fill="url(#spoke-face)"/>
+              <polygon points="124.29,129.78 136.12,122.91 132.24,117.57 122.06,126.70" fill="url(#spoke-face)"/>
+              <circle cx="118" cy="132" r="6.6" fill="#1b1e23" stroke="#3a3f47" stroke-width="0.8"/>
+              <circle cx="118" cy="132" r="1.9" fill="#8a2b2b"/>
             </g>
             <g id="wheel-front" transform="rotate(0 318 132)">
-              <g transform="translate(-34.43,-43.49) scale(0.36036) translate(1440,0) scale(-1,1)">
-                <g clip-path="url(#clip-wheel-front)">
-                  <image href="/static/taycan.png" x="0" y="0" width="1440" height="812"/>
-                </g>
-              </g>
+              <circle cx="318" cy="132" r="27.4" fill="#111316"/>
+              <circle cx="318" cy="132" r="21.2" fill="url(#rim-face)" stroke="#0d0f12" stroke-width="0.8"/>
+              <polygon points="324.40,133.90 338.00,135.30 338.00,128.70 324.40,130.10" fill="url(#spoke-face)"/>
+              <polygon points="322.06,137.30 332.24,146.43 336.12,141.09 324.29,134.22" fill="url(#spoke-face)"/>
+              <polygon points="318.17,138.67 321.04,152.04 327.32,150.00 321.78,137.50" fill="url(#spoke-face)"/>
+              <polygon points="314.22,137.50 308.68,150.00 314.96,152.04 317.83,138.67" fill="url(#spoke-face)"/>
+              <polygon points="311.71,134.22 299.88,141.09 303.76,146.43 313.94,137.30" fill="url(#spoke-face)"/>
+              <polygon points="311.60,130.10 298.00,128.70 298.00,135.30 311.60,133.90" fill="url(#spoke-face)"/>
+              <polygon points="313.94,126.70 303.76,117.57 299.88,122.91 311.71,129.78" fill="url(#spoke-face)"/>
+              <polygon points="317.83,125.33 314.96,111.96 308.68,114.00 314.22,126.50" fill="url(#spoke-face)"/>
+              <polygon points="321.78,126.50 327.32,114.00 321.04,111.96 318.17,125.33" fill="url(#spoke-face)"/>
+              <polygon points="324.29,129.78 336.12,122.91 332.24,117.57 322.06,126.70" fill="url(#spoke-face)"/>
+              <circle cx="318" cy="132" r="6.6" fill="#1b1e23" stroke="#3a3f47" stroke-width="0.8"/>
+              <circle cx="318" cy="132" r="1.9" fill="#8a2b2b"/>
             </g>
             <g id="charge-cable" visibility="hidden">
               <rect class="car-plug" x="4" y="114" width="16" height="20" rx="3"/>
