@@ -91,17 +91,17 @@ def partition_path(parts: dict[str, str]) -> str:
 def notebook_source(*, run_id: str, table: str, parts: dict[str, str]) -> str:
     """The whole `analysis.py` for one run.
 
-    Three nodes, and no more: the run's data, a per-signal summary, and a plot.
-    A starting point is the point — a person opens the lab to ask their own
-    question, and a canvas full of somebody else's cells is in the way.
+    Two partition datasets, and no more: `samples`, the whole run as a table,
+    and `test_data`, the same folder narrowed to the four columns an analysis
+    starts from. A starting point is the point — a person opens the lab to ask
+    their own question, and a canvas full of somebody else's cells is in the way.
 
-    **The data is a partition dataset, in the middle of the canvas.** The node
-    body is `ql.lake_partitions(table, [<the run's folder>])`, which QuixLab
-    shows as its partition picker with the run's folders ticked, not as SQL:
-    a person widens or narrows the selection by clicking, and the rows are
-    loaded when the lab boots (QuixLab runs every node at boot), so the data
-    is on screen when they arrive. The two cells sit either side of it, and
-    the first view fits all three, with the data in the centre.
+    **Both are partition datasets.** The node body is
+    `ql.lake_partitions(table, [<the run's folder>])`, which QuixLab shows as
+    its partition picker with the run's folders ticked, not as SQL: a person
+    widens or narrows the selection by clicking, and the rows are loaded when
+    the lab boots (QuixLab runs every node at boot), so the data is on screen
+    when they arrive.
     """
     if not _SAFE.fullmatch(table or ""):
         raise UnsafeValue("the lake table is not a name this notebook may query")
@@ -137,46 +137,9 @@ def samples():
     return ql.lake_partitions({table!r}, [{path!r}])
 
 
-@canvas.cell(position=(-1320, -300), size=(840, 600), code_height=200)
-def inventory(samples):
-    """What the run carries: one row per signal, with its range."""
-    summary = (
-        samples.df()
-        .groupby(["protocol", "bus", "signal"])["value"]
-        .agg(["count", "min", "max", "mean"])
-        .reset_index()
-        .sort_values("count", ascending=False)
-    )
-    ql.viz(summary, type="table", title="Signal inventory")
-    return summary
-
-
-@canvas.cell(position=(480, -300), size=(840, 600), code_height=200)
-def timeline(samples):
-    """The busiest few signals over time."""
-    import pandas as pd
-
-    rows = samples.df()
-    busiest = rows["signal"].value_counts().head(6).index.tolist()
-    frame = rows[rows["signal"].isin(busiest)].copy()
-    frame["timestamp"] = pd.to_datetime(frame["timestamp"], unit="ms")
-    wide = (
-        frame.pivot_table(index="timestamp", columns="signal", values="value", aggfunc="mean")
-        .sort_index()
-        .interpolate(method="index", limit_direction="both")
-        .reset_index()
-    )
-    ql.viz(
-        wide,
-        type="line",
-        x="timestamp",
-        y=[column for column in wide.columns if column != "timestamp"],
-        title="Busiest signals",
-        x_title="Time",
-        legend=True,
-        hover_mode="x unified",
-    )
-    return wide
+@canvas.dataset(position=(147, -326), size=(740, 399), code_height=200, viz={{'datasetMode': 'partitions'}})
+def test_data():
+    return ql.lake_partitions("{table}", ["{path}"], columns=["timestamp", "signal", "value", "value_text"])
 '''
 
 

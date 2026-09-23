@@ -214,11 +214,15 @@ def test_the_notebook_names_the_run_and_compiles() -> None:
     assert f"return ql.lake_partitions('pcap_data_v1', ['{folder}'])" in source
     assert '"datasetMode": "partitions"' in source
     assert "SELECT" not in source, "no SQL to read; the picker is the query"
-    # In the middle: the dataset straddles the origin, the two cells sit either side.
+    # In the middle: the dataset straddles the origin.
     assert "@canvas.dataset(\n    position=(-420, -300),\n    size=(840, 600)," in source
-    assert "position=(-1320, -300)" in source and "position=(480, -300)" in source
-    # Dependents take the rows through .df(): the dataset is lazy until asked.
-    assert source.count("samples.df()") == 2
+    # And the same folder narrowed to the four columns an analysis starts from.
+    assert (
+        f'return ql.lake_partitions("pcap_data_v1", ["{folder}"], '
+        'columns=["timestamp", "signal", "value", "value_text"])'
+    ) in source
+    assert "def test_data():" in source
+    assert "@canvas.cell" not in source, "two datasets, no cells"
 
 
 def test_the_notebook_folder_names_only_the_partitions_the_run_has() -> None:
