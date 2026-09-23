@@ -76,6 +76,22 @@ class RequirementPage(Page[RequirementRow]):
     view_counts: RequirementViewCounts
 
 
+class RequirementFacets(ApiModel):
+    """The distinct filter values of the whole requirements table.
+
+    Same reasoning as ``RunFacets``: a filter list built from one page of
+    ``/requirements`` misses every value outside that page. This model answers
+    over every document, retired rows included, the way the list does.
+    """
+
+    chapters: list[str]
+    statuses: list[str]
+    methods: list[str]
+    system_states: list[str]
+    measurands: list[str]
+    sources: list[str]
+
+
 class RequirementEvidence(ApiModel):
     """One `(run, definition)` pair covering a requirement, and its verdict.
 

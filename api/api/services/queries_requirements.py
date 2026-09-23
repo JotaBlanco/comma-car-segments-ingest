@@ -385,6 +385,67 @@ def list_requirements(
     return envelope
 
 
+def _facet_strings(values: list) -> list[str]:
+    """Sort the values ascending and drop the null and the blank ones.
+
+    A null belongs to no filter option — a requirement with no chapter is not
+    a chapter a person can pick — and a blank narrows nothing.
+    """
+    return sorted(value for value in values if isinstance(value, str) and value.strip())
+
+
+def _flatten(field: str) -> dict:
+    """Fold a set of ARRAYS, as `$addToSet` leaves an array field, into one set."""
+    return {
+        "$reduce": {
+            "input": field,
+            "initialValue": [],
+            "in": {"$setUnion": ["$$value", "$$this"]},
+        }
+    }
+
+
+def requirement_facets(db: Database) -> dict:
+    """The distinct filter values of the whole requirements table.
+
+    No status filter, because `list_requirements` pages every document with
+    none either: a retired requirement stays in the grid, so its values stay
+    in the dropdowns. An empty collection answers six empty lists.
+    """
+    pipeline = [
+        {
+            "$group": {
+                "_id": None,
+                "chapters": {"$addToSet": "$chapter"},
+                "statuses": {"$addToSet": "$status"},
+                "methods": {"$addToSet": "$verification_method"},
+                "system_states": {"$addToSet": "$system_states"},
+                "measurands": {"$addToSet": "$measurand.name"},
+                "sources": {"$addToSet": "$source"},
+            }
+        },
+        {
+            "$project": {
+                "chapters": 1,
+                "statuses": 1,
+                "methods": 1,
+                "system_states": _flatten("$system_states"),
+                "measurands": _flatten("$measurands"),
+                "sources": _flatten("$sources"),
+            }
+        },
+    ]
+    grouped = next(db["requirements"].aggregate(pipeline), {})
+    return {
+        "chapters": _facet_strings(grouped.get("chapters") or []),
+        "statuses": _facet_strings(grouped.get("statuses") or []),
+        "methods": _facet_strings(grouped.get("methods") or []),
+        "system_states": _facet_strings(grouped.get("system_states") or []),
+        "measurands": _facet_strings(grouped.get("measurands") or []),
+        "sources": _facet_strings(grouped.get("sources") or []),
+    }
+
+
 def _requirement_or_404(db: Database, req_id: str) -> dict:
     doc = db["requirements"].find_one({"_id": req_id})
     if doc is None:

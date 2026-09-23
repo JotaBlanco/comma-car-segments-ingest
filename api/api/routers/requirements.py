@@ -14,6 +14,7 @@ from api.models.common import Pagination, pagination_params
 from api.models.requirements import (
     RequirementCreateRequest,
     RequirementDetail,
+    RequirementFacets,
     RequirementPage,
     RequirementPatchRequest,
     RequirementRetireRequest,
@@ -70,6 +71,19 @@ def list_requirements(
         has_latest_run=has_latest_run,
         q=q,
     )
+
+
+# This route must stay ABOVE ``GET /requirements/{req_id}``. FastAPI matches
+# the routes in declaration order, so a later position would read "facets" as
+# a requirement id and answer 404.
+@router.get("/requirements/facets")
+def get_requirement_facets(db: Annotated[Database, Depends(get_db)]) -> RequirementFacets:
+    """The distinct filter values of the whole requirements table.
+
+    The six dropdowns of the Requirements page read this one answer, so each
+    offers every value the grid holds rather than the values of one page.
+    """
+    return queries_requirements.requirement_facets(db)
 
 
 @router.get("/requirements/{req_id}")
