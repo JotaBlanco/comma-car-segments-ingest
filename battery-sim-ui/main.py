@@ -42,15 +42,18 @@ DERATE_HARD_LIMIT_C = 60.0
 
 # Vehicle display constants for the car visualisation. The plant is a pack
 # model and publishes no road speed, so the browser integrates one from the
-# achieved pack power (see page_vehicle.py). None of these has provenance in
-# this repository - they are display constants in the same sense as the pedal
-# ceilings above, served on /config and overridable per deployment.
+# achieved pack power and from the friction brake the pedal adds past half
+# travel - a mechanical force no plant signal carries (see page_vehicle.py).
+# None of these has provenance in this repository - they are display constants
+# in the same sense as the pedal ceilings above, served on /config and
+# overridable per deployment.
 VEHICLE_MASS_KG = float(os.getenv("VEHICLE_MASS_KG", "2000"))  # kg
 K_DRAG_N_PER_MPS2 = float(os.getenv("K_DRAG_N_PER_MPS2", "0.40"))  # N/(m/s)^2
 K_ROLL_N = float(os.getenv("K_ROLL_N", "196"))  # N
 DRIVELINE_EFF = float(os.getenv("DRIVELINE_EFF", "0.90"))  # dimensionless
 V_FLOOR_MPS = float(os.getenv("V_FLOOR_MPS", "15"))  # m/s
 WHEEL_RADIUS_M = float(os.getenv("WHEEL_RADIUS_M", "0.34"))  # m
+F_BRAKE_MAX_N = float(os.getenv("F_BRAKE_MAX_N", "14700"))  # N at 100 % brake pedal
 
 # The plant's TIME_SCALE lexicon range. The slider's ends are exactly these,
 # so no value it can emit is out of range and the knob never snaps back.
@@ -109,6 +112,7 @@ def config_route():
             "driveline_eff": DRIVELINE_EFF,
             "v_floor_mps": V_FLOOR_MPS,
             "wheel_radius_m": WHEEL_RADIUS_M,
+            "f_brake_max_n": F_BRAKE_MAX_N,
             "time_scale_min": TIME_SCALE_MIN,
             "time_scale_max": TIME_SCALE_MAX,
         }

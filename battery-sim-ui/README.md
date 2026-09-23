@@ -19,7 +19,7 @@ battery-data  ──►  Battery Sim UI  ──►  ui-data
 | Route | Method | Purpose |
 |---|---|---|
 | `/` | GET | The dashboard page (`PAGE_HTML`, assembled in `page.py`) |
-| `/config` | GET | Pedal/charge power ceilings, the derating-band constants, the six vehicle constants and the `TIME_SCALE` range, for the browser to size its controls, its chart shading and its vehicle model |
+| `/config` | GET | Pedal/charge power ceilings, the derating-band constants, the seven vehicle constants and the `TIME_SCALE` range, for the browser to size its controls, its chart shading and its vehicle model |
 | `/battery/data` | GET | Latest plant tick, polled by the browser every 150 ms |
 | `/command` | POST | `{accel_pct, brake_pct, charge_plug, charge_rate_w, ambient_temp_c, heater_setting, chiller_setting, time_scale}` - converted server-side into `{"signals": {...}, "parameters": {"TIME_SCALE": ...}}` and produced to `ui-data` |
 
@@ -38,6 +38,10 @@ The discharge ceiling matches the charge ceiling because they are the same
 lexicon limit (`requested_power_w`, ±250 kW) and a pedal that moved the pack
 four times slower than the charge plug read as a stuck current. Regen stays
 lower: a real regen path is limited by the motor, not by the pack.
+
+Past half brake travel the browser adds a friction brake (below), which is
+mechanical and changes nothing in this law - the pack sees the same regen
+request at 60 % pedal as it always did.
 
 ## Simulation speed
 
@@ -63,7 +67,8 @@ dc_current_a`, battery-sign, so positive is power leaving the pack:
 ```
 F_trac   = P_pack × DRIVELINE_EFF / max(v, V_FLOOR_MPS)
 F_resist = K_DRAG_N_PER_MPS2 × v²  +  K_ROLL_N
-a        = (F_trac − F_resist) / VEHICLE_MASS_KG
+F_brake  = max(0, brake_pct − 50) / 50 × F_BRAKE_MAX_N
+a        = (F_trac − F_resist − F_brake) / VEHICLE_MASS_KG
 v        = max(0, v + a × dt_wall × TIME_SCALE)
 ω        = v / WHEEL_RADIUS_M
 ```
@@ -71,20 +76,38 @@ v        = max(0, v + a × dt_wall × TIME_SCALE)
 Driving the wheels from the *achieved* current rather than the pedal is the
 point: when derating engages, the current falls and the car visibly stops
 pulling with the pedal still down. Drive / Coast / Regen are the sign of
-`dc_current_a`; Charging is the browser's own plug state (a negative current
-alone cannot tell a plug from regen); a stalled poll freezes the integrator and
-desaturates the car rather than driving on dead data. The mode is spelled out in
-a chip beside the km/h readout, so it never depends on colour.
+`dc_current_a`; Braking outranks all three past half brake travel, where the
+discs do the retarding and no pack current can show it; Charging is the
+browser's own plug state (a negative current alone cannot tell a plug from
+regen); a stalled poll freezes the integrator and desaturates the car rather
+than driving on dead data. The mode is spelled out in a chip beside the km/h
+readout, so it never depends on colour, and the brake lamps light whenever the
+brake pedal is off its stop.
 
 The displayed rotation rate is capped at 2 rev/s so the five spokes do not
 alias at 60 fps; `v` integrates unclamped and the km/h readout carries the true
 value.
 
-The six vehicle constants have no provenance in this repository. They are
+The seven vehicle constants have no provenance in this repository. They are
 display constants in the same sense as the pedal ceilings, served on `/config`
 and overridable per deployment. `V_FLOOR_MPS` is the launch floor and is the
 only thing bounding launch acceleration: at the 250 kW pedal ceiling it is what
 keeps the launch at ~7.4 m/s² instead of ~22 m/s².
+
+## Braking
+
+Up to 50 % pedal the brake is regen alone, and regen is weak by construction:
+80 kW at 30 m/s is 2.4 kN on a 2-tonne car, 0.12 g, which is a car that takes
+half a minute to stop. Past 50 % a friction brake rises linearly from zero to
+`F_BRAKE_MAX_N` at full pedal - 14,700 N, which is 0.75 g of disc braking on
+2,000 kg. Blended with regen and the resistive terms, full pedal is ~0.90 g at
+30 m/s and stops the car from 100 km/h in ~41 m (mean 0.96 g).
+
+That force is mechanical. It is applied only in `page_vehicle.py`'s
+integration, so `requested_power_w`, the pack current and every plant signal
+are exactly what they were; the pedal law in `main.py` did not move. The
+retarding terms only dissipate, so a step that would carry `v` through zero
+lands on zero and the car never rolls backwards.
 
 ## Layout
 
@@ -118,6 +141,7 @@ from Flask - the class names do not change.
 | `DRIVELINE_EFF` | FreeText | `0.90` | Car visualisation - pack-to-wheel efficiency |
 | `V_FLOOR_MPS` | FreeText | `15` | Car visualisation - launch floor, m/s |
 | `WHEEL_RADIUS_M` | FreeText | `0.34` | Car visualisation - wheel radius, m |
+| `F_BRAKE_MAX_N` | FreeText | `14700` | Car visualisation - friction brake force at 100 % pedal, N |
 | `Quix__Deployment__Id` | Auto | `battery-sim-ui` | Kafka consumer group |
 
 Deployment values in `quix.yaml` override these defaults; a variable named

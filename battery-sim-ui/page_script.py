@@ -1,7 +1,8 @@
 """The dashboard script: controls, polling, rolling charts.
 
 Shares one <script> scope with page_vehicle.py and calls into it with each
-poll (vehicleOnTick) and with the liveness verdict (vehicleSetStalled).
+poll (vehicleOnTick), with the brake pedal (vehicleSetBrake) and with the
+liveness verdict (vehicleSetStalled).
 """
 
 DASHBOARD_JS = """
@@ -76,6 +77,7 @@ DASHBOARD_JS = """
   });
   brakeSlider.addEventListener('input', () => {
     state.brake_pct = Number(brakeSlider.value);
+    vehicleSetBrake(state.brake_pct);
     document.getElementById('brake-val').textContent = state.brake_pct + ' %';
     scheduleSend();
   });
@@ -87,6 +89,7 @@ DASHBOARD_JS = """
     chargeSlider.disabled = !state.charge_plug;
     if (state.charge_plug) {
       state.accel_pct = 0; state.brake_pct = 0;
+      vehicleSetBrake(0);
       accelSlider.value = 0; brakeSlider.value = 0;
       document.getElementById('accel-val').textContent = '0 %';
       document.getElementById('brake-val').textContent = '0 %';
@@ -320,6 +323,7 @@ DASHBOARD_JS = """
     VEH.driveline_eff = CFG.driveline_eff;
     VEH.v_floor_mps = CFG.v_floor_mps;
     VEH.wheel_radius_m = CFG.wheel_radius_m;
+    VEH.f_brake_max_n = CFG.f_brake_max_n;
   }
 
   requestAnimationFrame(sizeCanvas);

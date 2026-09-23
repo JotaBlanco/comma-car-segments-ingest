@@ -233,8 +233,10 @@ readouts: when derating engages, `dc_current_a` falls and the car visibly stops
 pulling with the pedal still down. That is the mechanism this dashboard exists
 to show.
 
-Drive / Coast / Regen are the sign of `dc_current_a` — exact tests, no
-invented deadband: with `R0 = 0` the plant returns exactly `0.0` when the
+Braking outranks the rest above 50 % brake pedal, because the friction brake
+retards the car without touching the pack and the achieved current cannot see
+it. Below that, Drive / Coast / Regen are the sign of `dc_current_a` — exact
+tests, no invented deadband: with `R0 = 0` the plant returns exactly `0.0` when the
 requested power is exactly 0, and both pedals at 0 send exactly 0. Charging is
 the one case decided by the browser's own plug state, because a negative
 current alone cannot tell a plug from regen. A stalled poll (the existing
@@ -251,8 +253,8 @@ so every speed change would snap the wheel back to 0°. The *displayed* angular
 rate is capped at 2 rev/s so five spokes do not alias at 60 fps; `v` integrates
 unclamped and the km/h readout carries the true value.
 
-The six vehicle constants (`VEHICLE_MASS_KG`, `K_DRAG_N_PER_MPS2`, `K_ROLL_N`,
-`DRIVELINE_EFF`, `V_FLOOR_MPS`, `WHEEL_RADIUS_M`) have no provenance in this
+The seven vehicle constants (`VEHICLE_MASS_KG`, `K_DRAG_N_PER_MPS2`, `K_ROLL_N`,
+`DRIVELINE_EFF`, `V_FLOOR_MPS`, `WHEEL_RADIUS_M`, `F_BRAKE_MAX_N`) have no provenance in this
 repository — no vehicle model does. They are display constants in exactly the
 sense the pedal ceilings are: named in `main.py`, served on `/config`,
 overridable per deployment as FreeText variables. `V_FLOOR_MPS` is the launch
@@ -270,7 +272,7 @@ ships, 5 m/s would give a 22 m/s² (2.3 g) launch. At 15 m/s the launch is
 Browser                     battery-sim-ui (Flask + QuixStreams)         Battery Sim (vendored plant)
 --------                    -------------------------------------        ----------------------------
 GET /config      ────────►  static constants (ceilings, derate band,
-                            six vehicle constants, TIME_SCALE range)
+                            seven vehicle constants, TIME_SCALE range)
 GET /battery/data (150ms) ◄──── latest{} (updated by sdf.update() from `battery-data`)  ◄──── ticks every
                                                                                               SAMPLE_TIME / TIME_SCALE
 POST /command    ────────►  requested_power_w() computes powertrain-sign W  ────────►  ui-data
