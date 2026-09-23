@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import {
   closeNotebook,
   createNotebook,
+  deleteNotebook,
   getNotebookLab,
   listNotebooks,
   openNotebook,
@@ -327,6 +328,9 @@ export function QuixLabPanel({
   const [active, setActive] = useState<Active | null>(null);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [saving, setSaving] = useState(false);
+  /** The notebook whose Delete was clicked once; a second click removes it. */
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   /* Portal frames the Test Manager, and the Test Manager frames QuixLab, so
      QuixLab renders in a small box. Expanded lifts the panel over the content
@@ -412,6 +416,32 @@ export function QuixLabPanel({
       }
     })();
   }, [runId, active, refresh]);
+
+  /* Delete asks twice on the same button rather than in a dialog: the first click arms it,
+     the second removes the notebook and this viewer's lab on it. Any other click disarms. */
+  const remove = useCallback(
+    (notebook: Notebook) => {
+      if (confirming !== notebook.notebook_id) {
+        setConfirming(notebook.notebook_id);
+        return;
+      }
+      setConfirming(null);
+      setRemoving(notebook.notebook_id);
+      setError(null);
+      void (async () => {
+        try {
+          await deleteNotebook(runId, notebook.notebook_id);
+          refresh();
+          toast.success(`${notebook.name} deleted.`);
+        } catch (caught: unknown) {
+          setError(caught instanceof ApiError ? caught.message : "The notebook could not be deleted");
+        } finally {
+          setRemoving(null);
+        }
+      })();
+    },
+    [runId, confirming, refresh],
+  );
 
   const instance = active !== null && active.lab.url.length > 0 ? asInstance(active.lab) : null;
   const rows = notebooks.data ?? [];
@@ -533,9 +563,39 @@ export function QuixLabPanel({
                   disabled={busy}
                   aria-busy={mine}
                   aria-label={`Open ${notebook.name}`}
-                  onClick={() => start(notebook.notebook_id)}
+                  onClick={() => {
+                    setConfirming(null);
+                    start(notebook.notebook_id);
+                  }}
                 >
                   {mine ? progress.text : "Open"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    "font-semibold",
+                    confirming === notebook.notebook_id &&
+                      "text-red hover:border-red-border hover:bg-red-bg hover:text-red",
+                  )}
+                  disabled={busy || removing !== null}
+                  aria-busy={removing === notebook.notebook_id}
+                  aria-label={
+                    confirming === notebook.notebook_id
+                      ? `Confirm deleting ${notebook.name}`
+                      : `Delete ${notebook.name}`
+                  }
+                  title="Removes the notebook and your QuixLab on it; its files stay in storage"
+                  onClick={() => remove(notebook)}
+                  onBlur={() => {
+                    if (confirming === notebook.notebook_id) setConfirming(null);
+                  }}
+                >
+                  {removing === notebook.notebook_id
+                    ? "Deleting…"
+                    : confirming === notebook.notebook_id
+                      ? "Sure?"
+                      : "Delete"}
                 </Button>
               </li>
             );

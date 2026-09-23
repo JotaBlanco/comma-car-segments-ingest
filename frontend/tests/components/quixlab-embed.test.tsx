@@ -19,19 +19,20 @@ import userEvent from "@testing-library/user-event";
 
 /* The panel no longer lists the workspace's QuixLabs: it lists the run's
    notebooks, and opens each in a lab of this viewer's own. */
-const { closeNotebook, createNotebook, getNotebookLab, listNotebooks, openNotebook } = vi.hoisted(
-  () => ({
+const { closeNotebook, createNotebook, deleteNotebook, getNotebookLab, listNotebooks, openNotebook } =
+  vi.hoisted(() => ({
     closeNotebook: vi.fn(),
     createNotebook: vi.fn(),
+    deleteNotebook: vi.fn(),
     getNotebookLab: vi.fn(),
     listNotebooks: vi.fn(),
     openNotebook: vi.fn(),
-  }),
-);
+  }));
 vi.mock("@/lib/api/run-quixlab", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/run-quixlab")>()),
   closeNotebook,
   createNotebook,
+  deleteNotebook,
   getNotebookLab,
   listNotebooks,
   openNotebook,
@@ -139,6 +140,7 @@ function withClient(node: ReactElement): ReactElement {
 beforeEach(() => {
   closeNotebook.mockReset();
   createNotebook.mockReset();
+  deleteNotebook.mockReset();
   getNotebookLab.mockReset();
   listNotebooks.mockReset();
   openNotebook.mockReset();
@@ -393,6 +395,53 @@ describe("the notebooks", () => {
 
     const alert = await waitFor(() => view.getByRole("alert"));
     expect(alert.textContent).toContain("no QuixLab deployment to clone");
+  });
+});
+
+describe("deleting a notebook", () => {
+  it("asks once on the button, then removes it and refreshes the list", async () => {
+    listNotebooks.mockResolvedValue([notebook(), notebook({ notebook_id: "nb-2", name: "Second" })]);
+    deleteNotebook.mockResolvedValue(undefined);
+    const view = render(withClient(<QuixLabPanel runId={RUN_ID} />));
+    const user = userEvent.setup();
+    const button = await view.findByRole("button", { name: "Delete Second" });
+
+    await user.click(button);
+    expect(deleteNotebook).not.toHaveBeenCalled();
+    expect(view.getByRole("button", { name: "Confirm deleting Second" })).toBeTruthy();
+
+    listNotebooks.mockResolvedValue([notebook()]);
+    await user.click(view.getByRole("button", { name: "Confirm deleting Second" }));
+
+    await waitFor(() => expect(deleteNotebook).toHaveBeenCalledWith(RUN_ID, "nb-2"));
+    await waitFor(() => expect(view.queryByRole("button", { name: /Second$/ })).toBeNull());
+    expect(view.getByRole("button", { name: "Open Notebook 1" })).toBeTruthy();
+  });
+
+  it("disarms when the person clicks elsewhere", async () => {
+    listNotebooks.mockResolvedValue([notebook()]);
+    const view = render(withClient(<QuixLabPanel runId={RUN_ID} />));
+    const user = userEvent.setup();
+    await user.click(await view.findByRole("button", { name: "Delete Notebook 1" }));
+    expect(view.getByRole("button", { name: "Confirm deleting Notebook 1" })).toBeTruthy();
+
+    await user.tab();
+
+    expect(view.getByRole("button", { name: "Delete Notebook 1" })).toBeTruthy();
+    expect(deleteNotebook).not.toHaveBeenCalled();
+  });
+
+  it("says why when the delete is refused, and keeps the notebook listed", async () => {
+    listNotebooks.mockResolvedValue([notebook()]);
+    deleteNotebook.mockRejectedValue(new ApiError(503, "the Quix platform did not answer", "quixlab_unreachable"));
+    const view = render(withClient(<QuixLabPanel runId={RUN_ID} />));
+    const user = userEvent.setup();
+    await user.click(await view.findByRole("button", { name: "Delete Notebook 1" }));
+    await user.click(view.getByRole("button", { name: "Confirm deleting Notebook 1" }));
+
+    const alert = await waitFor(() => view.getByRole("alert"));
+    expect(alert.textContent).toContain("did not answer");
+    expect(view.getByRole("button", { name: "Open Notebook 1" })).toBeTruthy();
   });
 });
 
