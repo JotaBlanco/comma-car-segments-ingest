@@ -29,7 +29,7 @@ The conversion is made once, immediately after the solver, so `dc_voltage`, both
 updates and the KT2*I**2 heating term are untouched and become correct by construction.
 
 
-THE NINE EDITS
+THE ELEVEN EDITS
 --------------
 (1) main.py:386 — inserted immediately after `dc_current = solve_dc_current(...)`
 
@@ -162,13 +162,36 @@ THE NINE EDITS
     it is named here only as the reason this edit is hash-safe.
 
 
+(10) main.py:~385 — the thermal actuators load the pack
+
+    `power_heater` and `power_chiller` reached `heat_flow_w` and nothing else, so the
+    heater warmed the pack and the chiller cooled it while drawing no current. The
+    battery is the car's only source of power, so both now enter the electrical
+    solve: `solve_dc_current(requested_power - (power_heater + power_chiller), ...)`.
+    `requested_power` is powertrain-sign, so subtracting a draw makes it more
+    negative. The payload gained `aux_power_w` so a reader can see the cost.
+
+    THIS MOVES THREE TRACE sha256s. T1 is unchanged — its chiller is off and it
+    commands no heater. T2 and T3 run the chiller and T4's controller commands the
+    heater, so all three re-hash. The verdict set is unchanged at 6 PASS / 4 FAIL and
+    every failure keeps its declared mechanism; TC-008 was the one at risk, because
+    T3 runs the chiller through Sleep and that case needs the terminal voltage to
+    relax to OCV. It still converges (end error 1,78 V) and still fails on the 600 s
+    budget rather than on failing to converge.
+
+(11) parameters.json — CHILLER_POWER_LOW and CHILLER_POWER_HIGH halved
+
+    2500 -> 1250 W and 5000 -> 2500 W. Changed in the lexicon rather than as a
+    deployment variable so the live sim and the trace generator stay on one model.
+    Folded into the same regeneration as (10).
+
 Nothing else differs from the source. lexicon.py is byte-identical to the commit above.
 
 sha256 of the vendored copies
-    main.py         76df1d231055c06e2dd65b7be29489867fe225bf46660e167fc3953bd815f560
+    main.py         13f52233a7ffccaf153478fe4f724e141344855ee7a5cbe13f7d0e037f641381
     signals.json    74d69d84df787f5a895e2e641941f24872dbc2022d96b01257d74852d031c4d2
     lexicon.py      0b708068e9a4ab2bf5568ce33b93ad7234eadfa2e3ca5a31a6ff0989c28ad5d0
-    parameters.json 80d1522fdf62049cdd096304bede6399607d0d3a663a4051d2d6b2faf9f32ea7
+    parameters.json a65e35d6648e8f4478ee76479448ea86de927576df033f962a3b513fa4284c92
 
 All four lines are hashed from the git blob, i.e. the LF-normalised bytes:
 `git show HEAD:battery-trace-gen/plant/<file> | sha256sum`. The signals.json line

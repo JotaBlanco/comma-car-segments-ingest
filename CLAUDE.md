@@ -62,13 +62,13 @@ at 20 % instead of 25 %; wrong relaxation time constant; heater threshold set at
 | `BAT-SYS-TC-001` | T1 | BAT-SYS-PRF-001 | PASS | DC charging current held at or below I_current_Chr_Max |
 | `BAT-SYS-TC-002` | T1 | BAT-SYS-SAF-003 | PASS | Charging current derating ramps linearly to zero across the safety band |
 | `BAT-SYS-TC-003` | T1 | BAT-SYS-SAF-002 | **FAIL** | Battery temperature held at or below T_batt_max |
-| `BAT-SYS-TC-004` | ? | BAT-SYS-FUN-001 | ? | Technical state of charge tracks the integrated DC current |
-| `BAT-SYS-TC-005` | ? | BAT-SYS-SAF-001 | ? | Terminal voltage stays inside the Udc_min to Udc_Max window |
-| `BAT-SYS-TC-006` | ? | BAT-SYS-FUN-002 | ? | Customer state of charge maps linearly from the technical value |
-| `BAT-SYS-TC-007` | ? | BAT-SYS-FUN-003 | ? | Cell voltages equalise while the battery system sleeps |
-| `BAT-SYS-TC-008` | ? | BAT-SYS-PRF-002 | ? | Terminal voltage relaxes to the open-circuit voltage within the budget |
-| `BAT-SYS-TC-009` | ? | BAT-SYS-FUN-004 | ? | Heater provides the three specified power states |
-| `BAT-SYS-TC-010` | ? | BAT-SYS-FUN-005 | ? | Heater commanded to maximum below the minimum battery temperature |
+| `BAT-SYS-TC-004` | T2 | BAT-SYS-FUN-001 | PASS | Technical state of charge tracks the integrated DC current |
+| `BAT-SYS-TC-005` | T2 | BAT-SYS-SAF-001 | PASS | Terminal voltage stays inside the Udc_min to Udc_Max window |
+| `BAT-SYS-TC-006` | T2 | BAT-SYS-FUN-002 | **FAIL** | Customer state of charge maps linearly from the technical value |
+| `BAT-SYS-TC-007` | T3 | BAT-SYS-FUN-003 | PASS | Cell voltages equalise while the battery system sleeps |
+| `BAT-SYS-TC-008` | T3 | BAT-SYS-PRF-002 | **FAIL** | Terminal voltage relaxes to the open-circuit voltage within the budget |
+| `BAT-SYS-TC-009` | T4 | BAT-SYS-FUN-004 | PASS | Heater provides the three specified power states |
+| `BAT-SYS-TC-010` | T4 | BAT-SYS-FUN-005 | **FAIL** | Heater commanded to maximum below the minimum battery temperature |
 
 ## Ingestion pipeline (Tomas's `1148def` line — how a trace becomes data)
 

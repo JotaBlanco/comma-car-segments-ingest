@@ -380,8 +380,15 @@ def run_simulation(producer_app, out_topic):
             # OCV from charge state
             ocv = ocv_lookup(q_act)
 
+            # The pack is the car's only source of power, so the thermal actuators
+            # load it like anything else. `requested_power` is powertrain-sign, so a
+            # draw is negative. PLANT_ORIGIN (10).
+            aux_power_w = power_heater + power_chiller
+
             # DC current — implicit loop resolved analytically (quadratic for R0>0)
-            dc_current = solve_dc_current(requested_power, ocv, v_rc1, v_rc2, p["R0"])
+            dc_current = solve_dc_current(
+                requested_power - aux_power_w, ocv, v_rc1, v_rc2, p["R0"]
+            )
             # Battery perspective from here on: positive = discharge. See PLANT_ORIGIN.
             dc_current = -dc_current
 
@@ -447,6 +454,7 @@ def run_simulation(producer_app, out_topic):
                 "heat_j": round(heat, 4),
                 "derating_factor": round(derating_factor, 4),
                 "requested_power_w": requested_power,
+                "aux_power_w": round(aux_power_w, 4),
                 "ambient_temp_c": ambient_temp,
             }
 
