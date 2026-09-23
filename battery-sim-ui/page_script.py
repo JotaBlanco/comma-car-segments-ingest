@@ -170,10 +170,10 @@ DASHBOARD_JS = """
   // history rather than resetting it.
   let activeSeries = 'soc';
   const series = {
-    soc: { buf: [], min: 0, max: 100 },
-    current: { buf: [], min: -400, max: 400 },
-    temp: { buf: [], min: -40, max: 70, bands: true },
-    voltage: { buf: [], min: 600, max: 900 },
+    soc: { buf: [], min: 0, max: 100, unit: '%', step: 25 },
+    current: { buf: [], min: -400, max: 400, unit: 'A', step: 200 },
+    temp: { buf: [], min: -40, max: 70, bands: true, unit: '°C', step: 20 },
+    voltage: { buf: [], min: 600, max: 900, unit: 'V', step: 100 },
   };
   const ACCENT = '#0078d4';
 
@@ -193,40 +193,84 @@ DASHBOARD_JS = """
     if (buf.length > MAX_POINTS) buf.shift();
   }
 
+  // Plot box inset from the canvas, leaving room for the two scales.
+  const PAD = { l: 46, r: 8, t: 8, b: 20 };
+
   function drawChart(s) {
     const canvas = document.getElementById('chart-main');
     const ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 
-    const yOf = (v) => h - ((v - s.min) / (s.max - s.min)) * h;
+    const x0 = PAD.l, x1 = w - PAD.r, y0 = PAD.t, y1 = h - PAD.b;
+    const plotW = x1 - x0, plotH = y1 - y0;
+    if (plotW < 20 || plotH < 20) return;
+    const yOf = (v) => y1 - ((v - s.min) / (s.max - s.min)) * plotH;
 
     if (s.bands) {
+      ctx.save();
+      ctx.beginPath(); ctx.rect(x0, y0, plotW, plotH); ctx.clip();
       ctx.fillStyle = 'rgba(240,192,32,0.18)';
-      ctx.fillRect(0, yOf(CFG.derate_hard_limit_c), w, yOf(CFG.derate_band_start_c) - yOf(CFG.derate_hard_limit_c));
+      ctx.fillRect(x0, yOf(CFG.derate_hard_limit_c), plotW,
+                   yOf(CFG.derate_band_start_c) - yOf(CFG.derate_hard_limit_c));
       ctx.fillStyle = 'rgba(231,76,60,0.18)';
-      ctx.fillRect(0, 0, w, yOf(CFG.derate_hard_limit_c));
+      ctx.fillRect(x0, y0, plotW, yOf(CFG.derate_hard_limit_c) - y0);
+      ctx.restore();
     }
 
-    if (s.min < 0 && s.max > 0) {
-      ctx.strokeStyle = '#444';
-      ctx.beginPath();
-      ctx.moveTo(0, yOf(0));
-      ctx.lineTo(w, yOf(0));
-      ctx.stroke();
+    ctx.font = '10px ui-monospace, monospace';
+    ctx.fillStyle = '#8b939e';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (let v = s.min; v <= s.max + 1e-9; v += s.step) {
+      const y = yOf(v);
+      ctx.strokeStyle = v === 0 ? '#555c66' : '#2a2f36';
+      ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
+      ctx.fillText(String(v), x0 - 6, y);
     }
+
+    // The window is MAX_POINTS polls of SIM time, so the scale stretches with
+    // TIME_SCALE: the axis states what the samples actually span.
+    const spanS = (MAX_POINTS * POLL_MS / 1000) * (car.time_scale || 1);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    for (let i = 0; i <= 4; i++) {
+      const x = x0 + (i / 4) * plotW;
+      ctx.strokeStyle = '#2a2f36';
+      ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
+      const ago = spanS * (1 - i / 4);
+      ctx.fillText(ago === 0 ? 'now' : '-' + (ago >= 100 ? ago.toFixed(0) : ago.toFixed(1)) + 's',
+                   x, y1 + 4);
+    }
+
+    ctx.strokeStyle = '#555c66';
+    ctx.beginPath();
+    ctx.moveTo(x0, y0); ctx.lineTo(x0, y1); ctx.lineTo(x1, y1);
+    ctx.stroke();
+
+    ctx.save();
+    ctx.translate(12, (y0 + y1) / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#8b939e';
+    ctx.fillText(s.unit, 0, 0);
+    ctx.restore();
 
     const buf = s.buf;
     if (buf.length < 2) return;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x0, y0, plotW, plotH); ctx.clip();
     ctx.strokeStyle = ACCENT;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     buf.forEach((v, i) => {
-      const x = (i / (MAX_POINTS - 1)) * w;
+      const x = x0 + (i / (MAX_POINTS - 1)) * plotW;
       const y = yOf(v);
       if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     });
     ctx.stroke();
+    ctx.restore();
   }
 
   function thermoColor(t) {
