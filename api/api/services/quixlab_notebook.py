@@ -93,7 +93,8 @@ def notebook_source(*, run_id: str, table: str, parts: dict[str, str]) -> str:
 
     Two partition datasets, and no more: `samples`, the whole run as a table,
     and `test_data`, the same folder narrowed to the four columns an analysis
-    starts from. A starting point is the point — a person opens the lab to ask
+    starts from - `ts_ns`, the nanosecond clock the recorder stamped, rather
+    than the millisecond `timestamp` the lake partitions by. A starting point is the point — a person opens the lab to ask
     their own question, and a canvas full of somebody else's cells is in the way.
 
     **Both are partition datasets.** The node body is
@@ -139,7 +140,7 @@ def samples():
 
 @canvas.dataset(position=(147, -326), size=(740, 399), code_height=200, viz={{'datasetMode': 'partitions'}})
 def test_data():
-    return ql.lake_partitions("{table}", ["{path}"], columns=["timestamp", "signal", "value", "value_text"])
+    return ql.lake_partitions("{table}", ["{path}"], columns=["ts_ns", "signal", "value", "value_text"])
 '''
 
 

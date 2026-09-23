@@ -219,7 +219,7 @@ def test_the_notebook_names_the_run_and_compiles() -> None:
     # And the same folder narrowed to the four columns an analysis starts from.
     assert (
         f'return ql.lake_partitions("pcap_data_v1", ["{folder}"], '
-        'columns=["timestamp", "signal", "value", "value_text"])'
+        'columns=["ts_ns", "signal", "value", "value_text"])'
     ) in source
     assert "def test_data():" in source
     assert "@canvas.cell" not in source, "two datasets, no cells"
