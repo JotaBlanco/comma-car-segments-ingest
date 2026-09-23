@@ -21,7 +21,7 @@ from collections.abc import Iterator
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from fastapi.routing import APIRoute
 from pymongo.database import Database
@@ -39,6 +39,7 @@ from api.models.planning import (
     RequirementsFileEdit,
     RequirementsFileUpload,
     TestDefinitionDetail,
+    TestDefinitionFacets,
     TestDefinitionPage,
     default_render_markdown,
 )
@@ -145,15 +146,46 @@ router = APIRouter(tags=["test-definitions"], route_class=_CappedUploadRoute)
 def list_test_definitions(
     db: Annotated[Database, Depends(get_db)],
     pagination: Annotated[Pagination, Depends(pagination_params())],
+    work_order: Annotated[list[str] | None, Query()] = None,
+    status: Annotated[list[str] | None, Query()] = None,
+    requirement: Annotated[list[str] | None, Query()] = None,
+    q: str | None = None,
     orphaned: bool | None = None,
 ) -> TestDefinitionPage:
     """List the mirrored test definitions, orphans flagged (TR-001).
 
-    `orphaned=true` lists the orphans, `orphaned=false` the linked rows, and
-    no param lists both. The sort is fixed on the id, lowest first, and the
+    `work_order` (matches `work_order_id`), `status` (the derived
+    `on_plan`/`awaiting_data`) and `requirement` (membership in
+    `covers_req_ids`) take repeated params, like `GET /requirements`. `q`
+    searches `td_id` and `title`. `orphaned=true` lists the orphans,
+    `orphaned=false` the linked rows, and no param lists both. Every filter
+    ANDs with the others. The sort is fixed on the id, lowest first, and the
     route takes no sort param.
     """
-    return queries_runs.list_test_definitions(db, pagination, orphaned=orphaned)
+    return queries_runs.list_test_definitions(
+        db,
+        pagination,
+        work_order=work_order,
+        status=status,
+        requirement=requirement,
+        q=q,
+        orphaned=orphaned,
+    )
+
+
+# This route must stay ABOVE ``GET /test-definitions/{td_id}``. FastAPI matches
+# the routes in declaration order, so a later position would read "facets" as a
+# definition id and answer 404.
+@router.get("/test-definitions/facets")
+def get_test_definition_facets(
+    db: Annotated[Database, Depends(get_db)],
+) -> TestDefinitionFacets:
+    """The distinct filter values of the whole definition mirror.
+
+    The three dropdowns of the Test definitions page read this one answer, so
+    each offers every value the mirror holds rather than the values of one page.
+    """
+    return queries_runs.test_definition_facets(db)
 
 
 @router.get("/test-definitions/{td_id}")

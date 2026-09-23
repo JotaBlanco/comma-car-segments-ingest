@@ -85,6 +85,20 @@ class TestDefinitionPage(Page[TestDefinitionRow]):
     """
 
 
+class TestDefinitionFacets(ApiModel):
+    """The distinct filter values of the whole definition mirror.
+
+    Same reasoning as ``WorkOrderFacets``: a list built from one page of
+    ``/test-definitions`` misses every value outside that page. `statuses`
+    derives from planned versus actual runs, so it reports the states the
+    mirror really holds rather than the two the type allows.
+    """
+
+    work_orders: list[str]
+    statuses: list[str]
+    requirements: list[str]
+
+
 class WorkOrderRun(ApiModel):
     run_id: str = Field(validation_alias="_id")
     definition_id: str | None

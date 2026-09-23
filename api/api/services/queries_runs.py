@@ -1421,35 +1421,20 @@ def orphan_clause(known: list[str], orphaned: bool = True) -> dict:
     return {"work_order_id": {"$nin" if orphaned else "$in": known}}
 
 
-def list_test_definitions(
-    db: Database,
-    pagination: Pagination,
-    orphaned: bool | None = None,
-) -> dict:
-    """Page the definition mirror, with the orphan flag TR-001 asks for.
-
-    `orphaned=true` pages the orphans, `orphaned=false` the linked rows, and
-    no param at all pages both. The sort is fixed on the id, lowest first —
-    the order the work-order detail (#11) already lists a definition in, so
-    the two screens never disagree. There is no sort param.
+def _derived_definitions(db: Database, orphaned: bool | None = None) -> list[dict]:
+    """The definition mirror, id ascending, with every derived field filled.
 
     `actual_runs` and `status` derive at read time, through the same helper
-    #11 uses. One grouped count serves the page.
+    #11 uses; `orphaned` derives from the mirrored work-order ids. One grouped
+    count serves the whole read.
     """
     known = mirrored_work_order_ids(db)
     query = {} if orphaned is None else orphan_clause(known, orphaned)
-    total = db["test_definitions"].count_documents(query)
-    rows = list(
-        db["test_definitions"]
-        .find(query)
-        .sort("_id", ASCENDING)
-        .skip((pagination.page - 1) * pagination.page_size)
-        .limit(pagination.page_size)
-    )
+    rows = list(db["test_definitions"].find(query).sort("_id", ASCENDING))
 
     actual_runs = _count_by(db, "test_runs", "definition_ids", [row["_id"] for row in rows])
     linked = set(known)
-    items = [
+    return [
         {
             **row,
             "work_order_id": row.get("work_order_id"),
@@ -1462,7 +1447,102 @@ def list_test_definitions(
         }
         for row in rows
     ]
-    return pagination.envelope(items, total)
+
+
+def _definition_matches(
+    row: dict,
+    work_order: list[str] | None,
+    status: list[str] | None,
+    requirement: list[str] | None,
+    q: str | None,
+) -> bool:
+    """Every filter `GET /test-definitions` accepts beyond `orphaned`.
+
+    All four run over the already-derived row. `status` is one of them: it is
+    computed from planned versus actual runs and sits on no stored document,
+    so it cannot be pushed into the Mongo `find()`.
+    """
+    if work_order and row.get("work_order_id") not in work_order:
+        return False
+    if status and row["status"] not in status:
+        return False
+    if requirement and not set(row.get("covers_req_ids") or []) & set(requirement):
+        return False
+    if q:
+        needle = q.strip().lower()
+        haystack = " ".join(str(row.get(field) or "") for field in ("_id", "title")).lower()
+        if needle not in haystack:
+            return False
+    return True
+
+
+def list_test_definitions(
+    db: Database,
+    pagination: Pagination,
+    *,
+    work_order: list[str] | None = None,
+    status: list[str] | None = None,
+    requirement: list[str] | None = None,
+    q: str | None = None,
+    orphaned: bool | None = None,
+) -> dict:
+    """Page the definition mirror, with the orphan flag TR-001 asks for.
+
+    `orphaned=true` pages the orphans, `orphaned=false` the linked rows, and
+    no param at all pages both. The sort is fixed on the id, lowest first —
+    the order the work-order detail (#11) already lists a definition in, so
+    the two screens never disagree. There is no sort param.
+
+    `work_order`, `status` and `requirement` take repeated params and OR within
+    one key; `q` searches the id and the title. Every key ANDs with the others,
+    and each narrows the whole derived table before the page is cut, so the
+    total counts the filtered set.
+    """
+    rows = _derived_definitions(db, orphaned)
+    filtered = [row for row in rows if _definition_matches(row, work_order, status, requirement, q)]
+    total = len(filtered)
+    start = (pagination.page - 1) * pagination.page_size
+    return pagination.envelope(filtered[start : start + pagination.page_size], total)
+
+
+def test_definition_facets(db: Database) -> dict:
+    """The distinct filter values of the whole definition mirror.
+
+    Two reads, because the three lists do not come from one place: the work
+    orders and the covered requirements are stored fields one `$group` folds,
+    and `status` derives, so it is read off the same projection the list pages.
+    An empty collection answers three empty lists.
+    """
+    pipeline = [
+        {
+            "$group": {
+                "_id": None,
+                "work_orders": {"$addToSet": "$work_order_id"},
+                "requirements": {"$addToSet": "$covers_req_ids"},
+            }
+        },
+        {
+            "$project": {
+                "work_orders": 1,
+                # `$addToSet` over an array field leaves a set of ARRAYS.
+                "requirements": {
+                    "$reduce": {
+                        "input": "$requirements",
+                        "initialValue": [],
+                        "in": {"$setUnion": ["$$value", "$$this"]},
+                    }
+                },
+            }
+        },
+    ]
+    grouped = next(db["test_definitions"].aggregate(pipeline), {})
+    return {
+        "work_orders": _sorted_facet_strings(grouped.get("work_orders") or []),
+        "statuses": _sorted_facet_strings(
+            list({row["status"] for row in _derived_definitions(db)})
+        ),
+        "requirements": _sorted_facet_strings(grouped.get("requirements") or []),
+    }
 
 
 def get_test_definition_detail(db: Database, td_id: str) -> dict:
