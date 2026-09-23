@@ -11,6 +11,11 @@ variables:
     description: Pack state, one message per SAMPLE_TIME (0.1 s / 10 Hz)
     defaultValue: battery-data
     required: true
+  - name: Q_MAX_AH
+    inputType: FreeText
+    description: Pack capacity in Ah. Read once at startup into Q_MAX - a change needs a restart, and a live write is refused
+    defaultValue: "25"
+    required: false
 dockerfile: dockerfile
 runEntryPoint: plant/main.py
 defaultFile: plant/main.py

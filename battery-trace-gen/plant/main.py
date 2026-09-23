@@ -452,7 +452,7 @@ def run_simulation(producer_app, out_topic):
             producer.produce(topic=out_topic.name, value=msg.value, key=msg.key)
 
             logger.debug(payload)
-            time.sleep(SAMPLE_TIME)
+            time.sleep(SAMPLE_TIME / p["TIME_SCALE"])
 
 
 def supervise_simulation(producer_app, out_topic, consumer_app):

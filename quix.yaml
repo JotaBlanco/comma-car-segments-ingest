@@ -423,6 +423,8 @@ deployments:
         inputType: OutputTopic
         required: true
         value: battery-data
+      - name: Q_MAX_AH
+        value: "25"
   - name: Battery Sim UI
     group: Battery
     application: battery-sim-ui

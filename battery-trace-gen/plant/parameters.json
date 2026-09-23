@@ -240,6 +240,19 @@
       "enum": null,
       "direction": null,
       "tunable": true
+    },
+    {
+      "name": "TIME_SCALE",
+      "label": "Simulation Speed",
+      "description": "Wall-clock compression factor. Divides the inter-tick sleep only: the integration step stays SAMPLE_TIME, so every published value is identical at any speed and only the rate at which ticks arrive changes. Tunable because it enters no state update and no filter coefficient. The minimum of 1.0 is what makes the divide safe.",
+      "datatype": "float",
+      "unit": null,
+      "default": 1.0,
+      "min": 1.0,
+      "max": 50.0,
+      "enum": null,
+      "direction": null,
+      "tunable": true
     }
   ]
 }

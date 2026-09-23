@@ -19,6 +19,12 @@ python generate.py --scenario all           # or --scenario T1
 Traces, the expected-verdict manifest and its flat CSV land in `out/`, which is
 gitignored.
 
+`Q_MAX_AH` must not be set in the environment that runs `generate.py`, and must not
+appear in a `.env` this folder loads. The deployment sets it to 25 Ah to make the live
+sim move quickly (`app.yaml`, `quix.yaml`), but `plant/main.py:84` seeds every parameter
+from `os.getenv` and hoists `Q_MAX` at import, before `plant/loader.py` can override it
+— so a stray value silently moves all four trace sha256s.
+
 ## The `Battery Sim` deployment
 
 This folder is also the Quix application behind the `Battery Sim` service
