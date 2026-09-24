@@ -6,83 +6,6 @@ metadata:
 
 # This section describes the Deployments of the data pipeline
 deployments:
-  - name: MF4 Import
-    group: Ingestion
-    application: mf4-to-blob
-    version: latest
-    deploymentType: Service
-    resources:
-      limits:
-        cpu: 500
-        memory: 2000
-    publicAccess:
-      enabled: true
-      urlPrefix: mf4import
-    plugin:
-      embeddedView:
-        enabled: true
-        hideHeader: true
-        default: true
-      sidebarItem:
-        show: true
-        label: MF4 Import
-        icon: upload_file
-        order: 0
-    variables:
-      - name: BLOB_ROOT
-        description: The root folder every artefact of one test run hangs from. This deployment writes the trace to BLOB_ROOT/<run_id>/ and the Test Manager API writes that run's test implementation .py into the same folder, so the two must carry the SAME value.
-        value: jama_ui
-    blobStorage:
-      bind: true
-  - name: MF4 Decoder
-    group: Ingestion
-    application: mf4-decoder
-    version: latest
-    deploymentType: Service
-    resources:
-      limits:
-        cpu: 1000
-        memory: 2500
-    desiredStatus: Running
-    variables:
-      - name: BATCH_RECORDS
-        value: 5000
-      - name: FORCE_REDECODE
-        description: Escape hatch for the decode-once filter. "false" skips a file that was already decoded, so replaying mf4_metadata cannot stack another copy of it in the lake. "true" re-decodes everything, duplicates included. Force a single file instead with force_redecode=true on its mf4_metadata message.
-      - name: TM_RUN_KEY_PATTERN
-        inputType: ProjectVariable
-        description: Rung 3 of the run-key ladder, shared with the TS Metadata sink. ONE project value with two readers, because the decoder and the connector must resolve the same run for the same file - a different pattern on either side splits a file's catalogue from its samples silently.
-        variableKey: TM_RUN_KEY_PATTERN
-      - name: DBC_PLATFORM
-        value: Porsche_Taycan
-    blobStorage:
-      bind: true
-  - name: MF4 DataLake Sink
-    group: Ingestion
-    application: mf4-datalake-sink
-    version: latest
-    deploymentType: Service
-    resources:
-      limits:
-        cpu: 1000
-        memory: 2000
-    variables:
-      - name: TABLE_NAME
-        inputType: ProjectVariable
-        description: The ONE lake table this estate writes. tm-connector states it on every run it registers, and the Test Manager API and frontend read it back, so all four read one project value and the claim cannot drift from the writer.
-        variableKey: LAKE_TABLE
-      - name: HIVE_COLUMNS
-        description: The Test Manager's traceability chain. Changing it needs a NEW LAKE_TABLE and a new CONSUMER_GROUP - the sink validates an existing table's partition spec at setup() and refuses a mismatch.
-        value: platform,work_order,run_id,~channel_name,~sender_node,~frame_name,~signal
-      - name: BATCH_SIZE
-        value: 50
-      - name: CONSUMER_GROUP
-        description: Bumped whenever HIVE_COLUMNS or LAKE_TABLE changes, so AUTO_OFFSET_RESET=earliest replays every stored batch into the new partition spec. Bumped again when test_definition left the tree.
-        value: battery_data_v1_lake_v1
-      - name: config
-        description: The Dynamic Configuration event topic. The sink reads each claimed work order's WorkOrder configuration and uses its `project` as the platform FALLBACK, for a file whose own MF4 header named no platform.
-    blobStorage:
-      bind: true
   - name: Test Manager - API
     group: Test Manager
     application: api
@@ -115,7 +38,7 @@ deployments:
         description: The planning system the registry mirrors work orders from. The mock below stands in for it.
       - name: CONFIG_API_URL
         description: The deployed Configuration Manager. Every new or changed work order is pushed there as a WorkOrder configuration, which is where the lake sink reads the platform fallback from. Empty disables the push.
-        value: http://config-api-svc
+        value: ''
       - name: TM_LAKE_TABLE
         inputType: ProjectVariable
         description: The lake table the statistics and Explore queries read - the SAME project value the sink writes and tm-connector claims.
@@ -124,7 +47,7 @@ deployments:
         description: The MF4 Import upload route the ingestion sweep posts blob dropbox files to. Blank leaves the sweep off; the import page is still reachable on its own URL.
       - name: TM_QUIXLAB_URL
         description: QuixLab's public URL. Empty hides the frontend's "Open in QuixLab" buttons.
-        value: https://quixlab-testrigorg-commacarsegmentsingest-jamaui.testrig-depl.dev.quix.io
+        value: ''
       - name: TM_FTS_URL
         description: The Flight Test Station's public URL. This estate deploys no station, so it stays EMPTY and the run screen's station panel and the Workbooks nav entry hide themselves. Setting it lights both up against whatever is deployed there.
         value: ''
@@ -156,61 +79,6 @@ deployments:
         description: The registry the push worker posts the catalog and its links to. Unset means the mock never pushes.
         required: true
         value: http://test-manager-backend/api/v1
-  - name: TS Metadata sink
-    group: Ingestion
-    application: tm-connector
-    version: latest
-    deploymentType: Service
-    resources:
-      limits:
-        cpu: 500
-        memory: 1000
-    network:
-      serviceName: tm-connector
-      ports:
-        - port: 80
-          targetPort: 80
-    variables:
-      - name: metadata_input
-        description: Upload metadata from MF4 Import - one message per stored upload; registers the run the moment the upload lands.
-      - name: batch_input
-        description: The decoder's own topic. This lane accumulates the kind:"samples" batches and finalizes on the ONE kind:"file_complete" marker per file, which carries the whole signal inventory.
-      - name: TM_API_URL
-        description: The Test Manager API - the only registry access this service has.
-      - name: TM_ACTOR
-        description: The journal actor. Must name a service - "system"/"unknown"/"user" answer 422.
-      - name: TM_HTTP_TIMEOUT_SECONDS
-        description: One MF4 registers hundreds of signals in a single POST /files. The connector must outwait that write; a timeout-and-retry would register the same bytes again while the first write is still running.
-        value: 900
-      - name: TM_RUN_KEY_PATTERN
-        inputType: ProjectVariable
-        description: Rung 3 of the run-key ladder, shared with the MF4 Decoder. See that deployment's copy.
-        variableKey: TM_RUN_KEY_PATTERN
-      - name: TM_STALL_SECONDS
-        description: A file whose batches never arrive reads as stalled on /status after this long.
-      - name: LAKE_TABLE
-        description: The lake table claimed on every run (run.lake_table), read from the ONE project value the sink writes to.
-  - name: Mongo Data Explorer
-    group: Test Manager
-    application: mongo-explorer
-    version: latest
-    deploymentType: Service
-    resources:
-      limits:
-        cpu: 200
-        memory: 400
-    publicAccess:
-      enabled: true
-      urlPrefix: tm-explorer
-    desiredStatus: Stopped
-    network:
-      serviceName: data-explorer
-      ports:
-        - port: 80
-          targetPort: 3100
-    variables:
-      - name: MONGO_PASSWORD
-        description: The same root password the Configuration Manager connects with.
   - name: Test Manager - Frontend
     group: Test Manager
     application: frontend
@@ -260,70 +128,6 @@ deployments:
         label: Test Manager
         icon: view_list
         order: 0
-  - name: MongoDB Backup Manager
-    group: Aux services
-    application: mongodb-backup-manager
-    version: latest
-    deploymentType: Service
-    resources:
-      limits:
-        cpu: 500
-        memory: 1000
-    publicAccess:
-      enabled: true
-      urlPrefix: backup-manager
-    state:
-      enabled: true
-      size: 1
-    network:
-      serviceName: backup-manager
-      ports:
-        - port: 80
-          targetPort: 80
-    plugin:
-      embeddedView:
-        enabled: true
-        hideHeader: true
-        default: true
-      sidebarItem:
-        show: true
-        label: Backup Manager
-        icon: save
-        order: 0
-    blobStorage:
-      bind: true
-  - name: Dynamic Configuration Manager
-    group: Ingestion
-    application: DynamicConfiguration
-    version: latest
-    deploymentType: Managed
-    resources:
-      limits:
-        cpu: 100
-        memory: 500
-    publicAccess:
-      enabled: true
-      urlPrefix: config-api-svc
-    network:
-      serviceName: config-api-svc
-    configuration:
-      topic: config-updates
-      mongoHost: mongodb
-      mongoPort: 27017
-      mongoUser: admin
-      mongoPasswordSecret: mongo_password
-      mongoDatabase: quix
-      mongoCollection: configuration-api
-    plugin:
-      embeddedView:
-        enabled: true
-        hideHeader: true
-        default: true
-      sidebarItem:
-        show: true
-        label: Configurations
-        icon: tune
-        order: 0
   - name: QuixLab
     application: quixlab
     version: latest
@@ -359,46 +163,6 @@ deployments:
         order: 1
     blobStorage:
       bind: true
-  - name: Grafana
-    application: quixlakehouse-grafana
-    version: latest
-    deploymentType: Service
-    resources:
-      limits:
-        cpu: 200
-        memory: 500
-    publicAccess:
-      enabled: true
-      urlPrefix: grafana
-    state:
-      enabled: true
-      size: 1
-      path: /app/state/grafana
-    network:
-      serviceName: grafana
-      ports:
-        - port: 80
-          targetPort: 3000
-    variables:
-      - name: GF_SECURITY_ADMIN_PASSWORD
-        variableKey: grafana_password
-      - name: GF_SERVER_ROOT_URL
-        value: https://grafana-testrigorg-commacarsegmentsingest-jamaui.testrig-depl.dev.quix.io
-      - name: GF_LOG_LEVEL
-        value: debug
-      - name: Quix__Lakehouse__Query__AuthToken
-        variableKey: QuixLakeToken
-    plugin:
-      embeddedView:
-        enabled: true
-        hideHeader: true
-        default: true
-      sidebarItem:
-        show: true
-        label: Grafana
-        order: 0
-    blobStorage:
-      bind: true
   - name: MongoDB
     application: mongodb
     version: latest
@@ -412,77 +176,6 @@ deployments:
       ports:
         - port: 27017
           targetPort: 27017
-  - name: Battery Sim
-    group: Battery
-    application: battery-trace-gen
-    version: latest
-    deploymentType: Service
-    resources:
-      limits:
-        cpu: 500
-        memory: 500
-    variables:
-      - name: input
-        inputType: InputTopic
-        required: true
-        value: ui-data
-      - name: output
-        inputType: OutputTopic
-        required: true
-        value: battery-data
-      - name: Q_MAX_AH
-        value: "90"
-      - name: A_THERMAL
-        value: "0.001"
-      - name: KE
-        value: "8.0"
-  - name: Battery Sim UI
-    group: Battery
-    application: battery-sim-ui
-    version: latest
-    deploymentType: Service
-    resources:
-      limits:
-        cpu: 500
-        memory: 500
-    variables:
-      - name: input
-        inputType: InputTopic
-        required: true
-        value: battery-data
-      - name: output
-        inputType: OutputTopic
-        required: true
-        value: ui-data
-      - name: PEDAL_DISCHARGE_MAX_W
-        value: "352000"
-      - name: PEDAL_CHARGE_REGEN_MAX_W
-        value: "80000"
-      - name: DC_CHARGE_MAX_W
-        value: "250000"
-    publicAccess:
-      enabled: true
-      urlPrefix: battery-sim
-    plugin:
-      embeddedView:
-        enabled: true
-        hideHeader: true
-        default: true
-      sidebarItem:
-        show: true
-        label: Battery Sim
-        icon: battery_charging_full
-        order: 1
 
 # This section describes the Topics of the data pipeline
-topics:
-  - name: mf4_metadata
-  - name: mf4-to-msg
-  - name: config-updates
-  - name: trace-ingest-requests
-  - name: battery-data
-    configuration:
-      partitions: 1
-  - name: ui-data
-    configuration:
-      partitions: 1
+topics: []
