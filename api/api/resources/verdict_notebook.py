@@ -26,7 +26,8 @@ def load_implementation(key):
 
 
 def plain_json(value):
-    return json.loads(json.dumps(value, default=str))
+    # QuixLab encodes outputs with allow_nan=False, so NaN or inf would fail the whole run.
+    return json.loads(json.dumps(value, default=str), parse_constant=lambda _: None)
 
 
 @canvas.cell(viz={"param": {"type": "string", "required": True}})
