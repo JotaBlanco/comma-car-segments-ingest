@@ -144,6 +144,9 @@ deployments:
       ports:
         - port: 80
           targetPort: 80
+    variables:
+      - name: QUIX_PAT_TOKEN
+        description: The lake token the cloned verdict jobs query with. A project secret holding a personal access token.
     plugin:
       embeddedView:
         enabled: true
