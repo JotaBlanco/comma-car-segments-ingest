@@ -16,24 +16,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ApiError } from "@/lib/api/client";
-import { useAddRunDefinition, useRemoveRunDefinition, useWorkOrder } from "@/lib/hooks";
+import { useRemoveRunDefinition, useWorkOrder } from "@/lib/hooks";
 import type { TestRun, WorkOrderDefinition } from "@/types";
-import { DefinitionPicker } from "./definition-picker";
-
-/** One sentence a person can act on, per refusal the two routes answer. */
-const FAILURES: Record<string, string> = {
-  run_not_found: "The registry holds no run under this id any more. Reload the screen.",
-  unknown_definition:
-    "The registry mirrors no test definition under that id. Run a planning sync, then try again.",
-};
-
-function messageFor(error: unknown): string {
-  if (error instanceof ApiError) {
-    return FAILURES[error.code] ?? `The registry refused it: ${error.detail}`;
-  }
-  return "The change never reached the registry. Check the connection and try again.";
-}
+import { AddDefinitionsDialog } from "./add-definitions-dialog";
+import { runDefinitionFailure } from "./definition-choices";
 
 /** Title and status of one covered definition, or what stands in for them. */
 function DefinitionCells({
@@ -82,17 +68,17 @@ function DefinitionCells({
  * row per definition, so one request resolves every title — and it is the read
  * the work-order screen has usually cached already.
  *
- * Add and remove each move ONE member (`POST`/`DELETE
- * /test-runs/{run_id}/definitions`) and answer the whole run, so the panel
- * redraws from the answer. Both are no-ops on a member already there or
- * already gone, so neither control checks the set before it calls.
+ * Each route moves ONE member (`POST`/`DELETE
+ * /test-runs/{run_id}/definitions`) and answers the whole run, so the panel
+ * redraws from the answer. The row's remove calls the second one; the add
+ * dialog calls the first once per newly ticked definition. Both are no-ops on
+ * a member already there or already gone, so neither checks the set first.
  */
 export function DefinitionsPanel({ run }: { run: TestRun }) {
   const ids = run.definition_ids ?? [];
-  const [picking, setPicking] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
 
-  const addDefinition = useAddRunDefinition(run.run_id);
   const removeDefinition = useRemoveRunDefinition(run.run_id);
 
   // No ids, nothing to resolve: the empty string keeps the query disabled.
@@ -101,17 +87,9 @@ export function DefinitionsPanel({ run }: { run: TestRun }) {
     (workOrderQuery.data?.definitions ?? []).map((definition) => [definition.td_id, definition]),
   );
 
-  const add = (tdId: string) => {
-    setFailure(null);
-    addDefinition.mutate(tdId, {
-      onSuccess: () => setPicking(false),
-      onError: (error) => setFailure(messageFor(error)),
-    });
-  };
-
   const remove = (tdId: string) => {
     setFailure(null);
-    removeDefinition.mutate(tdId, { onError: (error) => setFailure(messageFor(error)) });
+    removeDefinition.mutate(tdId, { onError: (error) => setFailure(runDefinitionFailure(error)) });
   };
 
   return (
@@ -126,23 +104,22 @@ export function DefinitionsPanel({ run }: { run: TestRun }) {
             <Button
               variant="outline"
               size="xs"
-              disabled={picking}
               onClick={() => {
                 setFailure(null);
-                setPicking(true);
+                setAdding(true);
               }}
             >
-              Add definition
+              Add definitions
             </Button>
           </div>
         }
       />
-      {picking && (
-        <DefinitionPicker
+      {adding && (
+        <AddDefinitionsDialog
+          runId={run.run_id}
           workOrderId={run.work_order_id ?? ""}
-          pending={addDefinition.isPending}
-          onPick={add}
-          onCancel={() => setPicking(false)}
+          present={ids}
+          onOpenChange={setAdding}
         />
       )}
       <p className="border-b border-line-2 px-4 py-2 text-[0.7rem] text-ink-3">
@@ -174,7 +151,7 @@ export function DefinitionsPanel({ run }: { run: TestRun }) {
               <TableCell colSpan={4} className="p-0!">
                 <EmptyState
                   title="No test definitions on this run"
-                  message="Nothing says yet which test cases this run answers. Press Add definition to assign one."
+                  message="Nothing says yet which test cases this run answers. Press Add definitions to assign them."
                 />
               </TableCell>
             </TableRow>

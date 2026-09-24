@@ -69,6 +69,10 @@ export type VerdictOutcome = "pass" | "fail" | "error";
 export interface RequirementRow {
   req_id: string;
   title: string;
+  /** The owning subsystem the Test Manager nests under the project. Null on
+      every catalog but the battery one; absent from a mirror built before the
+      field shipped. */
+  system?: string | null;
   chapter: string | null;
   status: string; // authored, customer-configured enum — never colour-mapped
   verification_method: string | null; // authored
