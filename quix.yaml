@@ -53,7 +53,6 @@ deployments:
         value: ''
       - name: BLOB_ROOT
         description: The root folder every artefact of one test run hangs from. A definition's test implementation .py lands in BLOB_ROOT/<run_id>/, beside the trace MF4 Import wrote there, so this deployment and MF4 Import must carry the SAME value.
-        value: jama_ui
     blobStorage:
       bind: true
   - name: Planning Sync Mock
@@ -107,7 +106,6 @@ deployments:
         variableKey: LAKE_TABLE
       - name: TM_LAKE_SESSION_PARTITIONS
         description: The partition levels that ADDRESS a session, outermost first, the last one being the session. The head of the sink's HIVE_COLUMNS.
-        value: platform,work_order,run_id
       - name: TM_LAKE_DATA_PARTITIONS
         description: The partition levels INSIDE one session, the last one being the signal. The tail of the sink's HIVE_COLUMNS, ~ markers and all.
       - name: TM_FTS_URL
@@ -179,6 +177,24 @@ deployments:
       ports:
         - port: 27017
           targetPort: 27017
+  - name: tm-run-tas-1001-bat-sys-tc-001-73e2b13a
+    application: quixlab
+    version: latest
+    deploymentType: Job
+    resources:
+      limits:
+        cpu: 500
+        memory: 2000
+    variables:
+      - name: QUIXLAB_MODE
+        inputType: FreeText
+        value: run
+      - name: QUIXLAB_NOTEBOOK
+        value: blob://testrigorg-commacarsegmentsingest-testing/jama_ui/definitions/BAT-SYS-TC-001/notebook.py
+      - name: QUIXLAB_PARAMS
+        inputType: FreeText
+        value: '{"run_id": "TAS-1001", "td_id": "BAT-SYS-TC-001", "implementation_key": "testrigorg-commacarsegmentsingest-testing/jama_ui/unassigned/2efeb6c0-BAT-SYS-TC-001.py", "lake_table": "battery_data_v1", "entrypoint": "evaluate"}'
+    plugin: {}
+    blobStorage:
+      bind: true
 
-# This section describes the Topics of the data pipeline
-topics: []
