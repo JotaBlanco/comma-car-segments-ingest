@@ -1,5 +1,9 @@
-"""Contract #10 and #11. Owner: Lane A. The reads, plus the one destructive
-write: a mirrored work order can be deleted, never edited.
+"""Contract #10 and #11. Owner: Lane A. The reads, plus the three writes.
+
+Planning owns the CONTENT of the campaigns it pushes — title, project,
+requestor — and no route edits one of those in place. Three writes live here:
+a person OPENS a work order the planning system never knew about, CLOSES one
+that has finished, or DELETES one no run names.
 """
 
 from typing import Annotated
@@ -11,11 +15,13 @@ from api.auth import journal_actor_or_id, require_token
 from api.db import get_db
 from api.models.common import Pagination, Source, pagination_params
 from api.models.planning import (
+    WorkOrderCreateRequest,
     WorkOrderDeletionReport,
     WorkOrderDetail,
     WorkOrderFacets,
     WorkOrderPage,
     WorkOrderStatus,
+    WorkOrderStatusRequest,
 )
 from api.models.sorting import reject_sort_params
 from api.quix_identity import Identity
@@ -37,7 +43,7 @@ def list_work_orders(
     source: Annotated[list[Source] | None, Query()] = None,
     q: str | None = None,
 ) -> WorkOrderPage:
-    """List the mirrored work orders. Every filter is real.
+    """List the work orders, mirrored or opened here. Every filter is real.
 
     Multi-value ``status``/``project`` via repeated params (§2.2).
     `definition_count` and `run_count` derive at read time. The header's
@@ -78,6 +84,42 @@ def get_work_order(
 ) -> WorkOrderDetail:
     """Serve the whole work-order screen: definitions plus the runs rollup."""
     return queries_runs.get_work_order_detail(db, wo_id)
+
+
+@router.post("/work-orders", status_code=201)
+def create_work_order(
+    body: WorkOrderCreateRequest,
+    db: Annotated[Database, Depends(get_db)],
+    identity: Annotated[Identity, Depends(require_token)],
+) -> WorkOrderDetail:
+    """Open a work order from the Test Manager. Refuses `wo_exists` (409).
+
+    For a campaign the planning system never knew about — the case a bench
+    upload used to leave with nowhere to land. The row is written at `manual`,
+    so it is not a planning row and no sync pass owns it.
+    """
+    return queries_runs.create_work_order(
+        db, body, actor=journal_actor_or_id(identity, identity.display_name)
+    )
+
+
+@router.patch("/work-orders/{wo_id}")
+def patch_work_order(
+    wo_id: str,
+    body: WorkOrderStatusRequest,
+    db: Annotated[Database, Depends(get_db)],
+    identity: Annotated[Identity, Depends(require_token)],
+) -> WorkOrderDetail:
+    """Set the status of a work order: `closed` ends the campaign, `active` reopens it.
+
+    The status is the one field a PATCH moves; the body names it alone and an
+    unknown key answers 422. The write is tagged `manual`
+    and journalled as `work_order.status`. An unknown id is 404 `wo_not_found`,
+    and a status that already reads what the caller asked for writes nothing.
+    """
+    return queries_runs.set_work_order_status(
+        db, wo_id, body.status, actor=journal_actor_or_id(identity, identity.display_name)
+    )
 
 
 @router.delete("/work-orders/{wo_id}")

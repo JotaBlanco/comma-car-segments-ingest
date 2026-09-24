@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { Plus } from "lucide-react";
+import { useMemo, useState } from "react";
 import { RowLink, RowLinkLabel } from "@/components/shared/row-link";
 import { ActiveFilterPills, type FilterPill } from "@/components/shared/active-filter-pills";
 import { ErrorState } from "@/components/shared/error-state";
@@ -16,18 +17,21 @@ import { ToneBadge } from "@/components/shared/status-badge";
 import { TableEmptyState } from "@/components/shared/table-empty-state";
 import { TablePager } from "@/components/shared/table-pager";
 import { TableSearchInput } from "@/components/shared/table-search-input";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatArrival } from "@/lib/format";
 import { usePlanningSyncStatus, useWorkOrderFacets, useWorkOrders } from "@/lib/hooks";
 import { useTableState, type TableStateConfig } from "@/lib/table-state";
 import type { WorkOrderListFilters, WorkOrderStatus } from "@/types";
+import { AddWorkOrderDialog } from "./add-work-order-dialog";
 
 /**
  * Work orders — LIGHT treatment (spec §0, §4).
  *
- * 42 mirrored rows: quick status views + one Project filter + search + pills + pager.
- * NO sortable headers — the endpoint 422s on `sort`/`order` params. The mirror-note header
- * and the api:planning badges stay unchanged.
+ * 42 rows: quick status views + one Project filter + search + pills + pager.
+ * NO sortable headers — the endpoint 422s on `sort`/`order` params. Most rows
+ * are mirrored from planning; a row opened here reads `manual`, and each row
+ * badges the source the API reports rather than an assumed one.
  */
 
 const WO_COLUMNS = 6;
@@ -70,6 +74,7 @@ function WorkOrderStatusBadge({ status }: { status: WorkOrderStatus }) {
 export function WorkOrdersScreen() {
   const table = useTableState(WO_TABLE_CONFIG, "/work-orders");
   const { state, activeQuickViewId } = table;
+  const [addOpen, setAddOpen] = useState(false);
 
   const filters: WorkOrderListFilters = useMemo(() => {
     const next: WorkOrderListFilters = {
@@ -140,7 +145,8 @@ export function WorkOrdersScreen() {
         sub={
           <span className="inline-flex items-center gap-1.5 text-[0.7rem] text-ink-3">
             <SourceBadge source="api:planning" />
-            Read-only mirror of the planning system — Test Manager never creates or edits these.
+            Mirrored from the planning system — their content is planning&rsquo;s. A campaign
+            planning does not know is opened here.
           </span>
         }
       />
@@ -170,11 +176,15 @@ export function WorkOrdersScreen() {
           pathname="/work-orders"
           query={table.buildQuery(state)}
         />
+        <Button size="sm" onClick={() => setAddOpen(true)}>
+          <Plus className="size-[13px]" strokeWidth={2.2} />
+          New work order
+        </Button>
       </div>
       <ActiveFilterPills pills={pills} onClearAll={() => table.clearAll()} />
       <Panel className="flex min-h-0 flex-1 flex-col">
         <PanelHead
-          title="Mirrored work orders"
+          title="Work orders"
           action={
             <span className="font-mono text-[0.68rem] text-ink-3">
               synced_at: {lastSyncAt !== null ? formatArrival(lastSyncAt) : "—"}
@@ -182,7 +192,7 @@ export function WorkOrdersScreen() {
           }
         />
         <TableScrollArea>
-          <Table aria-label="Mirrored work orders">
+          <Table aria-label="Work orders">
           <TableHeader>
             <TableRow>
               <TableHead>Work order</TableHead>
@@ -227,7 +237,7 @@ export function WorkOrdersScreen() {
                   <RowLinkLabel>
                     <span className="font-mono text-[0.78rem]">{workOrder.wo_id}</span>
                   </RowLinkLabel>{" "}
-                  <SourceBadge source="api:planning" />
+                  <SourceBadge source={workOrder.origin ?? "api:planning"} />
                 </TableCell>
                 <TableCell className="whitespace-normal">{workOrder.title}</TableCell>
                 <TableCell>
@@ -258,6 +268,9 @@ export function WorkOrdersScreen() {
           />
         )}
       </Panel>
+      {/* Mounted on demand, the way the requirements screen mounts its own
+          add dialog — a shut dialog asks the registry nothing. */}
+      {addOpen && <AddWorkOrderDialog open={addOpen} onOpenChange={setAddOpen} />}
     </FullHeightPage>
   );
 }

@@ -2,7 +2,9 @@
 
 import { Lock } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { DESTRUCTIVE_CLASS } from "@/components/screens/runs/delete-runs-dialog";
 import { AddNoteButton, AddNoteDialog } from "@/components/shared/add-note-dialog";
 import { WorkbookMenu } from "@/components/shared/workbook-menu";
 import { RowLink, RowLinkLabel } from "@/components/shared/row-link";
@@ -19,12 +21,15 @@ import { MetaCell, MetaGrid } from "@/components/shared/meta-grid";
 import { Panel, PanelHead } from "@/components/shared/panel";
 import { SourceBadge } from "@/components/shared/source-badge";
 import { DefinitionStatusBadge, StatusBadge, ToneBadge } from "@/components/shared/status-badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ApiError } from "@/lib/api/client";
 import { formatArrival } from "@/lib/format";
 import { usePageTitle, useRuns, useWorkOrder, useWorkOrderJournal } from "@/lib/hooks";
 import type { WorkOrderStatus } from "@/types";
+import { DeleteWorkOrderDialog } from "./delete-work-order-dialog";
+import { WorkOrderStatusControl } from "./work-order-status-control";
 
 function WorkOrderStatusBadge({ status }: { status: WorkOrderStatus }) {
   if (status === "active") {
@@ -51,6 +56,8 @@ export function WorkOrderDetailScreen({ woId }: WorkOrderDetailScreenProps) {
   const [journalParams, setJournalParams] = useState<JournalPanelParams>({ page_size: 50 });
   const journalQuery = useWorkOrderJournal(woId, journalParams);
   const [noteOpen, setNoteOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const router = useRouter();
   const runs = runsQuery.data?.items;
 
   if (error !== null) {
@@ -85,7 +92,7 @@ export function WorkOrderDetailScreen({ woId }: WorkOrderDetailScreenProps) {
           <Skeleton className="h-4 w-96" />
         </div>
         <Panel>
-          <PanelHead title="Planning metadata" />
+          <PanelHead title="Work order metadata" />
           <Table>
             <TableBody>
               <LoadingRows rows={4} cols={4} />
@@ -109,7 +116,7 @@ export function WorkOrderDetailScreen({ woId }: WorkOrderDetailScreenProps) {
           <h1 className="font-mono text-[1.35rem] font-semibold tracking-[-0.01em]">
             {workOrder.wo_id}
           </h1>
-          <SourceBadge source="api:planning" />
+          <SourceBadge source={workOrder.origin ?? "api:planning"} />
           <WorkOrderStatusBadge status={workOrder.status} />
           <FavouriteStar type="work_order" id={workOrder.wo_id} label={workOrder.wo_id} />
         </div>
@@ -118,20 +125,38 @@ export function WorkOrderDetailScreen({ woId }: WorkOrderDetailScreenProps) {
           <span className="font-mono text-[0.78rem]">{workOrder.project}</span>
         </div>
         <div className="mt-1.5">
-          <span className="inline-flex items-center gap-1.5 text-[0.7rem] text-ink-3">
-            <Lock size={12} strokeWidth={2} />
-            Read-only mirror — owned by the planning system · synced_at{" "}
-            {formatArrival(workOrder.synced_at)}
-          </span>
+          {workOrder.synced_at !== null ? (
+            <span className="inline-flex items-center gap-1.5 text-[0.7rem] text-ink-3">
+              <Lock size={12} strokeWidth={2} />
+              The content is the planning system&rsquo;s · synced_at{" "}
+              {formatArrival(workOrder.synced_at)}
+            </span>
+          ) : (
+            <span className="text-[0.7rem] text-ink-3">
+              Opened in the Test Manager — no planning system knows this campaign.
+            </span>
+          )}
+        </div>
+        <div className="mt-2.5 flex flex-wrap items-start gap-3">
+          <WorkOrderStatusControl woId={workOrder.wo_id} status={workOrder.status} />
+          <Button
+            variant="outline"
+            size="sm"
+            className={DESTRUCTIVE_CLASS}
+            onClick={() => setDeleteOpen(true)}
+          >
+            Delete work order
+          </Button>
         </div>
       </div>
 
       <Panel className="mb-3">
         <PanelHead
-          title="Planning metadata"
+          title="Work order metadata"
           action={
             <span className="inline-flex items-center gap-1.5 text-[0.7rem] text-ink-3">
-              all fields <SourceBadge source="api:planning" /> — never editable here
+              content <SourceBadge source={workOrder.origin ?? "api:planning"} /> — the status is
+              set above
             </span>
           }
         />
@@ -155,9 +180,9 @@ export function WorkOrderDetailScreen({ woId }: WorkOrderDetailScreenProps) {
           <MetaCell label="Priority" muted={!workOrder.priority}>
             {workOrder.priority ?? "—"}
           </MetaCell>
-          <MetaCell label="synced_at">
+          <MetaCell label="synced_at" muted={!workOrder.synced_at}>
             <span className="font-mono text-[0.74rem]">
-              {workOrder.synced_at.replace("T", " ")}
+              {workOrder.synced_at?.replace("T", " ") ?? "—"}
             </span>
           </MetaCell>
         </MetaGrid>
@@ -314,12 +339,20 @@ export function WorkOrderDetailScreen({ woId }: WorkOrderDetailScreenProps) {
         onParamsChange={setJournalParams}
         action={<AddNoteButton onClick={() => setNoteOpen(true)} />}
       />
-      {/* The mirror is read-only, but a note changes no field: it joins the
-          journal beside the planning entries, under the person's own name.
-          Mounted on demand, so a screen nobody writes on asks the Portal
-          nothing. */}
+      {/* Both dialogs mount on demand, so a screen nobody writes on asks the
+          Portal nothing. A note changes no field: it joins the journal beside
+          the planning entries, under the person's own name. */}
       {noteOpen && (
         <AddNoteDialog entityType="work_order" entityId={woId} open onOpenChange={setNoteOpen} />
+      )}
+      {deleteOpen && (
+        <DeleteWorkOrderDialog
+          woId={workOrder.wo_id}
+          runCount={workOrder.runs.length}
+          definitionCount={workOrder.definitions.length}
+          onOpenChange={setDeleteOpen}
+          onDeleted={() => router.replace("/work-orders")}
+        />
       )}
     </>
   );

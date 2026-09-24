@@ -1,10 +1,10 @@
 """Lane A queries over the run registry and the planning mirror.
 
 The run upsert, list, detail, patch and invalid flag live here, next to the
-file rollup helper, the mirror reads, the work-order delete, the Home summary,
-the one search box and the lineage chain. Every write goes through the
-provenance helpers, so each stored value keeps its source tag and its journal
-line.
+file rollup helper, the mirror reads, the work-order status write and delete,
+the Home summary, the one search box and the lineage chain. Every write goes
+through the provenance helpers, so each stored value keeps its source tag and
+its journal line.
 """
 
 from datetime import UTC, datetime, timedelta
@@ -1707,6 +1707,17 @@ def _definition_status(planned_runs: int | None, actual_runs: int) -> str:
     return "on_plan" if actual_runs >= planned_runs else "awaiting_data"
 
 
+def work_order_origin(row: dict) -> str:
+    """Who wrote this work order: the planning mirror, or a person here.
+
+    The title's source tag answers it — the mirror tags every field it writes
+    and a manual create tags the same ones. A row stored before the mirror
+    tagged anything carries no tag, and every row of that age came from
+    planning, so that is what an untagged row reads as.
+    """
+    return provenance.stored_source(row, "title") or Source.API_PLANNING.value
+
+
 def work_orders_view_counts(db: Database) -> dict:
     """Whole-table counts for /work-orders (contract §2.4)."""
     wos = db["work_orders"]
@@ -1725,7 +1736,7 @@ def list_work_orders(
     q: str | None = None,
     source: list[str] | None = None,
 ) -> dict:
-    """Page the work-order mirror, with the definition and run rollups.
+    """Page the work orders, with the definition and run rollups.
 
     Multi-value filters (``status``/``project``) OR within one key and AND
     across keys. The sort is fixed — decision box 2 (closed): no sort or
@@ -1766,6 +1777,7 @@ def list_work_orders(
             **row,
             "definition_count": definitions.get(row["_id"], 0),
             "run_count": runs.get(row["_id"], 0),
+            "origin": work_order_origin(row),
         }
         for row in rows
     ]
@@ -1800,7 +1812,8 @@ def get_work_order_detail(db: Database, wo_id: str) -> dict:
     """Read the whole work-order screen in one call.
 
     The definitions carry planned versus actual; the runs are the rollup panel,
-    newest first. Both derive at read time — planning owns the stored fields.
+    newest first. Both derive at read time, and so does `origin` — planning
+    owns the stored content of the campaigns it pushed.
     """
     work_order = db["work_orders"].find_one({"_id": wo_id})
     if work_order is None:
@@ -1828,7 +1841,116 @@ def get_work_order_detail(db: Database, wo_id: str) -> dict:
             }
         )
 
-    return {**work_order, "definitions": definitions, "runs": runs}
+    return {
+        **work_order,
+        "origin": work_order_origin(work_order),
+        "definitions": definitions,
+        "runs": runs,
+    }
+
+
+def create_work_order(db: Database, body, *, actor: str) -> dict:
+    """Open one work order from the Test Manager. Refuses 409 `wo_exists`.
+
+    Planning pushes its campaigns through `POST /planning/sync`; this is the
+    other door, for a campaign nobody planned there. Every field is written at
+    `manual`, and a sync pass writes only the ids planning sends, so no pass
+    reaches a row opened here. The row carries no `mirrored_at` either, so the
+    demo reset — which removes what a sync created — leaves it alone, exactly
+    as it leaves a manual requirement alone.
+
+    A run that claimed this id before it existed is NOT linked here.
+    `planning_sync._write_link` is the one write path for a run's work-order
+    link, and `_link_retained_claims` closes the claim on the next sync pass.
+    """
+    wo_id = body.wo_id.strip()
+    if db["work_orders"].find_one({"_id": wo_id}, {"_id": 1}) is not None:
+        raise ApiError(409, f"Work order {wo_id} already exists", "wo_exists")
+
+    update: dict = {}
+    values = {
+        "title": body.title.strip(),
+        "project": body.project.strip(),
+        "status": "active",
+    }
+    for field, value in values.items():
+        set_field(
+            update,
+            field,
+            value,
+            Source.MANUAL,
+            actor,
+            note=body.note,
+            entity_type="work_order",
+            entity_id=wo_id,
+            field_label=f"work_order.{field}",
+        )
+
+    db["work_orders"].insert_one(
+        {
+            "_id": wo_id,
+            **plain_values(update),
+            "requestor": None,
+            "department": None,
+            "priority": None,
+            "created_at_source": None,
+            "field_sources": sources(update),
+            "raw": None,
+            "synced_at": None,
+            "mirrored_at": None,
+        }
+    )
+    db["journal_entries"].insert_one(
+        add_event(
+            "work_order",
+            wo_id,
+            "work_order.created",
+            Source.MANUAL,
+            actor,
+            note=body.note or f"Created the work order {wo_id}.",
+        )
+    )
+    return get_work_order_detail(db, wo_id)
+
+
+def set_work_order_status(db: Database, wo_id: str, status: str, *, actor: str) -> dict:
+    """Set the status of one work order and return the whole detail.
+
+    The status is the one field this route moves: planning owns the content of
+    the campaigns it pushed, and a person decides whether one is still running.
+    The write goes through `set_field`, so the stored value carries the
+    `manual` tag and the journal gains a `work_order.status` change entry
+    under the person's name.
+
+    On a MIRRORED work order the next sync pass writes the status planning
+    states, whatever a person set here: `planning_sync._write_mirror` replaces
+    every field planning names without a precedence check. A row opened in the
+    Test Manager is never in that payload, so its status stands.
+
+    A status that already reads what the caller asked for writes nothing and
+    journals nothing. Raises 404 `wo_not_found`.
+    """
+    stored = db["work_orders"].find_one({"_id": wo_id})
+    if stored is None:
+        raise ApiError(404, f"Work order {wo_id} not found", "wo_not_found")
+
+    if stored.get("status") != status:
+        update: dict = {}
+        entry = set_field(
+            update,
+            "status",
+            status,
+            Source.MANUAL,
+            actor,
+            current_doc=stored,
+            entity_type="work_order",
+            entity_id=wo_id,
+            field_label="work_order.status",
+        )
+        db["work_orders"].update_one({"_id": wo_id}, {"$set": update})
+        db["journal_entries"].insert_one(entry)
+
+    return get_work_order_detail(db, wo_id)
 
 
 def delete_work_order(db: Database, wo_id: str, *, actor: str) -> dict:

@@ -1,4 +1,5 @@
 import type { PageParams, Paginated, ViewCounts } from "./common";
+import type { SourceTag } from "./source";
 import type { RunStatus } from "./test-run";
 
 export type WorkOrderStatus = "active" | "closed";
@@ -12,7 +13,14 @@ export interface WorkOrderListItem {
   status: WorkOrderStatus;
   definition_count: number;
   run_count: number;
-  synced_at: string;
+  /**
+   * Who wrote the row: `api:planning` for a mirrored campaign, `manual` for
+   * one opened in the Test Manager. Absent on a row served before the field
+   * existed, and those all came from planning.
+   */
+  origin?: SourceTag;
+  /** Null on a work order a person opened here — it synced from nowhere. */
+  synced_at: string | null;
 }
 
 export interface WorkOrderDefinition {
@@ -46,9 +54,39 @@ export interface WorkOrderDetail {
   department: string | null;
   priority: string | null;
   created_at_source: string | null;
-  synced_at: string;
+  /** See `WorkOrderListItem.origin`. */
+  origin?: SourceTag;
+  synced_at: string | null;
   definitions: WorkOrderDefinition[];
   runs: WorkOrderRunRollup[];
+}
+
+/**
+ * Body of `POST /work-orders` — a campaign a person opens in the Test
+ * Manager. The row is written at source `manual`; planning's own campaigns
+ * arrive through `POST /planning/sync` and never here. `status` starts
+ * `active` and the server decides it.
+ */
+export interface WorkOrderCreateBody {
+  wo_id: string;
+  title: string;
+  project?: string;
+  note?: string;
+}
+
+/**
+ * Body of `PATCH /work-orders/{wo_id}`. The status is the one field a person
+ * authors on a work order — planning owns the title, the project and the rest,
+ * and the route answers 422 to any other key.
+ */
+export interface WorkOrderStatusBody {
+  status: WorkOrderStatus;
+}
+
+/** What `DELETE /work-orders/{wo_id}` reports: the id, and the definitions that went with it. */
+export interface WorkOrderDeletionReport {
+  wo_id: string;
+  definitions: number;
 }
 
 export type WorkOrderListFilters = PageParams & {
