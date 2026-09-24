@@ -166,6 +166,25 @@ def implementation_blob_key(run_id: str | None, filename: str, digest: str) -> s
     return f"{prefix}/{run}/{digest[:8]}-{name}"
 
 
+# The folder the per-definition QuixLab notebooks live under, beneath `blob_root()`.
+DEFINITIONS_FOLDER = "definitions"
+DEFINITION_NOTEBOOK_NAME = "notebook.py"
+
+
+def definition_notebook_key(td_id: str) -> str:
+    """Build the key of the QuixLab notebook a definition run executes.
+
+    The workspace folder leads, as on `implementation_blob_key`. The notebook has a
+    folder of its own, because QuixLab makes that folder the run's project root and
+    writes its manifest, runs and node records beside the notebook.
+    """
+    workspace = os.environ.get(WORKSPACE_VARIABLE, "").strip().strip("/")
+    root = blob_root()
+    prefix = f"{workspace}/{root}" if workspace else root
+    definition = _safe_segment(td_id, "unknown-definition")
+    return f"{prefix}/{DEFINITIONS_FOLDER}/{definition}/{DEFINITION_NOTEBOOK_NAME}"
+
+
 @runtime_checkable
 class FileBytesWriter(Protocol):
     """Store the bytes of one uploaded file."""
@@ -323,6 +342,8 @@ def get_file_writer() -> FileBytesWriter:
 __all__ = [
     "BLOB_ROOT_VARIABLE",
     "DEFAULT_BLOB_ROOT",
+    "DEFINITIONS_FOLDER",
+    "DEFINITION_NOTEBOOK_NAME",
     "REQUIREMENTS_FOLDER",
     "RESULT_FOLDER",
     "UNASSIGNED_RUN",
@@ -333,6 +354,7 @@ __all__ = [
     "blob_root",
     "build_blob_writer",
     "build_default_writer",
+    "definition_notebook_key",
     "get_file_writer",
     "implementation_blob_key",
     "requirements_blob_key",
