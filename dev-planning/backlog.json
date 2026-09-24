@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-23",
+  "updated": "2026-09-24",
   "statuses": [
     "to do",
     "discuss",
@@ -242,7 +242,7 @@
       "id": "BL-34",
       "title": "Requirements and test definitions need item_version + content_sha256 + normative_sha256",
       "status": "to do",
-      "notes": "forced by BL-33: a versioned link needs versioned ends. Mints on content change, identical bytes refused (no_op_mint); normative projection decides suspicion",
+      "notes": "PARTLY SHIPPED on the requirement side: planning_sync.py:516-525 mints item_version/content_sha256/normative_sha256 on every mirrored requirement and stores them. They are NOT in the read projection (queries_requirements._project), so the wire shows none of them - see BL-70. The TEST DEFINITION half does not exist at all and is the hard prerequisite for BL-69's link store",
       "updated": "2026-09-22"
     },
     {
@@ -482,6 +482,20 @@
       "status": "to do",
       "notes": "version/supersedes/version_group and POST|GET /files/{id}/versions all exist already. Missing: the connector posting to the versions route when a run already holds that filename ((run_id, filename) is the logical key), FileBody.version_group on the wire, and a 'v2 of 3' cell. No stored field, no migration",
       "updated": "2026-09-23"
+    },
+    {
+      "id": "BL-69",
+      "title": "Human-readable file versions (v1..vn) per re-run, and a link store carrying both ends' versions",
+      "status": "to do",
+      "notes": "user 2026-09-24. SPEC DONE (dev-planning/versions-and-links/spec.md) — not built. Same logical file = (run_id, filename); the registry forms the chain in register_file_document, not the connector, because two concurrent markers would both mint a root. File versions deliberately do NOT touch links: a link joins two specifications, a trace is evidence, and provenance.input_file_ids already pins the file version. Link store 'traceability_links', _id = link_type|from_id|to_id with no version in the preimage; the confirmed pair rides as four fields. No create route - confirming creates the document, because an authorable link set would be a second statement of coverage (defect D1)",
+      "updated": "2026-09-24"
+    },
+    {
+      "id": "BL-70",
+      "title": "Requirement versions are minted and stored but never served",
+      "status": "to do",
+      "notes": "planning_sync mints item_version/content_sha256/normative_sha256; queries_requirements._project omits all three, so GET /requirements returns none of them and nothing downstream can read a requirement's version. Found 2026-09-24 while specing BL-69, which needs them on the wire",
+      "updated": "2026-09-24"
     }
   ]
 }

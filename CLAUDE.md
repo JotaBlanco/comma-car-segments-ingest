@@ -14,7 +14,7 @@ the pipeline consumes lives beside the generator and must stay identical to them
 | 11 parameters (values the requirement tokens resolve to) | `battery-trace-gen/data/battery-dc-parameters.json` |
 | 10 test cases (one per requirement, `covers_req_ids`, pass criteria) | `battery-trace-gen/specs/battery-dc-test-specs.json` |
 | Expected verdicts per trace (6 pass / 4 fail, mechanism for each fail) | `battery-trace-gen/out/manifest.csv` (generated) |
-| CAN database `BATTERY_DC_V1` (8 frames, 249 signals, 4 nodes) | `dcm-seed-dbc/dbc/BATTERY_DC_V1.dbc` |
+| CAN database `BATTERY_DC_V1` (8 frames, 249 signals, 4 nodes) | `dcm-seed-dbc/dbc/Porsche_Taycan.dbc` |
 | Spec / architecture / test reports | `dev-planning/battery-can-traces/` |
 
 Regenerate this file with `battery-trace-gen/tools/gen_claude_md.py` after editing any
@@ -79,7 +79,7 @@ MF4 Import  --mf4_metadata-->  MF4 Decoder  --"samples" + ONE "file_complete" ma
                                                                   partitions platform/work_order/run_id
 ```
 - **DBC comes from DCM**, not the file: `type=dbc`, `target_key=<platform>`; the decoder runs
-  with `DBC_PLATFORM=BATTERY_DC_V1` because MF4 Import never emits `platform`. The DBC file
+  with `DBC_PLATFORM=Porsche_Taycan` because MF4 Import never emits `platform`. The DBC file
   must be named `<PLATFORM>.dbc` (`dcm-seed-dbc` keys by basename) and carry no `VAL_` tables.
 - **Run-id ladder** (`mf4-decoder/identity.py`, mirrored by `tm-connector`): `declared.run_id`
   → HD-comment `test.run_key` → `TAS-\d+` in the filename → minted `<platform>_<route>`.
@@ -138,7 +138,7 @@ same change that moves the work. Nothing agreed in conversation stays only in co
 | `BL-28` | to do | Work order carries the list of requirements to be tested in it | user 2026-09-22: a campaign states its requirement scope. Feeds the work-order page and the Covered/Tested rollup; interacts with BL-23 (requirements as entities) and requirement-status-from-runs OQ4 |
 | `BL-31` | to do | 5 red tests in tests/test_import_claim.py after the definition claim was dropped | test_a_path_unsafe_id_is_refused[definition_id] x5, test_a_claim_in_the_filename_is_read, test_a_typed_claim_beats_the_filename, test_the_claim_rides_in_both_spellings, test_the_declared_bag_survives_the_connector_s_filter; plus test_sink_partitioning.py::test_the_declared_tree_is_the_traceability_chain already red |
 | `BL-32` | to do | Review page — review a requirement or a test definition | SPEC DONE (dev-planning/review-page/spec.md) — not built |
-| `BL-34` | to do | Requirements and test definitions need item_version + content_sha256 + normative_sha256 | forced by BL-33: a versioned link needs versioned ends. Mints on content change, identical bytes refused (no_op_mint); normative projection decides suspicion |
+| `BL-34` | to do | Requirements and test definitions need item_version + content_sha256 + normative_sha256 | PARTLY SHIPPED on the requirement side: planning_sync.py:516-525 mints item_version/content_sha256/normative_sha256 on every mirrored requirement and stores them. They are NOT in the read projection (queries_requirements._project), so the wire shows none of them - see BL-70. The TEST DEFINITION half does not exist at all and is the hard prerequisite for BL-69's link store |
 | `BL-35` | to do | Authoring controls on every page: add / edit / remove | SPEC DONE (dev-planning/authoring-controls/spec.md) — not built |
 | `BL-36` | to do | Review window functional — not just a queue | SPEC DONE (dev-planning/review-page/spec.md) — not built |
 | `BL-37` | to do | Evaluator: run a test case against a trace and produce a verdict | was tm-evaluator (criteria engine + readiness trigger, group_by(test_run_id)+State). Now nothing evaluates; BL-11 is its replacement for the battery set |
@@ -156,6 +156,8 @@ same change that moves the work. Nothing agreed in conversation stays only in co
 | `BL-66` | to do | One test case across several work orders, keyed by SW version | user 2026-09-23. SPEC DONE (dev-planning/tc-across-sw-versions/spec.md) — not built. test_runs.sw_version is evidence, work_orders.sw_version is intent, neither resolves the other. definitions.work_order_id -> work_order_ids[]; 'orphaned' keeps its meaning. verification_state_by_sw partitions the fold so a pass on build A survives a fail on build B. Deploy is a no-op: no lake partition change, no re-sink |
 | `BL-67` | to do | delete_work_order cascades to definitions — data loss once a definition is shared | queries_runs.py:1870 delete_many({'work_order_id': wo_id}). Correct TODAY because a definition names one work order; the moment BL-66 makes them shared this deletes a definition another campaign still uses. Fix with BL-66: pull the id and delete only definitions left with an empty list |
 | `BL-68` | to do | Files: surface version_group and post re-uploads to the versions route | version/supersedes/version_group and POST|GET /files/{id}/versions all exist already. Missing: the connector posting to the versions route when a run already holds that filename ((run_id, filename) is the logical key), FileBody.version_group on the wire, and a 'v2 of 3' cell. No stored field, no migration |
+| `BL-69` | to do | Human-readable file versions (v1..vn) per re-run, and a link store carrying both ends' versions | user 2026-09-24. SPEC DONE (dev-planning/versions-and-links/spec.md) — not built. Same logical file = (run_id, filename); the registry forms the chain in register_file_document, not the connector, because two concurrent markers would both mint a root. File versions deliberately do NOT touch links: a link joins two specifications, a trace is evidence, and provenance.input_file_ids already pins the file version. Link store 'traceability_links', _id = link_type|from_id|to_id with no version in the preimage; the confirmed pair rides as four fields. No create route - confirming creates the document, because an authorable link set would be a second statement of coverage (defect D1) |
+| `BL-70` | to do | Requirement versions are minted and stored but never served | planning_sync mints item_version/content_sha256/normative_sha256; queries_requirements._project omits all three, so GET /requirements returns none of them and nothing downstream can read a requirement's version. Found 2026-09-24 while specing BL-69, which needs them on the wire |
 | `BL-13` | discuss | TM_RUN_KEY_PATTERN is an unbound project variable on decoder + connector (literal string) | harmless for us (header rung); tell Tomas |
 | `BL-14` | discuss | Legacy rows: 4 battery routes in mf4_signals_v5 (pre-marker decode) | leave or delete |
 | `BL-15` | discuss | Requirements seeding into the new TM model (requirements-files per definition) | seed markdown covers it per definition; direct upload route exists |
