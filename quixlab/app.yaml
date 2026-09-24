@@ -27,6 +27,11 @@ variables:
         value: WARNING
       - label: ERROR
         value: ERROR
+  - name: QUIX_PAT_TOKEN
+    inputType: Secret
+    description: A personal access token the verdict job queries the lake with, so an implementation reads data the workspace service identity cannot. Empty leaves the service identity.
+    defaultValue: QUIX_PAT_TOKEN
+    required: false
 dockerfile: dockerfile
 defaultFile: dockerfile
 libraryItemId: quixlab
