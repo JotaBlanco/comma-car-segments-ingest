@@ -31,6 +31,7 @@ from api.errors import (
 from api.models.common import ALLOWED_PAGE_SIZES
 from api.routers import (
     assistant,
+    definition_runs,
     explore,
     explore_chat,
     files,
@@ -309,6 +310,26 @@ ROUTE_ERRORS: dict[str, tuple[tuple[int, str], ...]] = {
     "POST /api/v1/assistant/chat": (
         (403, "assistant_disabled"),
         (403, "ai_unavailable"),
+    ),
+    "POST /api/v1/test-runs/{run_id}/definitions/{td_id}/run": (
+        (401, "quixlab_needs_login"),
+        (403, "quixlab_refused"),
+        (404, "run_not_found"),
+        (404, "td_not_found"),
+        (404, "implementation_not_found"),
+        (409, "quixlab_no_template"),
+        (503, "storage_unreachable"),
+        (503, "quixlab_unreachable"),
+    ),
+    "GET /api/v1/test-runs/{run_id}/definitions/{td_id}/run": (
+        (401, "quixlab_needs_login"),
+        (403, "quixlab_refused"),
+        (404, "run_not_found"),
+        (404, "td_not_found"),
+        (404, "run_job_not_found"),
+        (409, "quixlab_no_template"),
+        (409, "version_conflict"),
+        (503, "quixlab_unreachable"),
     ),
     "GET /api/v1/requirements/{req_id}": ((404, "requirement_not_found"),),
     "GET /api/v1/requirements/{req_id}/journal": ((404, "requirement_not_found"),),
@@ -613,6 +634,7 @@ def create_app() -> FastAPI:
         explore_chat,
         assistant,
         integrations,
+        definition_runs,
     ):
         api.include_router(module.router)
     app.include_router(api)
