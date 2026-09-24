@@ -177,4 +177,24 @@ deployments:
       ports:
         - port: 27017
           targetPort: 27017
+  - name: tm-run-tas-1001-bat-sys-tc-002-ae8d6da7
+    application: quixlab
+    version: latest
+    deploymentType: Job
+    resources:
+      limits:
+        cpu: 500
+        memory: 2000
+    variables:
+      - name: QUIXLAB_MODE
+        inputType: FreeText
+        value: run
+      - name: QUIXLAB_NOTEBOOK
+        value: blob://testrigorg-commacarsegmentsingest-testing/jama_ui/definitions/BAT-SYS-TC-002/notebook.py
+      - name: QUIXLAB_PARAMS
+        inputType: FreeText
+        value: '{"run_id": "TAS-1001", "td_id": "BAT-SYS-TC-002", "implementation_key": "testrigorg-commacarsegmentsingest-testing/jama_ui/unassigned/aec8ca16-BAT-SYS-TC-002.py", "lake_table": "battery_data_v1", "entrypoint": "evaluate"}'
+    plugin: {}
+    blobStorage:
+      bind: true
 
