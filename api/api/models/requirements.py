@@ -45,6 +45,9 @@ class RequirementRow(ApiModel):
     req_id: str = Field(validation_alias="_id")
     title: str
     status: str
+    # The owning subsystem, the level the Test Manager nests under the
+    # platform. Defaults to null: only the battery catalog states one.
+    system: str | None = None
     chapter: str | None
     ears_pattern: EarsPattern | None
     revision: str | None
@@ -84,6 +87,7 @@ class RequirementFacets(ApiModel):
     over every document, retired rows included, the way the list does.
     """
 
+    systems: list[str]
     chapters: list[str]
     statuses: list[str]
     methods: list[str]
@@ -143,6 +147,7 @@ class RequirementCreateRequest(RequestModel):
     title: str
     text: str
     ears_pattern: EarsPattern
+    system: str | None = None
     chapter: str | None = None
     system_states: list[str] = Field(default_factory=list)
     rationale: str | None = None
@@ -170,14 +175,17 @@ class RequirementPatchRequest(RequestModel):
     (`requirement-status-from-runs/spec.md` §4.6, `authoring-controls/spec.md`
     §12 OQ5): a status-only edit still mints `item_version`, but is judged for
     `no_op_mint` against its own prior value rather than the content hash.
-    No transition table or four-eyes gate is enforced here — any value the
-    collection accepts today is allowed; `dev-planning/review-page/spec.md`
-    owns the policy.
+
+    A stated `status` takes any value the collection accepts — no transition
+    table, no four-eyes gate; `dev-planning/review-page/spec.md` owns the
+    policy. Omit it and a content change past the authoring states demotes the
+    requirement to `Draft` (`queries_requirements.AUTHORING_STATUSES`).
     """
 
     title: str | None = None
     text: str | None = None
     ears_pattern: EarsPattern | None = None
+    system: str | None = None
     chapter: str | None = None
     system_states: list[str] | None = None
     rationale: str | None = None

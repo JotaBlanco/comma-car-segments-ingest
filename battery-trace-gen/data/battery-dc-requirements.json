@@ -35,6 +35,7 @@
         "PROJECT-CHOICE:systems-engineer"
       ],
       "status": "Draft",
+      "system": "BMS",
       "system_states": [
         "Charging"
       ],
@@ -74,6 +75,7 @@
         "PROJECT-CHOICE:systems-engineer"
       ],
       "status": "Draft",
+      "system": "BMS",
       "system_states": [],
       "text": "The battery system shall determine the technical state of charge by integrating the measured DC current over time.",
       "title": "Technical state of charge by coulomb counting",
@@ -105,6 +107,7 @@
         "PROJECT-CHOICE:systems-engineer"
       ],
       "status": "Draft",
+      "system": "BMS",
       "system_states": [],
       "text": "The battery system shall derive the customer state of charge from the technical state of charge by a linear mapping in which a technical state of charge of {SOC_tech_at_cust_0pct} yields a customer state of charge of 0 % and a technical state of charge of {SOC_tech_at_cust_100pct} yields a customer state of charge of 100 %, clamped to the range 0 % to 100 %.",
       "title": "Customer state of charge derivation",
@@ -143,6 +146,7 @@
         "PROJECT-CHOICE:systems-engineer"
       ],
       "status": "Draft",
+      "system": "BMS",
       "system_states": [
         "Sleep",
         "Standby"
@@ -183,6 +187,7 @@
         "PROJECT-CHOICE:systems-engineer"
       ],
       "status": "Draft",
+      "system": "BMS",
       "system_states": [
         "Sleep",
         "Balancing"
@@ -213,6 +218,7 @@
         "PROJECT-CHOICE:systems-engineer"
       ],
       "status": "Draft",
+      "system": "BMS",
       "system_states": [],
       "text": "The battery system shall maintain the battery terminal voltage within the range {Udc_min} to {Udc_Max}.",
       "title": "Terminal voltage operating range",
@@ -243,6 +249,7 @@
         "PROJECT-CHOICE:systems-engineer"
       ],
       "status": "Draft",
+      "system": "BMS",
       "system_states": [],
       "text": "The battery system shall limit the battery temperature to not more than {T_batt_max}.",
       "title": "Battery temperature ceiling",
@@ -280,6 +287,7 @@
         "PROJECT-CHOICE:systems-engineer"
       ],
       "status": "Draft",
+      "system": "BMS",
       "system_states": [
         "Charging"
       ],
@@ -316,6 +324,7 @@
         "PROJECT-CHOICE:systems-engineer"
       ],
       "status": "Draft",
+      "system": "BMS",
       "system_states": [],
       "text": "The battery system shall provide the heater states 0, 1 and 2, corresponding to the heater being off, the heater operating at {P_heater_middle} and the heater operating at {P_heater_max}.",
       "title": "Heater power states",
@@ -354,6 +363,7 @@
         "PROJECT-CHOICE:systems-engineer"
       ],
       "status": "Draft",
+      "system": "BMS",
       "system_states": [
         "Heating"
       ],
@@ -370,7 +380,7 @@
   "parent_version": null,
   "schema_version": "1.0.0",
   "set": "requirements",
-  "set_canonical_sha256": "3f8ca3d7cc9a2917ed603628237942ad13e6606abee9e222b93f7419f68c5ed3",
+  "set_canonical_sha256": "c362651a310303d23c31cb3eeb6d1163fab97862301de3a1d068186aa5411c0a",
   "source_upload": null,
   "validator_version": null,
   "version": "v0001",

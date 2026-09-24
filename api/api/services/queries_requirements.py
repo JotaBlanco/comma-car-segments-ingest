@@ -36,6 +36,7 @@ from api.provenance import add_event, plain_values, set_field, sources
 CONTENT_FIELDS = (
     "title",
     "text",
+    "system",
     "chapter",
     "ears_pattern",
     "revision",
@@ -58,6 +59,10 @@ NORMATIVE_FIELDS = (
     "verification_method",
     "verification_criteria",
 )
+
+# The lifecycle states a requirement is still being authored in (`CLAUDE.md`
+# § Requirements workflow). A content edit in any other state returns it here.
+AUTHORING_STATUSES = ("NEW", "Draft")
 
 # The list read caps the run evidence at 20 and reports the true count
 # alongside it (dev-planning/requirement-status-from-runs/spec.md §4.3). The
@@ -266,6 +271,7 @@ def _view_counts(rows: list[dict]) -> dict:
 
 def _matches(
     row: dict,
+    system: list[str] | None,
     chapter: list[str] | None,
     status: list[str] | None,
     state: list[str] | None,
@@ -282,12 +288,14 @@ def _matches(
 ) -> bool:
     """Every filter `GET /requirements` accepts, applied to one projected row.
 
-    All thirteen run here, over the already-`_project`ed table — including
+    All fourteen run here, over the already-`_project`ed table — including
     `has_verified_by`/`has_latest_run`, which test `verified_by`/
     `latest_run_id` and so cannot be pushed into the Mongo `find()`: those two
     fields exist only after `_project` computes them, never on the stored
     document.
     """
+    if system and row.get("system") not in system:
+        return False
     if chapter and row.get("chapter") not in chapter:
         return False
     if status and row.get("status") not in status:
@@ -328,6 +336,7 @@ def list_requirements(
     db: Database,
     pagination: Pagination,
     *,
+    system: list[str] | None = None,
     chapter: list[str] | None = None,
     status: list[str] | None = None,
     state: list[str] | None = None,
@@ -344,7 +353,7 @@ def list_requirements(
 ) -> dict:
     """Page the requirement mirror, `req_id` ascending — no sort param (§6).
 
-    Every visible column filters server-side, all thirteen in `_matches`
+    Every visible column filters server-side, all fourteen in `_matches`
     over the whole projected table (`requirements-page/spec.md`'s widened
     filter set, beyond the four §11.2 names). `view_counts` is whole-table:
     it is built from every row before the filters narrow the set, so a quick
@@ -359,6 +368,7 @@ def list_requirements(
         for row in rows
         if _matches(
             row,
+            system,
             chapter,
             status,
             state,
@@ -410,12 +420,13 @@ def requirement_facets(db: Database) -> dict:
 
     No status filter, because `list_requirements` pages every document with
     none either: a retired requirement stays in the grid, so its values stay
-    in the dropdowns. An empty collection answers six empty lists.
+    in the dropdowns. An empty collection answers seven empty lists.
     """
     pipeline = [
         {
             "$group": {
                 "_id": None,
+                "systems": {"$addToSet": "$system"},
                 "chapters": {"$addToSet": "$chapter"},
                 "statuses": {"$addToSet": "$status"},
                 "methods": {"$addToSet": "$verification_method"},
@@ -426,6 +437,7 @@ def requirement_facets(db: Database) -> dict:
         },
         {
             "$project": {
+                "systems": 1,
                 "chapters": 1,
                 "statuses": 1,
                 "methods": 1,
@@ -437,6 +449,7 @@ def requirement_facets(db: Database) -> dict:
     ]
     grouped = next(db["requirements"].aggregate(pipeline), {})
     return {
+        "systems": _facet_strings(grouped.get("systems") or []),
         "chapters": _facet_strings(grouped.get("chapters") or []),
         "statuses": _facet_strings(grouped.get("statuses") or []),
         "methods": _facet_strings(grouped.get("methods") or []),
@@ -578,6 +591,10 @@ def patch_requirement(
     (§4.6, `no_op_mint` above): a status-only edit changes no content byte, so
     `no_op_mint` is decided over content-changed-or-status-changed, not the
     hash alone. `item_version` mints for either kind of change.
+
+    A content change to a requirement outside `AUTHORING_STATUSES` also
+    returns it to `Draft`, journalled separately from the fields that moved.
+    A PATCH that states a different `status` decides the status itself.
     """
     stored = _requirement_or_404(db, req_id)
     if body.parent_version != stored.get("item_version"):
@@ -595,8 +612,9 @@ def patch_requirement(
         for field in CONTENT_FIELDS
     }
     digest = content_sha256(merged)
+    content_changed = digest != stored.get("content_sha256")
     status_changed = body.status is not None and body.status != stored.get("status")
-    if digest == stored.get("content_sha256") and not status_changed:
+    if not content_changed and not status_changed:
         raise ApiError(
             409,
             "nothing changed, so the registry stored nothing",
@@ -630,6 +648,23 @@ def patch_requirement(
             Source.MANUAL,
             actor,
             note=body.note,
+            current_doc=stored,
+            entity_type="requirement",
+            entity_id=req_id,
+            field_label="requirement.status",
+        )
+        if entry is not None:
+            entries.append(entry)
+    elif content_changed and stored.get("status") not in AUTHORING_STATUSES:
+        # Content moved on a frozen requirement, so review starts again over
+        # the new text. A PATCH that states `status` itself decides instead.
+        entry = set_field(
+            update,
+            "status",
+            "Draft",
+            Source.MANUAL,
+            actor,
+            note="Returned to Draft: the content of a frozen requirement changed.",
             current_doc=stored,
             entity_type="requirement",
             entity_id=req_id,

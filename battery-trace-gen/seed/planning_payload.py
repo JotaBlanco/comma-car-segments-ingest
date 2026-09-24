@@ -92,6 +92,7 @@ def requirements() -> list[dict]:
             "text": item["text"],
             "text_rendered": requirements_md.resolve_display(item["text"], parameters),
             "status": item["status"],
+            "system": item["system"],
             "chapter": item["chapter"],
             "ears_pattern": item["ears_pattern"],
             "revision": item["revision"],

@@ -29,6 +29,7 @@ router = APIRouter(tags=["requirements"])
 def list_requirements(
     db: Annotated[Database, Depends(get_db)],
     pagination: Annotated[Pagination, Depends(pagination_params())],
+    system: Annotated[list[str] | None, Query()] = None,
     chapter: Annotated[list[str] | None, Query()] = None,
     status: Annotated[list[str] | None, Query()] = None,
     state: Annotated[list[str] | None, Query()] = None,
@@ -45,7 +46,7 @@ def list_requirements(
 ) -> RequirementPage:
     """List the mirrored requirements, `req_id` ascending — no sort param.
 
-    `chapter`, `status`, `state` (`verification_state`), `method`
+    `system`, `chapter`, `status`, `state` (`verification_state`), `method`
     (`verification_method`), `ears_pattern`, `system_state` (matches
     `system_states`), `measurand` (matches a measurand's `name`) and `source`
     take repeated params, like `GET /test-runs`. `revision` (exact) and
@@ -57,6 +58,7 @@ def list_requirements(
     return queries_requirements.list_requirements(
         db,
         pagination,
+        system=system,
         chapter=chapter,
         status=status,
         state=state,

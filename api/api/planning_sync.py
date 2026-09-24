@@ -464,6 +464,7 @@ def _mirror_requirements(db: Database, rows: list[dict], now: datetime) -> None:
             "text": row.get("text") or "",
             "text_rendered": row.get("text_rendered"),
             "status": row.get("status") or "",
+            "system": row.get("system"),
             "chapter": row.get("chapter"),
             "ears_pattern": row.get("ears_pattern"),
             "revision": row.get("revision"),
