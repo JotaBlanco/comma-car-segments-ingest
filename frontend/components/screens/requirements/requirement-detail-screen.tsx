@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { Lock } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Crumb, Crumbs } from "@/components/shared/crumbs";
@@ -91,10 +90,8 @@ export function RequirementDetailScreen({ reqId }: RequirementDetailScreenProps)
   }
 
   const origin = requirementOrigin(detail);
-  const editable = origin === "manual";
   // A row `field_sources` cannot place (an older API, or no field ever
-  // touched) reads as planning-owned — the safer default per §4's "absent,
-  // never guessed into an editable state" rule.
+  // touched) reads as planning-sourced.
   const badgeSource = origin ?? "api:planning";
 
   return (
@@ -115,11 +112,9 @@ export function RequirementDetailScreen({ reqId }: RequirementDetailScreenProps)
           <ToneBadge tone="neutral">{detail.status}</ToneBadge>
           <VerificationChip state={detail.verification_state} stale={detail.evidence_stale} />
           <div className="ml-auto flex items-center gap-2">
-            {editable && (
-              <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-                Edit metadata
-              </Button>
-            )}
+            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+              Edit metadata
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setRetiring(true)}>
               Retire
             </Button>
@@ -130,9 +125,8 @@ export function RequirementDetailScreen({ reqId }: RequirementDetailScreenProps)
         </div>
         <div className="mt-1.5">
           <span className="inline-flex items-center gap-1.5 text-[0.7rem] text-ink-3">
-            <Lock size={12} strokeWidth={2} />
-            {editable ? "Authored in the Test Manager" : "Read-only mirror — owned by the planning system"}{" "}
-            · synced_at {detail.synced_at !== null ? formatArrival(detail.synced_at) : "—"}
+            {origin === "manual" ? "Authored in the Test Manager" : "Mirrored from planning"} ·
+            synced_at {detail.synced_at !== null ? formatArrival(detail.synced_at) : "—"}
           </span>
         </div>
       </div>
@@ -146,7 +140,7 @@ export function RequirementDetailScreen({ reqId }: RequirementDetailScreenProps)
           title="Authored attributes"
           action={
             <span className="inline-flex items-center gap-1.5 text-[0.7rem] text-ink-3">
-              all fields <SourceBadge source={badgeSource} /> {editable ? "— owned here" : "— owned by planning"}
+              all fields <SourceBadge source={badgeSource} />
             </span>
           }
         />

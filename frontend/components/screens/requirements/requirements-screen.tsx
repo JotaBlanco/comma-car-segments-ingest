@@ -301,12 +301,6 @@ export function RequirementsScreen() {
                   </TableCell>
                   <TableCell className="w-16">
                     <div className="flex items-center gap-1">
-                      {/* The list row carries no per-row origin (the
-                          committed API's `RequirementRow` has none — see
-                          the architecture doc). Edit always opens; the
-                          dialog fetches the full detail and refuses to
-                          offer a form for a planning-sourced row once it
-                          knows for certain. */}
                       <Button
                         variant="ghost"
                         size="icon-xs"
@@ -319,9 +313,6 @@ export function RequirementsScreen() {
                       >
                         <Pencil />
                       </Button>
-                      {/* Retire works on either origin (authoring-controls
-                          §3) — it records the decision locally, it never
-                          asks planning's permission. */}
                       <Button
                         variant="ghost"
                         size="icon-xs"

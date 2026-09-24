@@ -24,15 +24,10 @@ import {
 } from "./requirement-form-fields";
 
 /**
- * Edit a manual requirement's authored fields (authoring-controls §6, §7).
- * `requirementOrigin(detail)` reads `field_sources.title.source` — the
- * committed API has no flat "row origin" field, so this is the per-field
- * provenance every other entity detail already carries, read off one
- * canonical field. A planning-sourced row still opens this dialog (the list
- * cannot know origin in advance — see the architecture doc), but the form
- * renders only once the detail confirms `manual` (§4's rule: a control
- * renders only where a source can legally own the write, otherwise it is
- * absent).
+ * Edit a requirement's authored fields (authoring-controls §6, §7). Every
+ * saved field is stored with source `manual`, whatever the row carried
+ * before; `requirementOrigin(detail)` reads `field_sources.title.source` and
+ * is used here only to say where the values came from.
  *
  * Mounted on demand, the way `AddNoteDialog` is — the parent renders this
  * only while a requirement is being edited, so `useRequirement` fires
@@ -170,7 +165,7 @@ export function EditRequirementDialog({ reqId, onClose }: EditRequirementDialogP
   }
 
   const needsSecondActor = detail?.status === "Reviewed";
-  const editable = detail !== undefined && requirementOrigin(detail) === "manual";
+  const mirrored = detail !== undefined && requirementOrigin(detail) === "api:planning";
 
   const submit = () => {
     if (actor === null || detail === undefined || values === null) return;
@@ -229,10 +224,11 @@ export function EditRequirementDialog({ reqId, onClose }: EditRequirementDialogP
           </div>
         )}
 
-        {detail !== undefined && !editable && (
-          <div role="alert" className="rounded-md border border-amber-border bg-amber-bg px-3 py-2 text-[0.76rem] text-ink-2">
-            This row is mirrored from planning — its authored fields are edited there, not here.
-          </div>
+        {mirrored && (
+          <p className="text-[0.76rem] text-ink-3">
+            Mirrored from planning — an edit here is yours, and the next planning sync leaves it
+            alone.
+          </p>
         )}
 
         {actor === null && (
@@ -241,7 +237,7 @@ export function EditRequirementDialog({ reqId, onClose }: EditRequirementDialogP
           </div>
         )}
 
-        {detail !== undefined && editable && values !== null && (
+        {detail !== undefined && values !== null && (
           <>
             <RequirementFormFields values={values} onChange={setValues} showStatus={false} />
 
@@ -292,15 +288,13 @@ export function EditRequirementDialog({ reqId, onClose }: EditRequirementDialogP
           <Button variant="outline" size="sm" onClick={onClose}>
             Cancel
           </Button>
-          {editable && (
-            <Button
-              size="sm"
-              disabled={actor === null || values === null || patchRequirement.isPending}
-              onClick={submit}
-            >
-              {patchRequirement.isPending ? "Saving…" : "Save changes"}
-            </Button>
-          )}
+          <Button
+            size="sm"
+            disabled={actor === null || values === null || patchRequirement.isPending}
+            onClick={submit}
+          >
+            {patchRequirement.isPending ? "Saving…" : "Save changes"}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

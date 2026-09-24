@@ -155,19 +155,17 @@ export interface RequirementDetail extends RequirementRow {
    * flat "row origin" field on the committed API: whether a row is
    * planning-mirrored or manually authored is read off a field's own
    * source, not a separate tag. `requirementOrigin()` below picks one
-   * canonical field (`title`) as the row-level proxy every write control on
-   * this page uses.
+   * canonical field (`title`) as the row-level proxy.
    */
   field_sources: FieldSources;
 }
 
 /**
- * The row-level proxy for "can this be edited here": `title` is authored on
- * every requirement regardless of origin, so its source stands for the
- * row's. Absent `field_sources` (an older API) reads as `null` — no field
- * checks the write, and every edit control on this page treats `null` the
- * same as `"api:planning"`: absent, never offered, never guessed into an
- * "editable" state.
+ * Where a row's values came from: `title` is authored on every requirement
+ * regardless of origin, so its source stands for the row's. It answers
+ * "where did this come from", never "may this be edited" — every row is
+ * editable, and an edit writes `manual`, which outranks a later planning
+ * sync (`api/api/provenance.py`). Absent `field_sources` reads as `null`.
  */
 export function requirementOrigin(detail: RequirementDetail): SourceTag | null {
   return detail.field_sources.title?.source ?? null;
