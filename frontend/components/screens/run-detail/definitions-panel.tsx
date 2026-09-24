@@ -20,6 +20,7 @@ import { ApiError } from "@/lib/api/client";
 import { useAddRunDefinition, useRemoveRunDefinition, useWorkOrder } from "@/lib/hooks";
 import type { TestRun, WorkOrderDefinition } from "@/types";
 import { DefinitionPicker } from "./definition-picker";
+import { DefinitionRunCell } from "./definition-run-cell";
 
 /** One sentence a person can act on, per refusal the two routes answer. */
 const FAILURES: Record<string, string> = {
@@ -163,6 +164,7 @@ export function DefinitionsPanel({ run }: { run: TestRun }) {
             <TableHead>Definition</TableHead>
             <TableHead>Title</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead>Run</TableHead>
             <TableHead>
               <span className="sr-only">Remove</span>
             </TableHead>
@@ -171,7 +173,7 @@ export function DefinitionsPanel({ run }: { run: TestRun }) {
         <TableBody>
           {ids.length === 0 && (
             <TableRow className="hover:bg-transparent">
-              <TableCell colSpan={4} className="p-0!">
+              <TableCell colSpan={5} className="p-0!">
                 <EmptyState
                   title="No test definitions on this run"
                   message="Nothing says yet which test cases this run answers. Press Add definition to assign one."
@@ -193,6 +195,7 @@ export function DefinitionsPanel({ run }: { run: TestRun }) {
                 definition={mirrored.get(tdId)}
                 resolving={workOrderQuery.isLoading}
               />
+              <DefinitionRunCell runId={run.run_id} tdId={tdId} />
               <TableCell className="text-right">
                 <Button
                   variant="ghost"

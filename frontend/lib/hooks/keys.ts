@@ -88,6 +88,10 @@ export const keys = {
     lineage: (runId: string) => ["runs", "detail", runId, "lineage"] as const,
     exploreContext: (runId: string) =>
       ["runs", "detail", runId, "explore", "context"] as const,
+    /* Outside the detail key: a run edit invalidates the detail, and that must not
+       send one run-status read per covered definition. */
+    definitionRun: (runId: string, tdId: string) =>
+      ["runs", "definition-run", runId, tdId] as const,
   },
   workOrders: {
     all: ["work-orders"] as const,
