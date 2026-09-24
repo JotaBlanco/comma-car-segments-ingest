@@ -4,6 +4,7 @@
 
 import importlib.util
 import json
+import os
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -23,6 +24,25 @@ def load_implementation(key):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+USER_TOKEN_VARIABLES = ("QUIXLAB_TRIGGER_USER_TOKEN", "QUIX_PAT_TOKEN")
+
+
+def adopt_user_token():
+    """Make the lake query run as a person, not as the deployment's service identity.
+
+    The platform injects `Quix__Lakehouse__Query__AuthToken` with the workspace
+    service token, which cannot read another workspace's lake folder. An
+    implementation reads that variable first, so a user token found in the
+    process environment is copied over it before `evaluate()` runs.
+    """
+    for name in USER_TOKEN_VARIABLES:
+        token = os.environ.get(name, "").strip()
+        if token:
+            os.environ["Quix__Lakehouse__Query__AuthToken"] = token
+            return name
+    return None
 
 
 def plain_json(value):
@@ -58,6 +78,7 @@ def entrypoint():
 @canvas.cell(viz={"output": True})
 def result(run_id, td_id, implementation_key, lake_table, entrypoint):
     try:
+        adopt_user_token()
         module = load_implementation(implementation_key)
         answer = getattr(module, entrypoint or "evaluate")(run_id, table=lake_table)
         if not isinstance(answer, dict):
