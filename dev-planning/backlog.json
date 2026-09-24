@@ -242,7 +242,7 @@
       "id": "BL-34",
       "title": "Requirements and test definitions need item_version + content_sha256 + normative_sha256",
       "status": "to do",
-      "notes": "PARTLY SHIPPED on the requirement side: planning_sync.py:516-525 mints item_version/content_sha256/normative_sha256 on every mirrored requirement and stores them. They are NOT in the read projection (queries_requirements._project), so the wire shows none of them - see BL-70. The TEST DEFINITION half does not exist at all and is the hard prerequisite for BL-69's link store",
+      "notes": "Requirement half SHIPPED: planning_sync mints item_version/content_sha256/normative_sha256 and RequirementDetail serves them (verified live 2026-09-24). The TEST DEFINITION half does not exist and is the hard prerequisite for BL-69's link store",
       "updated": "2026-09-22"
     },
     {
@@ -492,9 +492,16 @@
     },
     {
       "id": "BL-70",
-      "title": "Requirement versions are minted and stored but never served",
-      "status": "to do",
-      "notes": "planning_sync mints item_version/content_sha256/normative_sha256; queries_requirements._project omits all three, so GET /requirements returns none of them and nothing downstream can read a requirement's version. Found 2026-09-24 while specing BL-69, which needs them on the wire",
+      "title": "Requirement versions: served on the detail, absent from the list row",
+      "status": "finished",
+      "notes": "CORRECTED 2026-09-24: not a defect. item_version/content_sha256/normative_sha256 are declared on RequirementDetail (models/requirements.py:128-134) and absent from RequirementRow, so the DETAIL serves them and the LIST does not - verified live, BAT-SYS-PRF-001 reads item_version 2. If BL-69's link store or the tree needs a version in a list row, that is a deliberate widening of RequirementRow, not a bug fix",
+      "updated": "2026-09-24"
+    },
+    {
+      "id": "BL-71",
+      "title": "Requirement carries a system attribute; an edit reopens a frozen requirement",
+      "status": "finished",
+      "notes": "fd56ad0: system rides seed -> planning sync -> model -> projection -> filter -> facets, seeded BMS; not on the definition, which derives it from covers_req_ids. In content_sha256 (else a subsystem move is refused as a no-op), out of NORMATIVE_FIELDS (else every link suspects). A content edit outside NEW/Draft returns the row to Draft with its own journal entry; frozen is defined by complement because status is a free-form string. The seed's set_canonical_sha256 had been stale since verified_by was deleted at 3b3910a and now covers both drifts",
       "updated": "2026-09-24"
     }
   ]
