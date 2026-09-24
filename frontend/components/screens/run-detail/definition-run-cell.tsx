@@ -1,10 +1,11 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { ToneBadge, type BadgeTone } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { TableCell } from "@/components/ui/table";
 import type { DefinitionVerdict } from "@/lib/api/definition-runs";
-import { summariseEvidence, type RunView } from "@/lib/definition-run";
+import { summariseEvidence, type RowRunState, type RunView } from "@/lib/definition-run";
 import { useDefinitionRun, useTestDefinition } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 import type { VerdictOutcome } from "@/types";
@@ -48,6 +49,15 @@ function RunStatus({ view }: { view: RunView }) {
   );
 }
 
+export interface DefinitionRunCellProps {
+  runId: string;
+  tdId: string;
+  /** Each change asks the row to run, as its own button would, if it can. */
+  runAllToken?: number;
+  /** Told the row's state on every change, and null once the row is gone. */
+  onRunState?: (tdId: string, state: RowRunState | null) => void;
+}
+
 /**
  * The Run control of one covered definition: its verdict on this run, and a button
  * that runs the definition's implementation as a QuixLab Job.
@@ -55,10 +65,31 @@ function RunStatus({ view }: { view: RunView }) {
  * The stored verdict is read only for a definition with an implementation, because
  * each read asks the Portal about the pair's Job first.
  */
-export function DefinitionRunCell({ runId, tdId }: { runId: string; tdId: string }) {
+export function DefinitionRunCell({
+  runId,
+  tdId,
+  runAllToken = 0,
+  onRunState,
+}: DefinitionRunCellProps) {
   const definition = useTestDefinition(tdId);
   const runnable = (definition.data?.implementation?.blob_path ?? "").trim().length > 0;
   const control = useDefinitionRun(runId, tdId, runnable);
+  const { pending, run } = control;
+  const loading = definition.isLoading;
+
+  useEffect(() => {
+    onRunState?.(tdId, { runnable, pending, loading });
+  }, [onRunState, tdId, runnable, pending, loading]);
+  useEffect(() => () => onRunState?.(tdId, null), [onRunState, tdId]);
+
+  // Seeded with the token at mount, so a row added after a Run all does not start.
+  const seenToken = useRef(runAllToken);
+  useEffect(() => {
+    if (runAllToken === seenToken.current) return;
+    seenToken.current = runAllToken;
+    if (runnable && !pending) run();
+  }, [runAllToken, runnable, pending, run]);
+
   const reason = definition.isLoading
     ? "Reading the definition…"
     : runnable

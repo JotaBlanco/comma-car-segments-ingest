@@ -164,3 +164,34 @@ export function runErrorMessage(caught: unknown): string {
   }
   return "The run could not be started";
 }
+
+/** What one row tells its panel, so the panel's Run all knows what it would start. */
+export interface RowRunState {
+  runnable: boolean;
+  pending: boolean;
+  /** True while the row still reads whether its definition has an implementation. */
+  loading: boolean;
+}
+
+/** How many rows Run all would start, and why it cannot, if it cannot. */
+export interface RunAllPlan {
+  count: number;
+  blocked: string | null;
+}
+
+/** The Run all plan over the panel's ids; an id with no report yet counts as loading. */
+export function planRunAll(
+  ids: readonly string[],
+  rows: ReadonlyMap<string, RowRunState>,
+): RunAllPlan {
+  const states = ids.map((id) => rows.get(id));
+  const count = states.filter((state) => state?.runnable && !state.pending).length;
+  if (states.some((state) => state === undefined || state.loading)) {
+    return { count, blocked: "Reading the definitions…" };
+  }
+  if (states.some((state) => state?.pending)) {
+    return { count, blocked: "Wait for the runs already going to finish" };
+  }
+  if (count === 0) return { count, blocked: "No definition here has an implementation to run" };
+  return { count, blocked: null };
+}

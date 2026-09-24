@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Panel, PanelHead } from "@/components/shared/panel";
 import { DefinitionStatusBadge } from "@/components/shared/status-badge";
@@ -16,11 +16,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { planRunAll, type RowRunState } from "@/lib/definition-run";
 import { useRemoveRunDefinition, useWorkOrder } from "@/lib/hooks";
 import type { TestRun, WorkOrderDefinition } from "@/types";
 import { AddDefinitionsDialog } from "./add-definitions-dialog";
 import { runDefinitionFailure } from "./definition-choices";
 import { DefinitionRunCell } from "./definition-run-cell";
+
+function sameRowState(a: RowRunState | undefined, b: RowRunState): boolean {
+  return a?.runnable === b.runnable && a.pending === b.pending && a.loading === b.loading;
+}
+
 
 /** Title and status of one covered definition, or what stands in for them. */
 function DefinitionCells({
@@ -82,6 +88,21 @@ export function DefinitionsPanel({ run }: { run: TestRun }) {
 
   const removeDefinition = useRemoveRunDefinition(run.run_id);
 
+  const [runAllToken, setRunAllToken] = useState(0);
+  const [rowStates, setRowStates] = useState<ReadonlyMap<string, RowRunState>>(new Map());
+  const reportRow = useCallback((tdId: string, state: RowRunState | null) => {
+    setRowStates((previous) => {
+      if (state === null ? !previous.has(tdId) : sameRowState(previous.get(tdId), state)) {
+        return previous;
+      }
+      const next = new Map(previous);
+      if (state === null) next.delete(tdId);
+      else next.set(tdId, state);
+      return next;
+    });
+  }, []);
+  const runAll = planRunAll(ids, rowStates);
+
   // No ids, nothing to resolve: the empty string keeps the query disabled.
   const workOrderQuery = useWorkOrder(ids.length > 0 ? (run.work_order_id ?? "") : "");
   const mirrored = new Map<string, WorkOrderDefinition>(
@@ -101,6 +122,21 @@ export function DefinitionsPanel({ run }: { run: TestRun }) {
           <div className="flex items-center gap-3">
             {ids.length > 0 && (
               <span className="font-mono text-[0.68rem] text-ink-3">{ids.length} covered</span>
+            )}
+            {ids.length > 0 && (
+              <Button
+                variant="outline"
+                size="xs"
+                className="font-semibold"
+                disabled={runAll.blocked !== null}
+                title={
+                  runAll.blocked ??
+                  "Runs every definition with an implementation on this run, one QuixLab Job each"
+                }
+                onClick={() => setRunAllToken((token) => token + 1)}
+              >
+                Run all ({runAll.count})
+              </Button>
             )}
             <Button
               variant="outline"
@@ -172,7 +208,12 @@ export function DefinitionsPanel({ run }: { run: TestRun }) {
                 definition={mirrored.get(tdId)}
                 resolving={workOrderQuery.isLoading}
               />
-              <DefinitionRunCell runId={run.run_id} tdId={tdId} />
+              <DefinitionRunCell
+                runId={run.run_id}
+                tdId={tdId}
+                runAllToken={runAllToken}
+                onRunState={reportRow}
+              />
               <TableCell className="text-right">
                 <Button
                   variant="ghost"
