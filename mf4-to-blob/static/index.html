@@ -191,6 +191,10 @@
           and its run is resolved from the file's own header at decode time.
           A claim typed here BEATS one written into the filename.
 
+          The vehicle rides one step further than the rest: it is also stamped
+          onto the stored object as `x-ms-meta-vehicle`, so the car is legible
+          from the blob alone.
+
           Test definitions are NOT claimed here: a run fulfils a set of them and
           that set is assigned from the Test Run page in the Test Manager.
         -->
@@ -205,6 +209,9 @@
                 </label>
                 <label>Rig
                     <input type="text" id="rigId" placeholder="RIG-04" autocomplete="off">
+                </label>
+                <label>Vehicle
+                    <input type="text" id="vehicle" placeholder="VIN, or whatever names the car" autocomplete="off">
                 </label>
             </div>
             <p class="claim-note">
@@ -451,6 +458,7 @@
                 'work_order_id': document.getElementById('workOrderId'),
                 'run_id':        document.getElementById('runId'),
                 'rig_id':        document.getElementById('rigId'),
+                'vehicle':       document.getElementById('vehicle'),
             };
             let query = '';
             for (const [name, input] of Object.entries(fields)) {

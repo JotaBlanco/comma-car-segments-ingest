@@ -215,10 +215,13 @@ def _record_base(file_scalars, signal, unit, channel_name, frame_name, sender_no
     ``channel`` before the ``mf4_signals_v3`` table; the sink still accepts that
     spelling so the ``mf4-to-msg`` backlog written by the old decoder replays.
 
-    Every value is a non-empty string by construction - see
-    ``provenance.UNKNOWN``. Nothing in this dict may be ``None``: these fields
-    become Hive partition keys (physical or virtual) downstream, and a null
-    partition value either drops the row or defeats the catalog's pruning index.
+    Every PARTITIONING value is a non-empty string by construction - see
+    ``provenance.UNKNOWN``. None of those may be ``None``: they become Hive
+    partition keys (physical or virtual) downstream, and a null partition value
+    either drops the row or defeats the catalog's pruning index. The
+    traceability claims partition nothing and are null when unclaimed
+    (``identity.resolve_claims``, and ``run_id``, whose absence drops the batch
+    at the sink rather than defaulting it).
     """
     base = dict(file_scalars)
     base["signal"] = signal
@@ -839,6 +842,11 @@ def process(metadata: dict, state: State):
             "work_order": identity.resolve_work_order(
                 metadata, declared, header_properties
             ),
+            # Plain columns, not partition keys: the car the recording came off
+            # and the rig it ran on. They answer "which bench, which vehicle"
+            # inside a lake query, which until now only the registry could
+            # answer. Null when nothing claims them — see `resolve_claims`.
+            **identity.resolve_claims(declared, header_properties),
         }
 
         logger.info(

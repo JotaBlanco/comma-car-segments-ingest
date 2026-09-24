@@ -205,6 +205,7 @@ _EMBEDDED_FIELDS = (
     "storage_ref",
     "time_start",
     "time_end",
+    "vehicle",
 )
 
 # The quarantine reason a run link repairs. The registration writes this exact
@@ -1265,6 +1266,7 @@ def register_file_document(
         # report arrived". See `_derived_stages`.
         **_stage_values(body, derive_stages),
         "storage_ref": body.storage_ref,
+        "vehicle": body.vehicle,
         "ingestion_job_id": body.ingestion_job_id,
         # The inventory keys on (file_id, name), so a repeated name stores one
         # row. Count the names, or the file contradicts its own signals list.

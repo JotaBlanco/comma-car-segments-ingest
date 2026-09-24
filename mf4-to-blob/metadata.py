@@ -62,6 +62,25 @@ _FILENAME_CLAIM = {
     "work_order_id": "WO-",
 }
 
+# The declared claims copied onto the STORED OBJECT as `x-ms-meta-<name>`, so
+# the car is legible from the blob alone. The run id is already the object's
+# folder and the work order is one hop away in the Test Manager, so neither
+# needs repeating here.
+#
+# Azure takes a metadata NAME that is a valid C# identifier and a VALUE that is
+# header-safe ASCII.
+OBJECT_METADATA_FIELDS = ("vehicle",)
+
+
+def object_metadata(declared: Optional[dict[str, str]]) -> dict[str, str]:
+    """The claims that ride on the stored object beside its bytes."""
+    declared = declared or {}
+    return {
+        field: stated
+        for field in OBJECT_METADATA_FIELDS
+        if (stated := str(declared.get(field) or "").strip())
+    }
+
 
 def make_upload_id(filename: str, minted_at: Optional[datetime] = None) -> str:
     """Mint the pipeline-wide unique key for one uploaded file.
@@ -197,6 +216,11 @@ def build_payload(
     that is the LAKE's partition column name, and the decoder copies it onto
     every batch. One fact, two spellings, both written here so the two readers
     cannot drift apart.
+
+    ``vehicle`` and ``rig_id`` get NO second spelling: they partition nothing,
+    so the lake column keeps the bag's own name and the decoder reads them
+    straight off the bag (``mf4-decoder/identity.py::CLAIMED_COLUMNS``). Neither
+    is shape-checked — a car is named by whoever states it, not by a pattern.
 
     **A caller's claim always wins.** The filename is consulted only for a field
     the uploader left blank: a person who typed a work order on the import page

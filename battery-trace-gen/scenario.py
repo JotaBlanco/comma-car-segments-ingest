@@ -28,8 +28,8 @@ class Identity:
     cell_seed: int
     route_template: str
     #: The `test.*` header keys every trace shares — the work order it fulfils,
-    #: the rig, the cell, the operator and the bench software. A scenario's own
-    #: `test` block adds its run key and its description.
+    #: the rig, the vehicle, the cell, the operator and the bench software. A
+    #: scenario's own `test` block adds its run key and its description.
     test: dict[str, str]
 
 

@@ -8,6 +8,7 @@
   "test": {
     "work_order": "WO-BAT-2026-001",
     "rig": "battery-sim-01",
+    "vehicle": "WP0ZZZY1ZMSA10042",
     "cell": "BENCH-DC-1",
     "operator": "battery-trace-gen",
     "bench_sw": "battery-trace-gen 0.1.0"

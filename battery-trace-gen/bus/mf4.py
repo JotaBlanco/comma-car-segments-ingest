@@ -10,8 +10,8 @@ Every key ``mf4-decoder/provenance.py`` reads must be present or the lake row ge
 literal ``"unknown"`` in a Hive partition key.
 
 The ``test.*`` block states the Test Manager chain the trace belongs to — the run key,
-the work order and the rig it ran on — so the evidence file describes its own place in
-the chain. Test definitions are not claimed here; they are assigned to the run in the
+the work order, the rig it ran on and the vehicle it came off — so the evidence file
+describes its own place in the chain. Test definitions are not claimed here; they are assigned to the run in the
 Test Manager. ``tm-connector/connector/identity.py`` reads the block.
 
 asammdf stamps every ``##FH`` block it creates with wall-clock time, so ``start_time``
@@ -96,7 +96,10 @@ def _test_props(test: dict, start: dt.datetime, duration_s: float) -> dict[str, 
 
     The window is derived, never stated: the file's own start plus its duration.
     """
-    keys = ("run_key", "work_order", "rig", "cell", "operator", "bench_sw", "description")
+    keys = (
+        "run_key", "work_order", "rig", "vehicle", "cell", "operator",
+        "bench_sw", "description",
+    )
     props = {f"test.{key}": str(test[key]) for key in keys if test.get(key) is not None}
     if test.get("definitions"):
         props["test.definitions"] = ",".join(test["definitions"])

@@ -103,8 +103,8 @@ def main() -> None:
             start_time_utc=scenario.start_time_utc,
             scenario_id=scenario.trace_id,
             cell_seed=identity.cell_seed,
-            # The shared chain (work order, rig, cell, operator, bench) plus
-            # what this trace claims for itself (run key, description).
+            # The shared chain (work order, rig, vehicle, cell, operator,
+            # bench) plus what this trace claims (run key, description).
             test={**identity.test, **scenario.test},
         )
         stats[scenario.trace_id] = {

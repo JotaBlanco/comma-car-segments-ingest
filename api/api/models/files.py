@@ -77,6 +77,13 @@ class FileBody(ApiModel):
     checksum_state: ChecksumState
     status: FileStatus
     quarantine_reason: str | None
+    # The physical car the recording came off, as the ingestion path resolved
+    # it from the upload claim or the MF4 header. It sits on the FILE and
+    # nowhere else: a run holds several files and a file states what its own
+    # bytes came off, so a file that re-links to another run keeps its answer.
+    # A file registered before this field existed carries no key, and that
+    # reads as "nobody named a car".
+    vehicle: str | None = None
     # The three stage outcomes and the error detail of a failed stage. A file
     # written before FR-DM-006b holds none of the four keys, so each defaults
     # to None and the old document still serves.
@@ -165,6 +172,10 @@ class FileRegisterRequest(RequestModel):
     size_bytes: int
     checksum_sha256: str
     checksum_state: ChecksumState = "unverified"
+    # The car the bytes came off, resolved by the ingestion path
+    # (`tm-connector/connector/identity.py::resolve_vehicle`). Optional: a
+    # producer that names none states none.
+    vehicle: str | None = None
     # The stage outcomes the pipeline already knows at registration time
     # (FR-DM-006b). A later outcome arrives through PATCH /files/{file_id}.
     sync_status: StageStatus | None = None

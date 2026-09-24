@@ -23,8 +23,12 @@ to this app and we stream it into blob storage through the fsspec writer:
                                 metadata message.
 
 Both paths mint the pipeline key once via `metadata.make_upload_id`, write
-under `<workspace>/<BLOB_ROOT>/<run_id>/`, keep `state.py` progress current and
+under `<workspace>/<BLOB_ROOT>/<run_id>/`, keep `state.py` progress current,
+stamp the same claims onto the stored object (`metadata.object_metadata`) and
 emit the same `mf4_metadata` message, so everything downstream is identical.
+The stamp is a separate call on both paths and never rides with the bytes: on
+the SAS path this process never holds them, and one mechanism for two paths
+beats two.
 """
 
 
@@ -282,6 +286,11 @@ async def upload_complete(req: CompleteRequest, request: Request):
             status_code=409,
         )
 
+    # The browser PUT the bytes and states no metadata on them; this is the
+    # first moment the server can touch the finished object, and it happens
+    # before the pipeline is told the object exists.
+    blob.set_object_metadata(req.blobPath, metadata.object_metadata(info.get("declared")))
+
     payload = metadata.build_payload(
         upload_id=req.uploadId,
         filename=filename,
@@ -408,6 +417,8 @@ async def upload_direct(
         )
 
     state.set_status(upload_id, "finalizing", blob_path=blob_path, size_bytes=size_bytes)
+
+    blob.set_object_metadata(blob_path, metadata.object_metadata(declared))
 
     payload = metadata.build_payload(
         upload_id=upload_id,

@@ -35,6 +35,11 @@ declared, then the `test.work_order` the file states about itself. There is no
 mint — a campaign is assigned, never derived from the bytes — and no row is
 dropped for the want of one; the sink files a file that claims none under
 `unassigned`.
+
+`resolve_claims` climbs those same two rungs for the claims that reach the lake
+as PLAIN columns — the car the recording came off and the rig it ran on. They
+partition nothing, so nothing defaults them and nothing drops a row for the want
+of one: a file that names neither leaves both columns null.
 """
 
 from __future__ import annotations
@@ -56,6 +61,17 @@ HEADER_RUN_KEY = "test.run_key"
 # The `<common_properties>` key a producer states its campaign in. Same spelling
 # as the connector's (`connector/identity.py::HEADER_RUN_FIELDS`).
 HEADER_WORK_ORDER = "test.work_order"
+
+# Lake column -> (the `declared` key that states it, the `<common_properties>`
+# key a producer states it in). The rig is `test.rig` in the header and `rig_id`
+# everywhere else, which is the connector's spelling too
+# (`connector/identity.py::HEADER_RUN_FIELDS`); the column keeps the name the
+# registry uses rather than inventing a third. The vehicle carries no `_id`: it
+# holds whatever names the physical car — a VIN, a fleet tag, a plate.
+CLAIMED_COLUMNS = {
+    "vehicle": ("vehicle", "test.vehicle"),
+    "rig_id": ("rig_id", "test.rig"),
+}
 
 # Everything the run key is minted from. Both are provenance columns the decoder
 # already resolves, and both are the literal "unknown" when the file states none
@@ -158,6 +174,26 @@ def resolve_work_order(
     if isinstance(header_properties, dict):
         return _clean(header_properties.get(HEADER_WORK_ORDER))
     return None
+
+
+def resolve_claims(
+    declared: object,
+    header_properties: object,
+) -> dict[str, str | None]:
+    """The plain lake columns of `CLAIMED_COLUMNS`: declared, then the header.
+
+    Declared outranks the header for the same reason it does everywhere else
+    here — an operator's correction must not need the file edited. A claim
+    nobody made stays None, which the lake reads as null: neither column is a
+    partition key, so there is no directory to name and no sentinel to invent.
+    """
+    resolved: dict[str, str | None] = {}
+    for column, (declared_key, header_key) in CLAIMED_COLUMNS.items():
+        stated = _clean(declared.get(declared_key)) if isinstance(declared, dict) else None
+        if stated is None and isinstance(header_properties, dict):
+            stated = _clean(header_properties.get(header_key))
+        resolved[column] = stated
+    return resolved
 
 
 def resolve_identity(
