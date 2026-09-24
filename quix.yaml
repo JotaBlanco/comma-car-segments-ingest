@@ -255,6 +255,8 @@ deployments:
         label: Test Manager
         icon: view_list
         order: 0
+    blobStorage:
+      bind: true
   - name: MongoDB Backup Manager
     group: Aux services
     application: mongodb-backup-manager
