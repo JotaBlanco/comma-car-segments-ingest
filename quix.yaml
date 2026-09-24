@@ -18,6 +18,9 @@ deployments:
     publicAccess:
       enabled: true
       urlPrefix: mf4import
+    variables:
+      - name: BLOB_ROOT
+        description: The root folder every artefact of one test run hangs from. This deployment writes the trace to BLOB_ROOT/<run_id>/ and the Test Manager API writes that run's test implementation .py into the same folder, so the two must carry the SAME value.
     plugin:
       embeddedView:
         enabled: true
@@ -28,10 +31,6 @@ deployments:
         label: MF4 Import
         icon: upload_file
         order: 0
-    variables:
-      - name: BLOB_ROOT
-        description: The root folder every artefact of one test run hangs from. This deployment writes the trace to BLOB_ROOT/<run_id>/ and the Test Manager API writes that run's test implementation .py into the same folder, so the two must carry the SAME value.
-        value: jama_ui
     blobStorage:
       bind: true
   - name: MF4 Decoder
@@ -73,12 +72,10 @@ deployments:
         variableKey: LAKE_TABLE
       - name: HIVE_COLUMNS
         description: The Test Manager's traceability chain. Changing it needs a NEW LAKE_TABLE and a new CONSUMER_GROUP - the sink validates an existing table's partition spec at setup() and refuses a mismatch.
-        value: platform,work_order,run_id,~channel_name,~sender_node,~frame_name,~signal
       - name: BATCH_SIZE
         value: 50
       - name: CONSUMER_GROUP
         description: Bumped whenever HIVE_COLUMNS or LAKE_TABLE changes, so AUTO_OFFSET_RESET=earliest replays every stored batch into the new partition spec. Bumped again when test_definition left the tree.
-        value: battery_data_v1_lake_v1
       - name: config
         description: The Dynamic Configuration event topic. The sink reads each claimed work order's WorkOrder configuration and uses its `project` as the platform FALLBACK, for a file whose own MF4 header named no platform.
     blobStorage:
@@ -130,7 +127,6 @@ deployments:
         value: ''
       - name: BLOB_ROOT
         description: The root folder every artefact of one test run hangs from. A definition's test implementation .py lands in BLOB_ROOT/<run_id>/, beside the trace MF4 Import wrote there, so this deployment and MF4 Import must carry the SAME value.
-        value: jama_ui
     blobStorage:
       bind: true
   - name: Planning Sync Mock
@@ -239,7 +235,6 @@ deployments:
         variableKey: LAKE_TABLE
       - name: TM_LAKE_SESSION_PARTITIONS
         description: The partition levels that ADDRESS a session, outermost first, the last one being the session. The head of the sink's HIVE_COLUMNS.
-        value: platform,work_order,run_id
       - name: TM_LAKE_DATA_PARTITIONS
         description: The partition levels INSIDE one session, the last one being the signal. The tail of the sink's HIVE_COLUMNS, ~ markers and all.
       - name: TM_FTS_URL
@@ -407,6 +402,9 @@ deployments:
       limits:
         cpu: 200
         memory: 800
+    state:
+      enabled: true
+      size: 1
     network:
       serviceName: mongodb
       ports:
@@ -421,21 +419,6 @@ deployments:
       limits:
         cpu: 500
         memory: 500
-    variables:
-      - name: input
-        inputType: InputTopic
-        required: true
-        value: ui-data
-      - name: output
-        inputType: OutputTopic
-        required: true
-        value: battery-data
-      - name: Q_MAX_AH
-        value: "90"
-      - name: A_THERMAL
-        value: "0.001"
-      - name: KE
-        value: "8.0"
   - name: Battery Sim UI
     group: Battery
     application: battery-sim-ui
@@ -445,21 +428,6 @@ deployments:
       limits:
         cpu: 500
         memory: 500
-    variables:
-      - name: input
-        inputType: InputTopic
-        required: true
-        value: battery-data
-      - name: output
-        inputType: OutputTopic
-        required: true
-        value: ui-data
-      - name: PEDAL_DISCHARGE_MAX_W
-        value: "352000"
-      - name: PEDAL_CHARGE_REGEN_MAX_W
-        value: "80000"
-      - name: DC_CHARGE_MAX_W
-        value: "250000"
     publicAccess:
       enabled: true
       urlPrefix: battery-sim
