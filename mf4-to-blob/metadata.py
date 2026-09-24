@@ -62,23 +62,32 @@ _FILENAME_CLAIM = {
     "work_order_id": "WO-",
 }
 
-# The declared claims copied onto the STORED OBJECT as `x-ms-meta-<name>`, so
-# the car is legible from the blob alone. The run id is already the object's
-# folder and the work order is one hop away in the Test Manager, so neither
-# needs repeating here.
+# The fields copied onto the STORED OBJECT as `x-ms-meta-<name>`, so the car is
+# legible from the blob alone. The run id is already the object's folder and the
+# work order is one hop away in the Test Manager, so neither needs repeating
+# here.
 #
 # Azure takes a metadata NAME that is a valid C# identifier and a VALUE that is
 # header-safe ASCII.
 OBJECT_METADATA_FIELDS = ("vehicle",)
 
 
-def object_metadata(declared: Optional[dict[str, str]]) -> dict[str, str]:
-    """The claims that ride on the stored object beside its bytes."""
-    declared = declared or {}
+def object_metadata(
+    declared: Optional[dict[str, str]],
+    stated: dict[str, str] | None = None,
+) -> dict[str, str]:
+    """What rides on the stored object beside its bytes.
+
+    `stated` is what the RECORDING says about itself - the import page reads it
+    out of the file's HD comment and sends it whether or not anyone typed
+    anything, so an upload nobody edited still carries the car. It is not a
+    claim and never enters the `declared` bag; where a claim was made, it wins.
+    """
+    source = {**(stated or {}), **(declared or {})}
     return {
-        field: stated
+        field: value
         for field in OBJECT_METADATA_FIELDS
-        if (stated := str(declared.get(field) or "").strip())
+        if (value := str(source.get(field) or "").strip())
     }
 
 

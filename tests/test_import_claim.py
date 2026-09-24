@@ -172,3 +172,41 @@ def test_the_declared_bag_survives_the_connector_s_filter():
         "definition_id": "TD-BAT-THERM",
         "rig_id": "RIG-04",
     }
+
+
+# --- what stamps the stored object (x-ms-meta-*) -----------------------------
+#
+# `object_metadata` gained a `stated` argument so the recording's own vehicle
+# reaches the blob even when nobody typed anything, without faking a `declared`
+# claim (spec §6.4, architecture.md "The object-metadata stamp got its own
+# channel (OQ1)").
+
+
+def test_the_recording_s_vehicle_stamps_the_object_when_nobody_typed():
+    stamped = metadata.object_metadata(declared={}, stated={"vehicle": "WP0ZZZY1ZMSA10042"})
+
+    assert stamped == {"vehicle": "WP0ZZZY1ZMSA10042"}
+
+
+def test_a_typed_vehicle_outranks_the_recording_s():
+    stamped = metadata.object_metadata(
+        declared={"vehicle": "WP0TYPED0000000001"},
+        stated={"vehicle": "WP0ZZZY1ZMSA10042"},
+    )
+
+    assert stamped == {"vehicle": "WP0TYPED0000000001"}
+
+
+def test_no_vehicle_stated_or_declared_stamps_nothing():
+    assert metadata.object_metadata(declared={}, stated={}) == {}
+    assert metadata.object_metadata(declared=None, stated=None) == {}
+
+
+def test_only_the_declared_object_metadata_fields_are_stamped():
+    """`run_id`/`work_order_id` are not repeated on the object - OBJECT_METADATA_FIELDS."""
+    stamped = metadata.object_metadata(
+        declared={"run_id": "TAS-1001", "work_order_id": "WO-BAT-2026-001"},
+        stated={"vehicle": "WP0ZZZY1ZMSA10042"},
+    )
+
+    assert stamped == {"vehicle": "WP0ZZZY1ZMSA10042"}

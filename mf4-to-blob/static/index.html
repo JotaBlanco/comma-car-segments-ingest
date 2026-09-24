@@ -6,6 +6,7 @@
     <title>MF4 to Blob</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
+        [hidden] { display: none !important; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background: #0f1117;
@@ -134,19 +135,48 @@
             margin-top: 6px;
             word-break: break-word;
         }
+        .err-msg:empty { display: none; }
 
+        /* The claim lives on the row, one editor per file: one card cannot
+           state four run ids. Unstyled beyond legibility - the chips, the
+           revert control and the summary line are FrontEndEsthetic's. */
+        .claim-line {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 12px;
+            font-size: 0.78rem;
+            color: #8b949e;
+            margin-bottom: 8px;
+            word-break: break-word;
+        }
+        .claim-toggle, .claim-bulk {
+            width: auto;
+            padding: 0;
+            background: none;
+            border: none;
+            color: #58a6ff;
+            font-size: 0.78rem;
+            font-weight: 500;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+        .claim-toggle:hover:not(:disabled), .claim-bulk:hover:not(:disabled) {
+            background: none;
+            text-decoration: underline;
+        }
         .claim {
-            border: 1px solid #d5d9e0;
+            border: 1px solid #21262d;
             border-radius: 8px;
-            padding: 14px 16px 12px;
-            margin: 0 0 18px;
+            padding: 10px 12px 12px;
+            margin: 0 0 10px;
         }
         .claim legend {
             font-weight: 600;
-            font-size: 0.95rem;
+            font-size: 0.85rem;
             padding: 0 6px;
         }
-        .claim-hint { font-weight: 400; color: #6b7280; }
+        .claim-hint { font-weight: 400; color: #8b949e; }
         .claim-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
@@ -156,25 +186,40 @@
             display: flex;
             flex-direction: column;
             gap: 4px;
-            font-size: 0.85rem;
-            color: #374151;
+            font-size: 0.8rem;
+            color: #8b949e;
         }
         .claim-grid input {
-            padding: 7px 9px;
-            border: 1px solid #d5d9e0;
+            padding: 6px 8px;
+            background: #0f1117;
+            border: 1px solid #30363d;
             border-radius: 6px;
+            color: #e1e4e8;
             font: inherit;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
         }
         .claim-grid input:focus {
-            outline: 2px solid #4f46e5;
+            outline: 2px solid #58a6ff;
             outline-offset: -1px;
-            border-color: #4f46e5;
+            border-color: #58a6ff;
         }
+        .chip { font-size: 0.7rem; color: #6e7681; }
+        .chip.typed { color: #58a6ff; }
+        .revert {
+            width: auto;
+            padding: 0 4px;
+            background: none;
+            border: none;
+            color: #8b949e;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        .revert:hover:not(:disabled) { background: none; color: #58a6ff; }
+        .claim-bulk { margin-top: 10px; display: block; }
         .claim-note {
-            margin: 10px 0 0;
-            font-size: 0.8rem;
-            color: #6b7280;
+            margin: 8px 0 0;
+            font-size: 0.75rem;
+            color: #6e7681;
         }
     </style>
 </head>
@@ -183,425 +228,32 @@
         <h1>MF4 to Blob</h1>
         <p class="subtitle">Drag and drop one or more <code>.mf4</code> files. Each is uploaded to the workspace blob storage and a metadata message is published.</p>
 
-        <!--
-          The identity card. Every field here rides as a `declared.*` query
-          parameter and lands in the message's `declared` bag, which is the
-          registry's own vocabulary and what tm-connector reads verbatim.
-          Everything is OPTIONAL: an upload that claims nothing still registers,
-          and its run is resolved from the file's own header at decode time.
-          A claim typed here BEATS one written into the filename.
-
-          The vehicle rides one step further than the rest: it is also stamped
-          onto the stored object as `x-ms-meta-vehicle`, so the car is legible
-          from the blob alone.
-
-          Test definitions are NOT claimed here: a run fulfils a set of them and
-          that set is assigned from the Test Run page in the Test Manager.
-        -->
-        <fieldset class="claim" id="claim">
-            <legend>Test Manager claim <span class="claim-hint">— optional</span></legend>
-            <div class="claim-grid">
-                <label>Work order
-                    <input type="text" id="workOrderId" placeholder="WO-2026-0851" autocomplete="off">
-                </label>
-                <label>Run id
-                    <input type="text" id="runId" placeholder="left blank: taken from the recording" autocomplete="off">
-                </label>
-                <label>Rig
-                    <input type="text" id="rigId" placeholder="RIG-04" autocomplete="off">
-                </label>
-                <label>Vehicle
-                    <input type="text" id="vehicle" placeholder="VIN, or whatever names the car" autocomplete="off">
-                </label>
-            </div>
-            <p class="claim-note">
-                Blank is a real answer. A run nobody claims waits for its work order
-                in the Test Manager rather than being invented here.
-            </p>
-        </fieldset>
-
         <div class="drop-zone" id="dropZone">
             <p>Drag and drop .mf4 files here, or click to browse</p>
         </div>
         <input type="file" id="fileInput" accept=".mf4" multiple>
 
         <div class="summary" id="summary"></div>
+
+        <!--
+          One claim editor per file, filled from that recording's own `test.*`
+          header properties before a byte is uploaded. A field the operator
+          TYPES rides as a `declared.*` query parameter into the message's
+          `declared` bag - the registry's own vocabulary, read verbatim by
+          tm-connector - and beats both the filename and the file's own header.
+          A field nobody touched states nothing, so the recording answers it.
+
+          Everything here is OPTIONAL: an upload that claims nothing still
+          registers, and its run is resolved from the file at decode time.
+
+          Test definitions are NOT claimed here: a run fulfils a set of them and
+          that set is assigned from the Test Run page in the Test Manager.
+        -->
         <div class="file-list" id="fileList"></div>
 
         <button id="sendBtn" disabled>Upload selected files</button>
     </div>
 
-    <!--
-      @azure/storage-blob 12.31.0, pinned, served as ESM via jsDelivr's
-      `+esm` transform (the package ships no UMD bundle any more). Imported
-      *dynamically*, and only when /config reports upload_mode "sas": on an
-      S3/S3Compatible workspace the SAS path is never taken, so the CDN is
-      never contacted and a blocked CDN cannot break the page.
-    -->
-    <script type="module">
-    const AZURE_SDK_URL = "https://cdn.jsdelivr.net/npm/@azure/storage-blob@12.31.0/+esm";
-
-    (function () {
-        const dropZone = document.getElementById('dropZone');
-        const fileInput = document.getElementById('fileInput');
-        const sendBtn = document.getElementById('sendBtn');
-        const fileList = document.getElementById('fileList');
-        const summary = document.getElementById('summary');
-
-        let files = [];
-        let concurrency = 3;
-        let inFlight = 0;
-        let queue = [];
-        let uploading = false;
-        // "direct" (server-side streaming upload) works on every blob backend;
-        // "sas" is Azure-only. The server decides from the injected connection
-        // JSON - we just obey /config, and default to direct if the call fails
-        // because that is the path with no provider requirement.
-        let uploadMode = 'direct';
-
-        const configReady = fetch('/config')
-            .then(r => (r.ok ? r.json() : null))
-            .then(cfg => {
-                if (!cfg) return;
-                if (cfg.concurrency_hint) concurrency = cfg.concurrency_hint;
-                if (cfg.upload_mode === 'sas' || cfg.upload_mode === 'direct') {
-                    uploadMode = cfg.upload_mode;
-                }
-            })
-            .catch(() => {});
-
-        function fmtBytes(n) {
-            if (n == null) return '';
-            const u = ['B', 'KB', 'MB', 'GB', 'TB'];
-            let i = 0;
-            while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
-            return n.toFixed(n < 10 && i > 0 ? 1 : 0) + ' ' + u[i];
-        }
-
-        function uid() {
-            return (crypto.randomUUID && crypto.randomUUID()) ||
-                ('xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-                    const r = Math.random() * 16 | 0;
-                    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
-                }));
-        }
-
-        function addFiles(picked) {
-            const valid = Array.from(picked).filter(f => f.name.toLowerCase().endsWith('.mf4'));
-            const skipped = picked.length - valid.length;
-            for (const f of valid) {
-                files.push({
-                    id: uid(),
-                    file: f,
-                    status: 'pending',
-                    bytesSent: 0,
-                    percent: 0,
-                    error: null,
-                    uploadId: null,
-                    blobPath: null,
-                });
-            }
-            render();
-            if (skipped > 0) {
-                summary.textContent = `Skipped ${skipped} non-.mf4 file(s).`;
-            }
-        }
-
-        function removeEntry(id) {
-            const e = files.find(x => x.id === id);
-            if (!e) return;
-            if (e.status === 'uploading' || e.status === 'queued' || e.status === 'finalizing') return;
-            files = files.filter(x => x.id !== id);
-            render();
-        }
-
-        function render() {
-            fileList.innerHTML = '';
-            for (const e of files) {
-                const row = document.createElement('div');
-                row.className = 'file-row ' + (e.status === 'done' ? 'done' : e.status === 'error' ? 'error' : '');
-                row.dataset.id = e.id;
-
-                const meta = document.createElement('div');
-                meta.className = 'meta';
-
-                const name = document.createElement('div');
-                name.className = 'name';
-                name.textContent = e.file.name;
-                meta.appendChild(name);
-
-                const status = document.createElement('div');
-                status.className = 'status';
-                status.textContent = statusLabel(e);
-                meta.appendChild(status);
-
-                if (!uploading || e.status === 'pending') {
-                    const remove = document.createElement('button');
-                    remove.className = 'remove';
-                    remove.title = 'Remove';
-                    remove.textContent = 'x';
-                    remove.onclick = () => removeEntry(e.id);
-                    meta.appendChild(remove);
-                }
-
-                row.appendChild(meta);
-
-                const bar = document.createElement('div');
-                bar.className = 'progress-bar';
-                const fill = document.createElement('div');
-                fill.className = 'progress-fill';
-                fill.style.width = (e.status === 'done' ? 100 : e.percent) + '%';
-                bar.appendChild(fill);
-                row.appendChild(bar);
-
-                if (e.status === 'error' && e.error) {
-                    const err = document.createElement('div');
-                    err.className = 'err-msg';
-                    err.textContent = e.error;
-                    row.appendChild(err);
-                }
-
-                fileList.appendChild(row);
-            }
-
-            const total = files.length;
-            const done = files.filter(x => x.status === 'done').length;
-            const errored = files.filter(x => x.status === 'error').length;
-            if (total === 0) {
-                summary.textContent = '';
-            } else if (uploading || done + errored > 0) {
-                summary.textContent = `${done} of ${total} complete` + (errored ? ` — ${errored} failed` : '');
-            } else {
-                summary.textContent = `${total} file(s) ready (${fmtBytes(files.reduce((a, x) => a + x.file.size, 0))})`;
-            }
-
-            sendBtn.disabled = uploading || files.filter(x => x.status === 'pending').length === 0;
-            sendBtn.textContent = uploading ? 'Uploading...' : 'Upload selected files';
-        }
-
-        function statusLabel(e) {
-            switch (e.status) {
-                case 'pending': return fmtBytes(e.file.size);
-                case 'queued': return 'queued';
-                case 'uploading': return `${e.percent}% — ${fmtBytes(e.bytesSent)} / ${fmtBytes(e.file.size)}`;
-                case 'finalizing': return 'finalizing...';
-                case 'done': return `done — ${fmtBytes(e.file.size)}`;
-                case 'error': return 'failed';
-                default: return '';
-            }
-        }
-
-        dropZone.addEventListener('click', () => fileInput.click());
-        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
-        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-        dropZone.addEventListener('drop', e => {
-            e.preventDefault();
-            dropZone.classList.remove('dragover');
-            if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
-        });
-        fileInput.addEventListener('change', () => {
-            if (fileInput.files.length) addFiles(fileInput.files);
-            fileInput.value = '';
-        });
-
-        sendBtn.addEventListener('click', () => {
-            if (uploading) return;
-            uploading = true;
-            queue = files.filter(e => e.status === 'pending').slice();
-            for (const e of queue) e.status = 'queued';
-            render();
-            pump();
-        });
-
-        function pump() {
-            while (inFlight < concurrency && queue.length > 0) {
-                const e = queue.shift();
-                inFlight++;
-                startUpload(e).finally(() => {
-                    inFlight--;
-                    if (queue.length === 0 && inFlight === 0) {
-                        uploading = false;
-                    }
-                    render();
-                    pump();
-                });
-            }
-        }
-
-        async function startUpload(e) {
-            e.status = 'uploading';
-            e.percent = 0;
-            e.bytesSent = 0;
-            render();
-
-            await configReady;
-            // The one branch that decides everything: Azure workspaces upload
-            // browser -> Azure via SAS; every other backend streams through the
-            // app with POST /upload/direct.
-            if (uploadMode === 'sas') {
-                return startSasUpload(e);
-            }
-            return startDirectUpload(e);
-        }
-
-        // The claim fields as a `declared.*` query string, leading "&" and
-        // all, or "" when the card is empty. Read at SEND time rather than
-        // captured when the file was picked, so a correction typed before the
-        // click is the claim that travels.
-        //
-        // An empty input contributes NOTHING. Sending `declared.run_id=` would
-        // state an empty run id, which is a different claim from stating none:
-        // the server validates it, rejects it as malformed, and the upload
-        // fails on a field nobody filled in.
-        function declaredQuery() {
-            const fields = {
-                'work_order_id': document.getElementById('workOrderId'),
-                'run_id':        document.getElementById('runId'),
-                'rig_id':        document.getElementById('rigId'),
-                'vehicle':       document.getElementById('vehicle'),
-            };
-            let query = '';
-            for (const [name, input] of Object.entries(fields)) {
-                const value = (input && input.value || '').trim();
-                if (value) {
-                    query += '&declared.' + name + '=' + encodeURIComponent(value);
-                }
-            }
-            return query;
-        }
-
-        function startDirectUpload(e) {
-            // XHR, not fetch: fetch has no upload-progress event and the
-            // progress bar is the point of this page. The body is the File
-            // itself - no multipart envelope - so the server can pipe it
-            // straight into blob storage.
-            return new Promise(resolve => {
-                const xhr = new XMLHttpRequest();
-                const url = '/upload/direct?filename=' + encodeURIComponent(e.file.name) +
-                    '&size=' + e.file.size + declaredQuery();
-                xhr.open('POST', url, true);
-                xhr.setRequestHeader('Content-Type', 'application/octet-stream');
-
-                xhr.upload.onprogress = ev => {
-                    e.bytesSent = ev.loaded;
-                    e.percent = e.file.size
-                        ? Math.min(99, Math.round(ev.loaded / e.file.size * 100))
-                        : 0;
-                    render();
-                };
-                xhr.upload.onload = () => {
-                    // Bytes are away; the server is still flushing the last
-                    // block and producing the metadata message.
-                    e.status = 'finalizing';
-                    render();
-                };
-                xhr.onload = () => {
-                    let body = null;
-                    try { body = JSON.parse(xhr.responseText); } catch (parseErr) { body = null; }
-                    if (xhr.status >= 200 && xhr.status < 300 && body && body.status === 'done') {
-                        e.uploadId = body.upload_id;
-                        e.blobPath = body.blob_path;
-                        e.status = 'done';
-                        e.percent = 100;
-                        e.bytesSent = e.file.size;
-                    } else {
-                        e.status = 'error';
-                        e.error = `direct: HTTP ${xhr.status}` +
-                            (body && body.message ? ` ${body.message}` : '');
-                    }
-                    resolve();
-                };
-                xhr.onerror = () => {
-                    e.status = 'error';
-                    e.error = 'direct: network error';
-                    resolve();
-                };
-                xhr.onabort = () => {
-                    e.status = 'error';
-                    e.error = 'direct: aborted';
-                    resolve();
-                };
-                xhr.send(e.file);
-            });
-        }
-
-        async function startSasUpload(e) {
-            // Step 1: ask server for a SAS URL.
-            let sasResp;
-            try {
-                // `replace` swaps only the FIRST "&" for a "?", which turns the
-                // leading-& form into a query string and leaves the empty
-                // case an untouched bare path.
-                const r = await fetch('/upload/sas' + declaredQuery().replace('&', '?'), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ filename: e.file.name, size: e.file.size }),
-                });
-                const body = await r.json().catch(() => null);
-                if (!r.ok) {
-                    e.status = 'error';
-                    e.error = `sas: HTTP ${r.status}` + (body && body.message ? ` ${body.message}` : '');
-                    return;
-                }
-                sasResp = body;
-            } catch (err) {
-                e.status = 'error';
-                e.error = `sas: ${err.message || err}`;
-                return;
-            }
-
-            e.uploadId = sasResp.uploadId;
-            e.blobPath = sasResp.blobPath;
-
-            // Step 2: PUT directly to Azure via @azure/storage-blob.
-            try {
-                const { BlockBlobClient } = await import(AZURE_SDK_URL);
-                const client = new BlockBlobClient(sasResp.sasUrl);
-                await client.uploadData(e.file, {
-                    blockSize: 4 * 1024 * 1024,
-                    concurrency: 4,
-                    onProgress: ev => {
-                        e.bytesSent = ev.loadedBytes;
-                        e.percent = e.file.size
-                            ? Math.min(99, Math.round(ev.loadedBytes / e.file.size * 100))
-                            : 0;
-                        render();
-                    },
-                });
-            } catch (err) {
-                e.status = 'error';
-                e.error = `azure: ${err.message || err}`;
-                return;
-            }
-
-            // Step 3: tell the server we're done so it can produce metadata.
-            e.status = 'finalizing';
-            render();
-            try {
-                const r = await fetch('/upload/complete', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        uploadId: e.uploadId,
-                        blobPath: e.blobPath,
-                        size: e.file.size,
-                    }),
-                });
-                const body = await r.json().catch(() => null);
-                if (!(r.ok && body && body.status === 'done')) {
-                    e.status = 'error';
-                    e.error = `complete: HTTP ${r.status}` + (body && body.message ? ` ${body.message}` : '');
-                    return;
-                }
-                e.status = 'done';
-                e.percent = 100;
-                e.bytesSent = e.file.size;
-            } catch (err) {
-                e.status = 'error';
-                e.error = `complete: ${err.message || err}`;
-            }
-        }
-    })();
-    </script>
+    <script type="module" src="/static/upload-page.js"></script>
 </body>
 </html>
