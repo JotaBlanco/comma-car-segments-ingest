@@ -180,4 +180,70 @@ deployments:
       ports:
         - port: 27017
           targetPort: 27017
+  - name: tm-run-tas-1002-bat-sys-tc-005-58538819
+    application: quixlab
+    version: latest
+    deploymentType: Job
+    resources:
+      limits:
+        cpu: 500
+        memory: 2000
+    variables:
+      - name: QUIX_PAT_TOKEN
+        description: The lake token the cloned verdict jobs query with. A project secret holding a personal access token.
+      - name: QUIXLAB_MODE
+        inputType: FreeText
+        value: run
+      - name: QUIXLAB_NOTEBOOK
+        value: blob://testrigorg-commacarsegmentsingest-testing/jama_ui/definitions/BAT-SYS-TC-005/notebook.py
+      - name: QUIXLAB_PARAMS
+        inputType: FreeText
+        value: '{"run_id": "TAS-1002", "td_id": "BAT-SYS-TC-005", "implementation_key": "testrigorg-commacarsegmentsingest-testing/jama_ui/unassigned/64e34166-BAT-SYS-TC-005.py", "lake_table": "battery_data_v1", "entrypoint": "evaluate"}'
+    plugin: {}
+    blobStorage:
+      bind: true
+  - name: tm-run-tas-1002-bat-sys-tc-004-81f3d43f
+    application: quixlab
+    version: latest
+    deploymentType: Job
+    resources:
+      limits:
+        cpu: 500
+        memory: 2000
+    variables:
+      - name: QUIX_PAT_TOKEN
+        description: The lake token the cloned verdict jobs query with. A project secret holding a personal access token.
+      - name: QUIXLAB_MODE
+        inputType: FreeText
+        value: run
+      - name: QUIXLAB_NOTEBOOK
+        value: blob://testrigorg-commacarsegmentsingest-testing/jama_ui/definitions/BAT-SYS-TC-004/notebook.py
+      - name: QUIXLAB_PARAMS
+        inputType: FreeText
+        value: '{"run_id": "TAS-1002", "td_id": "BAT-SYS-TC-004", "implementation_key": "testrigorg-commacarsegmentsingest-testing/jama_ui/unassigned/d30adeba-BAT-SYS-TC-004.py", "lake_table": "battery_data_v1", "entrypoint": "evaluate"}'
+    plugin: {}
+    blobStorage:
+      bind: true
+  - name: tm-run-tas-1002-bat-sys-tc-006-2647d4f6
+    application: quixlab
+    version: latest
+    deploymentType: Job
+    resources:
+      limits:
+        cpu: 500
+        memory: 2000
+    variables:
+      - name: QUIX_PAT_TOKEN
+        description: The lake token the cloned verdict jobs query with. A project secret holding a personal access token.
+      - name: QUIXLAB_MODE
+        inputType: FreeText
+        value: run
+      - name: QUIXLAB_NOTEBOOK
+        value: blob://testrigorg-commacarsegmentsingest-testing/jama_ui/definitions/BAT-SYS-TC-006/notebook.py
+      - name: QUIXLAB_PARAMS
+        inputType: FreeText
+        value: '{"run_id": "TAS-1002", "td_id": "BAT-SYS-TC-006", "implementation_key": "testrigorg-commacarsegmentsingest-testing/jama_ui/unassigned/2d4944e1-BAT-SYS-TC-006.py", "lake_table": "battery_data_v1", "entrypoint": "evaluate"}'
+    plugin: {}
+    blobStorage:
+      bind: true
 
