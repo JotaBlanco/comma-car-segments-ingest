@@ -11,6 +11,7 @@ import {
   Database,
   FileText,
   FlaskConical,
+  FolderTree,
   Home,
   LayoutDashboard,
   ListChecks,
@@ -189,6 +190,9 @@ export function Sidebar() {
     },
     { label: "Work orders", href: "/work-orders", icon: ClipboardList },
     { label: "Test runs", href: "/runs", icon: Timer },
+    /* The nesting across the four rows above it, as one tree. It sits after
+       them because it composes them, and it carries no count: it is a view. */
+    { label: "Traceability", href: "/traceability", icon: FolderTree },
     { label: "Files", href: "/files", icon: FileText },
     { label: "Signals", href: "/signals", icon: Activity },
     /* The lake's findings across every run. No count: the home summary reads the
