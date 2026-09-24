@@ -109,7 +109,8 @@ deployments:
         description: What this container runs. `python -m api.start_registry` builds MONGO_URL from the pieces above and hands over to uvicorn; blank would run the API against MONGO_URL directly.
         value: python -m api.start_registry
       - name: PLANNING_API_URL
-        description: The planning system the registry mirrors work orders from. The mock below stands in for it.
+        description: An external planning system to mirror work orders from. EMPTY on purpose - this estate has none, and the registry's own MongoDB is the single store for requirements, test definitions and work orders. A value here revives the readiness probe and lets a mirror push overwrite the catalog.
+        value: ''
       - name: CONFIG_API_URL
         description: The deployed Configuration Manager. Every new or changed work order is pushed there as a WorkOrder configuration, which is where the lake sink reads the platform fallback from. Empty disables the push.
         value: http://config-api-svc
@@ -129,29 +130,6 @@ deployments:
         description: The root folder every artefact of one test run hangs from. A definition's test implementation .py lands in BLOB_ROOT/<run_id>/, beside the trace MF4 Import wrote there, so this deployment and MF4 Import must carry the SAME value.
     blobStorage:
       bind: true
-  - name: Planning Sync Mock
-    group: Test Manager
-    application: api
-    version: latest
-    deploymentType: Service
-    resources:
-      limits:
-        cpu: 200
-        memory: 300
-    network:
-      serviceName: mock-planning
-      ports:
-        - port: 8003
-          targetPort: 8003
-    variables:
-      - name: TM_COMMAND
-        description: The same image as the API, told to run the planning mock instead.
-        required: true
-        value: uvicorn mock_planning.main:app --host 0.0.0.0 --port 8003
-      - name: TM_API_URL
-        description: The registry the push worker posts the catalog and its links to. Unset means the mock never pushes.
-        required: true
-        value: http://test-manager-backend/api/v1
   - name: TS Metadata sink
     group: Ingestion
     application: tm-connector

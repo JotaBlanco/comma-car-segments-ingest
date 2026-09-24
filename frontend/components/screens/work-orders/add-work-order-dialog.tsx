@@ -15,10 +15,8 @@ import { ApiError } from "@/lib/api/client";
 import { useCreateWorkOrder } from "@/lib/hooks";
 
 /**
- * Open a work order here — for a campaign the planning system never knew
- * about, which is the case a bench upload leaves with nowhere to land. A
- * planning campaign is never created here; it arrives through
- * `POST /planning/sync`.
+ * Open a work order here — the case a bench upload leaves with nowhere to
+ * land. The other way in is the catalogue seed, `POST /planning/sync`.
  */
 
 const FAILURES: Record<string, string> = {
@@ -83,7 +81,7 @@ export function AddWorkOrderDialog({ open, onOpenChange }: AddWorkOrderDialogPro
             New work order
           </DialogTitle>
           <DialogDescription className="text-[0.8rem] text-ink-2">
-            For a campaign the planning system does not know. The row carries the source{" "}
+            For a campaign the catalogue does not carry. The row carries the source{" "}
             <b>manual</b> and starts <b>active</b>. Use the id the traces declare, so the runs
             that claimed it find their campaign.
           </DialogDescription>

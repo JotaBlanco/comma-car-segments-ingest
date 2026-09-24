@@ -125,17 +125,10 @@ export function WorkOrderDetailScreen({ woId }: WorkOrderDetailScreenProps) {
           <span className="font-mono text-[0.78rem]">{workOrder.project}</span>
         </div>
         <div className="mt-1.5">
-          {workOrder.synced_at !== null ? (
-            <span className="inline-flex items-center gap-1.5 text-[0.7rem] text-ink-3">
-              <Lock size={12} strokeWidth={2} />
-              The content is the planning system&rsquo;s · synced_at{" "}
-              {formatArrival(workOrder.synced_at)}
-            </span>
-          ) : (
-            <span className="text-[0.7rem] text-ink-3">
-              Opened in the Test Manager — no planning system knows this campaign.
-            </span>
-          )}
+          <span className="inline-flex items-center gap-1.5 text-[0.7rem] text-ink-3">
+            <Lock size={12} strokeWidth={2} />
+            Title, project and requestor arrive with the campaign; the status is set below.
+          </span>
         </div>
         <div className="mt-2.5 flex flex-wrap items-start gap-3">
           <WorkOrderStatusControl woId={workOrder.wo_id} status={workOrder.status} />
@@ -277,7 +270,7 @@ export function WorkOrderDetailScreen({ woId }: WorkOrderDetailScreenProps) {
           title="Test definitions in this work order"
           action={
             <span className="font-mono text-[0.68rem] text-ink-3">
-              {workOrder.definitions.length} mirrored
+              {workOrder.definitions.length} linked
             </span>
           }
         />
@@ -298,7 +291,7 @@ export function WorkOrderDetailScreen({ woId }: WorkOrderDetailScreenProps) {
             {workOrder.definitions.length === 0 && (
               <TableRow className="hover:bg-transparent">
                 <TableCell colSpan={5} className="p-0!">
-                  <EmptyState message="No definitions mirrored for this work order." />
+                  <EmptyState message="No definitions in this work order." />
                 </TableCell>
               </TableRow>
             )}
@@ -341,7 +334,7 @@ export function WorkOrderDetailScreen({ woId }: WorkOrderDetailScreenProps) {
       />
       {/* Both dialogs mount on demand, so a screen nobody writes on asks the
           Portal nothing. A note changes no field: it joins the journal beside
-          the planning entries, under the person's own name. */}
+          the catalogue entries, under the person's own name. */}
       {noteOpen && (
         <AddNoteDialog entityType="work_order" entityId={woId} open onOpenChange={setNoteOpen} />
       )}

@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api/client";
 import { useActor, usePatchRequirement, useRequirement } from "@/lib/hooks";
 import { NO_ACTOR_MESSAGE } from "@/lib/hooks/use-actor";
-import { requirementOrigin, type RequirementDetail, type RequirementPatchBody } from "@/types";
+import { type RequirementDetail, type RequirementPatchBody } from "@/types";
 import {
   RequirementFormFields,
   joinList,
@@ -26,8 +26,7 @@ import {
 /**
  * Edit a requirement's authored fields (authoring-controls §6, §7). Every
  * saved field is stored with source `manual`, whatever the row carried
- * before; `requirementOrigin(detail)` reads `field_sources.title.source` and
- * is used here only to say where the values came from.
+ * before.
  *
  * Mounted on demand, the way `AddNoteDialog` is — the parent renders this
  * only while a requirement is being edited, so `useRequirement` fires
@@ -165,7 +164,6 @@ export function EditRequirementDialog({ reqId, onClose }: EditRequirementDialogP
   }
 
   const needsSecondActor = detail?.status === "Reviewed";
-  const mirrored = detail !== undefined && requirementOrigin(detail) === "api:planning";
 
   const submit = () => {
     if (actor === null || detail === undefined || values === null) return;
@@ -222,13 +220,6 @@ export function EditRequirementDialog({ reqId, onClose }: EditRequirementDialogP
           <div role="alert" className="rounded-md border border-red-border bg-red-bg px-3 py-2 text-[0.76rem] text-red">
             This requirement did not load. Close the dialog and try again.
           </div>
-        )}
-
-        {mirrored && (
-          <p className="text-[0.76rem] text-ink-3">
-            Mirrored from planning — an edit here is yours, and the next planning sync leaves it
-            alone.
-          </p>
         )}
 
         {actor === null && (

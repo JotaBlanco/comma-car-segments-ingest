@@ -16,15 +16,6 @@ export async function resetDb(request: APIRequestContext): Promise<void> {
   expect(response.ok(), "POST /api/test/reset should succeed (TM_TEST_HOOKS=1)").toBe(true);
 }
 
-/**
- * The topbar planning-sync switch (visible on every screen; the app's only
- * switch). Base UI puts the aria-label on an inner element, so the exposed
- * accessible name comes from the "Planning sync" label — match by role alone.
- */
-export function syncSwitch(page: Page): Locator {
-  return page.getByRole("switch");
-}
-
 /** The global-search overlay input (only present while the dialog is open). */
 export function searchInput(page: Page): Locator {
   /* Match the role, not the placeholder. The topbar button and the dialog
@@ -56,14 +47,6 @@ export async function openSearchViaKeyboard(page: Page): Promise<void> {
  */
 export function metaLabelRow(page: Page, label: string): Locator {
   return page.locator("div.uppercase").filter({ hasText: label });
-}
-
-/** The sidebar footer's planning-sync state ("online" / "offline"). */
-export function sidebarSyncState(page: Page): Locator {
-  return page
-    .locator("nav")
-    .filter({ hasText: "Planning sync:" })
-    .locator("b");
 }
 
 /**

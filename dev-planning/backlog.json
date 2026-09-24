@@ -503,6 +503,13 @@
       "status": "finished",
       "notes": "fd56ad0: system rides seed -> planning sync -> model -> projection -> filter -> facets, seeded BMS; not on the definition, which derives it from covers_req_ids. In content_sha256 (else a subsystem move is refused as a no-op), out of NORMATIVE_FIELDS (else every link suspects). A content edit outside NEW/Draft returns the row to Draft with its own journal entry; frozen is defined by complement because status is a free-form string. The seed's set_canonical_sha256 had been stale since verified_by was deleted at 3b3910a and now covers both drifts",
       "updated": "2026-09-24"
+    },
+    {
+      "id": "BL-72",
+      "title": "Planning Sync Mock removed - the Test Manager's MongoDB is the single store",
+      "status": "in progress",
+      "notes": "user 2026-09-24: 'get rid of it, keem in mongo'. The mock ran a push worker that POSTed api/mock_planning/fixture.json (6 Volvo work orders, 7 definitions, 0 requirements) to POST /planning/sync and replaced the battery catalog twice on 2026-09-24 (08:53, 11:18); _write_mirror (planning_sync.py:286-308) is a plain update_one with no precedence check, so a mirror push beats a manual edit. Deployment STOPPED via the Portal, block deleted from quix.yaml, PLANNING_API_URL blanked on the API. POST /planning/sync SURVIVES - it is how `python -m seed catalog` loads the catalog. api/mock_planning/ stays on disk: api/seed/fixtures.py:75 reads its fixture.json as CAST_PATH and six test modules import it. The /planning-sync/{status,toggle,trigger} routes stay too - removing them drags in five green test modules",
+      "updated": "2026-09-24"
     }
   ]
 }

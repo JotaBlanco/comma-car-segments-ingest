@@ -19,8 +19,7 @@ import { TablePager } from "@/components/shared/table-pager";
 import { TableSearchInput } from "@/components/shared/table-search-input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { formatArrival } from "@/lib/format";
-import { usePlanningSyncStatus, useWorkOrderFacets, useWorkOrders } from "@/lib/hooks";
+import { useWorkOrderFacets, useWorkOrders } from "@/lib/hooks";
 import { useTableState, type TableStateConfig } from "@/lib/table-state";
 import type { WorkOrderListFilters, WorkOrderStatus } from "@/types";
 import { AddWorkOrderDialog } from "./add-work-order-dialog";
@@ -29,15 +28,15 @@ import { AddWorkOrderDialog } from "./add-work-order-dialog";
  * Work orders — LIGHT treatment (spec §0, §4).
  *
  * 42 rows: quick status views + one Project filter + search + pills + pager.
- * NO sortable headers — the endpoint 422s on `sort`/`order` params. Most rows
- * are mirrored from planning; a row opened here reads `manual`, and each row
- * badges the source the API reports rather than an assumed one.
+ * NO sortable headers — the endpoint 422s on `sort`/`order` params. Each row
+ * badges the source the API reports rather than an assumed one, so rows that
+ * predate the registry owning the catalogue still read `api:planning`.
  */
 
 const WO_COLUMNS = 6;
 
 /* The project options come from GET /work-orders/facets over the WHOLE
-   mirror. The typed list this replaced never learned a newly mirrored
+   collection. The typed list this replaced never learned a newly added
    project. The facets arrive sorted ascending (contract §10b). */
 const projectOptions = (values: readonly string[] | undefined): FilterOption[] =>
   (values ?? []).map((value) => ({
@@ -91,10 +90,8 @@ export function WorkOrdersScreen() {
 
   const { data, isPending, isError, refetch } = useWorkOrders(filters);
   const { data: facets } = useWorkOrderFacets();
-  const { data: syncStatus } = usePlanningSyncStatus();
   const workOrders = data?.items;
   const viewCounts = data?.view_counts;
-  const lastSyncAt = syncStatus?.last_sync_at ?? null;
 
   const quickViews: readonly QuickView[] = [
     { id: "all", label: "All", count: viewCounts?.all },
@@ -143,10 +140,8 @@ export function WorkOrdersScreen() {
       <PageHeader
         title="Work orders"
         sub={
-          <span className="inline-flex items-center gap-1.5 text-[0.7rem] text-ink-3">
-            <SourceBadge source="api:planning" />
-            Mirrored from the planning system — their content is planning&rsquo;s. A campaign
-            planning does not know is opened here.
+          <span className="text-[0.7rem] text-ink-3">
+            Every campaign lives here — open one, edit it, and its test runs hang from it.
           </span>
         }
       />
@@ -183,14 +178,7 @@ export function WorkOrdersScreen() {
       </div>
       <ActiveFilterPills pills={pills} onClearAll={() => table.clearAll()} />
       <Panel className="flex min-h-0 flex-1 flex-col">
-        <PanelHead
-          title="Work orders"
-          action={
-            <span className="font-mono text-[0.68rem] text-ink-3">
-              synced_at: {lastSyncAt !== null ? formatArrival(lastSyncAt) : "—"}
-            </span>
-          }
-        />
+        <PanelHead title="Work orders" />
         <TableScrollArea>
           <Table aria-label="Work orders">
           <TableHeader>
@@ -216,7 +204,7 @@ export function WorkOrdersScreen() {
               <TableRow className="hover:bg-transparent">
                 <TableCell colSpan={WO_COLUMNS} className="p-0!">
                   <span className="grid place-items-center px-4 py-7 text-[0.78rem] text-ink-3">
-                    No work orders mirrored yet.
+                    No work orders yet.
                   </span>
                 </TableCell>
               </TableRow>

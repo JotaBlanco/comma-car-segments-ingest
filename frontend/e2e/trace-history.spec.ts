@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { HERO_RUN_ID, SYNC_WO_ID, resetDb, syncSwitch } from "./support/helpers";
+import { HERO_RUN_ID, SYNC_WO_ID, resetDb } from "./support/helpers";
 
 /**
  * UC-005 — Trace test history.
@@ -16,9 +16,9 @@ import { HERO_RUN_ID, SYNC_WO_ID, resetDb, syncSwitch } from "./support/helpers"
  * The walk uses the hero chain, because it is the only seeded chain that
  * carries content on every link at once: three files on the run, ingestion
  * events on the file, a processed result on the lineage, and entries in the
- * run journal. The planning-sync switch is setup here and not the subject —
- * it mirrors WO-2026-0851 and backfills the hero run. `demo-script.spec.ts`
- * owns the proof that the switch itself works.
+ * run journal. The planning sync pass is setup here and not the subject —
+ * it mirrors WO-2026-0851 and backfills the hero run, driven directly through
+ * `POST /api/v1/planning-sync/trigger` rather than a UI control.
  */
 
 /** The definition the planning sync links to the hero run (lib/mock/seed.ts). */
@@ -39,16 +39,19 @@ test("a person drills work order → definition → run → file, then reads lin
   test.setTimeout(180_000);
 
   await test.step("setup: the planning sync mirrors the work order", async () => {
+    /* Through the proxy, like the app's own client (lib/api/client.ts) — the
+       proxy attaches the shared TM_API_TOKEN server-side; the browser never
+       holds it. */
+    const response = await page.request.post("/api/proxy/planning-sync/trigger");
+    expect(response.ok()).toBe(true);
     await page.goto("/");
-    await syncSwitch(page).click();
-    await expect(
-      page.getByText("Planning sync online — 5 work orders mirrored, 1 run backfilled"),
-    ).toBeVisible();
   });
 
   await test.step("step 1: the work-orders list opens the work order", async () => {
-    const sidebar = page.locator("nav").filter({ hasText: "Planning sync:" });
-    await sidebar.getByRole("link", { name: /Work orders/ }).click();
+    /* Exact match: the home page also links to /work-orders from a
+       "Work orders mirrored" stat card, whose accessible name would also
+       match a loose /Work orders/ pattern. */
+    await page.getByRole("link", { name: "Work orders", exact: true }).click();
     await page.waitForURL("/work-orders");
 
     await page.getByRole("link", { name: new RegExp(SYNC_WO_ID) }).click();

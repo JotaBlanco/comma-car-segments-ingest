@@ -4,10 +4,10 @@ import { Search } from "lucide-react";
 import { Kbd } from "@/components/shared/kbd";
 import { AccountMenu } from "@/components/account/account-menu";
 import { AskTrigger } from "@/components/assistant/ask-trigger";
+import { GlobalSearch } from "@/components/search/global-search";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { FavouritesMenu } from "./favourites-menu";
 import { NotificationBell } from "./notification-bell";
-import { TopbarDemoSlot } from "./topbar-demo-slot";
 import { BrandMark } from "./brand-mark";
 
 export function Topbar() {
@@ -30,7 +30,7 @@ export function Topbar() {
         {/* Between search and the right cluster, per the concept mock — hidden
             until /assistant/status confirms the feature. */}
         <AskTrigger />
-        <TopbarDemoSlot />
+        <GlobalSearch />
         <FavouritesMenu />
         <NotificationBell />
         <ThemeToggle />

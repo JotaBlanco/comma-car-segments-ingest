@@ -23,8 +23,8 @@ variables:
     defaultValue: '27017'
   - name: PLANNING_API_URL
     inputType: FreeText
-    description: Planning system base URL (mock in the demo)
-    defaultValue: http://mock-planning:8003
+    description: An external planning system to mirror work orders from. Blank means there is none and the registry's own MongoDB is the single store for requirements, test definitions and work orders; /ready then reports planning_api disabled and probes nothing.
+    defaultValue: ''
   - name: TM_API_TOKEN
     inputType: Secret
     description: Static bearer token — the API refuses to start without it

@@ -20,8 +20,7 @@ import { TableSearchInput } from "@/components/shared/table-search-input";
 import { ToolbarRow } from "@/components/shared/table-toolbar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { requirementsApi } from "@/lib/api/requirements";
-import { formatArrival } from "@/lib/format";
-import { usePlanningSyncStatus, useRequirementFacets, useRequirements } from "@/lib/hooks";
+import { useRequirementFacets, useRequirements } from "@/lib/hooks";
 import { useTableState } from "@/lib/table-state";
 import type { EarsPattern, RequirementListFilters, VerificationState } from "@/types";
 import { AddRequirementDialog } from "./add-requirement-dialog";
@@ -40,7 +39,7 @@ import { RetireRequirementDialog, type RetirableRequirement } from "./retire-req
 
 /**
  * Requirements — a widened, fully filterable read+authoring grid over the
- * mirrored `requirements` collection (requirements-page spec + the dispatch
+ * registry's `requirements` collection (requirements-page spec + the dispatch
  * brief's override of its "nothing is editable" line, per
  * authoring-controls spec §3).
  *
@@ -125,10 +124,8 @@ export function RequirementsScreen() {
 
   const { data, isPending, isError, refetch } = useRequirements(filters);
   const { data: facets } = useRequirementFacets();
-  const { data: syncStatus } = usePlanningSyncStatus();
   const rows = data?.items ?? [];
   const viewCounts = data?.view_counts;
-  const lastSyncAt = syncStatus?.last_sync_at ?? null;
 
   const quickViews: readonly QuickView[] = [
     { id: "all", label: "All", count: viewCounts?.all },
@@ -179,12 +176,9 @@ export function RequirementsScreen() {
         title="Requirements"
         sub={
           <span className="text-[0.78rem] text-ink-3">
-            <span className="inline-flex items-center gap-1.5">
-              <SourceBadge source="api:planning" />
-              Status is authored by planning or by a manual row here; Verification is computed
-              here from runs and verdicts — the two move independently, so &ldquo;Draft&rdquo;
-              beside &ldquo;Tested&rdquo; is legal, not a bug.
-            </span>
+            Status is authored here; Verification is computed here from runs and verdicts —
+            the two move independently, so &ldquo;Draft&rdquo; beside &ldquo;Tested&rdquo; is
+            legal, not a bug.
           </span>
         }
       />
@@ -233,14 +227,7 @@ export function RequirementsScreen() {
       <RequirementsBatchBar rows={batchRows} onSelectionChange={setPickedIds} />
 
       <Panel className="flex min-h-0 flex-1 flex-col">
-        <PanelHead
-          title="Mirrored requirements"
-          action={
-            <span className="font-mono text-[0.68rem] text-ink-3">
-              synced_at: {lastSyncAt !== null ? formatArrival(lastSyncAt) : "—"}
-            </span>
-          }
-        />
+        <PanelHead title="Requirements" />
         <TableScrollArea>
           <Table aria-label="Requirements">
             <TableHeader>
@@ -277,8 +264,8 @@ export function RequirementsScreen() {
                 <TableRow className="hover:bg-transparent">
                   <TableCell colSpan={colCount} className="p-0!">
                     <span className="grid place-items-center px-4 py-7 text-[0.78rem] text-ink-3">
-                      No requirements mirrored yet — planning pushes them through{" "}
-                      <span className="font-mono">POST /planning/sync</span>.
+                      The requirement catalogue is empty — load it with the seed or add a
+                      requirement here.
                     </span>
                   </TableCell>
                 </TableRow>

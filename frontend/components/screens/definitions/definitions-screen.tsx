@@ -25,7 +25,8 @@ import { DefinitionsFiltersPopover } from "./definitions-filters-popover";
 import { DEFINITIONS_TABLE_CONFIG } from "./definitions-table-config";
 
 /**
- * Test definitions — the read-only mirror of the planning system, filtered.
+ * Test definitions — the catalogue's definitions, filtered. No route edits
+ * their core fields, so this screen only reads and narrows.
  *
  * Every filter lives in the URL (`@/lib/table-state`), so a narrowed view is a
  * link a colleague can open and a reload keeps. The Home panel's
@@ -103,7 +104,8 @@ export function DefinitionsScreen() {
         sub={
           <span className="inline-flex items-center gap-1.5 text-[0.7rem] text-ink-3">
             <SourceBadge source="api:planning" />
-            Read-only mirror of the planning system — an orphan names no mirrored work order.
+            Definitions arrive with the catalogue — an orphan names a work order this registry
+            does not hold.
           </span>
         }
       />

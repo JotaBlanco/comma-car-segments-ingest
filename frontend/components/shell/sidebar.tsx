@@ -24,7 +24,6 @@ import {
 } from "lucide-react";
 import { NewTabMark } from "@/components/shared/new-tab-mark";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { usePlanningSyncStatus } from "@/lib/hooks";
 import { getLakehouseUrl, listQuixLabs } from "@/lib/api/integrations";
 import { ftsConfigured } from "@/lib/fts";
 import { KIND_DEPLOYMENT, quixLabConfigured, setQuixLabPortalUrl } from "@/lib/quixlab";
@@ -103,7 +102,6 @@ function storeCollapsed(next: boolean): void {
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { data: sync } = usePlanningSyncStatus();
 
   const collapsed = useSyncExternalStore(subscribe, clientSnapshot, serverSnapshot);
 
@@ -306,8 +304,8 @@ export function Sidebar() {
             )}
             <span className={hideText}>{collapsed ? "Expand sidebar" : "Collapse sidebar"}</span>
           </button>
-          {/* The rail is too narrow for the version and the sync state, and a
-              cut string reads wrong, so the footer hides. */}
+          {/* The rail is too narrow for the link, and a cut string reads
+              wrong, so the footer hides. */}
           {!collapsed && (
             <div className="p-2.5 text-[0.68rem] text-ink-3">
               {/* The Swagger page opens in a tab. The app runs in the Portal
@@ -338,14 +336,6 @@ export function Sidebar() {
                     attribute only serves the mouse. */}
                 <NewTabMark />
               </a>
-              {sync !== undefined && (
-                <div className="mt-1">
-                  Planning sync:{" "}
-                  <b className={sync.online ? "text-green" : "text-amber"}>
-                    {sync.online ? "online" : "offline"}
-                  </b>
-                </div>
-              )}
             </div>
           )}
         </div>

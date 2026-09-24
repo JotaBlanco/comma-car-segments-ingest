@@ -639,11 +639,14 @@ def create_app() -> FastAPI:
                 get_client().admin.command("ping")
         except PyMongoError as exc:
             raise ApiError(503, "mongo ping failed", "not_ready") from exc
-        try:
-            response = httpx.get(f"{settings.planning_api_url}/health", timeout=1.0)
-            planning = "ok" if response.status_code == 200 else "offline"
-        except httpx.HTTPError:
-            planning = "offline"
+        if not settings.planning_api_url:
+            planning = "disabled"
+        else:
+            try:
+                response = httpx.get(f"{settings.planning_api_url}/health", timeout=1.0)
+                planning = "ok" if response.status_code == 200 else "offline"
+            except httpx.HTTPError:
+                planning = "offline"
         # A probe or a person can now ask "can you serve statistics? can you
         # serve downloads?" and read a straight answer. This never decides the
         # status: the registry works without either value, so a missing

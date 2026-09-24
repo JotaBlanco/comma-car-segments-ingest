@@ -74,12 +74,12 @@ def test_both_run_key_readers_bind_the_one_project_variable(project, deployment)
     assert declared.get("variableKey") == "TM_RUN_KEY_PATTERN"
 
 
-# --- ONE registry token, four presenters ------------------------------------
+# --- ONE registry token, three presenters -----------------------------------
 
 
 @pytest.mark.parametrize(
     "deployment",
-    ["Test Manager - API", "Planning Sync Mock", "TS Metadata sink", "Test Manager - Frontend"],
+    ["Test Manager - API", "TS Metadata sink", "Test Manager - Frontend"],
 )
 def test_everything_that_talks_to_the_registry_presents_the_one_token(project, deployment):
     declared = _variables(project, deployment)["TM_API_TOKEN"]
