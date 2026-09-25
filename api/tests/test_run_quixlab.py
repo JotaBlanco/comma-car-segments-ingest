@@ -868,3 +868,87 @@ def test_deleting_the_run_removes_every_notebook_and_the_caller_s_labs(
         ("DELETE", "/deployments/dep-lab")
     ], "one lab existed, one is removed; the other notebook had none"
     assert routed_db["notebooks"].count_documents({"run_id": RUN}) == 0
+
+
+def _seed_draft_definition(db) -> None:
+    db["test_definitions"].insert_one(
+        {
+            "_id": "BAT-SYS-TC-003",
+            "work_order_id": "WO-BAT-2026-001",
+            "title": "Battery temperature held at or below T_batt_max",
+            "planned_runs": 1,
+            "covers_req_ids": ["BAT-SYS-SAF-003"],
+            "requirements_files": [
+                {
+                    "name": "BAT-SYS-TC-003.md",
+                    "content": "## Pass criteria\n\nBMS_T_Batt <= 60 degC at every sample.",
+                    "source": "planning",
+                }
+            ],
+            "synced_at": datetime(2026, 9, 15, 9, 0, tzinfo=UTC),
+        }
+    )
+    db["requirements"].insert_one(
+        {
+            "_id": "BAT-SYS-SAF-003",
+            "title": "Pack temperature limit",
+            "text": "The pack shall stay at or below {T_batt_max}.",
+            "text_rendered": "The pack shall stay at or below 60 degC.",
+            "status": "approved",
+        }
+    )
+
+
+def test_a_draft_notebook_carries_the_definition_and_an_ai_cell_that_writes_evaluate(
+    client, routed_db, portal, written, monkeypatch
+) -> None:
+    """`definition_id` turns the starter into an implementation draft of that definition."""
+    from api.services import lake
+
+    _seed_battery(routed_db)
+    _seed_draft_definition(routed_db)
+    monkeypatch.setattr(lake, "is_configured", lambda: True)
+    monkeypatch.setattr(lake, "run_partitions", lambda table, run_id: [BATTERY_FOLDER])
+
+    response = client.post(
+        f"/api/v1/test-runs/{BATTERY_RUN}/notebooks",
+        headers=VIEWER,
+        json={"definition_id": "BAT-SYS-TC-003"},
+    )
+
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["name"] == "Draft BAT-SYS-TC-003"
+    assert body["definition_id"] == "BAT-SYS-TC-003"
+    _, source = written[0]
+    assert "Draft implementation of BAT-SYS-TC-003" in source
+    assert "BAT-SYS-SAF-003" in source and "60 degC" in source
+    assert "BMS_T_Batt <= 60 degC at every sample." in source
+    assert "evaluate(run_id: str, table: str) -> dict" in source
+    assert f"return ql.lake_partitions('battery_data_v1', ['{BATTERY_FOLDER}']" in source
+    assert "@canvas.ai(" in source and '"aiMode": "code"' in source
+    assert f"return evaluate({BATTERY_RUN!r}, 'battery_data_v1')" in source
+    assert routed_db["notebooks"].find_one({"_id": body["notebook_id"]})["definition_id"] == (
+        "BAT-SYS-TC-003"
+    )
+
+
+def test_a_draft_refuses_a_definition_the_run_does_not_cover(
+    client, routed_db, portal, written, monkeypatch
+) -> None:
+    from api.services import lake
+
+    _seed_battery(routed_db)
+    _seed_draft_definition(routed_db)
+    monkeypatch.setattr(lake, "is_configured", lambda: False)
+
+    response = client.post(
+        f"/api/v1/test-runs/{BATTERY_RUN}/notebooks",
+        headers=VIEWER,
+        json={"definition_id": "BAT-SYS-TC-009"},
+    )
+
+    assert response.status_code == 422, response.text
+    assert response.json()["code"] == "definition_not_on_run"
+    assert written == []
+    assert routed_db["notebooks"].count_documents({}) == 0

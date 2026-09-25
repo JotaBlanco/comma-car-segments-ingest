@@ -789,7 +789,12 @@ export function RunDetailScreen({ runId }: { runId: string }) {
      either once and hands the request back, which clears it from the URL. */
   const notebookParam = activeTab === "notebooks" ? searchParams.get("notebook") : null;
   const createNotebookRequested = notebookParam === "new";
-  const openNotebookRequested = notebookParam !== null && notebookParam !== "new" ? notebookParam : null;
+  const draftNotebookRequested =
+    notebookParam !== null && notebookParam.startsWith("draft:") ? notebookParam.slice(6) : null;
+  const openNotebookRequested =
+    notebookParam !== null && notebookParam !== "new" && draftNotebookRequested === null
+      ? notebookParam
+      : null;
   const onCreateHandled = useCallback(() => {
     const params = new URLSearchParams(searchParams);
     params.delete("notebook");
@@ -987,6 +992,7 @@ export function RunDetailScreen({ runId }: { runId: string }) {
               signals={pickedSignals}
               flat
               createOnMount={createNotebookRequested}
+              draftOnMount={draftNotebookRequested}
               openOnMount={openNotebookRequested}
               onCreateHandled={onCreateHandled}
             />

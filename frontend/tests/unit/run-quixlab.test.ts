@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { running, type Notebook, type RunQuixLab } from "@/lib/api/run-quixlab";
+import { createNotebook, running, type Notebook, type RunQuixLab } from "@/lib/api/run-quixlab";
+import { api } from "@/lib/api/client";
 import { GIVE_UP_MS, launchRunQuixLab, type LaunchDeps, type LaunchTab } from "@/lib/run-quixlab";
 
 /**
@@ -266,5 +267,15 @@ describe("claimTab", () => {
 
     expect(written[0]).not.toContain("<script>alert(1)</script>");
     expect(written[0]).toContain("&lt;script&gt;");
+  });
+});
+
+describe("createNotebook", () => {
+  it("sends the definition id only when a draft is asked for", async () => {
+    const post = vi.spyOn(api, "post").mockResolvedValue(notebook("nb-9") as never);
+    await createNotebook("r1");
+    await createNotebook("r1", "Cooling", "BAT-SYS-TC-003");
+    expect(post.mock.calls.map((call) => call[1])).toEqual([{}, { name: "Cooling", definition_id: "BAT-SYS-TC-003" }]);
+    post.mockRestore();
   });
 });

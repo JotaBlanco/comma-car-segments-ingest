@@ -36,6 +36,7 @@ from api.services import (
     file_writes,
     lake,
     queries_runs,
+    quixlab_draft,
     quixlab_notebook,
     run_deletion,
 )
@@ -95,6 +96,35 @@ def _run_folders(table: str, run: dict) -> list[str]:
                 return folders
             logger.info("the lake holds no folder of run %s in %s yet", run_id, table)
     return [quixlab_notebook.partition_path(_partitions(run))]
+
+
+def _draft_source(db: Database, run: dict, td_id: str, table: str, folders: list[str]) -> str:
+    """The starter of an implementation draft: the definition must be one this run covers."""
+    run_id = str(run.get("_id") or run.get("run_id") or "")
+    if td_id not in (run.get("definition_ids") or []):
+        raise ApiError(
+            422, f"run {run_id} does not cover definition {td_id}", "definition_not_on_run"
+        )
+    definition = db["test_definitions"].find_one({"_id": td_id})
+    if definition is None:
+        raise ApiError(404, f"Test definition {td_id} not found", "td_not_found")
+    req_ids = list(definition.get("covers_req_ids") or [])
+    requirements = (
+        list(db["requirements"].find({"_id": {"$in": req_ids}}).sort("_id", 1)) if req_ids else []
+    )
+    documents = [
+        (doc["name"], doc["content"])
+        for doc in queries_runs.requirements_files(definition)
+        if isinstance(doc.get("content"), str) and doc["content"].strip()
+    ]
+    return quixlab_draft.draft_source(
+        run_id=run_id,
+        table=table,
+        folders=folders,
+        definition=definition,
+        requirements=requirements,
+        spec_documents=documents,
+    )
 
 
 def _lab_dto(lab: quixlab_provision.Lab) -> RunQuixLab:
@@ -244,22 +274,29 @@ def create_notebook(
     run = queries_runs.get_run(db, run_id)
     # The one answer to "which table holds this run's samples", already written.
     table = run_deletion.lake_table_of(run)
+    td_id = (body.definition_id or "").strip() or None
     try:
-        source = quixlab_notebook.notebook_source(
-            run_id=run_id, table=table, folders=_run_folders(table, run)
+        folders = _run_folders(table, run)
+        source = (
+            _draft_source(db, run, td_id, table, folders)
+            if td_id
+            else quixlab_notebook.notebook_source(run_id=run_id, table=table, folders=folders)
         )
     except quixlab_notebook.UnsafeValue as error:
         raise ApiError(500, str(error), "quixlab_unsafe_value") from error
 
     notebook_id = f"nb-{uuid.uuid4().hex[:12]}"
-    name = (
-        body.name or ""
-    ).strip() or f"Notebook {db[COLLECTION].count_documents({'run_id': run_id}) + 1}"
+    name = (body.name or "").strip() or (
+        f"Draft {td_id}"
+        if td_id
+        else f"Notebook {db[COLLECTION].count_documents({'run_id': run_id}) + 1}"
+    )
     lab = _ensure(token, identity, run_id, notebook_id, source, writer)
     row = {
         "_id": notebook_id,
         "run_id": run_id,
         "name": name,
+        "definition_id": td_id,
         "created_by": identity.display_name or identity.user_id,
         "created_at": datetime.now(UTC),
         "saved_at": None,

@@ -18,6 +18,13 @@ import { keys } from "@/lib/hooks/keys";
 import { PORTAL_TOKEN_HEADER, setActivePortalToken } from "@/lib/portal/token-store";
 import type { TestRun } from "@/types";
 
+const navigation = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: navigation.push, replace: vi.fn() }),
+  usePathname: () => "/runs/r",
+  useSearchParams: () => new URLSearchParams("tab=signals"),
+}));
+
 const RUN_ID = "TAS-88214";
 const WO_ID = "WO-2026-0851";
 const RUNNABLE = "TD-4471";
@@ -363,5 +370,34 @@ describe("the run-all token on one row", () => {
     await vi.advanceTimersByTimeAsync(0);
 
     expect(sent("POST")).toHaveLength(1);
+  });
+});
+
+
+describe("Draft", () => {
+  it("hands the definition to the Notebooks tab through the URL, as Open in does", async () => {
+    stubFetch();
+    navigation.push.mockClear();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(
+      withClient(
+        <Table>
+          <TableBody>
+            <TableRow>
+              <DefinitionRunCell runId={RUN_ID} tdId={RUNNABLE} runAllToken={0} />
+            </TableRow>
+          </TableBody>
+        </Table>,
+      ),
+    );
+    const button = await screen.findByRole("button", { name: `Draft an implementation of ${RUNNABLE} in QuixLab` });
+    await waitFor(() => expect(button).toBeEnabled());
+
+    await user.click(button);
+
+    expect(navigation.push).toHaveBeenCalledWith(`/runs/r?tab=notebooks&notebook=draft%3A${RUNNABLE}`, {
+      scroll: false,
+    });
+    expect(sent("POST")).toHaveLength(0);
   });
 });

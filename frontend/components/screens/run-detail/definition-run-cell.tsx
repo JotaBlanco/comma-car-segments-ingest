@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef } from "react";
 import { ToneBadge, type BadgeTone } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { TableCell } from "@/components/ui/table";
@@ -90,6 +91,18 @@ export function DefinitionRunCell({
     if (runnable && !pending) run();
   }, [runAllToken, runnable, pending, run]);
 
+  /* Draft hands the request to the Notebooks tab through the URL, the way "Open in → New
+     QuixLab notebook" does, so the tab makes the draft notebook and frames its lab. */
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const draft = useCallback(() => {
+    const params = new URLSearchParams(searchParams);
+    params.set("tab", "notebooks");
+    params.set("notebook", `draft:${tdId}`);
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [router, pathname, searchParams, tdId]);
+
   const reason = definition.isLoading
     ? "Reading the definition…"
     : runnable
@@ -113,6 +126,20 @@ export function DefinitionRunCell({
           onClick={control.run}
         >
           {control.pending ? "Running…" : "Run"}
+        </Button>
+        <Button
+          variant="outline"
+          size="xs"
+          disabled={definition.isLoading}
+          aria-label={`Draft an implementation of ${tdId} in QuixLab`}
+          title={
+            runnable
+              ? "Opens a QuixLab notebook on this run where the AI redrafts the definition's implementation"
+              : "Opens a QuixLab notebook on this run where the AI drafts the definition's implementation"
+          }
+          onClick={draft}
+        >
+          {runnable ? "Redraft" : "Draft"}
         </Button>
       </div>
     </TableCell>

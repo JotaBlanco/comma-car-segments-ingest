@@ -328,6 +328,7 @@ export function QuixLabPanel({
   runId,
   signals = WHOLE_RUN,
   createOnMount = false,
+  draftOnMount = null,
   openOnMount = null,
   onCreateHandled,
   flat = false,
@@ -337,6 +338,8 @@ export function QuixLabPanel({
   signals?: readonly string[];
   /** True when the page was opened with a request to create a notebook ("Open in → New QuixLab notebook"). */
   createOnMount?: boolean;
+  /** A definition id: make an implementation DRAFT notebook of it on arrival, once. */
+  draftOnMount?: string | null;
   /** A notebook id the page was opened with a request to open (the Workflows page's Open). */
   openOnMount?: string | null;
   /** Called once either request has been acted on, so a reload does not repeat it. */
@@ -375,13 +378,17 @@ export function QuixLabPanel({
      A deployment answers `Building` or `Starting` before anything serves on its
      address, so embedding at once would frame a 502 that never refreshes itself. */
   const start = useCallback(
-    (notebookId: string | null) => {
+    (notebookId: string | null, definitionId?: string) => {
       setError(null);
       setProgress({ notebookId, text: notebookId === null ? "Creating…" : "Starting…" });
       void (async () => {
         try {
           const notebook =
-            notebookId === null ? await createNotebook(runId) : await openNotebook(runId, notebookId);
+            notebookId === null
+              ? definitionId === undefined
+                ? await createNotebook(runId)
+                : await createNotebook(runId, undefined, definitionId)
+              : await openNotebook(runId, notebookId);
           refresh();
           let lab = notebook.lab ?? (await getNotebookLab(runId, notebook.notebook_id));
           const giveUpAt = Date.now() + GIVE_UP_MS;
@@ -441,6 +448,15 @@ export function QuixLabPanel({
     onCreateHandled?.();
     start(null);
   }, [createOnMount, onCreateHandled, start]);
+
+  /* The definitions table's Draft lands here as `?notebook=draft:<td>`, acted on once. */
+  const draftRequested = useRef<string | null>(null);
+  useEffect(() => {
+    if (draftOnMount === null || draftRequested.current === draftOnMount) return;
+    draftRequested.current = draftOnMount;
+    onCreateHandled?.();
+    start(null, draftOnMount);
+  }, [draftOnMount, onCreateHandled, start]);
 
   /* The Workflows page's Open lands here the same way, with the notebook's id. */
   const openRequested = useRef<string | null>(null);

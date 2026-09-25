@@ -28,6 +28,8 @@ export interface Notebook {
   notebook_id: string;
   run_id: string;
   name: string;
+  /** The definition this notebook drafts an implementation of; null for a plain analysis. */
+  definition_id?: string | null;
   created_by: string;
   created_at: string;
   /** The last Save and Close; null until the first. */
@@ -62,9 +64,15 @@ export function listAllNotebooks(): Promise<Notebook[]> {
   return api.get<Notebook[]>("/notebooks");
 }
 
-/** A new notebook on this run, its starter file written, and this viewer's lab started on it. */
-export function createNotebook(runId: string, name?: string): Promise<Notebook> {
-  return api.post<Notebook>(path(runId), name === undefined ? {} : { name });
+/**
+ * A new notebook on this run, its starter file written, and this viewer's lab started on it.
+ * With `definitionId` the starter is an implementation DRAFT of that definition on this run.
+ */
+export function createNotebook(runId: string, name?: string, definitionId?: string): Promise<Notebook> {
+  const body: { name?: string; definition_id?: string } = {};
+  if (name !== undefined) body.name = name;
+  if (definitionId !== undefined) body.definition_id = definitionId;
+  return api.post<Notebook>(path(runId), body);
 }
 
 /** Start (or make) this viewer's lab on a saved notebook. The file is never written over. */

@@ -143,6 +143,7 @@ class Notebook(ApiModel):
     notebook_id: str = Field(validation_alias="_id")
     run_id: str
     name: str
+    definition_id: str | None = None
     created_by: str
     created_at: UtcDatetime
     saved_at: UtcDatetime | None = None
@@ -150,6 +151,11 @@ class Notebook(ApiModel):
 
 
 class NotebookCreateRequest(RequestModel):
-    """Body of POST /test-runs/{run_id}/notebooks. Every field optional."""
+    """Body of POST /test-runs/{run_id}/notebooks. Every field optional.
+
+    `definition_id` makes the notebook an implementation DRAFT of that definition on this
+    run: the starter carries the definition's text and an AI cell that writes `evaluate()`.
+    """
 
     name: str | None = None
+    definition_id: str | None = None
