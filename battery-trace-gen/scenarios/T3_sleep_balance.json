@@ -2,7 +2,7 @@
   "trace_id": "T3",
   "title": "Sleep and balance — 150 A discharge, then 900 s of relaxation in Sleep",
   "route": "a3f1c07d9b4e2610--2026-09-23--15-00-00",
-  "start_time_utc": "2026-09-23T15:00:00Z",
+  "start_time_utc": "2026-09-25T11:00:00Z",
   "duration_s": 1800,
   "test": {
     "run_key": "TAS-1003",
