@@ -1,10 +1,11 @@
 """Run one test definition on one test run as a QuixLab headless Job, and read its verdict.
 
 `POST /test-runs/{run_id}/definitions/{td_id}/run` seeds the definition's notebook when
-it has none and starts the Job; `GET` on the same path polls it and, once the Job
-finished with a verdict, records that verdict as a `processed_results` document and
-deletes the Job. `api/quixlab_run.py` carries the Job recipe and
-`api/services/definition_runs.py` the notebook and the verdict.
+it has none, files the definition's implementation under the run, and starts the Job;
+`GET` on the same path polls it and, once the Job finished with a verdict, records that
+verdict as a `processed_results` document and deletes the Job. `api/quixlab_run.py`
+carries the Job recipe and `api/services/definition_runs.py` the notebook, the
+implementation copy and the verdict.
 
 **Every Portal call runs as the viewer.** The Portal token arrives in `x-portal-token`,
 the header `routers/integrations.py` reads; no route here has a credential of its own.
@@ -18,7 +19,7 @@ from fastapi import APIRouter, Depends, Request
 from pymongo.database import Database
 
 from api import quix_identity, quixlab_provision, quixlab_run
-from api.auth import require_token
+from api.auth import journal_actor_or_id, require_token
 from api.db import get_db
 from api.errors import ApiError
 from api.models.definition_runs import DefinitionRunJob, DefinitionRunResult
@@ -79,13 +80,16 @@ def start_definition_run(
     td_id: str,
     request: Request,
     db: Annotated[Database, Depends(get_db)],
+    identity: Annotated[Identity, Depends(require_token)],
     provider: Annotated[FileBytesProvider, Depends(get_file_bytes_provider)],
     writer: Annotated[FileBytesWriter, Depends(get_file_writer)],
 ) -> DefinitionRunJob:
     """Run the definition's notebook on this run as a headless Job; 202 while it runs.
 
     A Job still going on this pair is answered as-is rather than started twice. The
-    definition's notebook is seeded with the default wrapper first when it has none.
+    definition's notebook is seeded with the default wrapper first when it has none,
+    and the implementation is copied into this run's blob folder and registered as a
+    file of the run, so the Files tab lists what judged the run.
     """
     token = _viewer(request)
     run, definition = _pair(db, run_id, td_id)
@@ -98,6 +102,23 @@ def start_definition_run(
         definition_runs.ensure_notebook(provider, writer, key)
     except FileBytesUnavailable as error:
         logger.error("definition notebook %s could not be seeded: %s", key, error.detail)
+        raise ApiError(503, error.detail, "storage_unreachable") from error
+    try:
+        definition_runs.place_implementation(
+            db,
+            provider,
+            writer,
+            run=run,
+            definition=definition,
+            actor=journal_actor_or_id(identity, "test-manager"),
+        )
+    except FileBytesUnavailable as error:
+        logger.error(
+            "implementation of %s could not be filed under run %s: %s",
+            td_id,
+            run_id,
+            error.detail,
+        )
         raise ApiError(503, error.detail, "storage_unreachable") from error
     job = _portal(
         quixlab_run.start_run,

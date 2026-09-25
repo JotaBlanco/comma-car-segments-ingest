@@ -5,7 +5,7 @@ export type RunStatus = "complete" | "awaiting_work_order" | "invalid";
 export type FileStatus = "registered" | "quarantined";
 export type BadgeStatus = RunStatus | FileStatus;
 
-export type BadgeTone = "green" | "amber" | "red" | "neutral";
+export type BadgeTone = "green" | "amber" | "red" | "neutral" | "accent";
 
 const statusConfig: Record<BadgeStatus, { label: string; tone: BadgeTone }> = {
   complete: { label: "Linked", tone: "green" },
@@ -20,6 +20,7 @@ const toneClass: Record<BadgeTone, string> = {
   amber: "bg-amber-bg text-amber",
   red: "bg-red-bg text-red",
   neutral: "bg-muted text-ink-2",
+  accent: "bg-accent-soft text-primary",
 };
 
 const dotClass: Record<BadgeTone, string> = {
@@ -27,6 +28,7 @@ const dotClass: Record<BadgeTone, string> = {
   amber: "bg-amber-dot",
   red: "bg-red-dot",
   neutral: "bg-ink-3",
+  accent: "bg-primary",
 };
 
 interface ToneBadgeProps {

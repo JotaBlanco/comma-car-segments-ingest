@@ -25,6 +25,7 @@ const sourceLabel: Record<string, string | undefined> = {
   TAS: "TAS acquisition",
   INCA: "INCA export",
   ifile: "sidecar",
+  api: "Test Manager",
 };
 
 const shortChecksum = (sha: string) =>
@@ -104,7 +105,14 @@ export function FilesTab({ runId }: { runId: string }) {
                 </div>
               </TableCell>
               <TableCell>
-                <ToneBadge tone="neutral">{file.source_system}</ToneBadge>
+                <span className="flex flex-wrap items-center gap-1">
+                  <ToneBadge tone="neutral">{file.source_system}</ToneBadge>
+                  {/* The module that judged this run, filed here when the
+                      definition was run. A recording carries no second badge. */}
+                  {file.role === "evaluator" && (
+                    <ToneBadge tone="accent">Evaluator</ToneBadge>
+                  )}
+                </span>
               </TableCell>
               <TableCell className="text-right">
                 {formatBytes(file.size_bytes)}

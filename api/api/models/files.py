@@ -10,11 +10,18 @@ from api.models.journal import Actor, JournalEntry
 from api.models.runs import InvalidFlag
 from api.models.signals import FileSignal, SignalStatsInput
 
-# "api" marks a logical file minted by POST /test-runs/{run_id}/signals
-# (PROPOSED, second wave). The other three name physical file producers.
+# "api" marks a file this API minted, rather than one a rig produced: the
+# logical file of POST /test-runs/{run_id}/signals and the implementation copy
+# a definition run files under its run. The other three name physical file
+# producers.
 SourceSystem = Literal["TAS", "INCA", "ifile", "api"]
 ChecksumState = Literal["verified", "mismatch", "unverified"]
 FileStatus = Literal["registered", "quarantined"]
+# What part this file plays in its run. A recording is what the bench
+# produced; an evaluator is the module that judged it. A stored document
+# carries no key and reads as a recording, so `{"$ne": "evaluator"}` selects
+# the inputs of a run (`services/definition_runs.py::_input_file_ids`).
+FileRole = Literal["recording", "evaluator"]
 # Added 20 Aug 2026. `lifecycle` is separate from `status`. `status` is the
 # verdict of the registry. `lifecycle` states what a person did with the
 # record afterwards. A stored document without the field counts as active.
@@ -71,6 +78,7 @@ class FileBody(ApiModel):
     filename: str
     run_id: str | None
     source_system: SourceSystem
+    role: FileRole = "recording"
     format: str
     size_bytes: int
     checksum_sha256: str
@@ -168,6 +176,8 @@ class FileRegisterRequest(RequestModel):
     filename: Filename
     run_id: str | None = None
     source_system: SourceSystem
+    # Every existing producer states none and registers a recording.
+    role: FileRole = "recording"
     format: str
     size_bytes: int
     checksum_sha256: str

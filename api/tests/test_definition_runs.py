@@ -35,6 +35,9 @@ VIEWER = {"x-portal-token": "viewer-token"}
 PATH = f"/api/v1/test-runs/{RUN}/definitions/{TD}/run"
 JOB_ID = "dep-run"
 SHA = "ab" * 32
+# The definition's own copy, filed under no run (§4.7) — the source `place_implementation` reads.
+IMPL_SOURCE_KEY = f"{WORKSPACE}/jama_ui/unassigned/abababab-impl.py"
+# Where `place_implementation` copies it and registers it, beside this run's trace (§4.1-4.2).
 IMPL_KEY = f"{WORKSPACE}/jama_ui/{RUN}/abababab-impl.py"
 NOTEBOOK_KEY = f"{WORKSPACE}/jama_ui/definitions/{TD}/notebook.py"
 
@@ -304,9 +307,12 @@ def portal(monkeypatch) -> Iterator[dict]:
     quix_identity.TRANSPORT = None
 
 
+IMPLEMENTATION_BYTES = b"def evaluate(): return {'verdict': 'PASS'}\n"
+
+
 def _implementation() -> dict:
     return {
-        "blob_path": f"blob://{IMPL_KEY}",
+        "blob_path": f"blob://{IMPL_SOURCE_KEY}",
         "filename": "impl.py",
         "sha256": SHA,
         "size_bytes": 10,
@@ -318,11 +324,12 @@ def _implementation() -> dict:
 
 
 @pytest.fixture
-def pair(routed_db) -> Database:
+def pair(routed_db, store) -> Database:
     routed_db["test_runs"].insert_one(make_run(run_id=RUN, lake_table="pcap_data_v1"))
     routed_db["test_definitions"].insert_one(
         make_definition(td_id=TD, implementation=_implementation())
     )
+    store.objects[IMPL_SOURCE_KEY] = IMPLEMENTATION_BYTES
     return routed_db
 
 
@@ -365,10 +372,88 @@ def test_starting_seeds_the_notebook_and_creates_one_job(client, pair, store, po
     assert json.loads(variables["QUIXLAB_PARAMS"]["value"]) == {
         "run_id": RUN,
         "td_id": TD,
-        "implementation_key": IMPL_KEY,
+        "implementation_key": IMPL_SOURCE_KEY,
         "lake_table": "pcap_data_v1",
         "entrypoint": "evaluate",
     }
+
+
+def test_starting_files_the_implementation_under_the_run_as_an_evaluator(
+    client, pair, store, portal
+) -> None:
+    """Validates spec §4.1, §4.2, §4.6: the copy lands beside the trace and registers.
+
+    The Job still loads the module from its definition-scoped source
+    (`implementation_key` above); this is the evidence copy the Files tab lists.
+    """
+    response = client.post(PATH, headers=VIEWER)
+
+    assert response.status_code == 202, response.text
+    assert store.objects[IMPL_KEY] == IMPLEMENTATION_BYTES
+    doc = pair["files"].find_one({"run_id": RUN, "role": "evaluator"})
+    assert doc is not None
+    assert doc["filename"] == "impl.py"
+    assert doc["source_system"] == "api"
+    assert doc["format"] == "PY"
+    assert doc["checksum_sha256"] == SHA
+    assert doc["storage_ref"] == f"blob://{IMPL_KEY}"
+    assert doc["status"] == "registered"
+
+
+def test_missing_implementation_bytes_answer_503_and_register_nothing(
+    client, pair, store, portal
+) -> None:
+    """Validates spec §4.6: `place_implementation` raises `FileBytesUnavailable`
+    when the store refuses either half, and the route answers `storage_unreachable`
+    before any Job is started."""
+    del store.objects[IMPL_SOURCE_KEY]
+
+    response = client.post(PATH, headers=VIEWER)
+
+    assert response.status_code == 503, response.text
+    assert response.json()["code"] == "storage_unreachable"
+    assert pair["files"].count_documents({"run_id": RUN, "role": "evaluator"}) == 0
+    assert portal["calls"] == []
+
+
+def test_a_register_failure_after_the_copy_leaves_an_orphan_object_and_no_row(
+    pair, store, portal, monkeypatch
+) -> None:
+    """The architecture note's finding #2: the blob write precedes registration,
+    so a non-`FileBytesUnavailable` failure on the registration half leaves the
+    copied bytes in place with no file document, and the exception propagates
+    uncaught (the route never reaches `start_run`)."""
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("mongo unreachable")
+
+    monkeypatch.setattr(definition_runs, "register_file_document", _boom)
+    run = pair["test_runs"].find_one({"_id": RUN})
+    definition = pair["test_definitions"].find_one({"_id": TD})
+
+    with pytest.raises(RuntimeError):
+        definition_runs.place_implementation(
+            pair, store, store, run=run, definition=definition, actor="test-manager"
+        )
+
+    assert store.objects[IMPL_KEY] == IMPLEMENTATION_BYTES
+    assert pair["files"].count_documents({"run_id": RUN, "role": "evaluator"}) == 0
+
+
+def test_two_identical_run_clicks_file_the_implementation_once(client, pair, store, portal) -> None:
+    """Validates spec §4.5: a re-run with unchanged bytes replays on (run,
+    checksum) — one blob object, one file document, one journal entry."""
+    first = client.post(PATH, headers=VIEWER)
+    assert first.status_code == 202, first.text
+    portal["deployments"] = [TEMPLATE_ROW, {**portal["job"], "status": "Failed"}]
+
+    second = client.post(PATH, headers=VIEWER)
+    assert second.status_code == 202, second.text
+
+    docs = list(pair["files"].find({"run_id": RUN, "role": "evaluator"}))
+    assert len(docs) == 1
+    entries = list(pair["journal_entries"].find({"entity_id": docs[0]["_id"]}))
+    assert len(entries) == 1
 
 
 def test_a_customised_notebook_is_never_overwritten(client, pair, store, portal) -> None:
@@ -480,6 +565,24 @@ def test_exit_zero_records_the_verdict_once_and_deletes_the_job(client, pair, po
     assert doc["provenance"]["produced_by"] == "verdict-runner"
     assert doc["provenance"]["produced_at"] == datetime.fromisoformat(EVALUATED_AT)
     assert doc["provenance_status"] == "verified"
+
+
+def test_a_verdict_s_input_file_ids_excludes_evaluators_and_includes_unroled_files(
+    client, pair, portal
+) -> None:
+    """Validates spec §4.4: `_input_file_ids` filters on `role != "evaluator"`,
+    and `$ne` matches a document carrying no `role` key at all — the four
+    traces registered before this change need no backfill."""
+    trace = seed_file(pair, run_id=RUN)  # no `role` key: every pre-existing document
+    evaluator = seed_file(pair, run_id=RUN, role="evaluator", filename="impl.py")
+    _finished(portal)
+
+    response = client.get(PATH, headers=VIEWER)
+
+    assert response.status_code == 200, response.text
+    [doc] = _verdicts(pair)
+    assert doc["provenance"]["input_file_ids"] == [trace["_id"]]
+    assert evaluator["_id"] not in doc["provenance"]["input_file_ids"]
 
 
 def test_a_re_poll_of_the_same_job_writes_no_second_verdict(client, pair, portal) -> None:

@@ -878,11 +878,13 @@ def upload_implementation(
     upload REPLACES the pointer; the bytes of the previous one stay in the
     store under their own digest, so a verdict that cited them still resolves.
 
-    **The bytes land in the run's folder, beside that run's MF4**
-    (`implementation_blob_key`). A definition names no run, so the newest run
-    carrying it is the one, and a definition no run carries yet waits in
-    `UNASSIGNED_RUN`. The pointer is what a read follows, so an implementation
-    stored before this layout still downloads from wherever it lies.
+    **The bytes land in `UNASSIGNED_RUN`** (`implementation_blob_key` with no
+    run). A definition is not a run and one definition serves many, so an
+    upload can name no run folder. The run-scoped copy is written when the
+    definition is RUN, the one moment exactly one (run, definition) pair exists
+    (`services/definition_runs.py::place_implementation`). The pointer is what
+    a read follows, so an implementation stored under an older layout still
+    downloads from wherever it lies.
 
     The order of the checks copies the binary requirements route:
 
@@ -914,8 +916,7 @@ def upload_implementation(
     except FileBytesUnavailable as error:
         raise ApiError(503, error.detail, "storage_unreachable") from error
 
-    run_id = queries_runs.latest_run_id_for_definition(db, td_id)
-    key = implementation_blob_key(run_id, filename, digest)
+    key = implementation_blob_key(None, filename, digest)
     try:
         writer.write(key, _chunks(file))
     except FileBytesUnavailable as error:

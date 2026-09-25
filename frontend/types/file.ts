@@ -30,15 +30,27 @@ export type FileSortKey = "registered_at" | "size_bytes";
 
 export type ChecksumState = "verified" | "mismatch" | "unverified";
 
-/* "api" marks a logical file minted by POST /test-runs/{id}/signals — the
-   backend default for machine submissions (api/api/models/files.py). */
+/* "api" marks a file the Test Manager minted rather than one a rig produced:
+   the logical file of POST /test-runs/{id}/signals and the implementation copy
+   a definition run files under its run (api/api/models/files.py). */
 export type SourceSystem = "TAS" | "INCA" | "ifile" | "api";
+
+/**
+ * What part a file plays in its run. A recording is what the bench produced;
+ * an evaluator is the module that judged it, copied into the run's folder when
+ * the definition was run. A file the registry stored before this field existed
+ * carries no value and reads as a recording.
+ */
+export type FileRole = "recording" | "evaluator";
 
 export interface FileEntity {
   file_id: string;
   filename: string;
   run_id: string | null;
   source_system: SourceSystem;
+  /* Optional for the same reason `version` is: a document stored before the
+     field existed carries none, and that reads as a recording. */
+  role?: FileRole;
   format: string;
   size_bytes: number;
   checksum_sha256: string;

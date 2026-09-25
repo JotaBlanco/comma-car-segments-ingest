@@ -1,6 +1,7 @@
 import type {
   FieldSources,
   FileLifecycle,
+  FileRole,
   FileSignal,
   HomeCounts,
   InvalidFlag,
@@ -80,6 +81,9 @@ export interface FileRecord {
   filename: string;
   run_id: string | null;
   source_system: SourceSystem;
+  /** Absent = a recording, as it is on a document the registry stored before
+   *  the field existed. Only a definition run writes "evaluator". */
+  role?: FileRole;
   format: string;
   size_bytes: number;
   checksum_sha256: string;

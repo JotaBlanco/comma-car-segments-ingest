@@ -6,6 +6,10 @@ customise it in QuixLab and the next run executes their version. The wrapper loa
 the definition's implementation from blob, calls its entry point, and returns
 `{tc_id, run_id, verdict, evidence, evaluated_at}` as the run's outputs.
 
+Starting a run also copies that implementation into the run's own blob folder and
+registers it as a file of the run (`place_implementation`), so the Files tab lists
+the module that judged the run beside the recording it judged.
+
 The verdict lands through `results._store_result`, the shipped `POST /results` path, in
 the shape `dev-planning/run-a-definition/spec.md` §5.1 pins.
 """
@@ -18,13 +22,15 @@ from typing import Any
 
 from pymongo.database import Database
 
+from api.models.files import FileRegisterRequest
 from api.models.results import ResultCreateRequest
 from api.quix_identity import Identity
 from api.quixlab_run import RunResult
+from api.routers.files import register_file_document
 from api.routers.results import COLLECTION, _store_result
 from api.services import queries_stats
 from api.services.file_bytes import FileBytesProvider, FileBytesUnavailable, blob_key
-from api.services.file_writes import FileBytesWriter
+from api.services.file_writes import FileBytesWriter, implementation_blob_key
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +69,60 @@ def ensure_notebook(provider: FileBytesProvider, writer: FileBytesWriter, key: s
     writer.check_ready()
     written = writer.write(key, iter([default_notebook()]))
     logger.info("definition notebook %s seeded with the default wrapper (%s bytes)", key, written)
+
+
+def place_implementation(
+    db: Database,
+    provider: FileBytesProvider,
+    writer: FileBytesWriter,
+    *,
+    run: Mapping[str, Any],
+    definition: Mapping[str, Any],
+    actor: str,
+) -> dict:
+    """Copy the definition's implementation into the run's folder and register it.
+
+    The upload route files a definition's module under `UNASSIGNED_RUN`, because
+    a definition is not a run. This is the one moment exactly one (run,
+    definition) pair exists, so this is where the bytes that judge a run land
+    beside the trace it recorded, as a file of that run with `role: evaluator`.
+
+    The key carries the content digest, so a re-run after an edit writes a
+    second object and the bytes a stored verdict cites survive. Re-running
+    unchanged bytes overwrites the same object with itself and replays on
+    (run, checksum), so no second file document is created.
+
+    Raises `FileBytesUnavailable` when the store refuses either half.
+    """
+    implementation = definition["implementation"]
+    filename = implementation["filename"]
+    key = implementation_blob_key(run["_id"], filename, implementation["sha256"])
+    chunks, size = provider.open(implementation["blob_path"])
+    writer.write(key, chunks)
+    doc, created = register_file_document(
+        db,
+        FileRegisterRequest.model_validate(
+            {
+                "filename": filename,
+                "run_id": run["_id"],
+                "source_system": "api",
+                "role": "evaluator",
+                "format": "PY",
+                "size_bytes": size,
+                "checksum_sha256": implementation["sha256"],
+                "storage_ref": f"blob://{key}",
+            }
+        ),
+        actor=actor,
+    )
+    logger.info(
+        "implementation %s filed under run %s as %s (created=%s)",
+        key,
+        run["_id"],
+        doc["_id"],
+        created,
+    )
+    return doc
 
 
 def lake_table(run: Mapping[str, Any]) -> str:
@@ -112,7 +172,10 @@ def _parameters(run: Mapping[str, Any], definition: Mapping[str, Any], job_id: s
 
 
 def _input_file_ids(db: Database, run_id: str) -> list[str]:
-    rows = db["files"].find({"run_id": run_id, "status": "registered"}, {"_id": 1})
+    # The evaluator is the tool, not an input; its digest rides as `tool_version`.
+    rows = db["files"].find(
+        {"run_id": run_id, "status": "registered", "role": {"$ne": "evaluator"}}, {"_id": 1}
+    )
     return sorted(str(row["_id"]) for row in rows)
 
 

@@ -634,6 +634,9 @@ function toFileEntity(file: FileRecord): FileEntity {
     filename: file.filename,
     run_id: file.run_id,
     source_system: file.source_system,
+    // A seeded row states no role and reads as a recording, the same fallback
+    // the real API applies to a document stored before the field existed.
+    role: file.role ?? "recording",
     format: file.format,
     size_bytes: file.size_bytes,
     checksum_sha256: file.checksum_sha256,

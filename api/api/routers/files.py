@@ -195,7 +195,8 @@ _PATCHABLE_FIELDS = ("run_id", *_STAGE_FIELDS)
 #
 # `run_id`, `status`, `quarantine_reason` and `signal_count` stay out. The
 # registry derives those at its own door, so they are not the file's word. A
-# stage outcome stays out for the same reason (`_derived_stages`).
+# stage outcome stays out for the same reason (`_derived_stages`), and so does
+# `role`: it is what the caller makes of the bytes, never something in them.
 _EMBEDDED_FIELDS = (
     "filename",
     "format",
@@ -1291,6 +1292,7 @@ def register_file_document(
         "filename": body.filename,
         "run_id": body.run_id,
         "source_system": body.source_system,
+        "role": body.role,
         "format": body.format,
         "size_bytes": body.size_bytes,
         "checksum_sha256": body.checksum_sha256,

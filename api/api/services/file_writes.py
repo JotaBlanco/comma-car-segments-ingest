@@ -48,15 +48,18 @@ RESULT_FOLDER = "test-manager/results"
 REQUIREMENTS_FOLDER = "test-manager/requirements"
 
 # The root every artefact of ONE TEST RUN hangs from. MF4 Import reads the same
-# variable name and writes each trace under `<root>/<run_id>/`; this service
-# writes each test implementation into the same folder, so the bytes that were
-# recorded and the bytes that judge them sit side by side. The root stays
-# outside `data-lake/`, so the lakehouse catalog never scans these objects.
+# variable name and writes each trace under `<root>/<run_id>/`; starting a
+# definition run copies that definition's implementation into the same folder,
+# so the bytes that were recorded and the bytes that judge them sit side by
+# side. The root stays outside `data-lake/`, so the lakehouse catalog never
+# scans these objects.
 BLOB_ROOT_VARIABLE = "BLOB_ROOT"
 DEFAULT_BLOB_ROOT = "jama_ui"
 
-# The run folder an artefact lands in when no run carries it. MF4 Import spells
-# it the same way, and the two services must keep spelling it the same.
+# The run folder an artefact lands in when no run names it: a trace MF4 Import
+# could not attribute, and every implementation upload, which is
+# definition-scoped. MF4 Import spells it the same way, and the two services
+# must keep spelling it the same.
 UNASSIGNED_RUN = "unassigned"
 
 # A key segment keeps these characters. Anything else becomes an underscore, so
@@ -142,21 +145,27 @@ def requirements_blob_key(td_id: str, filename: str) -> str:
 
 
 def implementation_blob_key(run_id: str | None, filename: str, digest: str) -> str:
-    """Build the key one uploaded test implementation lands on.
+    """Build the key one test implementation lands on.
 
     The workspace folder leads the key, as it does on the two writers above.
     Under it the key is `<blob_root()>/<run_id>/<digest8>-<name>`, the folder MF4
     Import writes the run's trace into, so a reader of one run's folder finds
-    the recording and the module that judges it together. ``run_id`` is None
-    when no run carries the definition yet, and the artefact then waits in
-    ``UNASSIGNED_RUN``.
+    the recording and the module that judges it together.
+
+    It has two callers and one convention each. The upload route passes
+    ``None`` and the module waits in ``UNASSIGNED_RUN``, because a definition is
+    not a run. `definition_runs.place_implementation` passes the run id when
+    that definition is run on it, which is the one moment the pair exists. The
+    two keys are therefore never equal, and the run copy never reads and writes
+    one object.
 
     The name carries the first 8 hex of the content DIGEST where the two
     writers above carry a uuid: the digest keeps two different uploads apart
     just as well, and it makes the key name the exact bytes — which is the
     point of this artefact, since a verdict cites `sha256:<digest>` as its
-    `tool_version`. Re-uploading identical bytes onto the same run therefore
-    lands on the same key.
+    `tool_version`. Re-running a definition whose module did not change
+    therefore rewrites one object with itself, and an edited module lands
+    beside the bytes the earlier verdict cites instead of over them.
     """
     workspace = os.environ.get(WORKSPACE_VARIABLE, "").strip().strip("/")
     root = blob_root()
