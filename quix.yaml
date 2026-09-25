@@ -125,7 +125,8 @@ deployments:
           targetPort: 80
     variables:
       - name: QUIX_PAT_TOKEN
-        description: The lake token the cloned verdict jobs query with. A project secret holding a personal access token.
+        description: The lake token the cloned verdict jobs query with. Bound to the same project secret Grafana reads the lake with; empty would leave the job on the workspace service identity, which is what it cannot query with.
+        variableKey: QuixLakeToken
     plugin:
       embeddedView:
         enabled: true

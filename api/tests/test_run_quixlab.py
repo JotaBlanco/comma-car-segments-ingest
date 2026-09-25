@@ -926,7 +926,9 @@ def test_a_draft_notebook_carries_the_definition_and_an_ai_cell_that_writes_eval
     assert "BMS_T_Batt <= 60 degC at every sample." in source
     assert "evaluate(run_id: str, table: str) -> dict" in source
     assert f"return ql.lake_partitions('battery_data_v1', ['{BATTERY_FOLDER}']" in source
-    assert "@canvas.ai(" in source and '"aiMode": "code"' in source
+    ai_lines = [line for line in source.splitlines() if line.startswith("@canvas.ai(")]
+    assert len(ai_lines) == 1 and ai_lines[0].endswith(")"), "one line: QuixLab's loader needs it"
+    assert '"aiMode": "code"' in ai_lines[0]
     assert f"return evaluate({BATTERY_RUN!r}, 'battery_data_v1')" in source
     assert routed_db["notebooks"].find_one({"_id": body["notebook_id"]})["definition_id"] == (
         "BAT-SYS-TC-003"

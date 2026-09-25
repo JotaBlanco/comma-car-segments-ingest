@@ -1,793 +1,690 @@
-# Test Results page — coverage and outcomes across every run
+# Test Results page — coverage, passed requirements, passed test definitions
 
-**Status:** Draft
+**Status:** Draft (revision 2)
 **Project:** comma-car-segments-ingest
-**Branch / HEAD:** `jama-ui-dev` @ `d9dd5d4`
-**Created:** 2026-09-23
+**Branch / HEAD:** `jama-ui-dev` @ `da46817`
+**Created:** 2026-09-23 · **Revised:** 2026-09-25
 **Planned with:** Buddy
-**Backlog:** builds `BL-38` (coverage endpoint and matrix); reads what `BL-11` / `BL-24` /
-`BL-37` write; renders `BL-19` (Covered ≠ Tested) as a screen; takes a position on `BL-50`;
-degrades knowingly until `BL-33` / `BL-34` land.
+**Backlog:** answers `BL-51`; **closes `BL-38` without building `GET /coverage`** (§4); reads what
+`BL-11`'s shipped writer produces; renders `BL-19` (Covered ≠ Tested) honestly under the gap
+`BL-69` / `BL-34` leave.
 
 The user's sentence:
 
-> *"we will also need test result page, whitch coverage of requirements, how many apssed and
-> ecetra"*
+> *"so last step is to create result page with covered reqs, passed reqs, passed TD"*
+
+---
+
+## 0. What this revision cut, and why
+
+Revision 1 was written at `d9dd5d4`, before the verdict writer, the requirement fold's shipped
+state, the facets route and the status gate existed. Most of it described work that has since
+landed. Everything below was **deleted**:
+
+| Cut | Was | Why it goes |
+|---|---|---|
+| **§2 in full** — the verdict document, field by field, and "who writes it" | *"What is missing is a writer"* | The writer **shipped**. `api/api/services/definition_runs.py:124-183` (`record_verdict`) builds a `ResultCreateRequest` from a finished QuixLab Job and stores it through `_store_result`. `api/api/routers/definition_runs.py:156-158` calls it. The `Verdict` / `VerdictOut` blocks (`api/api/models/results.py:84-109`) and the index (`api/api/db.py:165`) were already there. Nothing about the record is this page's to design. |
+| **§2.2's two ADDED fields** — `definition_version`, `criterion` | proposed on the `Verdict` block | `definition_version` has no value to write: `test_definitions` carries no `item_version` at all (`BL-34`'s TC half is not built), so the field would be null on every document forever. `criterion` needs the evaluator to return it, which is a change to the shipped notebook wrapper (`api/resources/verdict_notebook.py`) and belongs to whoever owns that line, not to a report screen. Neither is needed to render the three things the user asked for. |
+| **§3 in full** — the `GET /coverage` response shape | a 40-line envelope with `summary`, four lists, a matrix and facets | §4 decides not to build it. Every number in that envelope is now served by two shipped lists plus one widened one. |
+| **§4 in full** — the new route, its filters, its refusal map entry, `queries_coverage.py` | one new GET | Same reason. A third fold over `requirements` × `test_definitions` × `test_runs` × `processed_results` would be the second implementation of `queries_requirements._project` and the first to drift. |
+| **§6.4's claim that `GET /requirements/facets` does not exist** | *"declared nowhere… answers 404"* | **False since `BL-54`.** The route is at `api/api/routers/requirements.py:81-88`, declared above `/requirements/{req_id}` with a comment saying why. The page uses it. |
+| **§6.5 in full** — the zero-verdict empty state and its banner | *"Today `summary.runs.verdicts == 0`"* | Stale. The live registry answers `{"all": 10, "not_covered": 0, "covered": 0, "exercised": 5, "failed": 2, "tested": 3}` — five verdicts are written, three pass, two fail. §6.6 replaces it with the partial-evaluation state, which is the state the page will actually open in. |
+| **§5.1 / §5.2 / §5.4's "today = exercised / after BL-11 = tested" tables** | a three-moment walkthrough per requirement | Same reason: `BL-11` is half-done, not undone. §5.3 keeps the Covered ≠ Tested walkthrough against the live numbers. |
+| **§7.1 — the `BL-50` position** | a paragraph resolving requirements-page §10 against authoring-controls | Already resolved in code: `POST /requirements`, `PATCH /requirements/{req_id}`, `POST /requirements/{req_id}/retire` ship and `requirements-screen.tsx:205-211` carries Add / Edit / Retire. Not this page's business; `BL-50` is a docs cleanup on another spec. |
+| **§8's dependency rows for `BL-11`, `BL-24`, `BL-37`** | *"not built"* | `BL-11`'s writer and `BL-24`'s whole contract shipped. `BL-37`'s streaming evaluator was replaced by the QuixLab Job path and is not a dependency of anything here. |
+| **§9 OQ6 — "does the page need a trend?"** | an open question | It was already answered *no* with the right reason (it is `BL-39` baselines wearing a chart). A question whose answer is settled is a non-goal, and §7 states it as one. |
+
+**Kept, revised in place:** §1 (purpose), §3.1 (the two units of counting — still the single most
+important rule here), §5 (Covered ≠ Tested, re-costed against live numbers), §6.3 (the matrix cell
+table), §6.6 (the CSV export), §7 (no authoring controls on this page).
 
 ---
 
 ## 1. Purpose — the one question the page answers
 
 **"Where does this campaign stand?"** — asked once, answered in one screen: how much of the
-requirement set is covered by a test case at all, how much of it has actually been exercised
-against a trace, how many of those exercises passed, how many failed, and which requirements
-are still holding no evidence. Every other screen in the Test Manager answers about **one**
-entity — one requirement, one run, one definition. This page is the only one that answers
-about the **set**, and it is the artefact a person screenshots for a status meeting or an
-ASPICE reviewer. It writes nothing: every number on it is a projection of records the
-registry already holds, and the page is therefore correct by construction the moment those
-records change.
+requirement set a test case names at all, how many of those requirements a passing run backs, how
+many test definitions passed, and which of them nothing has judged yet. Every other screen answers
+about **one** entity — one requirement, one run, one definition — or about **structure** (the
+traceability tree). This is the only screen that answers about the **set's outcomes**, and it is
+what a person screenshots for a status meeting.
+
+It writes nothing. Every number is a projection of records the registry already holds, so the page
+is correct by construction the moment those records change.
 
 ---
 
-## 2. The verdict record
+## 2. What is already built — the user's three asks, field by field
 
-### 2.1 What is already shipped — read this before designing anything
-
-`BL-24` says *"no verdict concept: results carry no pass/fail and name no definition."* **That
-is out of date at `d9dd5d4`.** The verdict contract designed in
-`dev-planning/requirement-status-from-runs/spec.md` §6 was **built** and is on the branch:
-
-| Fact | Where, at `d9dd5d4` |
-|---|---|
-| `Verdict` request block, `VerdictOut` response block | `api/api/models/results.py:84-109` |
-| `ResultCreateRequest.verdict: Verdict \| None` | `api/api/models/results.py:158` |
-| `ResultBody.verdict: VerdictOut \| None` | `api/api/models/results.py:142` |
-| The route stores it | `api/api/routers/results.py:498` |
-| `PATCH /results/{id}` **cannot** name it — `RequestModel` is `extra="forbid"` and `ResultPatchRequest` does not list `verdict` | `api/api/models/results.py:221-236` |
-| The index the fold reads | `api/api/db.py:165` — `("verdict.definition_id", 1), ("version", -1)` |
-| The fold that consumes it | `api/api/services/queries_requirements.py:126-137`, `:173-221`, `:404-435` |
-| The ten evaluators that would produce it | `battery-trace-gen/out/impl/BAT-SYS-TC-0NN.py`, each exposing `evaluate(run_id, table)` |
-
-So **no new collection is proposed and no field on the existing block is renamed.** What is
-missing is a *writer*: `BL-11`'s runner. Nothing has ever POSTed a verdict, so
-`processed_results` holds zero documents with a `verdict` key today.
-
-### 2.2 The document, field by field
-
-A verdict is **one `processed_results` document carrying a `verdict` block.** Collection:
-`processed_results`. One version chain per `(run_id, result_key)`; `result_key =
-"verdict/<definition_id>"` by convention, and the fold reads `verdict.definition_id`, never
-the key (`api/api/models/results.py:89-90`).
-
-**Stored — the envelope (unchanged, all of it already exists):**
-
-| Field | Type | Note |
+| Ask | Verdict | Where it lives today |
 |---|---|---|
-| `_id` | `str` | minted result id; the wire calls it `result_id` |
-| `run_id` | `str` | the bench session; `TAS-1001`…`TAS-1004` for our four traces |
-| `result_key` | `str` | `"verdict/BAT-SYS-TC-003"` |
-| `version` | `int` | mints on re-POST of the same key; the fold reads the highest |
-| `supersedes` | `str \| None` | the previous version's `result_id` |
-| `name` | `str` | `"BAT-SYS-TC-003 verdict"` |
-| `description` | `str \| None` | the test case title |
-| `storage_ref` | `str \| None` | null on a verdict — the numbers ride in the block |
-| `provenance.tool` | `str` | the `tc_id` |
-| `provenance.tool_version` | `str` | `"sha256:<first 12 hex>"` display form |
-| `provenance.parameters` | `str` | the blob URI of the `.py`, the lake table, the run id |
-| `provenance.input_file_ids` | `list[str]` | the trace files the run registered |
-| `provenance.produced_by` | `str` | `"verdict-runner"` |
-| `provenance.produced_at` | `datetime` | **the evaluated timestamp.** No second field. |
-| `provenance_status` | `str` | `verified` / `unverified` — the registry's own tag |
-| `created_at` | `datetime` | when the registry stored it |
+| **covered reqs** | **served, partially rendered** | `GET /api/v1/requirements` answers `view_counts` (`api/api/models/requirements.py:67-79`), and `not_covered` is the whole of "not covered". Live: `{"all": 10, "not_covered": 0, ...}`. The Requirements screen renders it as quick-view badges (`requirements-screen.tsx:130-135`) but shows **no coverage figure over the set** — no `10 / 10`, no percentage. That figure is a one-line projection of numbers already on the wire. |
+| **passed reqs** | **served and rendered** | Same envelope: `view_counts.tested = 3`, `failed = 2`, `exercised = 5`. Folded by `queries_requirements._state_fold` (`:181-229`) on every read from run coverage and verdicts, never stored. The Requirements screen already shows a `Tested` quick view with its count and a per-row **Verification** column beside the authored **Status** column. |
+| **passed TD** | **ABSENT** | There is no definition-side rollup anywhere. `TestDefinitionRow` (`api/api/models/planning.py:62-83`) carries `planned_runs`, `actual_runs`, `status` (`on_plan`/`behind`), `orphaned`, `covers_req_ids` — and no outcome. `TestDefinitionPage` (`:85-90`) explicitly carries no `view_counts`. The only place a definition's verdict is visible is `frontend/components/screens/run-detail/definition-run-cell.tsx`, one `(run, definition)` pair at a time, and reading it costs a live Portal poll. |
 
-**Stored — the `verdict` block (shipped, `api/api/models/results.py:84-98`):**
+**So the build is: one rollup that does not exist, plus one page that renders all three.** Two
+thirds of what the user asked for is already on the wire and merely unrendered on one screen.
 
-| Field | Type | Note |
-|---|---|---|
-| `definition_id` | `str` | the test case, e.g. `BAT-SYS-TC-003` |
-| `outcome` | `Literal["pass","fail","error"]` | `error` = the evaluator could not decide. **It is never a failure** and it must never render as one. |
-| `evidence` | `dict` | the measured values, keyed exactly as `battery-trace-gen/out/manifest.csv`'s `measured` column keys them — e.g. `{"max_degc": 61.2, "limit_degc": 60, "dwell_above_limit_s": 151.3}` for TC-003 (`manifest.csv` line 4) |
-| `implementation_sha256` | `str` | 64 hex, the full digest of the `.py` that decided |
+Also already shipped and **not** to be re-derived:
 
-**Stored — two fields this spec ADDS, both optional, both null today:**
-
-| Field | Type | Why it is not derivable |
-|---|---|---|
-| `definition_version` | `int \| None` | The board's `w` in *"a pass pinned to TC version `w`"* (`BL-19`). `requirements` carries `item_version` (`api/api/models/requirements.py:113`); **`test_definitions` carries none** — `BL-34`'s TC half is not built. The field is written null until it is, and the fold keeps pinning on `implementation_sha256`, which is what the shipped code already does (`queries_requirements.py:196-204`). Recording it at evaluation time is the only moment the truth is available; deriving it later is guesswork. |
-| `criterion` | `str \| None` | The `pass_criteria[].criterion_id` (`C1`, `C2`, …) from `battery-trace-gen/specs/battery-dc-test-specs.json` that the outcome turned on. Null on a `pass` (every criterion held). The spec file is not in the registry, so nothing downstream can reconstruct which rule tripped. This is the *"why"* column of §6's matrix hover. |
-
-**DERIVED — never stored on the verdict, computed on every read:**
-
-| Value | Derived from |
-|---|---|
-| the requirement ids a verdict speaks to | `test_definitions.covers_req_ids` — BP5 / defect **D1**: the reverse link is never authored. A verdict that stored its own `req_ids` would go stale the next time planning re-pushes coverage, and it would fork the one link write path (`planning_sync._write_link`). |
-| `work_order_id` | `test_runs.work_order_id` (and the definition's). A run's campaign can be corrected by `PATCH /test-runs/{id}`; a copy on the verdict could not follow it. |
-| `current` — is this evidence still valid | `implementation_sha256` vs `test_definitions.implementation.sha256`, and `provenance.produced_at` vs `requirements.normative_changed_at` (`queries_requirements.py:196-204`, `:414-421`) |
-| every count, percentage and cell on this page | §3 |
-
-**Indexes: none are added.** `("verdict.definition_id", 1), ("version", -1)` (`db.py:165`),
-`("run_id", 1), ("result_key", 1), ("version", 1)` unique (`db.py:157-160`),
-`test_runs.definition_ids` (`db.py:42, :49`) and `test_definitions.covers_req_ids`
-(`db.py:69`) are every access path §3's fold uses, and all four already exist.
-
-### 2.3 Who writes it
-
-**`BL-11`'s runner, and nothing else.** Per `(run_id, definition_id)` it downloads the `.py`
-from `GET /test-definitions/{td}/implementation/download`, calls `evaluate(run_id, table)`
-against the lake, and POSTs one `POST /api/v1/results`.
-
-Two facts the runner must handle, both visible in the shipped artefacts:
-
-1. **The case mismatch.** `evaluate()` returns `{"tc_id", "run_id", "verdict": "PASS"|"FAIL",
-   "evidence": {...}}` (`battery-trace-gen/out/impl/BAT-SYS-TC-003.py:141-146`), while the
-   `Verdict` model takes lowercase `pass | fail | error`. The runner lowercases. An evaluator
-   that raises — `LookupError(f"run {run_id} carries none of {missing}")` at
-   `BAT-SYS-TC-003.py:100` — becomes `outcome: "error"`, never `fail`.
-2. **The lake read is QuixStreams-adjacent but not a stream.** The evaluators query QuixLake's
-   SQL endpoint over HTTP (`BAT-SYS-TC-003.py:54-68`) — the same endpoint `api/api/services/
-   lake.py` uses. There is no Kafka topic in this path, so no QuixStreams primitive applies and
-   none is being avoided. **If `BL-11` instead makes the runner a streaming service** — a
-   readiness trigger on run registration, the old `tm-evaluator` shape named in `BL-37` — then
-   it is `Application` + `app.topic` + `sdf.group_by(test_run_id)` + `State`, never a
-   hand-rolled consumer loop, and `join_lookup` for the definition/DBC enrichment. That choice
-   belongs to `BL-11` and this page reads the same document either way.
+- **The verdict writer.** `definition_runs.record_verdict` (`api/api/services/definition_runs.py:124-183`)
+  stores one `processed_results` document per finished Job, with `provenance.tool = td_id`,
+  `provenance.tool_version = "sha256:…"`, `provenance.input_file_ids`, and the `verdict` block
+  (`definition_id`, `outcome`, `evidence`, `implementation_sha256`). Version chain per
+  `(run_id, "verdict/<td_id>")`; a re-run mints `version + 1`.
+- **The route that serves verdicts.** `GET /api/v1/results?run=<run>&latest_only=true`
+  (`api/api/routers/results.py:106-150`). `GET /api/v1/processed-results` does not exist and never
+  did — `processed_results` is the Mongo collection name, not a path.
+- **The status gate.** `Implemented` ≙ `exercised|failed` and `Tested` ≙ `tested` are projections
+  of `verification_state`, refused as authored values (`api/api/requirement_lifecycle.py:11, 56-63`).
+- **`GET /requirements/facets`** (`api/api/routers/requirements.py:81-88`) and
+  **`GET /test-definitions/facets`** (`api/api/routers/test_definitions.py:179`).
+- **`evidence_stale`**, which degrades a stale `tested` back to `exercised`
+  (`queries_requirements.py:224`).
 
 ---
 
-## 3. The rollup contract
-
-One route, one response, one round trip — the shape `home_summary` already uses
-(*"Build the whole Home screen in one round trip"*, `queries_runs.py:891-896`).
+## 3. The test-definition rollup — the one thing that is missing
 
 ### 3.1 The two units of counting, kept apart
 
-This is the single most important line in the contract. **"How many passed" and "how many
-requirements are tested" are counts of different things**, and they coincide only because our
-seed is one test case per requirement, run once:
+This survives revision 1 unchanged and is the rule the whole page hangs on. **"How many passed" and
+"how many requirements are tested" count different things**, and they coincide only because this
+seed is one test case per requirement:
 
-- a **requirement** is `tested` / `failed` / `exercised` / `covered` / `not_covered` — the
-  five-value fold at `queries_requirements.py:173-221`;
-- a **verdict** is `pass` / `fail` / `error` — one per `(run, definition)`.
+- a **requirement** is `not_covered | covered | exercised | failed | tested` — the five-value fold
+  at `queries_requirements.py:181-229`;
+- a **test definition** is `not_run | no_verdict | passed | failed | error` — §3.3 below.
 
-A customer definition covering three requirements produces **one** fail and **three** failed
-requirements. A requirement covered by three definitions is `failed` if *any* of them failed.
-The response therefore carries three sibling count blocks, each labelled with its unit, and
-the page prints the unit on every tile (§6.2). Merging them into one "passed" number is the
-defect this section exists to prevent.
+A definition covering three requirements produces **one** fail and **three** failed requirements. A
+requirement covered by three definitions is `failed` if *any* of them failed. **Every tile on this
+page prints its unit.** Merging the two into one "passed" number is the defect this section exists
+to prevent.
 
-### 3.2 `GET /api/v1/coverage` — the literal response
+### 3.2 Where a definition's pass/fail comes from
 
-```jsonc
-{
-  "summary": {
-    "requirements": {            // unit: requirement
-      "total": 10,               // int
-      "not_covered": 0,          // int  — no test case names it
-      "covered": 0,              // int  — a test case names it, nothing ran
-      "exercised": 0,            // int  — a run carried it; no verdict, or an `error`
-      "failed": 0,               // int  — some covering TC's newest verdict is `fail`
-      "tested": 0,               // int  — every covering TC passed, and every pass is current
-      "stale": 0,                // int  — rows carrying `evidence_stale: true`
-      "coverage_pct": 100.0      // float, 1 dp — (total - not_covered) / total * 100; 0.0 when total == 0
-    },
-    "definitions": {             // unit: test definition (latest verdict of each)
-      "total": 10,               // int  — every mirrored definition
-      "linked": 10,              // int  — those naming at least one requirement in covers_req_ids
-      "not_run": 0,              // int  — no run carries it
-      "no_verdict": 10,          // int  — a run carries it, nothing judged it
-      "passed": 0,               // int
-      "failed": 0,               // int
-      "errored": 0,              // int
-      "stale_pass": 0            // int  — passed, but not `current`
-    },
-    "runs": {                    // unit: run (invalid-flagged runs excluded throughout)
-      "total": 4,                // int
-      "evaluated": 0,            // int  — at least one verdict exists for it
-      "unevaluated": 4,          // int
-      "verdicts": 0              // int  — newest-version verdict documents across every run
-    }
-  },
+From the same documents the requirement fold already reads, by the same rule:
 
-  "requirements": [ RequirementCoverageRow ],   // §3.3, one per requirement after filters
-  "work_orders":  [ WorkOrderCoverageRow ],     // §3.4
-  "runs":         [ RunCoverageRow ],           // §3.5
-  "matrix":       Matrix,                       // §3.6
-  "facets":       { "work_orders": ["WO-BAT-2026-001"],
-                    "chapters":    ["Functional", "Performance", "Safety-Fault-Handling"],
-                    "statuses":    ["Draft"],
-                    "rigs":        ["..."] },   // list[str] each, whole-table, sorted ascending
-  "generated_at": "2026-09-23T08:00:00Z"        // datetime — the read's own clock
-}
-```
+1. the runs carrying the definition — `test_runs.definition_ids`, **invalid-flagged runs excluded**
+   (`queries_requirements.py:121-124`), newest bench session first (`first_data_at` DESC, `_id` DESC);
+2. the newest `processed_results` document per `(run_id, verdict.definition_id)` — sorted
+   `version` DESC, first seen wins (`:136-146`), on the index at `api/api/db.py:165`;
+3. the definition's outcome = **the verdict of the newest run that carries one** —
+   `_newest_verdict_of_td` (`:155-165`). *A test case re-run after a fix is judged on its latest
+   attempt, not its first.*
 
-**`summary` is whole-table and filter-independent**, exactly as `view_counts` is on
-`GET /requirements` (`queries_requirements.py:345-352`): a filtered tile that disagrees with
-what clearing the filter shows is the bug that rule already prevents. The four lists and the
-matrix **are** narrowed by the filters.
+**A definition run twice with different outcomes** — the case to get right — has two shapes and they
+are answered separately:
 
-**There is no pagination.** `GET /summary` is unpaginated for the same reason and states it
-(`queries_runs.py:891-896`): the report is the whole answer or it is not an answer. At ten
-requirements and four runs this is three bounded queries. §8 names the row count at which
-`requirements[]` must start paging, and it is not near.
-
-### 3.3 `RequirementCoverageRow`
-
-Every field but the first four is derived; each is already computed by
-`queries_requirements._project` (`:224-250`) and **this route calls that function** rather
-than folding a second time.
-
-| Field | Type | Origin |
+| Shape | Answer | Why |
 |---|---|---|
-| `req_id` | `str` | authored |
-| `title` | `str` | authored |
-| `chapter` | `str \| None` | authored |
-| `status` | `str` | **authored** — a person's lifecycle value, never machine-written |
-| `verification_state` | `"not_covered"\|"covered"\|"exercised"\|"failed"\|"tested"` | D |
-| `evidence_stale` | `bool` | D |
-| `verified_by` | `list[str]` | D — BP5, inverted from `covers_req_ids` |
-| `covering_run_ids` | `list[str]` | D, newest bench session first, **uncapped here** |
-| `latest_run_id` | `str \| None` | D |
-| `tested_at` | `datetime \| None` | D |
-| `work_order_ids` | `list[str]` | D — union of `work_order_id` over `verified_by`, sorted |
-| `outcome_counts` | `{pass:int, fail:int, error:int, none:int}` | D — over the newest verdict of each covering definition; `none` counts definitions with no verdict at all |
+| same definition, **same run**, run again | the highest `version` wins | The version chain is the shipped mechanism (`_store_result` mints `version + 1`, `supersedes` points back). Nothing new. |
+| same definition, **different runs** (different traces / bench sessions) | the **newest run carrying a verdict** decides `verdict_state`; the older outcomes stay visible as `verdict_counts` | Reuses `_newest_verdict_of_td` verbatim. A second rule here would put the definitions list and the requirements list in disagreement about the same pair of documents, which is the exact failure `queries_requirements`'s module docstring says `_project` exists to prevent. Hiding the older outcome entirely would be dishonest: a definition that failed on T1 and passed on T2 is not the same fact as one that only ever passed. |
 
-### 3.4 `WorkOrderCoverageRow`
+A row whose `verdict_counts` show both a pass and a fail across runs prints them
+(`passed · 1 of 2 runs failed`). **It does not get its own tile bucket** — a sixth word for a
+history that the counts already state would be the third vocabulary this spec is forbidden to
+invent.
 
-| Field | Type | Origin |
-|---|---|---|
-| `work_order_id` | `str` | mirror |
-| `title` | `str` | mirror |
-| `status` | `str` | mirror |
-| `definition_count` | `int` | D — `_count_by(db, "test_definitions", "work_order_id", …)`, the helper `list_work_orders` already uses (`queries_runs.py:1589`) |
-| `run_count` | `int` | D |
-| `requirement_ids` | `list[str]` | D — union of `covers_req_ids` over this work order's definitions, sorted |
-| `requirements` | `{in_scope:int, covered:int, exercised:int, failed:int, tested:int, stale:int}` | D |
-| `definitions` | `{total:int, not_run:int, no_verdict:int, passed:int, failed:int, errored:int}` | D |
-| `coverage_pct` | `float` | D — `tested / in_scope * 100`, 1 dp, `0.0` when `in_scope == 0` |
+### 3.3 `verdict_state` — the five words
 
-`requirements.in_scope` is **derived from the definitions today** — a requirement is in a work
-order's scope because a definition of that work order covers it. `not_covered` is therefore
-structurally impossible inside a work order and is absent from the block rather than shipped
-as a permanent zero. **`BL-28` changes this**: once a work order carries an authored list of
-requirements to be tested, `in_scope` becomes that list, `not_covered` becomes meaningful and
-`coverage_pct` becomes a real campaign figure instead of a tautology. §8 sequences it.
-
-### 3.5 `RunCoverageRow`
-
-| Field | Type | Origin |
-|---|---|---|
-| `run_id` | `str` | stored |
-| `work_order_id` | `str \| None` | stored |
-| `rig_id` | `str` | stored |
-| `first_data_at` | `datetime` | stored |
-| `status` | `str` | stored |
-| `definition_ids` | `list[str]` | stored |
-| `covers_req_ids` | `list[str]` | D — `queries_runs.covered_requirement_ids` (`:770-783`), already shipped and already on the run detail |
-| `verdicts` | `{pass:int, fail:int, error:int, none:int}` | D — over this run's definitions, newest version per `(run, definition)` |
-| `evaluated` | `bool` | D — `verdicts.pass + fail + error > 0` |
-
-Ordered newest bench session first — `first_data_at` DESC, `run_id` DESC, the key
-`queries_requirements._covering_runs` (`:160-170`) and the definition detail
-(`queries_runs.py:1485`) both already sort on, so no two screens can disagree about which run
-is the latest. **Invalid-flagged runs are excluded from every list and count**, as the shipped
-fold already excludes them (`queries_requirements.py:114`).
-
-### 3.6 `Matrix` — requirements × test definitions
-
-```jsonc
-"matrix": {
-  "definitions": [
-    { "definition_id": "BAT-SYS-TC-003",       // str
-      "title": "Battery temperature held at or below T_batt_max",  // str
-      "work_order_id": "WO-BAT-2026-001",      // str | null
-      "implementation_sha256": "9f2b0a11…" }   // str | null — null until one is uploaded
-  ],
-  "cells": [
-    { "req_id": "BAT-SYS-SAF-002",             // str
-      "definition_id": "BAT-SYS-TC-003",       // str
-      "outcome": "fail",                       // "pass"|"fail"|"error"|null
-      "run_id": "TAS-1001",                    // str | null
-      "result_id": "res-…",                    // str | null — drill-down target
-      "produced_at": "2026-09-23T10:12:00Z",   // datetime | null
-      "current": true,                         // bool | null — null when there is no verdict
-      "criterion": "C1",                       // str | null — §2.2
-      "evidence_values": { "max_degc": 61.2, "limit_degc": 60, "dwell_above_limit_s": 151.3 } }
-  ]
-}
-```
-
-**The cell list is sparse: a cell exists only where a `verifies` link exists.** Ten
-requirements × ten definitions is a hundred intersections of which ten are real; a dense array
-would ship ninety nulls that each assert "this test case was considered for this requirement
-and found not to apply", which is false — it was never linked. Four cell states, and they are
-four different sentences:
-
-| link | run carries the TC | verdict | `outcome` | `run_id` | renders |
-|---|---|---|---|---|---|
-| no | — | — | *no cell emitted* | — | blank |
-| yes | no | — | `null` | `null` | hollow — **Not run** |
-| yes | yes | no | `null` | set | hollow with a run id — **No verdict** |
-| yes | yes | yes | `pass`/`fail`/`error` | set | the outcome chip, `stale` marker when `current == false` |
-
-`current` is computed for **every** outcome, including a `fail` — the shipped detail read
-already does this (`queries_requirements.py:414-421`), unlike the requirement-level state fold
-which short-circuits on a failure and reports `evidence_stale: false` (`:211-212`). §5 names
-the consequence and **OQ3** asks the user to confirm the rendering.
-
----
-
-## 4. Routes
-
-### 4.1 The one new route
-
-```
-GET /api/v1/coverage
-      ?work_order=<repeated>    list[str]   — narrow to these campaigns
-      &chapter=<repeated>       list[str]
-      &status=<repeated>        list[str]   — the AUTHORED requirement status
-      &state=<repeated>         list[str]   — verification_state, the five values
-      &outcome=<repeated>       list[str]   — pass|fail|error|none, over a requirement's covering verdicts
-      &run=<repeated>           list[str]
-      &q=<str>                            — req_id, title, text
-```
-
-**Refusals: none.** There is no path parameter, so there is no 404; every query parameter
-narrows a set, and a `work_order` the mirror does not hold narrows it to zero rows — which is
-a true answer, not an error condition. No auth dependency, matching `GET /requirements`
-(`api/api/routers/requirements.py:27-44`), which takes none; the token gate in this API sits on
-writes and downloads. The entry this route adds to `api/api/main.py`'s refusal map
-(`:240-314`) is therefore **empty**, and that is the whole entry.
-
-The endpoint keeps `BL-38`'s name (`GET /coverage`); the page is at `/test-results` (§6)
-because that is the artefact the user asked for. The asymmetry is deliberate: one is a
-computation over the registry, the other is a screen.
-
-### 4.2 Everything else is an existing route
-
-No second route is added. The drill-downs use what ships:
-
-| Drill-down | Route |
+| Value | Condition |
 |---|---|
-| one requirement, its authored fields and its evidence table | `GET /api/v1/requirements/{req_id}` |
-| one definition, its runs, its implementation | `GET /api/v1/test-definitions/{td_id}` |
-| one run | `GET /api/v1/test-runs/{run_id}` — already carries `covers_req_ids` (`queries_runs.py:766`) |
-| one run's verdict documents | `GET /api/v1/results?run=TAS-1001&latest_only=true` (`routers/results.py:106-112`) |
-| one verdict | `GET /api/v1/results/{result_id}` (`:220`) |
+| `not_run` | no non-invalid run carries this definition |
+| `no_verdict` | a run carries it, no `processed_results` document names it |
+| `passed` | the newest run carrying a verdict says `pass` |
+| `failed` | …says `fail` |
+| `error` | …says `error` — the evaluator could not decide. **Never rendered red.** It is not a failure (`api/api/models/results.py:94`). |
 
-### 4.3 Computed on read, not stored
+**`error` is the one fact this page adds that no other screen can show.** The requirement fold
+folds `error` and "no verdict yet" both into `exercised` (`queries_requirements.py:216-218, :222`),
+so a requirement whose evaluator is permanently broken reads exactly like one nobody has run. The
+definition rollup separates them, and §6.2's tiles print the error count. This is not a second
+derivation of the same fact — it is the fact the requirement fold deliberately discards.
 
-**Computed on read.** One sentence: the inputs move in six ways nothing would report — a run
-deleted, a run flagged invalid, a definition's `covers_req_ids` re-pushed, a definition removed
-from a run, a requirement's text edited, a new verdict version POSTed — and a stored rollup
-would need a compensating write on each, which is exactly the argument
-`requirement-status-from-runs/spec.md` §4.3 already made and won for `covering_run_ids`.
+### 3.4 Staleness on a definition: the implementation pin only
 
-Cost, honestly: four `find()` calls per request — the whole `requirements` mirror, the
-definitions naming any of them, the non-invalid runs carrying any of those, and the verdict
-documents of those runs. All four are indexed (§2.2). At 10/10/4/10 this is milliseconds; §8
-names the scale at which it stops being.
+A definition's verdict carries `current: bool` computed from **one** test:
+`implementation.sha256 is None or implementation.sha256 == verdict.implementation_sha256` — the
+`pinned` half of `queries_requirements.py:207` and `:494`. A pass produced by bytes that have since
+been replaced is not current.
 
-### 4.4 Where the code goes
+**The requirement-side freshness test (`produced_at >= normative_changed_at`) is NOT applied here**,
+and the reason is a seam, not an omission: a definition's pass is a claim about *the implementation
+that ran*, while normative drift is a claim about *a requirement that changed*. A definition covering
+three requirements, one of which was edited, is not two thirds stale — the requirement that moved
+goes `exercised` + `evidence_stale` on its own row and says so there. Folding requirement drift into
+the definition count would double-count the same edit on two tiles.
 
-`api/api/services/queries_coverage.py` — a new service that **calls
-`queries_requirements._project`** for the requirement rows rather than reimplementing the
-fold, then adds the definition-, work-order- and run-side aggregations around it. One fold,
-one truth: a Test Results page that computed `verification_state` its own way would be the
-second implementation of `queries_requirements.py:173-221` and the first to drift.
-`api/api/routers/coverage.py` holds the single GET. `api/api/models/coverage.py` holds the
-response models. Nothing in `queries_requirements.py`, `queries_runs.py` or `planning_sync.py`
-is modified — the fold is imported, not edited, so this feature cannot break the Requirements
-page that shipped at `360e458`/`d9dd5d4`.
+### 3.5 Where the code goes — one fold, two callers
+
+`queries_requirements._fold_inputs` (`:103-152`) already builds `runs_of_td` and `newest_verdict`.
+`_derived_definitions` (`queries_runs.py:1499-1524`) needs exactly those two maps. Copying them
+would be the second derivation the standing rule forbids.
+
+**New module `api/api/services/verdict_fold.py`**, holding only what both callers share:
+
+```python
+def fold_verdicts(db, td_ids) -> dict          # {"runs_of_td": …, "newest_verdict": …}
+def newest_of_td(fold, td_id) -> tuple[dict | None, dict | None]
+def is_pinned(definition, verdict_block) -> bool
+```
+
+lifted verbatim out of `queries_requirements.py:118-165` and `:207`. Both
+`queries_requirements._fold_inputs` and `queries_runs._derived_definitions` then import it.
+`queries_requirements` keeps `verified_by` and `definitions_by_id`, which are requirement-side only.
+
+Cost on `GET /test-definitions`: **two extra queries**, both on existing indexes
+(`test_runs.definition_ids` at `db.py:42/49`, `processed_results.verdict.definition_id + version` at
+`db.py:165`). At 10 definitions / 4 runs / 5 verdicts this is sub-millisecond.
 
 ---
 
-## 5. Covered ≠ Tested, on the real battery set
+## 4. `GET /coverage`: not built. `BL-38` closes here.
 
-Two requirements from the same trace, `T1` → run `TAS-1001` (`battery-trace-gen/README.md:104`,
-`scenarios/T1_charge_thermal.json:8`), same work order `WO-BAT-2026-001`
-(`seed/planning_payload.py:23`).
+**Decision: no third endpoint.** Revision 1's `GET /coverage` is deleted.
 
-### 5.1 `BAT-SYS-PRF-001` — the pass
+What it was going to serve, and what serves it instead:
 
-`BAT-SYS-TC-001` covers it; expected **PASS**; measured `min_i_dc_a=-300; limit_a=-300;
-margin_a=0` (`manifest.csv` line 2).
+| `/coverage` was going to carry | Served instead by |
+|---|---|
+| `summary.requirements` | `GET /requirements` → `view_counts` (shipped, whole-table, filter-independent) |
+| `summary.definitions` | `GET /test-definitions` → `view_counts` (§3, new) |
+| `requirements[]` rows with `verification_state`, `verified_by`, `covering_run_ids` | `GET /requirements` → `items[]` — every one of those fields is already on `RequirementRow` |
+| `definitions[]` rows with outcomes | `GET /test-definitions` → `items[]` (§3) |
+| `matrix.cells` — requirement × definition with its verdict | **joined in the browser.** A requirement row carries `verified_by: list[td_id]`; a definition row carries `covers_req_ids` and (new) `latest_verdict`. The cell is the intersection of the two lists. |
+| `work_orders[]`, `runs[]` rollups | nothing — and nothing asks for them. §7 explains. |
 
-| Moment | `verification_state` | matrix cell | tiles it moves |
-|---|---|---|---|
-| catalog pushed, no trace | `covered` | hollow, **Not run** | covered +1 |
-| four traces registered, no verdict — **today** | `exercised` | hollow, run `TAS-1001` | exercised +1 |
-| `BL-11` POSTs the pass | **`tested`**, `tested_at` set | green ✓ | tested +1, definitions.passed +1 |
+**The browser join is the shipped precedent, not a shortcut.** `traceability-screen.tsx:13-30`
+assembles the whole project → system → requirement → definition → run tree from four list reads at
+`page_size = 200`, with the reason written into its own docstring: *"The registry holds tens of rows
+per list, so a tree route on the API would only move the same join to the server."* The same
+argument holds verbatim here, over two lists instead of four.
 
-### 5.2 `BAT-SYS-SAF-002` — the rigged failure
+**The ceiling, stated so nobody has to rediscover it:** this page fetches `page_size = 200` of each
+list and joins in `useMemo`. Past roughly 500 requirements the join stops being one screen and one
+round trip, and the upgrade is a server-side fold — at which point `GET /coverage` becomes the right
+answer and this section becomes wrong on purpose. Today's estate is 10 and 10.
 
-`BAT-SYS-TC-003` covers it; expected **FAIL**; mechanism *"derating law correct, temperature
-input stale"*; measured `max_degc=61.2; limit_degc=60; dwell_above_limit_s=151.3`
-(`manifest.csv` line 4).
+**`BL-38` should be closed with this reasoning recorded**, not left open as "coverage endpoint not
+built". A backlog item that names an endpoint the design has decided against will be built by
+someone in six months.
 
-| Moment | `verification_state` | matrix cell | tiles it moves |
-|---|---|---|---|
-| catalog pushed, no trace | `covered` | hollow, **Not run** | covered +1 |
-| four traces registered — **today** | `exercised` | hollow, run `TAS-1001` | exercised +1 |
-| `BL-11` POSTs the fail | **`failed`**, `tested_at` stays null | red ✗, hover `C1`, `max_degc 61.2 > limit_degc 60` | failed +1, definitions.failed +1 |
+---
 
-**Coverage reads 100 % at every one of those moments.** SAF-002 is covered throughout, names
-its run throughout, and is `tested` at none of them. That is the board's *Covered ≠ Tested*
-(`CLAUDE.md` § Requirements workflow), on screen, with the user's own rigged data producing the
-correct negative.
+## 5. The honesty problem — the word this page uses
 
-### 5.3 What a suspect link does to each
+### 5.1 What the board means by TESTED, and why it is not computable today
 
-A link goes suspect on a `normative_sha256` change only — `text`, `measurand`,
-`system_states`, `verification_method`, `verification_criteria` (`queries_requirements.py:54-60`).
-Today's approximation is the timestamp comparison `evidence_stale`; `BL-33`'s real per-link
-`suspect` state is not built.
+`CLAUDE.md` § Requirements workflow: **TESTED needs a confirmed `verifies` link at `(R@v, TC@w)`
+AND a pass for that TC in a run whose manifest pinned TC at exactly version `w`. A suspect link
+blocks it.** Three things that needs, and none exists:
 
-Edit `BAT-SYS-PRF-001`'s `text` after its pass landed:
+| Needed | State |
+|---|---|
+| a link store holding confirmed pairs | `traceability_links` is **not built** (`BL-69`, spec at `dev-planning/versions-and-links/spec.md`). The `verifies` relation today is `test_definitions.covers_req_ids` — authored, never confirmed, with no per-link state at all. |
+| `R@v` — a requirement version | **shipped.** `requirements.item_version` / `content_sha256` / `normative_sha256` (`api/api/models/requirements.py:128-134`). |
+| `TC@w` — a test-definition version | **not built** (`BL-34`, TC half). `test_definitions` carries no version field. |
+| a verdict pinned to `w` | not possible; the writer pins `implementation_sha256` instead, which is a pin on *bytes*, not on a *version*. |
 
-- `normative_changed_at` moves past the verdict's `produced_at` → the pass stops being
-  `current` → **`tested` → `exercised` + `evidence_stale: true`** (`:216`).
-- Tiles: `tested` 6 → 5, `exercised` 0 → 1, `stale` 0 → 1. The matrix cell keeps its green ✓
-  and gains a `stale` outline chip.
-- Re-run TC-001 and it returns to `tested`.
+So a strict TESTED cannot be computed. A page that printed "6 requirements verified" would be
+asserting something the registry cannot back.
 
-Edit `BAT-SYS-SAF-002`'s `text` after its fail landed:
+### 5.2 The decision
 
-- The requirement-level fold **short-circuits on the failure** and returns
-  `evidence_stale: false` (`:211-212`), so the row does not move at all: still `failed`, still
-  no stale marker.
-- The **cell**, computed by the detail path (`:414-421`), *does* know: `current: false`.
+**The page uses the shipped five-word Verification vocabulary, verbatim, and adds no word of its
+own:** `Not covered · Covered · Exercised · Failed · Tested`.
 
-**These two disagree on purpose and the page must not hide it.** The requirement-level answer
-is right — a known failure is louder than a stale one, and "your evidence aged" is not news
-when the evidence says the thing is broken. The cell-level answer is also right — the numbers
-in that cell were measured against a requirement that has since changed. **OQ3** asks the user
-to confirm the rendering: the recommendation is to draw the stale marker on the cell and not
-on the row, and to say so in the cell's tooltip.
+Reasons, in order:
 
-### 5.4 The whole set, at the three moments
+1. The Requirements screen already shows exactly these words in a **Verification** column beside the
+   authored **Status** column, under the line *"Status is authored here; Verification is computed
+   here from runs and verdicts"* (`requirements-screen.tsx:178-182`). A second vocabulary for the
+   same five states would make two screens disagree about one requirement in wording alone.
+2. `Tested` is already defined in code, narrowly and checkably: *every covering definition's newest
+   verdict is `pass`, every pass is pinned to the current implementation bytes, and no covering
+   requirement text changed after the pass* (`queries_requirements.py:219-229`). That is a real,
+   defensible claim. It is simply **weaker** than the board's.
+3. Inventing a hedge word — "Provisionally tested", "Evidence found" — would be a third vocabulary
+   and would not make the claim any more true.
 
-Coverage and verdicts from `CLAUDE.md`'s test-case table and `manifest.csv`. No number here is
-invented.
+### 5.3 How the page states the gap
 
-| Requirement | TC | Run | Expected | Today | After `BL-11` |
-|---|---|---|---|---|---|
-| `BAT-SYS-PRF-001` | TC-001 | TAS-1001 | PASS | exercised | **tested** |
-| `BAT-SYS-SAF-003` | TC-002 | TAS-1001 | PASS | exercised | **tested** |
-| `BAT-SYS-SAF-002` | TC-003 | TAS-1001 | **FAIL** | exercised | **failed** |
-| `BAT-SYS-FUN-001` | TC-004 | TAS-1002 | PASS | exercised | **tested** |
-| `BAT-SYS-SAF-001` | TC-005 | TAS-1002 | PASS | exercised | **tested** |
-| `BAT-SYS-FUN-002` | TC-006 | TAS-1002 | **FAIL** | exercised | **failed** |
-| `BAT-SYS-FUN-003` | TC-007 | TAS-1003 | PASS | exercised | **tested** |
-| `BAT-SYS-PRF-002` | TC-008 | TAS-1003 | **FAIL** | exercised | **failed** |
-| `BAT-SYS-FUN-004` | TC-009 | TAS-1004 | PASS | exercised | **tested** |
-| `BAT-SYS-FUN-005` | TC-010 | TAS-1004 | **FAIL** | exercised | **failed** |
+**One permanent note under the page header — not a dismissible banner, not a tooltip:**
+
+> **Tested here means every test case covering the requirement passed on its latest run, and the
+> pass is pinned to the implementation bytes that produced it.** It is not yet ASPICE *Tested*: that
+> needs a confirmed verifies link carrying both sides' versions, and this registry stores neither a
+> link record (`BL-69`) nor a test-definition version (`BL-34`). Coverage below counts authored
+> links, which nobody has confirmed.
+
+Two more honesty rules on the page itself:
+
+- **The only percentage is Coverage**, and Coverage counts *authored links* — a test case naming the
+  requirement. It is not a verification figure and is never labelled one. There is no "compliance %",
+  no "verified %", no single score.
+- **A `Covered 100 %` beside `Tested 3` is the correct reading of this estate, not a bug.** §5.4
+  walks it.
+
+### 5.4 Covered ≠ Tested on the live set
+
+Live `view_counts`: `{all: 10, not_covered: 0, covered: 0, exercised: 5, failed: 2, tested: 3}`.
+Expected truth from `battery-trace-gen/out/manifest.csv`: 6 PASS / 4 FAIL, one test case per
+requirement.
+
+```
+Coverage  10 / 10 · 100 %      ← every requirement has a test case naming it
+Tested     3 requirements      ← three passes landed and are current
+Failed     2 requirements      ← two rigged failures landed
+Exercised  5 requirements      ← runs carry them; nothing has judged them yet
+```
+
+**Coverage is 100 % and will stay 100 % through every one of those moves.** When the remaining five
+definitions run, the tiles read `Tested 6 · Failed 4 · Exercised 0` and Coverage still reads 100 %.
+That is the board's *Covered ≠ Tested* on screen, with the user's own rigged data producing the
+correct negative — `BAT-SYS-SAF-002` is covered throughout, names its run throughout, and is
+`tested` at none of them.
 
 ---
 
 ## 6. The page
 
-`frontend/app/test-results/page.tsx` → `frontend/components/screens/test-results/
-test-results-screen.tsx`. Route `/test-results`.
+`frontend/app/test-results/page.tsx` → `frontend/components/screens/test-results/test-results-screen.tsx`.
+Route `/test-results`.
 
-**Sidebar**: a **Test results** entry at depth 0, after *Test definitions* and before *Files*,
-**with no count** — the same treatment *Issues* and *Explore* get, and for the stated reason
-(`frontend/components/shell/sidebar.tsx:249-251`): it is a view, not a list, so a badge would
-be a number with no referent. It sits outside the indented planning chain (`:218-222`) because
-it is a report *over* that chain, not a level of it.
+**Sidebar:** a **Test results** entry **directly after Traceability**, before Files
+(`frontend/components/shell/sidebar.tsx:193-194`), **with no count badge** — the treatment
+Traceability, Issues and Explore already get, for the stated reason: *it is a view, not a list*, so a
+badge would be a number with no referent. Adjacent to Traceability on purpose: both are composed
+views over the four entity lists, one structural and one about outcomes.
 
 ### 6.1 Layout
 
 ```
 PageHeader   "Test results"
-             sub: [derived] Every number here is computed from runs and verdicts. A
-                  requirement is tested; a verdict passes — the two are counted separately.
+             sub: the §5.3 note, always visible
 
-[ banner — only while summary.runs.verdicts == 0 ]
+SummaryTiles   Coverage 10/10 · 100%  |  Tested 3 req  |  Failed 2 req  |  Passed 3 TC  |  Failed 2 TC
+               under them: 5 of 10 test cases not judged yet · 0 errored · 0 stale
 
-SummaryTiles   Coverage 10/10 · 100%   |   Tested 0 req   |   Failed 0 req   |   Not run 10 TC
-               under them: 4 runs · 0 evaluated · 0 verdicts · 0 stale
-
-Toolbar row  [ All | Failed | Not run | Stale ]  [ search ]  ...  [Work order▾] [Chapter▾]
-             [Verification▾] [Outcome▾] [Run▾]   [Export]
+Toolbar row  [ All | Failed | Not judged | Passed ]  [ search ]  …  [Work order▾] [System▾]
+             [Chapter▾] [Verification▾] [Outcome▾]  [Export]
 
 ActiveFilterPills
 
-Panel "Coverage matrix"          action: generated_at
-  sticky-first-column grid, requirements × test definitions
-
-Panel "By work order"            table, §3.4
-Panel "By run"                   table, §3.5
+Panel "Coverage matrix"        requirements × test definitions, sticky first column
+Panel "Test definitions"       one row per definition: outcome, latest run, evidence, sha
 ```
 
 ### 6.2 The summary tiles
 
-Four tiles. **Each prints its unit**, because §3.1's two count families are the thing a reader
-gets wrong:
+**Five tiles, each printing its unit** (§3.1), plus one context line.
 
-| Tile | Reads | Source |
-|---|---|---|
-| **Coverage** | `10 / 10` and `100%` | `summary.requirements.total - not_covered`, `coverage_pct` |
-| **Tested** | `6 requirements` | `summary.requirements.tested` |
-| **Failed** | `4 requirements` | `summary.requirements.failed` |
-| **Not run** | `0 test cases` | `summary.definitions.not_run + no_verdict` |
+| Tile | Reads | Source | Tone |
+|---|---|---|---|
+| **Coverage** | `10 / 10` and `100 %` | `requirements.view_counts`: `(all - not_covered) / all` | neutral — a percentage is not good or bad |
+| **Tested** | `3 requirements` | `requirements.view_counts.tested` | green |
+| **Failed** | `2 requirements` | `requirements.view_counts.failed` | red |
+| **Passed** | `3 test cases` | `definitions.view_counts.passed` | green |
+| **Failed** | `2 test cases` | `definitions.view_counts.failed` | red |
 
-Under the tiles, one line, not tiles — they are context, not headline:
-`4 runs · 4 evaluated · 10 verdicts · 0 stale`.
+Context line under them, not tiles — they are context, not headline:
+`5 of 10 test cases not judged yet · 0 errored · 0 stale`.
 
-Tones: Coverage neutral (a percentage is not good or bad), Tested green, Failed red, Not run
-amber at > 0 and neutral at 0. `status` — the authored requirement lifecycle — is **never**
-coloured anywhere on this page, for the reason the Requirements page already states: the enum
-is customer configuration (`BL-20`), so this code cannot know which value is good.
+`error > 0` renders **amber** in that line, never red (§3.3).
+
+The authored requirement `status` (Draft / Reviewed / …) is **never coloured anywhere on this page**,
+for the reason the Requirements page already states: the enum is customer configuration (`BL-20`), so
+this code cannot know which value is good.
 
 ### 6.3 The coverage matrix
 
-Rows = requirements, `req_id` ascending. Columns = the test definitions in `matrix.definitions`,
-`definition_id` ascending. First column sticky (`req_id` + title), the grid inside the existing
-`TableScrollArea`, which already scrolls horizontally.
+Rows = requirements, `req_id` ascending. Columns = test definitions, `definition_id` ascending. First
+column sticky (`req_id` + title); the grid inside the existing `TableScrollArea`, which already
+scrolls horizontally.
+
+**The cell list is sparse: a cell exists only where a link exists.** Ten requirements × ten
+definitions is a hundred intersections of which ten are real; drawing ninety empty cells would each
+assert *"this test case was considered for this requirement and found not to apply"*, which is false —
+it was never linked.
 
 | Cell | Glyph | Tone |
 |---|---|---|
 | `pass`, current | ✓ | green |
 | `pass`, `current: false` | ✓ with a dashed outline | green + `stale` |
 | `fail` | ✗ | red |
-| `error` | ! | amber — **never red**; an evaluator that could not decide is not a failure (`api/api/models/results.py:94`) |
-| linked, run, no verdict | ○ | neutral |
-| linked, no run | ○ hollow, dimmed | neutral |
+| `error` | ! | amber — never red |
+| linked, run carries it, no verdict | ○ | neutral |
+| linked, no run carries it | ○ hollow, dimmed | neutral |
 | not linked | *empty* | — |
 
-A cell is a link to `/runs/{run_id}?tab=results` (the run detail's Results tab,
-`run-detail-screen.tsx:53`); its title attribute carries the outcome, the `criterion` and the
-`evidence_values` as `key: value` pairs. Colour is never the only carrier: glyph + tone +
-`aria-label`, the rule `requirements-page/spec.md` §5.4 already sets.
+A cell links to `/runs/{run_id}?tab=results`; its `title` carries the outcome, the run id and the
+`evidence` as `key: value` pairs. **Colour is never the only carrier**: glyph + tone + `aria-label`,
+the rule `requirements-page/spec.md` §5.4 sets.
 
 **Row and column headers are links** — `req_id` → `/requirements/{id}`, `definition_id` →
-`/definitions/{td}` — so the matrix is the navigation surface for the whole traceability chain.
+`/definitions/{td}`.
 
-### 6.4 Filters
+### 6.4 The test-definitions panel
+
+One row per definition, because a matrix cell has no room for the evidence, the run or the
+implementation digest, and because "passed TD" is a list as much as a number:
+
+`td_id · title · work order · covers (req ids) · outcome · latest run · evidence · impl sha (12) · produced at`
+
+A definition with verdicts on several runs prints the older ones as a count beside the outcome
+(§3.2): `passed · 1 of 2 runs failed`.
+
+### 6.5 Filters
 
 One `TableStateConfig`, the idiom `requirements-table-config.ts` already holds:
 
 ```ts
 export const TEST_RESULTS_TABLE_CONFIG: TableStateConfig = {
-  multiKeys: ["work_order", "chapter", "status", "state", "outcome", "run"],
+  multiKeys: ["work_order", "system", "chapter", "state", "outcome"],
   singleKeys: [],
-  sortKeys: [],                // GET /coverage whitelists none — req_id ascending, server-side
+  sortKeys: [],
   defaultSort: null,
-  defaultPageSize: 20,         // unused: the report does not page. Kept so the hook's shape holds.
-  pageSizeOptions: [20],
+  defaultPageSize: 200,     // one page of each list; the join is client-side (§4)
+  pageSizeOptions: [200],
   quickViews: [
-    { id: "all",     params: {} },
-    { id: "failed",  params: { state: ["failed"] } },
-    { id: "not-run", params: { state: ["covered", "not_covered"] } },
-    { id: "stale",   params: { outcome: ["stale"] } },
+    { id: "all",        params: {} },
+    { id: "failed",     params: { state: ["failed"] } },
+    { id: "not-judged", params: { state: ["covered", "exercised"] } },
+    { id: "passed",     params: { state: ["tested"] } },
   ],
 };
 ```
 
-**Filter options come from `facets` inside the coverage response, not from a `/facets` route.**
-Two reasons, and the second is load-bearing: the fold already reads every requirement, so the
-distinct values are free; and **`GET /requirements/facets` does not exist** — `frontend/lib/api/
-requirements.ts:19` calls it and `api/api/routers/requirements.py` declares no such route, so
-`/requirements/{req_id}` catches it and answers 404 `requirement_not_found`. This page must not
-add a second caller to a route that is not there. (That gap is the Requirements page's to fix;
-it is named in §8 and belongs to whoever owns that tree.)
+- `work_order`, `system`, `chapter` and `state` pass straight to `GET /requirements` (every one is a
+  declared param, `api/api/routers/requirements.py:32-45`); `work_order` also narrows
+  `GET /test-definitions` (`queries_runs.list_test_definitions`).
+- `outcome` (`verdict_state`) is a **new** repeated param on `GET /test-definitions` (§8.2).
+- Dropdown options come from the shipped facet routes: `GET /requirements/facets`
+  (`requirements.py:81`) and `GET /test-definitions/facets` (`test_definitions.py:179`).
+- `verdict_state` and `verification_state` are **closed enums, declared as client constants**, the
+  way `VERIFICATION_STATES` already is (`frontend/types/requirement.ts:34`). No facet field is added
+  for either.
 
-Everything else is the shipped components with a new config: `QuickViewSegment`,
-`MultiSelectFilter`, `ActiveFilterPills`, `TableSearchInput`, `ExportButton`. No new shared
-primitive is introduced except the matrix cell.
+Everything else is shipped components with a new config: `QuickViewSegment`, `ActiveFilterPills`,
+`TableSearchInput`, `ToolbarRow`, `Panel` / `PanelHead` / `TableScrollArea`, `ExportButton`,
+`LoadingRows`, `ErrorState`, `TableEmptyState`, `FullHeightPage`, `PageHeader`. The **only** new
+shared primitive is the matrix cell.
 
-### 6.5 The empty state — today's state, and it must not look broken
+### 6.6 The three empty states, kept distinct
 
-**Today `summary.runs.verdicts == 0`.** The page is not empty and must not be drawn as if it
-were: the coverage half is real, complete and worth showing.
+The shape `work-orders-screen.tsx:129-135, :205-220` distinguishes:
 
-- The tiles render **Coverage 10/10 · 100 %**, **Tested 0 requirements**, **Failed 0
-  requirements**, **Not run 10 test cases**, and the context line `4 runs · 0 evaluated · 0
-  verdicts · 0 stale`.
-- The matrix renders all ten link cells as hollow **Not run** circles, each carrying its run id
-  — the traceability chain is visible and correct with no outcome in it.
-- One banner sits between the header and the tiles, and it goes away by itself when the first
-  verdict lands:
+1. **loading** — skeleton rows (`LoadingRows`);
+2. **filtered-empty** — `TableEmptyState` + Clear all;
+3. **baseline-empty** — only when the `requirements` mirror itself is empty: *"No requirements
+   mirrored yet — planning pushes them through `POST /planning/sync`."*
 
-  > **No test case has been evaluated yet.** Coverage below is real — every requirement is
-  > linked to a test case and four runs carry them. Outcomes appear when the evaluator writes
-  > its first verdict (`BL-11`).
+**A partially-judged estate is none of the three.** Today five of ten definitions carry no verdict;
+the page is full, correct and useful, and the tiles say so. There is no banner, no spinner and no
+"no data" illustration for it — conflating a known phase with "no data" is how a correct screen gets
+reported as a bug.
 
-- **No spinner, no error state, no "no data" illustration.** Three distinct empties, as
-  `work-orders-screen.tsx:129-135, :205-220` distinguishes them: *loading* (skeleton rows),
-  *filtered-empty* (`TableEmptyState` + Clear all), *baseline-empty* (only when the
-  `requirements` mirror itself is empty: *"No requirements mirrored yet — planning pushes them
-  through `POST /planning/sync`."*). **Zero verdicts is none of the three** — it is a populated
-  page in a known phase, and conflating it with "no data" is exactly how a correct screen gets
-  reported as a bug.
+### 6.7 Export
 
-### 6.6 Export
+`ExportButton` with client-side paging over the joined rows (no `serverExport`, no export route).
+**One CSV, one row per matrix cell**, so the file is the traceability matrix an ASPICE reader asks
+for:
 
-`ExportButton` with client-side paging over the response (no `serverExport`; no
-`/coverage/export` route is proposed). One CSV, one row per matrix **cell**, so the file is the
-traceability matrix an ASPICE reader asks for: `req_id, requirement_title, chapter, status,
-verification_state, definition_id, definition_title, work_order_id, run_id, outcome, current,
-criterion, produced_at, evidence`. Blank cells are omitted — a row per non-link would be 90 %
-noise at our shape.
+`req_id, requirement_title, system, chapter, status, verification_state, definition_id,
+definition_title, work_order_id, run_id, outcome, current, produced_at, implementation_sha256,
+evidence`
+
+Unlinked intersections are omitted — a row per non-link would be 90 % noise at this shape.
 
 ---
 
-## 7. Authoring controls
+## 7. Scope boundary — what this page is NOT
 
-**None. This page writes nothing, and no control on it opens a dialog.**
-
-- **A verdict is a produced fact, not an opinion.** Correcting one means producing a new
-  version through `POST /results` with the same `result_key`; the route mints version N+1 and
-  sets `supersedes`, and the fold reads the newest. The shipped API already forbids the other
-  path: `ResultPatchRequest` is `extra="forbid"` and does not name `verdict`
-  (`api/api/models/results.py:221-236`), so a patch naming it answers 422. **Do not add an
-  edit-verdict control, and do not add `verdict` to that patch body.**
-- **Every rollup number is derived**, so there is nothing on this page a person *could* edit
-  that would survive the next read.
-- **Re-run is not this page's control.** "Evaluate this run again" is `BL-40`'s
-  `POST /runs/{id}/execute` driven by `BL-11`'s runner. When it exists, its natural home is the
-  run detail, where the run's own actions already live — not a report screen that would then be
-  the one place in the app where reading triggers work.
-- **Editing a requirement is the Requirements page's job** and it is a click away: every
-  `req_id` on this page links there.
-
-### 7.1 Position on `BL-50`
-
-`BL-50` records that `requirements-page/spec.md` §10 says *"No write route… Nothing on this page
-is editable"* while `authoring-controls/spec.md` gives full CRUD, and the user asked for
-add/edit/remove.
-
-**Resolved in favour of authoring-controls, and the requirements-page line is stale.** The
-code already settled it: `POST /requirements`, `PATCH /requirements/{req_id}` and
-`POST /requirements/{req_id}/retire` are shipped (`api/api/routers/requirements.py:87-136`) with
-four named refusals, and the screen carries Add / Edit / Retire
-(`requirements-screen.tsx:207-211, :386-412`). The reconciliation to write down is: **a
-requirement is an authored entity a person may create and edit here; a mirrored row's planning
-fields stay planning's; a verdict and every rollup are derived and are editable nowhere.** That
-last clause is what this page needs from the resolution, and it is unaffected by whichever way
-the first two settle. `BL-50` should be closed with the requirements-page §10/§14 lines struck,
-by whoever owns that spec — **not by this feature**, which touches neither file.
+| Not this page | Whose it is | The line between them |
+|---|---|---|
+| **Authoring** — add / edit / retire a requirement or definition | Requirements page (`requirements-screen.tsx`, shipped) and `dev-planning/authoring-controls/spec.md` | This page writes nothing. Every number on it is derived, so there is nothing here a person could edit that would survive the next read. Every `req_id` and `td_id` links to the screen that does own the edit. |
+| **Review** — accept a requirement, claim it, confirm a link | `dev-planning/review-page/spec.md` (`BL-32`, `BL-36`, `BL-33`) | Review is where a human **confirms**. The link store `BL-69` designs is created by confirming, and that act is the review page's. This page reads authored links and says so (§5.3). |
+| **The traceability tree** | `/traceability`, `traceability-model.ts` (shipped) | The tree answers *what hangs under what* — project → system → requirement → definition → run. It carries no outcome and gains none here. This page answers *what passed*. They share the join and nothing else. |
+| **Baselines and trends** | `BL-39` | A baseline is a **sealed, named set of requirement versions** with coverage computed at seal. This page is always *now* and snapshots nothing. "Coverage over time" is the diff between two seals, not a chart here — building a snapshot table for a trend would be the thing baselines then have to replace. |
+| **Running anything** | `dev-planning/bulk-run-buttons/spec.md` and `dev-planning/run-a-definition/spec.md` | No Run button, no re-run, no "evaluate all". `bulk-run-buttons/spec.md` §3 already states this, citing this spec. A report screen must not be the one place in the app where *reading* triggers work. |
+| **Per-run detail** | `/runs/{id}` and its Definitions panel | A run's own outcomes, with a live Run cell, already have a screen. Restating them here would be a third place a run's outcome is asserted. The matrix cell links there instead. |
+| **Changing the verdict record** | `run-a-definition` / `definition_runs.py` | No field is added to `Verdict`, no change to `verdict_notebook.py`, no change to `record_verdict`. §0 cut both proposed fields. |
 
 ---
 
-## 8. What this depends on
+## 8. Data & interface contracts
 
-Ordered. Each line states what the page shows before it lands.
+### 8.1 Nothing derived is stored
 
-| # | Item | Status at `d9dd5d4` | Until it lands, the page shows |
-|---|---|---|---|
-| 0 | the requirement mirror + `_project` fold (`BL-22`) | **shipped** (`3b3910a`) | — it is the prerequisite, and it is met |
-| 0 | the `verdict` block on `processed_results` (`BL-24`'s contract half) | **shipped** | — |
-| 1 | **this spec** = `BL-38` (`GET /coverage` + matrix) | not built | nothing; there is no page |
-| 2 | **`BL-11`** — run the ten implementations, POST the verdicts (with `BL-37` for the runner shape) | not built | coverage, run linkage and the four empty-state behaviours of §6.5. **Everything on the page except outcomes is already true today.** |
-| 3 | `BL-19` — Covered ≠ Tested | **encoded in the shipped fold** (`queries_requirements.py:173-221`) | — nothing to do; §5 is its screen |
-| 4 | `BL-34` on **test definitions** (`item_version`) | requirements half shipped; **TC half not built** | `definition_version` writes null and the pin stays `implementation_sha256`. The board's *"pinned at exactly version `w`"* is approximated, not implemented, and §9 OQ2 names it |
-| 5 | `BL-33` — the versioned `verifies` link entity | in progress (spec only) | `evidence_stale` stands in for `suspect`, under a different word on purpose (`requirements-page/spec.md` §8). When it lands, the matrix cell gains a per-link suspect marker and the word changes |
-| 6 | `BL-28` — work order carries its requirement scope | not built | §3.4's `in_scope` is derived from definitions, so `coverage_pct` per work order is tautologically 100 % whenever every definition is linked. **This is the weakest number on the page** and it is labelled as derived-from-definitions in the column header |
-| 7 | `BL-47` — no UI assigns a definition to a run | not built | a run whose definitions were never claimed contributes no cells. All four of ours claimed theirs at upload, so the demo is unaffected |
-| 8 | `BL-40` / `BL-41` — execute and report | not built | no re-run button, no rendered report; the CSV export is the artefact |
+No collection is added, no field is stored, no count is cached. `verdict_state`, `verdict_counts`,
+`latest_verdict`, `view_counts` and every matrix cell are computed on each read, for the reason
+`requirement-status-from-runs/spec.md` §4.3 already won: the inputs move in six ways nothing would
+report — a run deleted, a run flagged invalid, a definition's `covers_req_ids` re-pushed, a
+definition removed from a run, a requirement's text edited, a new verdict version stored — and a
+stored rollup needs a compensating write on each.
 
-**Independent of this page, and it should be fixed by whoever owns `api/`:**
-`GET /requirements/facets` is called by the frontend (`frontend/lib/api/requirements.ts:19`)
-and does not exist in `api/api/routers/requirements.py` — `/requirements/{req_id}` shadows it
-and answers 404 `requirement_not_found`, so the Requirements page's four filter dropdowns are
-empty today. This page deliberately does not depend on it (§6.4). Worth a backlog line.
+**No index is added.** `test_runs.definition_ids` (`db.py:42, :49`),
+`test_definitions.covers_req_ids` (`db.py:69`) and
+`processed_results.verdict.definition_id + version` (`db.py:165`) are every access path the fold
+uses, and all three exist.
 
-**Scale**: the report is unpaginated by design (§3.2). The number to watch is the
-`requirements` mirror: past roughly 500 rows the response and the matrix both stop being one
-screen, and the upgrade is to page `requirements[]` and `matrix.cells` together while keeping
-`summary` whole-table — the same split `GET /requirements` already implements.
+### 8.2 `GET /api/v1/test-definitions` — widened
 
----
-
-## 9. Open questions
-
-1. **OQ1 — Is the summary the campaign's or the estate's?** Today `GET /coverage` with no
-   filter covers every requirement the mirror holds, and the work-order tiles sit in a panel
-   below. **Recommended: estate-wide by default, one work order one click away** via the Work
-   order filter, because there is exactly one work order (`WO-BAT-2026-001`) and an
-   estate-wide default is the honest shape for a customer with forty. If the user wants the
-   page to open *on* a campaign, the change is a default filter value and nothing else.
-2. **OQ2 — Does `definition_version` ship now, written null, or wait for `BL-34`'s TC half?**
-   **Recommended: ship it now, written null.** It is one optional int on the `Verdict` model;
-   adding it later means every verdict written in between can never be pinned, because the
-   version at evaluation time is not recoverable afterwards. Costs one field, buys the board's
-   `(R@v, TC@w)` the day `BL-34` lands.
-3. **OQ3 — Where does `stale` render on a failing requirement?** The row-level fold says a
-   failure outranks staleness (`evidence_stale: false`); the cell-level computation knows the
-   evidence is stale (§5.3). **Recommended: the marker draws on the cell only, never on the
-   row, and the cell's tooltip says "the requirement changed after this run".** The alternative
-   — propagating stale onto failed rows — would add a second amber marker to a red row and
-   make "Failed 4" ambiguous.
-4. **OQ4 — Do `error` verdicts get their own tile?** They are counted in
-   `summary.definitions.errored` and rendered amber in the matrix, but no tile. **Recommended:
-   no tile while the count is structurally zero** (our ten evaluators either decide or raise,
-   and a raise is the runner's to translate). Promote to a tile — or to a Home "needs
-   attention" line — the first time a real estate produces one, because a requirement sitting
-   at `exercised` forever because its evaluator is broken reads exactly like "not run yet", and
-   that is the one failure mode of this page that is silent.
-5. **OQ5 — Should the matrix ship a work-order-scoped variant?** At ten definitions the matrix
-   is one screen. At a customer's two hundred it is not, and the natural cut is one matrix per
-   work order. **Recommended: not now** — the Work order filter already produces exactly that
-   view, and a second layout would be a second thing to keep in step with the first.
-6. **OQ6 — Does the page need a trend, "coverage over time"?** It is the second question every
-   status meeting asks. It needs a time series nothing stores — `generated_at` is the read's own
-   clock and nothing snapshots it. **Recommended: no.** It is `BL-39` (baselines) wearing a
-   chart: seal a named set of requirement versions, compute coverage at seal, and the trend is
-   the diff between two seals. Building a snapshot table for it first would be the thing
-   baselines then have to replace.
-
----
-
-## 10. Sanity print
-
-### 10.1 The verdict document, field by field with types
-
-**Stored on `processed_results` (envelope, unchanged):** `_id: str` · `run_id: str` ·
-`result_key: str` · `version: int` · `supersedes: str|None` · `name: str` ·
-`description: str|None` · `storage_ref: str|None` · `provenance.tool: str` ·
-`provenance.tool_version: str` · `provenance.parameters: str` ·
-`provenance.input_file_ids: list[str]` · `provenance.produced_by: str` ·
-`provenance.produced_at: datetime` · `provenance_status: str` · `created_at: datetime`
-
-**Stored in the `verdict` block (shipped):** `definition_id: str` ·
-`outcome: Literal["pass","fail","error"]` · `evidence: dict` · `implementation_sha256: str`
-
-**Stored, added by this spec:** `definition_version: int|None` · `criterion: str|None`
-
-**Derived, never stored:** the requirement ids (from `test_definitions.covers_req_ids`) ·
-`work_order_id` (from `test_runs`) · `current` (digest pin + timestamp freshness) · every
-count, percentage and matrix cell on the page.
-
-### 10.2 The tiles, today versus after `BL-11`
-
-**Today — four traces registered, zero verdicts written:**
+**New query param**
 
 ```
-Coverage  10 / 10 · 100%     Tested  0 requirements     Failed  0 requirements     Not run  10 test cases
-4 runs · 0 evaluated · 0 verdicts · 0 stale
-
-summary.requirements  {total 10, not_covered 0, covered 0, exercised 10, failed 0, tested 0, stale 0, coverage_pct 100.0}
-summary.definitions   {total 10, linked 10, not_run 0, no_verdict 10, passed 0, failed 0, errored 0, stale_pass 0}
-summary.runs          {total 4, evaluated 0, unevaluated 4, verdicts 0}
+&verdict_state=<repeated>   list[str]   not_run|no_verdict|passed|failed|error
 ```
 
-**After `BL-11` runs the ten implementations against the known 6 PASS / 4 FAIL set:**
+Applied in `queries_runs._definition_matches` (`:1527-1551`) beside the existing `work_order`,
+`status`, `requirement`, `q`, over the already-derived row, the way `status` is.
 
+**New fields on `TestDefinitionRow`** (`api/api/models/planning.py:62-83`):
+
+| Field | Type | Meaning |
+|---|---|---|
+| `verdict_state` | `Literal["not_run","no_verdict","passed","failed","error"]` | §3.3 |
+| `latest_verdict` | `DefinitionVerdictRef \| None` | null unless some run carries a verdict |
+| `verdict_counts` | `{pass:int, fail:int, error:int}` | over the newest verdict of **each** run carrying the definition |
+| `runs_with_verdict` | `int` | how many of `actual_runs` produced one |
+
+```python
+class DefinitionVerdictRef(ApiModel):
+    """The verdict that decided this definition, and the run it came from."""
+    run_id: str
+    result_id: str
+    outcome: Literal["pass", "fail", "error"]
+    produced_at: UtcDatetime | None
+    implementation_sha256: str
+    current: bool          # §3.4 — the implementation pin only
+    evidence: dict         # the evaluator's measured values, as stored
 ```
-Coverage  10 / 10 · 100%     Tested  6 requirements     Failed  4 requirements     Not run  0 test cases
-4 runs · 4 evaluated · 10 verdicts · 0 stale
 
-summary.requirements  {total 10, not_covered 0, covered 0, exercised 0, failed 4, tested 6, stale 0, coverage_pct 100.0}
-summary.definitions   {total 10, linked 10, not_run 0, no_verdict 0, passed 6, failed 4, errored 0, stale_pass 0}
-summary.runs          {total 4, evaluated 4, unevaluated 0, verdicts 10}
+`evidence` rides on the list row rather than the detail because it is the matrix cell's tooltip and
+the evaluators return three to five scalars (`manifest.csv`'s `measured` column). `requirements_files`
+is detail-only for the opposite reason — a document is unbounded.
+
+**New envelope field on `TestDefinitionPage`** (`:85-90`):
+
+```python
+class DefinitionViewCounts(ApiModel):
+    all: int
+    not_run: int
+    no_verdict: int
+    passed: int
+    failed: int
+    error: int
+
+class TestDefinitionPage(Page[TestDefinitionRow]):
+    view_counts: DefinitionViewCounts
 ```
 
-**Coverage is 100 % in both columns and Tested moves 0 → 6.** That is the whole point of the
-page in two lines: coverage says a test case exists, and only a verdict says it worked.
+Whole-table and **filter-independent**, built before the filters narrow the set — the rule
+`list_requirements` already states (`queries_requirements.py:357-364`): a filtered tile that
+disagrees with what clearing the filter shows is the bug that rule prevents.
+
+> `TestDefinitionPage`'s current docstring says *"It carries no view counts: the Home summary already
+> reports the whole-table orphan count, so a second count on this page would say the same thing
+> twice."* That reasoning was about **orphans** and stays true — the orphan count is not added here.
+> The docstring must be rewritten in the same edit that adds the field, or it becomes a comment
+> describing code that no longer exists.
+
+### 8.3 Unchanged
+
+`GET /requirements`, `GET /requirements/facets`, `GET /requirements/{req_id}`,
+`GET /test-definitions/facets`, `GET /results`, `POST /results`, the `Verdict` block, the notebook
+wrapper, `record_verdict`, the status gate and `planning_sync` are **all untouched**.
+`queries_requirements._fold_inputs` changes only by importing §3.5's shared module instead of
+holding its two maps inline; `_project`, `_state_fold` and `_view_counts` keep their behaviour byte
+for byte.
 
 ---
 
-## 11. References
+## 9. Work breakdown
 
-- `CLAUDE.md` — the 10 requirements, 11 parameters, 10 test cases, the 6 PASS / 4 FAIL table,
-  the ingestion pipeline, and the SYS.2 rules (`verified_by` derived; Covered ≠ Tested; what
-  makes a link suspect).
-- `battery-trace-gen/out/manifest.csv` — every measured number quoted in §2.2 and §5.
-- `battery-trace-gen/specs/battery-dc-test-specs.json` — `covers_req_ids` and
-  `pass_criteria[].criterion_id`, the source of §2.2's `criterion`.
-- `battery-trace-gen/out/impl/BAT-SYS-TC-003.py` — `evaluate(run_id, table)`, its `PASS`/`FAIL`
-  casing and its `LookupError` path.
-- `dev-planning/requirement-status-from-runs/spec.md` §4.3, §4.6, §5.3, §6 — the fold, the
-  staleness rule and the verdict contract this page reads.
-- `dev-planning/requirements-page/spec.md` §5 (dashed = computed), §8 (absent, not blank),
-  §11 (filters, facets, quick views) — the conventions this page mirrors.
-- `dev-planning/authoring-controls/spec.md` — the CRUD that shipped, and §7.1's `BL-50`
-  position.
-- `api/api/models/results.py:84-109, :221-236` · `api/api/services/queries_requirements.py` ·
-  `api/api/services/queries_runs.py:766-783, :891-970, :1588-1602` · `api/api/db.py:42-69,
-  :156-165` — the shipped surfaces §2-§4 build on.
-- `frontend/components/screens/requirements/` — the screen this page is shaped on.
-- `dev-planning/backlog.json` — `BL-11`, `BL-19`, `BL-24`, `BL-28`, `BL-33`, `BL-34`, `BL-37`,
-  `BL-38`, `BL-40`, `BL-47`, `BL-50`.
+| # | Piece | Touches | Owner | Depends on |
+|---|---|---|---|---|
+| 1 | Extract the shared verdict fold | **new** `api/api/services/verdict_fold.py`; `api/api/services/queries_requirements.py:103-165, :207` (import instead of inline) | ArchDev | — |
+| 2 | Definition rollup in the derived row | `api/api/services/queries_runs.py:1499-1524` (`_derived_definitions`), `:1527-1551` (`_definition_matches`), `:1554-1581` (`list_test_definitions` → `view_counts`) | ArchDev | 1 |
+| 3 | Models + route param | `api/api/models/planning.py:62-90` (row fields, `DefinitionVerdictRef`, `DefinitionViewCounts`, `TestDefinitionPage.view_counts`, **rewrite the page docstring**); `api/api/routers/test_definitions.py:145-178` (`verdict_state` param) | ArchDev | 2 |
+| 4 | Frontend types + client | `frontend/types/test-definition.ts` (the four new row fields, `DefinitionVerdictRef`, `DefinitionViewCounts`, the `VERDICT_STATES` constant); `frontend/lib/api/testDefinitions.ts` (the `verdict_state` filter) | ArchDev | 3 |
+| 5 | The join | **new** `frontend/components/screens/test-results/test-results-model.ts` — requirement rows × definition rows → matrix cells, modelled on `traceability-model.ts` | ArchDev | 4 |
+| 6 | The screen | **new** `frontend/app/test-results/page.tsx`, `frontend/components/screens/test-results/{test-results-screen,summary-tiles,coverage-matrix,definitions-outcome-table,test-results-table-config}.tsx` | FrontEndEsthetic / ArchDev | 5 |
+| 7 | Sidebar entry | `frontend/components/shell/sidebar.tsx:193-194` (one row after Traceability, no count) | ArchDev | 6 |
+| 8 | Contract snapshot | `api/docs/openapi.v1.json` via `api/scripts/snapshot.sh` — **`BL-25` is already red for three other models; this adds a fourth** | Tester | 3 |
+| 9 | Gate | `pre-commit run --all-files`; `api/tests/test_test_definitions.py` and `api/tests/test_pagination.py` are the two modules most likely to move (the definitions page envelope gains a key); `frontend/tests/components/definitions-screen.test.tsx` already red per `BL-48` | Tester | 7 |
+
+---
+
+## 10. Risks and open questions
+
+**Risks**
+
+1. **Extracting the shared fold touches a live screen.** `queries_requirements._fold_inputs` serves
+   the Requirements page, which the user QA'd. Mitigation: the extraction is a move, not a rewrite —
+   the two maps and `_newest_verdict_of_td` go across unchanged, and `_project` / `_state_fold` are
+   not opened. A red-first check is cheap: call `GET /requirements` before and after and diff
+   `view_counts`.
+2. **`TestDefinitionPage` gaining a required `view_counts`** changes the envelope shape every caller
+   of `GET /test-definitions` sees — the definitions screen, the traceability screen and six mocked
+   tests (`BL-48`). None reads the envelope's unknown keys, but the contract snapshot and the mock
+   DB (`frontend/lib/mock/db.ts`) both need it.
+3. **The client-side join has a real ceiling** and it is written down in §4 rather than discovered:
+   `page_size = 200` per list. A customer estate of 500 requirements breaks the page silently — it
+   renders a truncated matrix with no warning. Mitigation worth building with the page: if
+   `total > items.length` on either list, the panel prints *"showing the first 200 of N"* instead of
+   a matrix.
+
+**Open question — the user decides**
+
+1. **OQ1 — Does the page open on the whole estate, or on one work order?** Today there is exactly
+   one (`WO-BAT-2026-001`), so the two look identical. **Recommended: estate-wide by default, one
+   work order one click away via the Work order filter** — the honest shape for a customer with
+   forty campaigns, and if the user wants it to open *on* a campaign the change is a default filter
+   value and nothing else.
+
+Everything else revision 1 left open is now settled and recorded above: the `/coverage` route (§4,
+not built), `definition_version` and `criterion` (§0, cut), where `stale` renders (§6.3 — on the
+cell, never on the row), whether `error` gets a tile (§6.2 — the context line, amber, because §3.3
+makes it the one fact only this page can show), and the trend (§7 — `BL-39`'s, not a chart).
+
+---
+
+## 11. Sanity print
+
+### 11.1 The user's three asks
+
+```
+covered reqs   SERVED, UNRENDERED  GET /requirements → view_counts.not_covered (live: 0 of 10);
+                                   no coverage figure on any screen today
+passed reqs    SERVED AND RENDERED GET /requirements → view_counts.tested (live: 3);
+                                   Requirements screen quick view + Verification column
+passed TD      ABSENT              no definition-side rollup exists anywhere; the only verdict
+                                   view is one (run, definition) cell on the run detail
+```
+
+### 11.2 The §4 decisions, one line each
+
+```
+§4.2 TD rollup   verdict_state + latest_verdict + verdict_counts on TestDefinitionRow, view_counts
+                 on TestDefinitionPage. NO new route. Several runs -> the newest run carrying a
+                 verdict decides; the older ones stay visible as counts, never as a sixth word.
+§4.3 /coverage   NOT BUILT. BL-38 closes: view_counts x2 + the browser join answer the page, and
+                 traceability-screen.tsx:13-30 is the shipped precedent for joining in the browser.
+§4.4 honesty     The page says "Tested" and means the shipped verification_state, no new word. A
+                 permanent header note states that ASPICE Tested needs a confirmed link (BL-69) and
+                 a TC version (BL-34), neither of which exists. Coverage is the only percentage and
+                 counts AUTHORED links.
+§4.5 the page    /test-results, sidebar right after Traceability, no count badge. Five tiles (each
+                 printing its unit) + a sparse coverage matrix + a per-definition outcome table.
+                 No per-run panel: the run detail owns that.
+§4.6 scope       NOT the review page (confirming links), NOT the traceability tree (structure),
+                 NOT a baseline (sealed versions), NOT a runner (bulk-run-buttons), NOT authoring.
+```
+
+### 11.3 Routes
+
+```
+GET /api/v1/requirements            SHIPPED, unchanged   items[] + view_counts -> coverage, tested,
+                                                         failed, exercised, verified_by, covering_run_ids
+GET /api/v1/requirements/facets     SHIPPED, unchanged   system/chapter/status dropdowns
+GET /api/v1/test-definitions        WIDENED              + verdict_state param; rows gain
+                                                         verdict_state, latest_verdict,
+                                                         verdict_counts, runs_with_verdict;
+                                                         envelope gains view_counts
+GET /api/v1/test-definitions/facets SHIPPED, unchanged   work_order dropdown
+GET /api/v1/results?run=&latest_only=true  SHIPPED       the raw verdict documents; drill-down only
+GET /api/v1/coverage                NOT BUILT            §4
+GET /api/v1/processed-results       DOES NOT EXIST       processed_results is the collection name
+```
+
+### 11.4 Files an implementation touches
+
+```
+api/  (ArchDev)
+  NEW api/api/services/verdict_fold.py
+      api/api/services/queries_requirements.py   :103-165, :207  (import the shared fold)
+      api/api/services/queries_runs.py           :1499-1581      (rollup, filter, view_counts)
+      api/api/models/planning.py                 :62-90          (+ docstring rewrite)
+      api/api/routers/test_definitions.py        :145-178        (verdict_state param)
+      api/docs/openapi.v1.json                                   (snapshot; BL-25 already red)
+
+frontend/  (ArchDev + FrontEndEsthetic)
+  NEW frontend/app/test-results/page.tsx
+  NEW frontend/components/screens/test-results/test-results-model.ts
+  NEW frontend/components/screens/test-results/test-results-screen.tsx
+  NEW frontend/components/screens/test-results/summary-tiles.tsx
+  NEW frontend/components/screens/test-results/coverage-matrix.tsx
+  NEW frontend/components/screens/test-results/definitions-outcome-table.tsx
+  NEW frontend/components/screens/test-results/test-results-table-config.ts
+      frontend/types/test-definition.ts
+      frontend/lib/api/testDefinitions.ts
+      frontend/lib/mock/db.ts                                    (mock envelope gains view_counts)
+      frontend/components/shell/sidebar.tsx      :193-194
+
+nothing else — no collection, no index, no migration, no deployment change
+```
+
+---
+
+## 12. References
+
+- `CLAUDE.md` — the 10 requirements, 10 test cases, the 6 PASS / 4 FAIL table, and the SYS.2 rules
+  (`verified_by` derived; Covered ≠ Tested; what makes a link suspect).
+- `battery-trace-gen/out/manifest.csv` — the expected verdict of every test case.
+- `api/api/services/queries_requirements.py:103-272` — the fold this page reads and does not
+  reimplement.
+- `api/api/services/definition_runs.py:124-190` · `api/api/routers/definition_runs.py` — the shipped
+  verdict writer.
+- `api/api/services/queries_runs.py:1499-1620` — the definition list this page widens.
+- `api/api/requirement_lifecycle.py:11, :56-63` — `Implemented` / `Tested` as projections.
+- `frontend/components/screens/traceability/traceability-screen.tsx:13-30` and
+  `traceability-model.ts` — the browser-join precedent §4 rests on, and the screen §7 keeps separate.
+- `frontend/components/screens/requirements/requirements-screen.tsx:130-135, :178-182` — the quick
+  views and the Status / Verification wording this page reuses verbatim.
+- `dev-planning/versions-and-links/spec.md` (`BL-69`) · `dev-planning/review-page/spec.md` ·
+  `dev-planning/bulk-run-buttons/spec.md` · `dev-planning/requirement-status-from-runs/spec.md` §4.3,
+  §4.6, §5.3 — the four specs §7 draws the boundary against.
+- `dev-planning/backlog.json` — `BL-19`, `BL-20`, `BL-25`, `BL-34`, `BL-38`, `BL-39`, `BL-48`,
+  `BL-51`, `BL-69`.

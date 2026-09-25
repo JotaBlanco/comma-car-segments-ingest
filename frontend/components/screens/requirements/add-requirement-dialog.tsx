@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { SingleSelect } from "@/components/shared/single-select";
 import { ApiError } from "@/lib/api/client";
 import { useActor, useCreateRequirement } from "@/lib/hooks";
 import { NO_ACTOR_MESSAGE } from "@/lib/hooks/use-actor";
@@ -26,7 +27,11 @@ import {
  * never created here; it arrives through `POST /planning/sync`.
  */
 
+/* The only two statuses a requirement is born in — `RequirementCreateRequest`
+   restricts the field to these, and every later move goes through the detail
+   screen's status control (requirement-status-gates §4.1). */
 const CREATE_STATUS_OPTIONS = ["NEW", "Draft"] as const;
+type CreateStatus = (typeof CREATE_STATUS_OPTIONS)[number];
 
 const FAILURES: Record<string, string> = {
   id_reuse: "That id is already used — retired ids are never reused. Pick a different id.",
@@ -52,6 +57,7 @@ interface AddRequirementDialogProps {
 export function AddRequirementDialog({ open, onOpenChange }: AddRequirementDialogProps) {
   const [id, setId] = useState("");
   const [values, setValues] = useState<RequirementFormValues>(emptyRequirementFormValues);
+  const [status, setStatus] = useState<CreateStatus>("Draft");
   const [failure, setFailure] = useState<string | null>(null);
 
   const actor = useActor();
@@ -62,6 +68,7 @@ export function AddRequirementDialog({ open, onOpenChange }: AddRequirementDialo
     if (!nextOpen) {
       setId("");
       setValues(emptyRequirementFormValues());
+      setStatus("Draft");
       setFailure(null);
     }
   };
@@ -99,7 +106,7 @@ export function AddRequirementDialog({ open, onOpenChange }: AddRequirementDialo
         figure_refs: splitList(values.figure_refs),
         related_reqs: splitList(values.related_reqs),
         verification_criteria: values.verification_criteria.trim() || undefined,
-        status: values.status === "NEW" ? "NEW" : "Draft",
+        status,
       },
       {
         onSuccess: (created) => {
@@ -156,7 +163,13 @@ export function AddRequirementDialog({ open, onOpenChange }: AddRequirementDialo
             setValues(next);
             setFailure(null);
           }}
-          statusOptions={CREATE_STATUS_OPTIONS}
+        />
+
+        <SingleSelect
+          label="Status"
+          value={status}
+          onChange={(value) => setStatus(value === "NEW" ? "NEW" : "Draft")}
+          options={CREATE_STATUS_OPTIONS.map((option) => ({ value: option, label: option }))}
         />
 
         {failure !== null && (

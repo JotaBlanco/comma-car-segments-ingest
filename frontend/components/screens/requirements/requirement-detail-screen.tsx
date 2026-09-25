@@ -9,7 +9,6 @@ import { ErrorState } from "@/components/shared/error-state";
 import { MetaCell, MetaGrid } from "@/components/shared/meta-grid";
 import { Panel, PanelHead } from "@/components/shared/panel";
 import { SourceBadge } from "@/components/shared/source-badge";
-import { ToneBadge } from "@/components/shared/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api/client";
 import { formatArrival } from "@/lib/format";
@@ -20,6 +19,7 @@ import { CoveringRunsPanel } from "./covering-runs-panel";
 import { EditRequirementDialog } from "./edit-requirement-dialog";
 import { RequirementTextPanel } from "./requirement-text-panel";
 import { RetireRequirementDialog } from "./retire-requirement-dialog";
+import { StatusControl, statusHint } from "./status-control";
 import { VerificationChip } from "./verification-chip";
 
 /**
@@ -93,6 +93,7 @@ export function RequirementDetailScreen({ reqId }: RequirementDetailScreenProps)
   // A row `field_sources` cannot place (an older API, or no field ever
   // touched) reads as seeded through `POST /planning/sync`.
   const badgeSource = origin ?? "api:planning";
+  const hint = statusHint(detail.status);
 
   return (
     <>
@@ -109,7 +110,7 @@ export function RequirementDetailScreen({ reqId }: RequirementDetailScreenProps)
             {detail.req_id}
           </span>
           <SourceBadge source={badgeSource} />
-          <ToneBadge tone="neutral">{detail.status}</ToneBadge>
+          <StatusControl detail={detail} />
           <VerificationChip state={detail.verification_state} stale={detail.evidence_stale} />
           <div className="ml-auto flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
@@ -144,7 +145,10 @@ export function RequirementDetailScreen({ reqId }: RequirementDetailScreenProps)
           }
         />
         <MetaGrid>
-          <MetaCell label="Status">{detail.status}</MetaCell>
+          <MetaCell label="Status">
+            {detail.status}
+            {hint !== null && <p className="mt-1 text-[0.72rem] text-ink-3">{hint}</p>}
+          </MetaCell>
           <MetaCell label="Verification method">{detail.verification_method ?? "—"}</MetaCell>
           <MetaCell label="Chapter">{detail.chapter ?? "—"}</MetaCell>
           <MetaCell label="EARS pattern">{detail.ears_pattern ?? "—"}</MetaCell>

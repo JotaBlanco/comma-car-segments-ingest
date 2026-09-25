@@ -105,7 +105,8 @@ export function DefinitionsScreen() {
           <span className="inline-flex items-center gap-1.5 text-[0.7rem] text-ink-3">
             <SourceBadge source="api:planning" />
             Definitions arrive with the catalogue — an orphan names a work order this registry
-            does not hold.
+            does not hold. Status is plan adherence; Verdict is what the runs decided, so
+            &ldquo;On plan&rdquo; beside &ldquo;Failed&rdquo; is legal, not a bug.
           </span>
         }
       />

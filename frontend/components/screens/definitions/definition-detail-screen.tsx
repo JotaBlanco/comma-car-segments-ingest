@@ -25,6 +25,7 @@ import { ApiError } from "@/lib/api/client";
 import { formatArrival } from "@/lib/format";
 import { useTestDefinition, useTestDefinitionJournal } from "@/lib/hooks";
 import { CustomPropertiesPanel } from "./custom-properties-panel";
+import { DefinitionVerdictChip } from "./definition-verdict-chip";
 import { ImplementationPanel } from "./implementation-panel";
 import { RequirementsPanel } from "./requirements-panel";
 
@@ -125,6 +126,7 @@ export function DefinitionDetailScreen({ tdId }: DefinitionDetailScreenProps) {
           </span>
           <SourceBadge source="api:planning" />
           <DefinitionStatusBadge status={definition.status} />
+          <DefinitionVerdictChip state={definition.verdict_state} />
           {definition.orphaned && (
             <ToneBadge tone="amber" dot>
               Orphaned
@@ -158,7 +160,8 @@ export function DefinitionDetailScreen({ tdId }: DefinitionDetailScreenProps) {
           title="Definition metadata"
           action={
             <span className="inline-flex items-center gap-1.5 text-[0.7rem] text-ink-3">
-              all fields <SourceBadge source="api:planning" /> — no route edits them
+              every field <SourceBadge source="api:planning" /> or derived from the runs — no
+              route edits either
             </span>
           }
         />
@@ -185,6 +188,30 @@ export function DefinitionDetailScreen({ tdId }: DefinitionDetailScreenProps) {
           </MetaCell>
           <MetaCell label="Status">
             <DefinitionStatusBadge status={definition.status} />
+          </MetaCell>
+          {/* Plan adherence above, evidence here. The Requirements page draws
+              the same pair, for the same reason: the two move independently. */}
+          <MetaCell label="Verdict">
+            <DefinitionVerdictChip state={definition.verdict_state} />
+          </MetaCell>
+          <MetaCell label="Last verdict" muted={!definition.latest_verdict}>
+            {definition.latest_verdict ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Link
+                  href={`/runs/${encodeURIComponent(definition.latest_verdict.run_id)}`}
+                  className="font-mono text-[0.78rem] hover:underline"
+                >
+                  {definition.latest_verdict.run_id}
+                </Link>
+                {definition.latest_verdict.produced_at != null && (
+                  <span className="text-[0.72rem] text-ink-3">
+                    {formatArrival(definition.latest_verdict.produced_at)}
+                  </span>
+                )}
+              </span>
+            ) : (
+              "—"
+            )}
           </MetaCell>
           <MetaCell label="Planned runs">
             <span className="font-mono text-[0.78rem]">{definition.planned_runs}</span>

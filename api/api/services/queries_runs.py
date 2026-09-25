@@ -19,6 +19,7 @@ from api.models.common import Pagination, Source
 from api.models.planning import default_render_markdown
 from api.models.runs import custom_group_key
 from api.provenance import add_event, derive_status, plain_values, set_field, sources
+from api.services import verdict_rollups
 from api.services.query_text import every_word_matches, rank_by_relevance
 
 # The upsert fills these from the manifest the pipeline sends. Identity fields
@@ -669,7 +670,7 @@ def list_runs(
         .skip((pagination.page - 1) * pagination.page_size)
         .limit(pagination.page_size)
     )
-    envelope = pagination.envelope(with_facts(db, list(cursor)), total)
+    envelope = pagination.envelope(with_verdicts(db, with_facts(db, list(cursor))), total)
     envelope["view_counts"] = runs_view_counts(db)
     return envelope
 
@@ -742,6 +743,18 @@ def with_facts(db: Database, runs: list[dict]) -> list[dict]:
     return [{**run, **facts[run["_id"]]} for run in runs]
 
 
+def with_verdicts(db: Database, runs: list[dict]) -> list[dict]:
+    """Overlay the verdict rollup of each run's definition set.
+
+    The runs list says whether a run was evaluated and how it went; the file
+    and signal counts beside it say what arrived. One query serves a page.
+    """
+    counted = verdict_rollups.run_verdicts(
+        db, {run["_id"]: list(run.get("definition_ids") or []) for run in runs}
+    )
+    return [{**run, "verdicts": counted[run["_id"]]} for run in runs]
+
+
 def get_run(db: Database, run_id: str) -> dict:
     """Read one run, with the two counts the detail shape carries."""
     run = db["test_runs"].find_one({"_id": run_id})
@@ -751,14 +764,14 @@ def get_run(db: Database, run_id: str) -> dict:
 
 
 def with_counts(db: Database, run: dict) -> dict:
-    """Add the derived inventory, `result_count` and `journal_count` to a run.
+    """Add the derived inventory, the verdict rollup and the two counts.
 
     The journal count unions the run's own entries with the signal edits made
     in its context, so the tab count matches the timeline the FE renders.
     """
     run_id = run["_id"]
     return {
-        **run,
+        **with_verdicts(db, [run])[0],
         **run_facts(db, [run_id])[run_id],
         "result_count": db["processed_results"].count_documents({"run_id": run_id}),
         "journal_count": db["journal_entries"].count_documents(
@@ -1502,12 +1515,19 @@ def _derived_definitions(db: Database, orphaned: bool | None = None) -> list[dic
     `actual_runs` and `status` derive at read time, through the same helper
     #11 uses; `orphaned` derives from the mirrored work-order ids. One grouped
     count serves the whole read.
+
+    `verification` and the two `latest_verdict_*` fields come from
+    `verdict_rollups.definition_verdicts`, beside `status` and never instead
+    of it: one is plan adherence, the other is what the runs decided.
     """
     known = mirrored_work_order_ids(db)
     query = {} if orphaned is None else orphan_clause(known, orphaned)
     rows = list(db["test_definitions"].find(query).sort("_id", ASCENDING))
 
     actual_runs = _count_by(db, "test_runs", "definition_ids", [row["_id"] for row in rows])
+    verdicts = verdict_rollups.definition_verdicts(
+        db, {row["_id"]: actual_runs.get(row["_id"], 0) for row in rows}
+    )
     linked = set(known)
     return [
         {
@@ -1519,6 +1539,7 @@ def _derived_definitions(db: Database, orphaned: bool | None = None) -> list[dic
                 row.get("planned_runs"), actual_runs.get(row["_id"], 0)
             ),
             "orphaned": row.get("work_order_id") not in linked,
+            **verdicts[row["_id"]],
         }
         for row in rows
     ]
@@ -1665,6 +1686,7 @@ def get_test_definition_detail(db: Database, td_id: str) -> dict:
         "status": _definition_status(definition.get("planned_runs"), actual_runs),
         # An orphan names no work order, or names one the mirror does not hold.
         "orphaned": work_order is None,
+        **verdict_rollups.definition_verdicts(db, {td_id: actual_runs})[td_id],
         "work_order": work_order,
         "runs": runs,
         "requirements_files": requirements_files(definition),

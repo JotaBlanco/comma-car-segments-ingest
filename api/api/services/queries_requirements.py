@@ -7,9 +7,11 @@ and `verification_state` (dev-planning/requirement-status-from-runs/spec.md
 §5.3). The list and the detail both call it, so the two can never disagree.
 
 The authored writes (`create_requirement`, `patch_requirement`,
-`retire_requirement`) are dev-planning/authoring-controls/spec.md's four named
-refusals and nothing else: `id_reuse`, `stale_parent`, `no_op_mint`,
-`already_obsolete`.
+`retire_requirement`) carry dev-planning/authoring-controls/spec.md's four
+named refusals — `id_reuse`, `stale_parent`, `no_op_mint`, `already_obsolete` —
+and one more: `illegal_transition`, the status gate of
+dev-planning/requirement-status-gates/spec.md §4.1, whose table lives in
+`api.requirement_lifecycle`.
 """
 
 from __future__ import annotations
@@ -29,6 +31,8 @@ from api.models.requirements import (
     RequirementRetireRequest,
 )
 from api.provenance import add_event, plain_values, set_field, sources
+from api.requirement_lifecycle import AUTHOR_TARGETS, check_transition
+from api.services.verdict_rollups import latest_verdict_of, newest_per_pair
 
 # Every authored field a requirement carries, `status` excluded — the same
 # exclusion `normative_sha256` applies below, so a Draft -> Reviewed move
@@ -123,23 +127,18 @@ def _fold_inputs(db: Database, requirement_ids: list[str]) -> dict:
 
     runs_of_td: dict[str, list[dict]] = {}
     td_set = set(td_ids)
-    for run in runs:  # already newest-first
+    # Newest bench session first — the order `get_requirement_detail` emits its
+    # evidence rows in. `_covering_runs` re-sorts its own merge.
+    for run in runs:
         for td_id in run.get("definition_ids") or []:
             if td_id in td_set:
                 runs_of_td.setdefault(td_id, []).append(run)
 
-    # Newest verdict per (run_id, definition_id): sorted by version DESC, so
-    # the first row seen for a key is the newest one.
-    newest_verdict: dict[tuple[str, str], dict] = {}
+    newest_verdict: dict[tuple[str, str | None], dict] = {}
     if run_ids and td_ids:
-        for result in (
-            db["processed_results"]
-            .find({"run_id": {"$in": run_ids}, "verdict.definition_id": {"$in": td_ids}})
-            .sort("version", DESCENDING)
-        ):
-            block = result.get("verdict") or {}
-            key = (result["run_id"], block.get("definition_id"))
-            newest_verdict.setdefault(key, result)
+        newest_verdict = newest_per_pair(
+            db, {"run_id": {"$in": run_ids}, "verdict.definition_id": {"$in": td_ids}}
+        )
 
     return {
         "verified_by": verified_by,
@@ -150,16 +149,23 @@ def _fold_inputs(db: Database, requirement_ids: list[str]) -> dict:
 
 
 def _newest_verdict_of_td(fold: dict, td_id: str) -> tuple[dict | None, dict | None]:
-    """The newest run of `td_id` that carries a verdict, and that verdict.
+    """The current verdict of `td_id`, and the run that produced it.
 
-    A test case re-run after a fix is judged on its latest attempt, not on
-    its first (§5.3).
+    The reduction is `verdict_rollups.latest_verdict_of` — newest
+    `provenance.produced_at` across every run carrying the definition — so a
+    test case re-run after a fix is judged on its latest attempt. Bench-session
+    order (`first_data_at`) ranks `covering_run_ids`, not verdicts.
     """
-    for run in fold["runs_of_td"].get(td_id, []):  # newest-first
-        result = fold["newest_verdict"].get((run["_id"], td_id))
-        if result is not None:
-            return run, result
-    return None, None
+    runs_by_id = {run["_id"]: run for run in fold["runs_of_td"].get(td_id, [])}
+    candidates = [
+        fold["newest_verdict"][(run_id, td_id)]
+        for run_id in runs_by_id
+        if (run_id, td_id) in fold["newest_verdict"]
+    ]
+    latest = latest_verdict_of(candidates)
+    if latest is None:
+        return None, None
+    return runs_by_id[latest["run_id"]], latest
 
 
 def _covering_runs(fold: dict, td_ids: list[str]) -> list[dict]:
@@ -582,19 +588,37 @@ def create_requirement(db: Database, body: RequirementCreateRequest, actor: str)
     return get_requirement_detail(db, req_id)
 
 
+def _note_with_second_actor(note: str | None, second_actor: str | None) -> str | None:
+    """Append the four-eyes claim to a journal note (authoring-controls §7)."""
+    named = (second_actor or "").strip()
+    if not named:
+        return note
+    claim = f"Second reviewer: {named}."
+    return f"{note} {claim}" if note else claim
+
+
 def patch_requirement(
     db: Database, req_id: str, body: RequirementPatchRequest, actor: str
 ) -> dict:
-    """PATCH /requirements/{req_id}. Refuses `stale_parent` and `no_op_mint`.
+    """PATCH /requirements/{req_id}. Refuses `stale_parent`, `no_op_mint`,
+    `illegal_transition`.
 
     `status` is authored but sits outside `CONTENT_FIELDS`/`content_sha256`
     (§4.6, `no_op_mint` above): a status-only edit changes no content byte, so
     `no_op_mint` is decided over content-changed-or-status-changed, not the
     hash alone. `item_version` mints for either kind of change.
 
+    A stated `status` is a move through the author door, so it must be one
+    `AUTHOR_TARGETS` allows from the stored status
+    (`dev-planning/requirement-status-gates/spec.md` §4.1).
+
     A content change to a requirement outside `AUTHORING_STATUSES` also
     returns it to `Draft`, journalled separately from the fields that moved.
     A PATCH that states a different `status` decides the status itself.
+
+    `second_actor` names the second person a content edit on a frozen row
+    needs. It is not a field and is not stored as one — it rides on the note
+    of every journal entry this edit produces.
     """
     stored = _requirement_or_404(db, req_id)
     if body.parent_version != stored.get("item_version"):
@@ -614,6 +638,8 @@ def patch_requirement(
     digest = content_sha256(merged)
     content_changed = digest != stored.get("content_sha256")
     status_changed = body.status is not None and body.status != stored.get("status")
+    if status_changed:
+        check_transition(stored.get("status"), body.status, AUTHOR_TARGETS)
     if not content_changed and not status_changed:
         raise ApiError(
             409,
@@ -621,6 +647,7 @@ def patch_requirement(
             "no_op_mint",
         )
 
+    note = _note_with_second_actor(body.note, body.second_actor)
     update: dict = {}
     entries: list[dict] = []
     for field in CONTENT_FIELDS:
@@ -632,7 +659,7 @@ def patch_requirement(
             stated[field],
             Source.MANUAL,
             actor,
-            note=body.note,
+            note=note,
             current_doc=stored,
             entity_type="requirement",
             entity_id=req_id,
@@ -647,7 +674,7 @@ def patch_requirement(
             body.status,
             Source.MANUAL,
             actor,
-            note=body.note,
+            note=note,
             current_doc=stored,
             entity_type="requirement",
             entity_id=req_id,
@@ -664,7 +691,10 @@ def patch_requirement(
             "Draft",
             Source.MANUAL,
             actor,
-            note="Returned to Draft: the content of a frozen requirement changed.",
+            note=_note_with_second_actor(
+                "Returned to Draft: the content of a frozen requirement changed.",
+                body.second_actor,
+            ),
             current_doc=stored,
             entity_type="requirement",
             entity_id=req_id,

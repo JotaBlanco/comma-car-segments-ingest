@@ -45,6 +45,7 @@ import type {
 import { RowLink, RowLinkLabel } from "@/components/shared/row-link";
 import { RunGroupBySelect, RunGroupsPanel, runGroupLabel } from "./run-groups";
 import { RunsBatchBar } from "./runs-batch-bar";
+import { RunVerdictsCell } from "./run-verdicts-cell";
 
 /* --------------------------------------------------------------------------
  * Config — quick views (strict set-equality presets, spec §3), filter options,
@@ -99,6 +100,9 @@ const COL_COUNT = 10;
 const RUN_CSV_COLUMNS: readonly CsvColumn<TestRunListItem>[] = [
   { header: "Run", value: (run) => run.run_id },
   { header: "Description", value: (run) => run.description },
+  /* File-only since the table dropped its Definition column: one cell holds
+     one value, so this is the FIRST definition and never the set. The header
+     is pinned by `api/api/services/exports.py` RUN_COLUMNS, cell for cell. */
   { header: "Definition", value: (run) => run.definition_id },
   { header: "Work order", value: (run) => run.work_order_id },
   { header: "Project", value: (run) => run.project },
@@ -287,7 +291,7 @@ export function RunsScreen() {
     <FullHeightPage>
       <PageHeader
         title="Test runs"
-        sub="Runs appear automatically when data arrives from a rig. Nothing here is created by hand."
+        sub="Runs appear automatically when data arrives from a rig. Nothing here is created by hand. Ingestion says the data arrived; Verdicts says what the run's test definitions decided."
       />
 
       {/* Two tiers.
@@ -416,7 +420,6 @@ export function RunsScreen() {
                   screen reader repeated (FR-DM-091). A run-id sort needs an
                   API key first. */}
               <TableHead>Run</TableHead>
-              <TableHead>Definition</TableHead>
               <TableHead>Work order</TableHead>
               <TableHead>Rig / Cell</TableHead>
               <TableHead className="text-right!">Files</TableHead>
@@ -427,7 +430,12 @@ export function RunsScreen() {
                 active={state.sort}
                 onSort={(key) => table.setSort(key, "desc")}
               />
-              <TableHead>Status</TableHead>
+              {/* Two questions, two columns. "Ingestion" is the stored
+                  `status` — the data arrived and the run linked. "Verdicts"
+                  is what the run's test definitions decided, folded from the
+                  results on every read. */}
+              <TableHead>Ingestion</TableHead>
+              <TableHead>Verdicts</TableHead>
               <TableHead className="w-10">
                 <span className="sr-only">Open in</span>
               </TableHead>
@@ -470,18 +478,6 @@ export function RunsScreen() {
                   <div className="mt-px text-[0.72rem] text-ink-3">{run.description ?? "—"}</div>
                 </TableCell>
                 <TableCell>
-                  {run.definition_id ? (
-                    <Link
-                      href={`/definitions/${encodeURIComponent(run.definition_id)}`}
-                      className="font-mono text-[0.78rem] hover:underline"
-                    >
-                      {run.definition_id}
-                    </Link>
-                  ) : (
-                    <span className="font-mono text-[0.78rem]">—</span>
-                  )}
-                </TableCell>
-                <TableCell>
                   {run.work_order_id ? (
                     <Link
                       href={`/work-orders/${encodeURIComponent(run.work_order_id)}`}
@@ -507,6 +503,9 @@ export function RunsScreen() {
                 <TableCell>{formatArrival(run.first_data_at)}</TableCell>
                 <TableCell>
                   <StatusBadge status={run.status} />
+                </TableCell>
+                <TableCell>
+                  <RunVerdictsCell verdicts={run.verdicts} />
                 </TableCell>
                 <TableCell className="w-10 text-right">
                   <WorkbookMenu run={run.run_id} explore={{ run: run.run_id }} iconOnly />
