@@ -132,6 +132,9 @@ function toRunListItem(run: RunRecord): TestRunListItem {
     first_data_at: run.first_data_at,
     status: runStatus(run),
     invalid: { ...run.invalid },
+    // No mock result carries a verdict block, so a run that names a
+    // definition carries one unjudged definition and nothing else.
+    verdicts: { pass: 0, fail: 0, error: 0, none: run.definition_id === null ? 0 : 1 },
   };
 }
 
@@ -2330,6 +2333,10 @@ function toTestDefinitionListItem(
     status: actual >= planned ? "on_plan" : "awaiting_data",
     orphaned: wo === null,
     synced_at: wo?.synced_at ?? SEED_WO_SYNCED_AT,
+    // No mock result carries a verdict block, so a definition a run carries
+    // is unjudged and one no run carries has not been run.
+    verdict_state: actual > 0 ? "no_verdict" : "not_run",
+    latest_verdict: null,
   };
 }
 

@@ -238,9 +238,15 @@ first, with `latest_run_id` as the scalar the grid column shows.**
 | `latest_run_id` | `str \| None` | `covering_run_ids[0]`, or null. **This is the "attribute column" the user asked for.** |
 | `evidence` | `list[RequirementEvidence]` | detail read only: one row per `(run_id, definition_id)` with the verdict, its `produced_at`, its implementation digest and whether it is current |
 
-"Newest" means the newest **bench session**, ordered on `first_data_at` — the same key the
-definition detail already sorts its runs by (`queries_runs.py:1467`), so the two screens can
-never disagree about which run is the latest. `run_id` DESC breaks a tie deterministically.
+`covering_run_ids` is ordered on `first_data_at` DESC, `run_id` DESC — the newest **bench
+session** first, the same key the definition detail sorts its runs by (`queries_runs.py:1467`).
+
+That ordering does **not** decide which verdict is current. This spec originally said it did,
+and claimed the two screens could therefore never disagree; they did. Ranking a verdict by
+when its data arrived ranks the wrong thing, because re-running an older trace today makes
+that the current answer. **A verdict is ranked by `provenance.produced_at`** — one reduction,
+`verdict_rollups.latest_verdict_of`, shared by this fold and the definition rollup. Freshness
+of data stays a separate fact, carried by `evidence_stale`.
 
 **Where it is computed: a read-time projection**, in a new service
 `api/api/services/queries_requirements.py`. Three bounded queries per page (§5.3). No sweep,
@@ -423,7 +429,7 @@ Three queries, each bounded by the page. Then one in-memory fold per requirement
 verified_by(R)   = sorted(td._id for td in definitions if R in td.covers_req_ids)
 runs_of(td)      = [run for run in runs if td in run.definition_ids]          # newest first
 covering_runs(R) = the union over verified_by(R), newest first, deduplicated
-newest_verdict(td) = the highest-version verdict of the newest run of td that has one
+newest_verdict(td) = highest-version verdict per (run, td), then the newest produced_at
 ```
 
 `newest_verdict` is per definition, not per run: a test case re-run after a fix is judged on

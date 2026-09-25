@@ -7,6 +7,7 @@ import { RowLinkLabel } from "@/components/shared/row-link";
 import type { SourceKind } from "@/components/shared/source-badge";
 import { DefinitionStatusBadge, ToneBadge } from "@/components/shared/status-badge";
 import type { TestDefinitionListItem } from "@/types";
+import { DefinitionVerdictChip } from "./definition-verdict-chip";
 
 /**
  * The one declaration of the test definitions grid's data columns.
@@ -66,6 +67,28 @@ export const DEFINITION_COLUMNS: readonly DefinitionColumn[] = [
     label: "Status",
     source: "derived",
     cell: (row) => <DefinitionStatusBadge status={row.status} />,
+  },
+  {
+    id: "verdict",
+    label: "Verdict",
+    source: "derived",
+    cell: (row) => <DefinitionVerdictChip state={row.verdict_state} />,
+  },
+  {
+    id: "last_verdict_run",
+    label: "Last run",
+    source: "derived",
+    cell: (row) =>
+      row.latest_verdict ? (
+        <Link
+          href={`/runs/${encodeURIComponent(row.latest_verdict.run_id)}`}
+          className="font-mono text-[0.78rem] hover:underline"
+        >
+          {row.latest_verdict.run_id}
+        </Link>
+      ) : (
+        <span className="text-ink-3">—</span>
+      ),
   },
   {
     id: "requirements",

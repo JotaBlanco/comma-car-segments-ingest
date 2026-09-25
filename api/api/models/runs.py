@@ -100,6 +100,25 @@ class InvalidFlag(ApiModel):
     at: UtcDatetime | None
 
 
+class RunVerdicts(ApiModel):
+    """The newest verdict of each definition this run carries, counted.
+
+    **The unit is test definitions**, never runs and never requirements. The
+    four counts partition the run's definition set, so `none` is how many of
+    them nothing has judged and the other three are how it went.
+
+    The wire names are the outcome words the `Verdict` model already ships
+    (`api/api/models/results.py:84-98`); `pass` is a Python keyword, so the
+    three carry an alias. Derived by
+    `api.services.verdict_rollups.run_verdicts` on every read, never stored.
+    """
+
+    passed: int = Field(0, alias="pass")
+    failed: int = Field(0, alias="fail")
+    errored: int = Field(0, alias="error")
+    none: int = 0
+
+
 def primary_definition(data):
     """Normalise a run's definition set and derive the legacy scalar from it.
 
@@ -123,8 +142,10 @@ class RunListItem(ApiModel):
     description: str | None
     # The whole set of test definitions this run fulfils, sorted ascending, and
     # the first of them. One trace answers several test cases, so the set is
-    # what the registry stores; the scalar stays on the wire for every reader
-    # written against it.
+    # what the registry stores; the scalar stays on the wire for the readers
+    # written against it — `PATCH /test-runs/{run_id}`, the runs CSV column and
+    # the planning claim path. No screen shows it: a run of three definitions
+    # would render one of them.
     definition_id: str | None
     definition_ids: list[str] = Field(default_factory=list)
     work_order_id: str | None
@@ -134,6 +155,8 @@ class RunListItem(ApiModel):
     file_count: int
     signal_count: int
     first_data_at: UtcDatetime
+    # Ingestion: the data arrived and the run linked. What the run's test
+    # definitions decided is `verdicts` below.
     status: RunStatus
     invalid: InvalidFlag
     # PROPOSED addition, not yet in plans/API-CONTRACT.md — see
@@ -152,6 +175,10 @@ class RunListItem(ApiModel):
     # written before these existed simply made no claim.
     claimed_work_order_id: str | None = None
     claimed_definition_id: str | None = None
+    # Evaluation, beside `status` above, which is ingestion. Defaulted so a
+    # document validated straight out of Mongo still reads; every serving path
+    # overlays `queries_runs.with_verdicts`.
+    verdicts: RunVerdicts = Field(default_factory=RunVerdicts)
 
     @model_validator(mode="before")
     @classmethod

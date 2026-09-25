@@ -13,10 +13,23 @@ export interface InvalidFlag {
   at: string | null;
 }
 
+/**
+ * The newest verdict of each definition a run carries, counted. The four
+ * keys partition the run's definition set, so `none` is how many of them
+ * nothing has judged yet. Derived by the API on every read, never stored.
+ */
+export interface RunVerdicts {
+  pass: number;
+  fail: number;
+  error: number;
+  none: number;
+}
+
 export interface TestRunListItem {
   run_id: string;
   description: string | null;
-  /** The FIRST of `definition_ids`. A run fulfils a set of definitions. */
+  /** The FIRST of `definition_ids`. A run fulfils a set of definitions, and
+   *  no screen shows this scalar — only the CSV column and `PATCH` do. */
   definition_id: string | null;
   /**
    * Every definition this run fulfils, sorted ascending. Optional here: the
@@ -36,8 +49,15 @@ export interface TestRunListItem {
   file_count: number;
   signal_count: number;
   first_data_at: string;
+  /** Ingestion: whether the data arrived and linked. Never evaluation. */
   status: RunStatus;
   invalid: InvalidFlag;
+  /**
+   * Evaluation: what this run's definitions decided. Optional here for the
+   * same reason `definition_ids` is — a mock row written before it existed
+   * still compiles, and the cell says "not evaluated" for one.
+   */
+  verdicts?: RunVerdicts;
 }
 
 export interface TestRun extends TestRunListItem {

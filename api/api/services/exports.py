@@ -117,9 +117,11 @@ def _text(value: object) -> str:
 RUN_COLUMNS: tuple[Column, ...] = (
     Column("Run", lambda row: row.get("_id")),
     Column("Description", lambda row: row.get("description")),
-    # The PRIMARY definition, the value the screen's own column reads. A run
-    # carrying several is served whole on the wire (`definition_ids`); the file
-    # holds one cell per column, and the screen writes this one.
+    # The PRIMARY definition. The runs table no longer shows a definition
+    # column — a run of three carries three, and one of them said nothing
+    # about the other two — but the file keeps this cell, because one cell
+    # holds one value and a reader's spreadsheet is written against it. The
+    # whole set is on the wire as `definition_ids`.
     Column("Definition", lambda row: next(iter(row.get("definition_ids") or []), None)),
     Column("Work order", lambda row: row.get("work_order_id")),
     Column("Project", lambda row: row.get("project")),

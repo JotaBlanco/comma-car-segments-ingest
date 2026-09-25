@@ -32,6 +32,7 @@ from api.models.requirements import (
 )
 from api.provenance import add_event, plain_values, set_field, sources
 from api.requirement_lifecycle import AUTHOR_TARGETS, check_transition
+from api.services.verdict_rollups import latest_verdict_of, newest_per_pair
 
 # Every authored field a requirement carries, `status` excluded — the same
 # exclusion `normative_sha256` applies below, so a Draft -> Reviewed move
@@ -126,23 +127,18 @@ def _fold_inputs(db: Database, requirement_ids: list[str]) -> dict:
 
     runs_of_td: dict[str, list[dict]] = {}
     td_set = set(td_ids)
-    for run in runs:  # already newest-first
+    # Newest bench session first — the order `get_requirement_detail` emits its
+    # evidence rows in. `_covering_runs` re-sorts its own merge.
+    for run in runs:
         for td_id in run.get("definition_ids") or []:
             if td_id in td_set:
                 runs_of_td.setdefault(td_id, []).append(run)
 
-    # Newest verdict per (run_id, definition_id): sorted by version DESC, so
-    # the first row seen for a key is the newest one.
-    newest_verdict: dict[tuple[str, str], dict] = {}
+    newest_verdict: dict[tuple[str, str | None], dict] = {}
     if run_ids and td_ids:
-        for result in (
-            db["processed_results"]
-            .find({"run_id": {"$in": run_ids}, "verdict.definition_id": {"$in": td_ids}})
-            .sort("version", DESCENDING)
-        ):
-            block = result.get("verdict") or {}
-            key = (result["run_id"], block.get("definition_id"))
-            newest_verdict.setdefault(key, result)
+        newest_verdict = newest_per_pair(
+            db, {"run_id": {"$in": run_ids}, "verdict.definition_id": {"$in": td_ids}}
+        )
 
     return {
         "verified_by": verified_by,
@@ -153,16 +149,23 @@ def _fold_inputs(db: Database, requirement_ids: list[str]) -> dict:
 
 
 def _newest_verdict_of_td(fold: dict, td_id: str) -> tuple[dict | None, dict | None]:
-    """The newest run of `td_id` that carries a verdict, and that verdict.
+    """The current verdict of `td_id`, and the run that produced it.
 
-    A test case re-run after a fix is judged on its latest attempt, not on
-    its first (§5.3).
+    The reduction is `verdict_rollups.latest_verdict_of` — newest
+    `provenance.produced_at` across every run carrying the definition — so a
+    test case re-run after a fix is judged on its latest attempt. Bench-session
+    order (`first_data_at`) ranks `covering_run_ids`, not verdicts.
     """
-    for run in fold["runs_of_td"].get(td_id, []):  # newest-first
-        result = fold["newest_verdict"].get((run["_id"], td_id))
-        if result is not None:
-            return run, result
-    return None, None
+    runs_by_id = {run["_id"]: run for run in fold["runs_of_td"].get(td_id, [])}
+    candidates = [
+        fold["newest_verdict"][(run_id, td_id)]
+        for run_id in runs_by_id
+        if (run_id, td_id) in fold["newest_verdict"]
+    ]
+    latest = latest_verdict_of(candidates)
+    if latest is None:
+        return None, None
+    return runs_by_id[latest["run_id"]], latest
 
 
 def _covering_runs(fold: dict, td_ids: list[str]) -> list[dict]:
