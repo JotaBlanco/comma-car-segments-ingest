@@ -85,3 +85,56 @@ test harness's Mongo URL override)
 Everything else is either PASS or traced to the already-known baseline; no new
 regressions from the planning-mock-removal diff itself. See the sanity print in the
 handback message for the full PASS/FAIL table and exact counts.
+
+## Round 2 — 2026-09-25 (TDD, red-first regression proof for BL-72's aftermath)
+
+### Bug 2.1: `create_work_order` never closes a retained claim — the loop it promises does not close on its own
+
+**Test:** `test_opening_a_work_order_by_hand_closes_a_run_s_retained_claim` in
+`api/tests/test_work_order_closes_claims.py`
+**Spec reference:** `create_work_order`'s own docstring, `api/api/services/queries_runs.py:1862-1864`:
+"A run that claimed this id before it existed is NOT linked here.
+`planning_sync._write_link` is the one write path for a run's work-order link, and
+`_link_retained_claims` closes the claim on the next sync pass."
+**Expected:** Per that docstring, the claim closes on "the next sync pass." A run that
+claimed a work order id before it existed should end up linked once that work order is
+opened and a sync pass runs.
+**Actual:** No sync pass runs on its own any more. `run_sync_pass`'s only caller was the
+Planning Sync Mock's push worker, removed at `38ecd12`; `_link_retained_claims`'s other
+caller sits inside the inbound `POST /planning/sync` receive path, which only fires when
+something posts to it. `create_work_order` (the handler behind `POST /work-orders`, the
+door a person uses to open a campaign by hand) calls neither. The run's `work_order_id`
+stays `None` forever.
+**Reproduction:** Seed a run with `status="awaiting_work_order"`,
+`claimed_work_order_id="WO-2026-0910"`, `work_order_id=None` (the shape
+`_link_retained_claims` waits on). `POST /api/v1/work-orders` with
+`{"wo_id": "WO-2026-0910", "title": "...", "project": "EX90"}`. Re-read the run: assert
+`run["work_order_id"] == "WO-2026-0910"`.
+**Root cause layer:** architecture
+**Suspected root cause:** `create_work_order` (`api/api/services/queries_runs.py:1852`) is
+the only `work_orders` insert reachable from `POST /work-orders`, and it never calls
+`planning_sync._link_retained_claims` (or any equivalent) after inserting the row.
+**Suggested fix:** ArchDev decides, but the shape that already exists is
+`_link_retained_claims(db)` — a call to it (or a narrower per-work-order variant) right
+after the `insert_one` in `create_work_order` would close every run waiting on this id, the
+same way a sync pass does.
+
+**Verbatim RED output:**
+```
+AssertionError: the run's retained claim was never closed by create_work_order; work_order_id is still None
+assert None == 'WO-2026-0910'
+tests\test_work_order_closes_claims.py:55: AssertionError
+```
+
+A second test in the same file, `test_planning_sync_still_closes_the_same_claim`, proves
+the surviving route (`POST /planning/sync` → `apply_planning_push` →
+`_link_retained_claims`, `planning_sync.py:784`) still closes the identical claim shape
+today — **PASS**. This documents the one route that must not regress when `create_work_order`
+is fixed.
+
+**Full suite, `cd api && uv run pytest tests -q`:** `36 failed, 2646 passed, 8 skipped` —
+`new=1 pre-existing=35` against the Round-1 baseline (35 failed, 2645 passed, 8 skipped). The
+`FAILED` list was diffed by name: every failure besides
+`test_work_order_closes_claims.py::test_opening_a_work_order_by_hand_closes_a_run_s_retained_claim`
+matches a file already named in Round 1's 35-failure baseline (background-worker Mongo
+connectivity gap, `test_contract_snapshot.py` = BL-25). No other regression.

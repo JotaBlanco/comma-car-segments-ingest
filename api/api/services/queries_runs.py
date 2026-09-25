@@ -1859,9 +1859,12 @@ def create_work_order(db: Database, body, *, actor: str) -> dict:
     demo reset — which removes what a sync created — leaves it alone, exactly
     as it leaves a manual requirement alone.
 
-    A run that claimed this id before it existed is NOT linked here.
-    `planning_sync._write_link` is the one write path for a run's work-order
-    link, and `_link_retained_claims` closes the claim on the next sync pass.
+    A run that claimed this id before it existed IS linked here, by
+    `planning_sync._link_retained_claims` — the same close the inbound
+    `POST /planning/sync` performs, through the same one write path
+    `planning_sync._write_link`. Opening the work order is the event that
+    closes the claim: the outbound sync pass retired with the planning mock
+    (38ecd12), so nothing else would ever run it.
     """
     wo_id = body.wo_id.strip()
     if db["work_orders"].find_one({"_id": wo_id}, {"_id": 1}) is not None:
@@ -1910,6 +1913,11 @@ def create_work_order(db: Database, body, *, actor: str) -> dict:
             note=body.note or f"Created the work order {wo_id}.",
         )
     )
+    # Imported here, not at module scope: `planning_sync` imports this module
+    # for CLAIM_RETAINED, so the top-level pair is a cycle.
+    from api.planning_sync import _link_retained_claims
+
+    _link_retained_claims(db)
     return get_work_order_detail(db, wo_id)
 
 
