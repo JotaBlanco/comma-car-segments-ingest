@@ -48,7 +48,6 @@ deployments:
         value: 5000
       - name: FORCE_REDECODE
         description: Escape hatch for the decode-once filter. "false" skips a file that was already decoded, so replaying mf4_metadata cannot stack another copy of it in the lake. "true" re-decodes everything, duplicates included. Force a single file instead with force_redecode=true on its mf4_metadata message.
-        value: 'true'
       - name: TM_RUN_KEY_PATTERN
         inputType: ProjectVariable
         description: Rung 3 of the run-key ladder, shared with the TS Metadata sink. ONE project value with two readers, because the decoder and the connector must resolve the same run for the same file - a different pattern on either side splits a file's catalogue from its samples silently.
