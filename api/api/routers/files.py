@@ -1098,7 +1098,9 @@ def register_file(
 
     The quarantine rules apply in contract order. The route never drops a
     file, and it writes the file.registered journal event for every file.
-    A replay returns 200 with the existing body and writes nothing. A
+    A replay returns 200 with the existing body and writes nothing, except
+    when the stored file holds no signal inventory and the replay carries one
+    — see `_fill_empty_inventory`. A
     registered file replays on its (run, checksum) — the same bytes declared
     for a different run register fresh (24 Aug 2026). A quarantined file replays on its
     storage reference, because an unreadable object carries no checksum. Each
@@ -1189,6 +1191,41 @@ def _stage_values(body: FileRegisterRequest, derive: bool) -> dict:
     }
 
 
+def _fill_empty_inventory(db: Database, file_doc: dict, signals: list) -> dict:
+    """Give a registered file the inventory its first registration lacked.
+
+    A replay writes nothing, which is what makes a redelivery idempotent, and
+    this is the one exception. A file first registered from a decode that
+    produced no channel holds no inventory; the decode that later finds the
+    channels replays on (run, checksum), and its inventory used to be dropped
+    (25 Sep 2026: the DBC was absent from DCM at 09:05 and restored at 09:18,
+    and all four traces stayed at zero signals).
+
+    The fill runs into an EMPTY inventory only. A replay carrying a different,
+    non-empty inventory for a file that already holds one is a conflict and
+    not a hole: two decodes of the same bytes disagree, and the stored
+    inventory stays so that the disagreement remains visible.
+    """
+    if not signals or file_doc.get("status") != "registered":
+        return file_doc
+    if db["file_signals"].find_one({"file_id": file_doc["_id"]}, {"_id": 1}) is not None:
+        return file_doc
+
+    queries_signals.upsert_file_signals(db, file_doc, signals)
+    # The same count the registration writes: the inventory keys on
+    # (file_id, name), so a repeated name stores one row.
+    count = len({signal.name for signal in signals})
+    now = datetime.now(UTC)
+    db["files"].update_one(
+        {"_id": file_doc["_id"]}, {"$set": {"signal_count": count, "updated_at": now}}
+    )
+    filled = {**file_doc, "signal_count": count, "updated_at": now}
+    # The rows are stored, so the rollup re-derives the run's signal_count
+    # from them exactly as it does on a first registration.
+    queries_runs.apply_file_rollup(db, file_doc["run_id"], filled)
+    return filled
+
+
 def register_file_document(
     db: Database,
     body: FileRegisterRequest,
@@ -1230,7 +1267,7 @@ def register_file_document(
             db, body.checksum_sha256, body.run_id
         ) or _existing_quarantined(db, body.storage_ref, body.checksum_sha256)
     if replay is not None:
-        return replay, False
+        return _fill_empty_inventory(db, replay, body.signals), False
 
     known_run = body.run_id is not None and (
         db["test_runs"].find_one({"_id": body.run_id}, {"_id": 1}) is not None

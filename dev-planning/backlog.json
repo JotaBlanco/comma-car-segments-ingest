@@ -552,6 +552,27 @@
       "status": "in progress",
       "notes": "user 2026-09-25: 'test run overview doesn't make sence, tehre is no status if it was run or not, it showing TD assigned to it but only one, remove it' and 'test definition should cahnge status from on plan to Passed or Failed and Id of last testrun'. Two separate defects: the Definition column reads definition_id, the LEGACY scalar kept for old readers (models/runs.py:127-129) while a run carries definition_ids; and the Status column is INGESTION status (complete = data arrived), not evaluation. Verdicts are written and live. Following the Requirements screen's shipped idiom rather than the user's literal wording: status (plan adherence) KEPT and a derived Verification added beside it, because on_plan and Passed are different facts - 'Status is what people decide. Verification is what the runs prove.' Both folds derived on read, never stored",
       "updated": "2026-09-25"
+    },
+    {
+      "id": "BL-79",
+      "status": "to do",
+      "title": "A decode that resolves no DBC still marks the file decoded, poisoning those bytes forever",
+      "notes": "Hit live 2026-09-25 and repaired BY HAND, which is the complaint: the user said 'all stuff I am complaining should be part of the service'. The Porsche_Taycan DBC vanished from DCM (zero configurations); the decoder logged 'No DCM database resolved for this file', dropped 180k-360k raw CAN frames per file, emitted ZERO sample batches, produced the file_complete marker with NO decode_error, and mark_decoded fired anyway ('produced-nothing is a completed decode'). The sha256 is then permanently in the dedup State, so recovery needs the DBC restored AND new bytes, or FORCE_REDECODE on the deployment. Buddy traced this same path while speccing the platform claim and called it a quiet failure. The service should either not mark a file decoded when the database could not be resolved, or record a decode_error the operator can see and act on. Not a data problem - a recoverability problem",
+      "updated": "2026-09-25"
+    },
+    {
+      "id": "BL-80",
+      "status": "to do",
+      "title": "Nothing attaches a trace's test definitions; a person does it by hand",
+      "notes": "Repaired by hand 2026-09-25: ten POST /test-runs/{id}/definitions calls, mapped from battery-trace-gen/out/manifest.csv. The ingest contract already supports the claim - CLAUDE.md documents HD-comment test.definitions as a COMMA-SEPARATED SET stored as test_runs.definition_ids - but our traces deliberately omit it and the Test Run page picker is the only path. Two candidate fixes: the generator states test.definitions per scenario (it already knows the mapping, it writes manifest.csv from it), or the registry derives the set from the definitions' covers_req_ids against what the run measured. The first is honest evidence, the second is inference - prefer the first",
+      "updated": "2026-09-25"
+    },
+    {
+      "id": "BL-81",
+      "status": "to do",
+      "title": "An upload cannot create the work order it claims",
+      "notes": "user 2026-09-24: 'file upload will create new if not existing or allow user to add to existing based on dropdown menu with serach'. Still not built; WO-BAT-2026-001 was created by hand on 2026-09-25 so four runs could find their campaign. create_work_order (queries_runs.py:1889) is the ONLY work_orders insert and is reachable only by POST /work-orders. The mock's _adopt_order used to mint one and is deleted (BL-72) - and it is also where project=0225 came from, since it fell back to the rig id. A claim-created work order should take Source.EMBEDDED (rank 0 in provenance.py) so a later edit in the TM outranks it, and its project must come from the declared PLATFORM, never the rig. Claim-closing already works: create_work_order calls _link_retained_claims (f86dd92), so the runs attach the moment the campaign exists",
+      "updated": "2026-09-25"
     }
   ]
 }
