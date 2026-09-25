@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-24",
+  "updated": "2026-09-25",
   "statuses": [
     "to do",
     "discuss",
@@ -80,8 +80,8 @@
     {
       "id": "BL-11",
       "title": "Run the 10 implementations against the lake and write verdicts",
-      "status": "in progress",
-      "notes": "user 2026-09-23 asked for a Run button instead of a jump to QuixLab. Spec at dev-planning/run-a-definition/spec.md; the verdict record it writes is defined in dev-planning/test-results-page/spec.md",
+      "status": "finished",
+      "notes": "user 2026-09-23 asked for a Run button instead of a jump to QuixLab. Spec at dev-planning/run-a-definition/spec.md; the verdict record it writes is defined in dev-planning/test-results-page/spec.md. MERGED from Daniel's origin/quixlab-testing 2026-09-25: six feature commits cherry-picked (5c6577b api/ job+verdict, ac4da64, c5080b4 frontend run cell, fcc776b user-token lake query, af22aa5 QuixLab lake-token secret, 4c60d15 run-all button). 9fa44f0 skipped as a verified no-op (our MongoDB already had state enabled/size 1). d1c89fd 'trim the environment' REFUSED: it cut quix.yaml from 14 deployments to 5, deleting the whole ingestion pipeline and resurrecting the Planning Sync Mock. Two conflicts in definitions-panel.tsx, both because his branch predates our multi-select AddDefinitionsDialog: kept ours + runDefinitionFailure, took his DefinitionRunCell/planRunAll/RowRunState/sameRowState, dropped DefinitionPicker/FAILURES/messageFor/ApiError/useAddRunDefinition as unused after the merge. OPEN RISK: his branch runs QuixLab pr-71-f35d1ef, we stay on main-a4c31e3 (BL-55) because the bump lived only in the refused commit - if the verdict jobs need a pr-71 endpoint the Run button fails at runtime",
       "updated": "2026-09-22"
     },
     {
@@ -517,6 +517,13 @@
       "status": "finished",
       "notes": "user 2026-09-24: 'prefill with trace data, on retyping by user it wins'. Cause: a typed claim beats the recording (metadata.py:227) and the form was filled by hand, so the lake carries work_order=WO-2026-PT-001 rig_id=0225 vehicle=Taycan while the traces' HD comment states WO-BAT-2026-001 / battery-sim-01 / WP0ZZZY1ZMSA10042. No code swaps any field - the whole path form -> declared.* -> CLAIMED_COLUMNS -> lake column was traced and each field stays in its lane; a run's project comes off its work-order mirror (queries_runs.py:142), never off the rig. Two wrinkles the spec must settle: multi-file selection (each trace carries its own test.run_key, one shared claim card cannot prefill four files) and provenance (a prefilled-but-untouched field sent verbatim converts an embedded claim into a declared one - dirty-tracking needed). Spec at dev-planning/import-prefill-from-trace/spec.md. BUILT: mf4-to-blob/static/{mdf-header,claim-editor,upload-page}.js, shared card deleted. Two File.slice() reads (0..136 for the ##HD links, then md_comment..+1MiB for the ##MD XML); offsets verified independently against TAS-1001 (##HD at 0x40, links_nr 6, md_comment 168). R2 EXECUTED in node: nothing typed sends no declared.* and one &vehicle= stamp, a typed field sends only itself, a cleared field sends nothing. R1 (a half-typed claim surviving a progress tick) was NEVER EXECUTED - the Playwright file-chooser handle was stale for both Tester and the main thread, so no file reached the page. Static reading says it holds (render() appends only when !e.parts, updateRow writes only into entry.parts, no input.value write is on the progress path) but that is reasoning, not a keystroke. USER QA in the Portal is what closes it",
       "updated": "2026-09-24"
+    },
+    {
+      "id": "BL-74",
+      "title": "MF4 Import declares the platform per file, so two car lines do not share a lake partition",
+      "status": "finished",
+      "notes": "user 2026-09-25: 'imagine you are uploading traces for Porsche Taycan and Porsche Macan, cannot be stored under same project in lake'. DBC_PLATFORM is one deployment variable doing two jobs - the DCM target_key that picks the DBC, and the batch's platform - so a Macan trace was decoded with the TAYCAN DBC and filed under platform=Porsche_Taycan. Field is platform, labelled Platform not Project (work_orders.project is a different, visible column). TWO decoder channels had to agree: main.py:1131 feeds the DCM key, and build_provenance (main.py:804) feeds the lake column off the MF4 header - one statement reconciles them. platform ALONE breaks dirty-tracking and is sent even untouched (alwaysSend), because the decoder cannot read the header before the DBC lookup runs, so silence means DBC_PLATFORM and the failure fires exactly when the user trusts a correct prefill. Gets a _DECLARED_PATTERNS entry - the deliberate exception to no-new-shape-checks, because it is a partition directory AND a DCM target_key. No trace regeneration: bus/mf4.py:152 already writes a top-level platform HD property and provenance.py:42 already reads it. No lake change - platform is already in HIVE_COLUMNS. Spec+architecture dev-planning/upload-claims-platform/. PREREQUISITE: each platform needs <PLATFORM>.dbc in DCM before its first upload; a missing one fails QUIETLY (lookup miss, one warning, zero batches, marker with no decode_error, mark_decoded still fires) so recovery needs the DBC and new bytes",
+      "updated": "2026-09-25"
     }
   ]
 }

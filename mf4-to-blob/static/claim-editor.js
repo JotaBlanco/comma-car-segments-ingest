@@ -1,41 +1,53 @@
 /**
- * The Test Manager claim on one file's row.
+ * The claim on one file's row.
  *
- * Every field arrives prefilled from that recording's own `test.*` header
- * properties (mdf-header.js), per file, because one card cannot state four run
- * ids. Only a field the operator TYPED rides as `declared.<name>`: an untouched
- * prefill states nothing on the wire, so the recording stays the source of the
- * fact and the ladder in `mf4-decoder/identity.py` resolves it exactly as it
- * does for a blank form. A typed value beats the recording, which is what the
- * ladder has always done and the whole point of the page.
+ * Every field arrives prefilled from that recording's own header properties
+ * (mdf-header.js), per file, because one card cannot state four run ids. A
+ * field the operator TYPED rides as `declared.<name>`: an untouched prefill
+ * states nothing on the wire, so the recording stays the source of the fact and
+ * the ladder in `mf4-decoder/identity.py` resolves it exactly as it does for a
+ * blank form. A typed value beats the recording, which is what the ladder has
+ * always done and the whole point of the page.
+ *
+ * `platform` is the one field that does not work that way - it carries
+ * `alwaysSend`, because the CAN database is chosen from the metadata message
+ * before the file is downloaded and no ladder can read the recording in time.
+ * `declaredQuery` says what silence would cost.
  *
  * The caller owns the row and the upload; this module owns `entry.claims`,
  * `entry.header` and the nodes under `entry.claimUi`.
  */
 import { readHeaderClaims } from '/static/mdf-header.js';
 
-// The four claims the form owns: the `declared.*` name each rides as, and the
-// header property it is prefilled from. Order is the one the summary line
-// states - the run first, because it is the one that differs per file.
+// The five claims the form owns: the `declared.*` name each rides as, the
+// header property it is prefilled from, and whether it rides untouched. Order
+// is the one the summary line states - the run first, because it is the one
+// that differs per file; the platform with the campaign-scoped facts.
 const CLAIM_FIELDS = [
     { name: 'run_id', label: 'Run id', headerKey: 'run_key', placeholder: 'TAS-1001' },
     { name: 'work_order_id', label: 'Work order', headerKey: 'work_order', placeholder: 'WO-2026-0851' },
+    { name: 'platform', label: 'Platform', headerKey: 'platform', placeholder: 'Porsche_Taycan', alwaysSend: true },
     { name: 'rig_id', label: 'Rig', headerKey: 'rig', placeholder: 'RIG-04' },
     { name: 'vehicle', label: 'Vehicle', headerKey: 'vehicle', placeholder: 'VIN, or whatever names the car' },
 ];
 
-// What the bulk control copies. The other three describe the campaign; the run
-// id identifies THIS recording, and copying it across a selection is precisely
-// how four traces end up in one run.
-const BULK_FIELDS = ['work_order_id', 'rig_id', 'vehicle'];
+// What the bulk control copies. The other four describe the bench session; the
+// run id identifies THIS recording, and copying it across a selection is
+// precisely how four traces end up in one run. A mixed Taycan+Macan selection
+// is why this is a per-file button and not one shared card: copy one platform
+// across, then correct the files that state the other.
+const BULK_FIELDS = ['work_order_id', 'platform', 'rig_id', 'vehicle'];
 
 const CLAIM_NOTE =
     "These values come from the file's own header. Change one only if it is wrong: what you " +
     "type is sent as your claim and outranks the recording. Clearing a field is not a claim " +
     "— the recording's value is used. A field the recording does not state stays blank, " +
-    "and a blank field is resolved from the file when it is decoded.";
+    "and a blank field is resolved from the file when it is decoded. Platform is the one " +
+    "exception: it chooses the CAN database the file is decoded with and it is the lake's " +
+    "top-level folder, so whatever stands in that box is sent whether or not you touch it " +
+    "— nothing downstream can read it out of the recording in time.";
 
-/** Give one entry its claim state: four fields, none stated, no header yet. */
+/** Give one entry its claim state: every field empty, no header read yet. */
 export function initClaims(entry) {
     entry.claims = {};
     for (const field of CLAIM_FIELDS) {
@@ -67,7 +79,7 @@ function applyHeader(entry, header) {
 }
 
 /**
- * The summary line, its Edit toggle and the four-input editor, built once.
+ * The summary line, its Edit toggle and the editor's inputs, built once.
  *
  * @param {object} entry the file entry, already through initClaims
  * @param {function} onBulk applies this entry's campaign fields to every other
@@ -138,7 +150,7 @@ export function buildClaimBlock(entry, onBulk) {
     const bulk = document.createElement('button');
     bulk.className = 'claim-bulk';
     bulk.type = 'button';
-    bulk.textContent = 'Use this work order, rig and vehicle for every file';
+    bulk.textContent = 'Use this work order, platform, rig and vehicle for every file';
     bulk.onclick = onBulk;
     editor.appendChild(bulk);
 
@@ -211,23 +223,31 @@ export function applyToAll(entries, source) {
 
 /**
  * This file's claim as a `declared.*` query string, leading "&" and all, or ""
- * when the operator typed nothing. Read off the live entry at SEND time, so a
+ * when nothing contributes. Read off the live entry at SEND time, so a
  * correction typed before the click is the claim that travels.
  *
- * ONLY a field the operator typed contributes. An untouched prefill is the
+ * A field the operator typed contributes. An untouched prefill is the
  * recording's own statement, not a claim, and sending it would fill the one
  * channel that means "a person decided this" with facts nobody stated.
+ *
+ * `alwaysSend` breaks that rule for `platform`, and only for it. The decoder
+ * keys the DBC lookup on the metadata message before it downloads the file
+ * (`mf4-decoder/main.py`, `F_DCM_KEY`), so silence there does not mean "read it
+ * off the recording" as it does for every other field - it means the
+ * deployment-wide `DBC_PLATFORM`, which would decode a Macan with the Taycan
+ * database while this form displayed the right answer nobody retyped.
  *
  * An empty value contributes nothing either, typed or not. `declared.run_id=`
  * would state an EMPTY run id, which is a different claim from stating none:
  * the server validates it, rejects it as malformed, and the upload fails on a
- * field somebody cleared.
+ * field somebody cleared. So a recording that states no platform still sends
+ * none, and `DBC_PLATFORM` answers it exactly as it does today.
  */
 export function declaredQuery(entry) {
     let query = '';
     for (const field of CLAIM_FIELDS) {
         const claim = entry.claims[field.name];
-        const value = claim.dirty ? claim.value.trim() : '';
+        const value = (claim.dirty || field.alwaysSend) ? claim.value.trim() : '';
         if (value) {
             query += '&declared.' + field.name + '=' + encodeURIComponent(value);
         }

@@ -1,9 +1,9 @@
 /**
- * The Test Manager claim an MF4 states about itself, read in the browser.
+ * What an MF4 states about itself, read in the browser to prefill the form.
  *
  * Two ranged reads off the picked File - the 136-byte head, then at most 1 MiB
- * at the HD block's `md_comment` link - parsed into the same `test.*`
- * properties the decoder reads off the same comment
+ * at the HD block's `md_comment` link - parsed into the same
+ * `<common_properties>` entries the decoder reads off the same comment
  * (`mf4-decoder/provenance.py::parse_header_properties`). `Blob.slice` is a
  * lazy reference, so a comment 2 GB into a file costs the range, not the
  * offset.
@@ -23,20 +23,27 @@ const HEAD_BYTES = MD_LINK_OFFSET + 8;
 
 const MAX_COMMENT_BYTES = 1 << 20;
 
-// Header property -> the key this module answers with. The four the import
+// Header property -> the key this module answers with. The five the import
 // form owns; the rest of the `test.*` block is the decoder's business.
+//
+// `platform` carries no `test.` prefix. It is the recording's own provenance
+// key, written by the producer and read downstream by
+// `mf4-decoder/provenance.py::_PROVENANCE_KEYS`, so a prefixed second spelling
+// would state a new fact rather than the one the file already carries.
 const CLAIM_KEYS = {
     'test.run_key': 'run_key',
     'test.work_order': 'work_order',
+    'platform': 'platform',
     'test.rig': 'rig',
     'test.vehicle': 'vehicle',
 };
 
 /**
- * The file's own Test Manager claim, or `{}` when it states none.
+ * The file's own claim, or `{}` when it states none.
  *
  * @param {File} file
- * @returns {Promise<{run_key?: string, work_order?: string, rig?: string, vehicle?: string}>}
+ * @returns {Promise<{run_key?: string, work_order?: string, platform?: string,
+ *   rig?: string, vehicle?: string}>}
  */
 export async function readHeaderClaims(file) {
     try {
