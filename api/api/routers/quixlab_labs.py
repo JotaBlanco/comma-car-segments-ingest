@@ -19,6 +19,7 @@ deployment rather than a second one.
 """
 
 import logging
+import re
 import uuid
 from datetime import UTC, datetime
 from typing import Annotated
@@ -71,9 +72,10 @@ def _partitions(run: dict) -> dict[str, str]:
 
     Only the fallback for `_run_folders`: `project` is the work order's planning name, and
     the sink partitions on the platform the MF4 header states, which may be spelled apart.
+    Spaces become underscores, the spelling the seeded battery traces carry.
     """
     return {
-        "platform": (run.get("project") or "").strip(),
+        "platform": re.sub(r"\s+", "_", (run.get("project") or "").strip()),
         "work_order": (run.get("work_order_id") or run.get("claimed_work_order_id") or "").strip(),
         "run_id": str(run.get("_id") or run.get("run_id") or "").strip(),
     }

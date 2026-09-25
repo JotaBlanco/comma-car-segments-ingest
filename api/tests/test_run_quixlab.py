@@ -502,6 +502,24 @@ def test_a_battery_notebook_opens_on_the_folder_the_lake_lists(
     assert f"columns={BATTERY_COLUMNS.replace(chr(34), chr(39))}" in source
 
 
+def test_a_battery_notebook_falls_back_to_the_run_document_with_the_lake_spelling(
+    client, routed_db, portal, written, monkeypatch
+) -> None:
+    """No lake folder yet: the run's `project` "Porsche Taycan" is written as the sink spells
+    it, `Porsche_Taycan`, instead of failing the notebook's value check."""
+    from api.services import lake
+
+    _seed_battery(routed_db)
+    monkeypatch.setattr(lake, "is_configured", lambda: True)
+    monkeypatch.setattr(lake, "run_partitions", lambda table, run_id: [])
+
+    response = client.post(f"/api/v1/test-runs/{BATTERY_RUN}/notebooks", headers=VIEWER, json={})
+
+    assert response.status_code == 201, response.text
+    _, source = written[0]
+    assert f"['{BATTERY_FOLDER}']" in source
+
+
 def test_a_notebook_falls_back_to_the_run_document_when_the_lake_cannot_list(
     client, routed_db, portal, written, monkeypatch
 ) -> None:
