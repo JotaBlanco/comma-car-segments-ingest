@@ -55,8 +55,6 @@ import {
   QuixLabFrame,
   QuixLabPanel,
 } from "@/components/screens/run-detail/quixlab-panel";
-// The shared frame the /quixlab page mounts; the run panel frames its lab with its own.
-import { QuixLabFrame as SharedQuixLabFrame } from "@/components/shared/quixlab-frame";
 import { ApiError } from "@/lib/api/client";
 import { setActivePortalToken } from "@/lib/portal/token-store";
 import type { Notebook, RunQuixLab } from "@/lib/api/run-quixlab";
@@ -121,9 +119,7 @@ interface Posted {
 
 /** Mount the frame and watch every message it posts into the child window. */
 async function mountFrame(target = instance(), runId = RUN_ID) {
-  const view = render(
-    <SharedQuixLabFrame embedUrl={target.embed_url} origin={target.origin} runId={runId} />,
-  );
+  const view = render(<QuixLabFrame instance={target} runId={runId} />);
   const frame = view.container.querySelector("iframe");
   if (frame === null) throw new Error("the frame did not render");
   // The effect sets the src, so the listener is mounted before the load.
