@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { SourceBadge } from "@/components/shared/source-badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -152,7 +151,6 @@ export function EditSignalDialog({ signal, open, onOpenChange }: EditSignalDialo
                   className={`${fieldClass} flex items-center gap-1.5`}
                 >
                   {field.label}
-                  {provenance.source !== null && <SourceBadge source={provenance.source} />}
                 </label>
                 {field.key === "unit" ? (
                   <Autocomplete

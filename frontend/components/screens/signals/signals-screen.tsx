@@ -21,7 +21,6 @@ import {
 } from "@/components/shared/table-toolbar";
 import { RowLink, RowLinkLabel } from "@/components/shared/row-link";
 import { SortableTh } from "@/components/shared/sortable-th";
-import { SourceBadge } from "@/components/shared/source-badge";
 import { ToneBadge } from "@/components/shared/status-badge";
 import { TableEmptyState } from "@/components/shared/table-empty-state";
 import { TablePager } from "@/components/shared/table-pager";
@@ -102,8 +101,7 @@ const SOURCE_OPTIONS: readonly FilterOption[] = (
   ] as const
 ).map((value) => ({
   value,
-  label: <SourceBadge source={value} />,
-  // The badge is a node, so the checkbox would be named by the bare wire word.
+  label: <span className="font-mono text-[0.78rem]">{value}</span>,
   description: sourceMeaning(value),
 }));
 
@@ -465,9 +463,6 @@ export function SignalsScreen() {
                   {signal.unit !== null ? (
                     <span className="inline-flex items-center gap-1.5">
                       <span className="font-mono text-[0.78rem]">{signal.unit}</span>
-                      {signal.unit_source !== null && (
-                        <SourceBadge source={signal.unit_source} />
-                      )}
                     </span>
                   ) : (
                     <>

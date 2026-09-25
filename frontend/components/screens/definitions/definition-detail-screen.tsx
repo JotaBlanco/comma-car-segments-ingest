@@ -17,7 +17,6 @@ import { FavouriteStar } from "@/components/shared/favourite-star";
 import { LoadingRows } from "@/components/shared/loading-rows";
 import { MetaCell, MetaGrid } from "@/components/shared/meta-grid";
 import { Panel, PanelHead } from "@/components/shared/panel";
-import { SourceBadge } from "@/components/shared/source-badge";
 import { DefinitionStatusBadge, StatusBadge, ToneBadge } from "@/components/shared/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -124,7 +123,6 @@ export function DefinitionDetailScreen({ tdId }: DefinitionDetailScreenProps) {
           <span className="font-mono text-[1.35rem] font-semibold tracking-[-0.01em]">
             {definition.td_id}
           </span>
-          <SourceBadge source="api:planning" />
           <DefinitionStatusBadge status={definition.status} />
           <DefinitionVerdictChip state={definition.verdict_state} />
           {definition.orphaned && (
@@ -159,9 +157,8 @@ export function DefinitionDetailScreen({ tdId }: DefinitionDetailScreenProps) {
         <PanelHead
           title="Definition metadata"
           action={
-            <span className="inline-flex items-center gap-1.5 text-[0.7rem] text-ink-3">
-              every field <SourceBadge source="api:planning" /> or derived from the runs — no
-              route edits either
+            <span className="text-[0.7rem] text-ink-3">
+              every field arrives with the catalogue or is derived from runs — no route edits either
             </span>
           }
         />
@@ -229,11 +226,6 @@ export function DefinitionDetailScreen({ tdId }: DefinitionDetailScreenProps) {
                 Linked
               </ToneBadge>
             )}
-          </MetaCell>
-          <MetaCell label="synced_at">
-            <span className="font-mono text-[0.74rem]">
-              {definition.synced_at.replace("T", " ")}
-            </span>
           </MetaCell>
           {/* The requirements this definition verifies — the other half of
               the Requirements page's "Verified by" column, read from the

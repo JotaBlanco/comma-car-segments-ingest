@@ -19,7 +19,6 @@ import { FavouriteStar } from "@/components/shared/favourite-star";
 import { LoadingRows } from "@/components/shared/loading-rows";
 import { MetaCell, MetaGrid } from "@/components/shared/meta-grid";
 import { Panel, PanelHead } from "@/components/shared/panel";
-import { SourceBadge } from "@/components/shared/source-badge";
 import { DefinitionStatusBadge, StatusBadge, ToneBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -116,7 +115,6 @@ export function WorkOrderDetailScreen({ woId }: WorkOrderDetailScreenProps) {
           <h1 className="font-mono text-[1.35rem] font-semibold tracking-[-0.01em]">
             {workOrder.wo_id}
           </h1>
-          <SourceBadge source={workOrder.origin ?? "api:planning"} />
           <WorkOrderStatusBadge status={workOrder.status} />
           <FavouriteStar type="work_order" id={workOrder.wo_id} label={workOrder.wo_id} />
         </div>
@@ -147,9 +145,8 @@ export function WorkOrderDetailScreen({ woId }: WorkOrderDetailScreenProps) {
         <PanelHead
           title="Work order metadata"
           action={
-            <span className="inline-flex items-center gap-1.5 text-[0.7rem] text-ink-3">
-              content <SourceBadge source={workOrder.origin ?? "api:planning"} /> — the status is
-              set above
+            <span className="text-[0.7rem] text-ink-3">
+              content arrives with the campaign — the status is set above
             </span>
           }
         />
@@ -172,11 +169,6 @@ export function WorkOrderDetailScreen({ woId }: WorkOrderDetailScreenProps) {
           </MetaCell>
           <MetaCell label="Priority" muted={!workOrder.priority}>
             {workOrder.priority ?? "—"}
-          </MetaCell>
-          <MetaCell label="synced_at" muted={!workOrder.synced_at}>
-            <span className="font-mono text-[0.74rem]">
-              {workOrder.synced_at?.replace("T", " ") ?? "—"}
-            </span>
           </MetaCell>
         </MetaGrid>
       </Panel>
@@ -303,8 +295,7 @@ export function WorkOrderDetailScreen({ woId }: WorkOrderDetailScreenProps) {
                     className="font-mono text-[0.78rem] text-primary hover:underline"
                   >
                     {definition.td_id}
-                  </Link>{" "}
-                  <SourceBadge source="api:planning" />
+                  </Link>
                 </TableCell>
                 <TableCell className="whitespace-normal">{definition.title}</TableCell>
                 <TableCell className="text-right font-mono text-[0.78rem]">

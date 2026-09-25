@@ -8,7 +8,6 @@ import { EntityHistoryPanel, type JournalPanelParams } from "@/components/shared
 import { ErrorState } from "@/components/shared/error-state";
 import { MetaCell, MetaGrid } from "@/components/shared/meta-grid";
 import { Panel, PanelHead } from "@/components/shared/panel";
-import { SourceBadge } from "@/components/shared/source-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api/client";
 import { formatArrival } from "@/lib/format";
@@ -90,9 +89,6 @@ export function RequirementDetailScreen({ reqId }: RequirementDetailScreenProps)
   }
 
   const origin = requirementOrigin(detail);
-  // A row `field_sources` cannot place (an older API, or no field ever
-  // touched) reads as seeded through `POST /planning/sync`.
-  const badgeSource = origin ?? "api:planning";
   const hint = statusHint(detail.status);
 
   return (
@@ -109,7 +105,6 @@ export function RequirementDetailScreen({ reqId }: RequirementDetailScreenProps)
           <span className="font-mono text-[1.35rem] font-semibold tracking-[-0.01em]">
             {detail.req_id}
           </span>
-          <SourceBadge source={badgeSource} />
           <StatusControl detail={detail} />
           <VerificationChip state={detail.verification_state} stale={detail.evidence_stale} />
           <div className="ml-auto flex items-center gap-2">
@@ -139,9 +134,7 @@ export function RequirementDetailScreen({ reqId }: RequirementDetailScreenProps)
         <PanelHead
           title="Authored attributes"
           action={
-            <span className="inline-flex items-center gap-1.5 text-[0.7rem] text-ink-3">
-              all fields <SourceBadge source={badgeSource} />
-            </span>
+            <span className="text-[0.7rem] text-ink-3">all authored fields</span>
           }
         />
         <MetaGrid>
@@ -201,9 +194,8 @@ export function RequirementDetailScreen({ reqId }: RequirementDetailScreenProps)
         <PanelHead
           title="Verification"
           action={
-            <span className="inline-flex items-center gap-1.5 text-[0.7rem] text-ink-3">
-              all fields <SourceBadge source="derived" /> — computed from runs and verdicts, never
-              stored
+            <span className="text-[0.7rem] text-ink-3">
+              computed from runs and verdicts, never stored
             </span>
           }
         />

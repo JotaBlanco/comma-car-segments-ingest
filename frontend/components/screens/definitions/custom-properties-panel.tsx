@@ -14,7 +14,6 @@ import {
 } from "@/components/shared/custom-properties-editor";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Panel, PanelHead } from "@/components/shared/panel";
-import { SourceBadge } from "@/components/shared/source-badge";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api/client";
 import { useSetDefinitionCustomProperties } from "@/lib/hooks";
@@ -23,13 +22,12 @@ import { cn } from "@/lib/utils";
 /**
  * The Custom properties panel of the definition detail screen.
  *
- * The planning metadata card above stays read-only, because planning owns
- * every field on it. This card is the opposite: a person owns every pair here.
- * They sit in their own card, and never in the planning grid, so nobody reads
- * a typed fact as something planning sent.
+ * The definition metadata panel above is read-only: every field arrives with
+ * the catalogue. This panel is the opposite — a person authors every pair.
+ * They sit in their own card so nothing here reads as a catalogue field.
  *
- * The pairs live in their own store beside the mirror, so a planning sync pass
- * never erases one. They therefore always carry the source `manual`.
+ * The pairs live in their own store beside the catalogue mirror, so a sync
+ * pass never erases them. They therefore always carry the source `manual`.
  *
  * The editor, the caps and the refusal sentences come from the shared
  * component the run's edit dialog uses, so the two screens hold one rule.
@@ -93,7 +91,7 @@ export function CustomPropertiesPanel({
         title="Custom properties"
         action={
           <span className="inline-flex items-center gap-2 text-[0.7rem] text-ink-3">
-            <SourceBadge source="manual" /> — a person owns these, never the planning system
+            a person authors every pair here
             {rows === null && (
               <button
                 type="button"

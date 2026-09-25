@@ -1,4 +1,4 @@
-// The run Signals tab must print the unit the API sends, and name its source.
+// The run Signals tab must print the unit the API sends.
 //
 // GET /test-runs/{run_id}/signals applies the precedence rule itself
 // (api/api/services/queries_stats.py). The tab held a second rule: it read one
@@ -55,18 +55,11 @@ import { SignalsTab } from "@/components/screens/run-detail/signals-tab";
 
 const cellOf = (name: string) => screen.getByText(name).closest("tr") as HTMLElement;
 
-describe("the run signals tab reads the unit the API sends", () => {
+describe("the run signals tab renders the unit the API sends", () => {
   it("prints the manual unit of the row", () => {
     render(<SignalsTab runId="TAS-90001" signalCount={items.length} selected={[]} onSelectedChange={() => {}} />);
 
     expect(cellOf("Coolant_Inlet_Temp")).toHaveTextContent("bar");
-  });
-
-  it("names the source that won", () => {
-    render(<SignalsTab runId="TAS-90001" signalCount={items.length} selected={[]} onSelectedChange={() => {}} />);
-
-    expect(cellOf("Coolant_Inlet_Temp")).toHaveTextContent("manual");
-    expect(cellOf("Chamber_Ambient_Temp")).toHaveTextContent("embedded");
   });
 
   it("keeps the embedded unit when the row carries no manual one", () => {

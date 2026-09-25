@@ -8,7 +8,6 @@ import { LoadingRows } from "@/components/shared/loading-rows";
 import { PageHeader } from "@/components/shared/page-header";
 import { Panel, PanelHead, TableScrollArea } from "@/components/shared/panel";
 import { RowLink } from "@/components/shared/row-link";
-import { SourceBadge, type SourceKind } from "@/components/shared/source-badge";
 import { TableEmptyState } from "@/components/shared/table-empty-state";
 import { TablePager } from "@/components/shared/table-pager";
 import { TableSearchInput } from "@/components/shared/table-search-input";
@@ -41,19 +40,14 @@ const PATHNAME = "/definitions";
 
 function ColHead({
   children,
-  source,
   align,
 }: {
   children: ReactNode;
-  source: SourceKind;
   align?: "right";
 }) {
   return (
     <TableHead className={align === "right" ? "text-right!" : undefined}>
-      <span className="inline-flex items-center gap-1.5">
-        {children}
-        <SourceBadge source={source} />
-      </span>
+      {children}
     </TableHead>
   );
 }
@@ -102,8 +96,7 @@ export function DefinitionsScreen() {
       <PageHeader
         title="Test definitions"
         sub={
-          <span className="inline-flex items-center gap-1.5 text-[0.7rem] text-ink-3">
-            <SourceBadge source="api:planning" />
+          <span className="text-[0.7rem] text-ink-3">
             Definitions arrive with the catalogue — an orphan names a work order this registry
             does not hold. Status is plan adherence; Verdict is what the runs decided, so
             &ldquo;On plan&rdquo; beside &ldquo;Failed&rdquo; is legal, not a bug.
@@ -142,7 +135,7 @@ export function DefinitionsScreen() {
             <TableHeader>
               <TableRow>
                 {columns.map((column) => (
-                  <ColHead key={column.id} source={column.source} align={column.align}>
+                  <ColHead key={column.id} align={column.align}>
                     {column.label}
                   </ColHead>
                 ))}

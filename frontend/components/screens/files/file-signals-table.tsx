@@ -5,7 +5,6 @@ import { useState } from "react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { TableScrollArea } from "@/components/shared/panel";
 import { RowLink, RowLinkLabel } from "@/components/shared/row-link";
-import { SourceBadge } from "@/components/shared/source-badge";
 import { ToneBadge } from "@/components/shared/status-badge";
 import { TablePager } from "@/components/shared/table-pager";
 import { formatRate } from "@/lib/format";
@@ -96,10 +95,7 @@ export function FileSignalsTable({ signals, signalCount, quarantined = false }: 
               </td>
               <td>
                 {signal.unit !== null ? (
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="font-mono text-[0.78rem]">{signal.unit}</span>
-                    {signal.unit_source !== null && <SourceBadge source={signal.unit_source} />}
-                  </span>
+                  <span className="font-mono text-[0.78rem]">{signal.unit}</span>
                 ) : (
                   <ToneBadge tone="amber" dot>
                     missing

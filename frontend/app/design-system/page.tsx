@@ -186,16 +186,16 @@ export default function DesignSystemPage() {
         </div>
       </Section>
 
-      <Section title="Meta grid" note="4-column bordered metadata layout with optional per-field source badge. muted renders the awaiting-sync empty state.">
+      <Section title="Meta grid" note="4-column bordered metadata layout. muted renders the not-yet-linked empty state.">
         <Panel>
           <MetaGrid>
-            <MetaCell label="Work order" source="api:planning">
+            <MetaCell label="Work order">
               <span className="font-mono">WO-2026-0851</span>
             </MetaCell>
-            <MetaCell label="Rig" source="embedded">
+            <MetaCell label="Rig">
               <span className="font-mono">RIG-04</span>
             </MetaCell>
-            <MetaCell label="Operator" source="manual">
+            <MetaCell label="Operator">
               A. Bergström
             </MetaCell>
             <MetaCell label="Project" muted>

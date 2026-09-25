@@ -10,7 +10,6 @@ import { LoadingRows } from "@/components/shared/loading-rows";
 import { ActiveFilterPills, type FilterPill } from "@/components/shared/active-filter-pills";
 import { MultiSelectFilter, type FilterOption } from "@/components/shared/multi-select-filter";
 import { QuickViewSegment } from "@/components/shared/quick-view-segment";
-import { SourceBadge } from "@/components/shared/source-badge";
 import { ToneBadge } from "@/components/shared/status-badge";
 import { TableEmptyState } from "@/components/shared/table-empty-state";
 import { TablePager } from "@/components/shared/table-pager";
@@ -180,7 +179,6 @@ function UnitCell({
   return (
     <span className="inline-flex items-center gap-1.5">
       <span className="font-mono text-[0.78rem]">{unit}</span>
-      {unitSource !== null && <SourceBadge source={unitSource} />}
       {unitSource === "manual" && editButton}
     </span>
   );

@@ -597,6 +597,83 @@ def test_a_real_checksum_still_folds_a_replay_beside_blank_ones(client, files_db
     assert files_db["files"].count_documents({}) == 2
 
 
+# --- a replay filling the inventory the first registration lacked (25 Sep 2026) ---
+#
+# The DBC was absent from DCM when the pipeline first registered these traces,
+# so the decode carried no channel and the file registered with an empty
+# inventory. The DBC came back and the pipeline re-decoded and replayed the
+# same (run, checksum); the replay guard used to discard that second,
+# non-empty inventory outright.
+
+
+def test_a_replay_fills_an_inventory_the_first_registration_lacked(client, files_db):
+    upsert_run(files_db, file_count=0, signal_count=0)
+
+    first = client.post("/api/v1/files", json=_body(signals=[]))
+    assert first.status_code == 201
+    assert first.json()["signal_count"] == 0
+    file_id = first.json()["file_id"]
+
+    replay = client.post("/api/v1/files", json=_body(signals=_named_signals(["S1", "S2", "S3"])))
+
+    assert replay.status_code == 200
+    assert replay.json()["file_id"] == file_id
+    assert files_db["file_signals"].count_documents({"file_id": file_id}) == 3
+    stored_file = files_db["files"].find_one({"_id": file_id})
+    assert stored_file["signal_count"] == 3
+    run = _run(files_db)
+    assert run["signal_count"] == 3
+    assert files_db["files"].count_documents({}) == 1
+    assert _journal_count(files_db, file_id) == 1
+
+
+def test_a_replay_with_the_same_inventory_writes_nothing_a_second_time(client, files_db):
+    # The property the fill must not break: a true duplicate delivery still
+    # writes nothing and returns the stored body unchanged.
+    upsert_run(files_db, file_count=0, signal_count=0)
+    body = _body(signals=_named_signals(["S1", "S2"]))
+
+    first = client.post("/api/v1/files", json=body)
+    assert first.status_code == 201
+    stored = first.json()
+    signals_before = list(files_db["file_signals"].find({"file_id": stored["file_id"]}))
+
+    replay = client.post("/api/v1/files", json=body)
+
+    assert replay.status_code == 200
+    assert replay.json() == stored
+    signals_after = list(files_db["file_signals"].find({"file_id": stored["file_id"]}))
+    assert signals_after == signals_before
+    run = _run(files_db)
+    assert run["signal_count"] == 2
+    assert files_db["files"].count_documents({}) == 1
+
+
+def test_a_replay_with_a_conflicting_inventory_keeps_the_stored_one(client, files_db):
+    # A file already holding an inventory that disagrees with a replay's is a
+    # conflict, not a hole. The stored rows must survive untouched.
+    upsert_run(files_db, file_count=0, signal_count=0)
+
+    first = client.post(
+        "/api/v1/files", json=_body(signals=_named_signals(["S1", "S2", "S3"]))
+    )
+    assert first.status_code == 201
+    file_id = first.json()["file_id"]
+
+    replay = client.post(
+        "/api/v1/files",
+        json=_body(signals=_named_signals(["S4", "S5", "S6", "S7", "S8"])),
+    )
+
+    assert replay.status_code == 200
+    assert files_db["file_signals"].count_documents({"file_id": file_id}) == 3
+    assert files_db["file_signals"].count_documents({"file_id": file_id, "name": "S4"}) == 0
+    stored_file = files_db["files"].find_one({"_id": file_id})
+    assert stored_file["signal_count"] == 3
+    run = _run(files_db)
+    assert run["signal_count"] == 3
+
+
 def test_ensure_indexes_rebuilds_the_old_checksum_index(files_db):
     # A database seeded before 24 Aug 2026 carries the global one-per-checksum
     # index. `ensure_indexes` builds the compound (run, checksum) key and

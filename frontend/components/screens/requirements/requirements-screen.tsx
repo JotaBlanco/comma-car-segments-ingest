@@ -13,7 +13,6 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Panel, PanelHead, TableScrollArea } from "@/components/shared/panel";
 import { QuickViewSegment, type QuickView } from "@/components/shared/quick-view-segment";
 import { RowLink } from "@/components/shared/row-link";
-import { SourceBadge, type SourceKind } from "@/components/shared/source-badge";
 import { TableEmptyState } from "@/components/shared/table-empty-state";
 import { TablePager } from "@/components/shared/table-pager";
 import { TableSearchInput } from "@/components/shared/table-search-input";
@@ -52,19 +51,14 @@ const PATHNAME = "/requirements";
 
 function ColHead({
   children,
-  source,
   align,
 }: {
   children: ReactNode;
-  source: SourceKind;
   align?: "right";
 }) {
   return (
     <TableHead className={align === "right" ? "text-right!" : undefined}>
-      <span className="inline-flex items-center gap-1.5">
-        {children}
-        <SourceBadge source={source} />
-      </span>
+      {children}
     </TableHead>
   );
 }
@@ -245,7 +239,7 @@ export function RequirementsScreen() {
                   <span className="sr-only">Actions</span>
                 </TableHead>
                 {columns.map((column) => (
-                  <ColHead key={column.id} source={column.source} align={column.align}>
+                  <ColHead key={column.id} align={column.align}>
                     {column.label}
                   </ColHead>
                 ))}

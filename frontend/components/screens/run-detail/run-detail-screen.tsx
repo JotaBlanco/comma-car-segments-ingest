@@ -17,7 +17,6 @@ import { NewTabMark } from "@/components/shared/new-tab-mark";
 import { WorkbookMenu } from "@/components/shared/workbook-menu";
 import { DeleteRunsDialog } from "@/components/screens/runs/delete-runs-dialog";
 import { Panel, PanelHead } from "@/components/shared/panel";
-import { SourceBadge } from "@/components/shared/source-badge";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -35,7 +34,7 @@ import { quixLabConfigured } from "@/lib/quixlab";
 import { claimTab, launchRunQuixLab } from "@/lib/run-quixlab";
 import { cn } from "@/lib/utils";
 import { sourced } from "@/types";
-import type { SourceTag, TestRun } from "@/types";
+import type { TestRun } from "@/types";
 import { AnomaliesTab } from "./anomalies-tab";
 import { DefinitionsPanel } from "./definitions-panel";
 import { EditRunDialog } from "./edit-run-dialog";
@@ -162,7 +161,6 @@ function UnhonouredClaim({ claimedId }: { claimedId?: string | null }) {
 interface RunMetaField {
   key: string;
   label: string;
-  source?: SourceTag;
   muted?: boolean;
   content: ReactNode;
 }
@@ -175,23 +173,17 @@ interface RunMetaField {
 function runMetaFields(run: TestRun): RunMetaField[] {
   const workOrder = sourced(run, "work_order_id");
   const definition = sourced(run, "definition_id");
-  const rig = sourced(run, "rig_id");
-  const testCell = sourced(run, "test_cell");
   const project = sourced(run, "project");
   const operator = sourced(run, "operator");
   const benchSw = sourced(run, "bench_sw");
-  const startedAt = sourced(run, "started_at");
   // `definition_id` is the first of the covered set. The DefinitionsPanel lists
   // the whole set, so this cell states how many it is not showing.
   const otherDefinitions = Math.max((run.definition_ids ?? []).length - 1, 0);
-  const embeddedFallback = (source: SourceTag | null, value: unknown): SourceTag | undefined =>
-    source ?? (value !== null && value !== undefined ? "embedded" : undefined);
 
   return [
     {
       key: "work_order",
       label: "Work order",
-      source: workOrder.source ?? undefined,
       muted: workOrder.value === null,
       content:
         workOrder.value !== null ? (
@@ -208,7 +200,6 @@ function runMetaFields(run: TestRun): RunMetaField[] {
     {
       key: "definition",
       label: "Test definition",
-      source: definition.source ?? undefined,
       muted: definition.value === null,
       content:
         definition.value !== null ? (
@@ -230,26 +221,22 @@ function runMetaFields(run: TestRun): RunMetaField[] {
     {
       key: "rig",
       label: "Rig",
-      source: embeddedFallback(rig.source, rig.value),
       content: <span className="font-mono text-[0.78rem]">{run.rig_id}</span>,
     },
     {
       key: "test_cell",
       label: "Test cell",
-      source: embeddedFallback(testCell.source, testCell.value),
       content: <span className="font-mono text-[0.78rem]">{run.test_cell ?? "—"}</span>,
     },
     {
       key: "project",
       label: "Project",
-      source: project.source ?? undefined,
       muted: project.value === null,
       content: project.value ?? "—",
     },
     {
       key: "operator",
       label: "Operator",
-      source: operator.source ?? undefined,
       muted: operator.value === null,
       content: (
         <>
@@ -261,7 +248,6 @@ function runMetaFields(run: TestRun): RunMetaField[] {
     {
       key: "time_range",
       label: "Time range",
-      source: embeddedFallback(startedAt.source, run.started_at),
       content: (
         <span className="font-mono text-[0.74rem]">
           {timeWithSeconds(run.started_at)} → {timeWithSeconds(run.ended_at)}
@@ -271,7 +257,6 @@ function runMetaFields(run: TestRun): RunMetaField[] {
     {
       key: "bench_sw",
       label: "Bench SW at run time",
-      source: benchSw.source ?? undefined,
       muted: benchSw.value === null,
       content: (
         <>
@@ -293,27 +278,20 @@ function MetadataPanel({ run, onEdit }: { run: TestRun; onEdit: () => void }) {
       <PanelHead
         title="Metadata"
         action={
-          <span className="inline-flex items-center gap-2.5 text-[0.7rem] text-ink-3">
-            every field carries its source — <SourceBadge source="embedded" />{" "}
-            <SourceBadge source="api:planning" /> <SourceBadge source="manual" />
-            {/* text-ink, stated: the outline variant has no text color of its
-                own, so the button label inherits the legend's text-ink-3 —
-                3.65:1 on the dark outline fill (axe color-contrast). */}
-            <Button
-              variant="outline"
-              size="sm"
-              className="font-semibold text-ink"
-              onClick={onEdit}
-            >
-              <PencilIcon />
-              Edit metadata
-            </Button>
-          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            className="font-semibold"
+            onClick={onEdit}
+          >
+            <PencilIcon />
+            Edit metadata
+          </Button>
         }
       />
       <MetaGrid>
         {runMetaFields(run).map((field) => (
-          <MetaCell key={field.key} label={field.label} source={field.source} muted={field.muted}>
+          <MetaCell key={field.key} label={field.label} muted={field.muted}>
             {field.content}
           </MetaCell>
         ))}
@@ -588,12 +566,8 @@ function SlimRunBar({
             aria-label="Run details"
             className="w-[min(480px,calc(100vw-40px))] gap-0 overflow-hidden rounded-md border border-line bg-surface p-0 shadow-tm-lg"
           >
-            <div className="flex items-center justify-between gap-3 border-b border-line-2 px-4 py-[9px]">
+            <div className="flex items-center border-b border-line-2 px-4 py-[9px]">
               <span className="text-[0.8rem] font-bold tracking-[-0.01em]">Run details</span>
-              <span className="inline-flex items-center gap-1.5 text-[0.66rem] whitespace-nowrap text-ink-3">
-                sources <SourceBadge source="embedded" /> <SourceBadge source="api:planning" />{" "}
-                <SourceBadge source="manual" />
-              </span>
             </div>
             <dl className="max-h-[min(420px,calc(100dvh-240px))] overflow-y-auto py-1.5">
               {runMetaFields(run).map((field) => (
@@ -604,13 +578,10 @@ function SlimRunBar({
                   <dt className="text-[0.63rem] font-semibold tracking-[0.08em] whitespace-nowrap text-ink-3 uppercase">
                     {field.label}
                   </dt>
-                  <dd className="flex min-w-0 items-baseline justify-between gap-3 text-[0.8rem] font-medium">
+                  <dd className="min-w-0 text-[0.8rem] font-medium">
                     <span className={cn("min-w-0", field.muted && "text-ink-3")}>
                       {field.content}
                     </span>
-                    {field.source !== undefined && (
-                      <SourceBadge source={field.source} className="flex-none" />
-                    )}
                   </dd>
                 </div>
               ))}
