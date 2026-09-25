@@ -83,10 +83,11 @@ def identity() -> dict:
 def traces() -> list[dict]:
     """Each scenario's run key and the definitions it covers, in trace order.
 
-    `{"trace_id", "file", "run_key", "definitions"}`. A scenario claims only its
+    `{"trace_id", "file", "run_key", "definitions"}`. A scenario authors only its
     run key; the definitions are DERIVED from the requirements it evaluates,
-    through the inverted `covers_req_ids` (`covers_index`). The trace states
-    none of them — a run is assigned its definitions in the Test Manager.
+    through the inverted `covers_req_ids` (`covers_index`). The trace's own HD
+    comment states the same set, derived the same way (`manifest.definitions_of`),
+    so an upload fills the run's `definition_ids` without a person.
     """
     test_case_of = {req_id: tc_ids[0] for req_id, tc_ids in covers_index().items()}
     rows = []

@@ -114,8 +114,8 @@ def links() -> list[dict]:
 
     `PushedLink.definition_id` is optional (`api/api/models/planning.py`), and
     the link omitting it writes `work_order_id` alone — which is all
-    `derive_status` needs for the run to read `complete`. The definitions of a
-    run are assigned by a person on the Test Run page, so planning states none.
+    `derive_status` needs for the run to read `complete`. Planning need not
+    state a definition because the trace states its own set in its HD comment.
     """
     return [
         {"run_id": trace["run_key"], "work_order_id": WORK_ORDER_ID}

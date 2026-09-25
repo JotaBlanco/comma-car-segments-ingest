@@ -9,8 +9,9 @@
 The order of operations is the spec's, and the traces sit between `impl` and
 `links`: upload the four MF4s through MF4 Import after `impl`, so the header's
 work-order claim resolves against a mirror that already holds it, then run
-`links` to have planning confirm the run->work-order linkage. A run's
-definitions are assigned afterwards, on the Test Run page. `links` is
+`links` to have planning confirm the run->work-order linkage. The upload also
+fills the run's definitions from the trace's own `test.definitions` claim, so
+`catalog` must precede it or those ids resolve against nothing. `links` is
 idempotent — a re-post of the same links answers `links_unchanged`.
 
 `render` posts nothing and needs no credential, so the payload and the modules

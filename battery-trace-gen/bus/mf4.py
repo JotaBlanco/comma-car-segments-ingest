@@ -88,11 +88,11 @@ def _header_xml(props: dict[str, str], text: str) -> str:
 def _test_props(test: dict, start: dt.datetime, duration_s: float) -> dict[str, str]:
     """The `test.*` block tm-connector reads off `<common_properties>`.
 
-    `test.definitions` is written only for a scenario that declares definitions,
-    and none does: a run's definitions are assigned from the Test Run page in
-    the Test Manager. One that did declare them would state them as ONE
-    comma-separated value, because the block is a name->value map
-    (`tm-connector/connector/identity.py`, HEADER_LIST_FIELDS).
+    `test.definitions` states the whole set as ONE comma-separated value,
+    because the block is a name->value map and a repeated `<e>` could not
+    express a set (`tm-connector/connector/identity.py`, HEADER_LIST_FIELDS).
+    It is written only when the caller passes a non-empty list; `generate.py`
+    derives one for every trace.
 
     The window is derived, never stated: the file's own start plus its duration.
     """

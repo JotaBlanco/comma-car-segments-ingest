@@ -85,6 +85,7 @@ def main() -> None:
         _refuse_non_zero(scenario)
 
     args.out.mkdir(parents=True, exist_ok=True)
+    tc_ids = manifest.test_case_ids()
     runs: list[runner.TraceRun] = []
     stats: dict[str, dict[str, Any]] = {}
     for scenario in selected:
@@ -104,8 +105,13 @@ def main() -> None:
             scenario_id=scenario.trace_id,
             cell_seed=identity.cell_seed,
             # The shared chain (work order, rig, vehicle, cell, operator,
-            # bench) plus what this trace claims (run key, description).
-            test={**identity.test, **scenario.test},
+            # bench) plus what this trace claims (run key, description) and the
+            # definitions it answers, derived from its `evaluates` set.
+            test={
+                **identity.test,
+                **scenario.test,
+                "definitions": manifest.definitions_of(scenario, tc_ids),
+            },
         )
         stats[scenario.trace_id] = {
             "frame_count": info["frames"],

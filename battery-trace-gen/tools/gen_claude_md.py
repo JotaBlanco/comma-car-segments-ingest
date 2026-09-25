@@ -107,9 +107,10 @@ MF4 Import  --mf4_metadata-->  MF4 Decoder  --"samples" + ONE "file_complete" ma
   → HD-comment `test.run_key` → `TAS-\\d+` in the filename → minted `<platform>_<route>`.
   A batch with no run at all is dropped by the sink. HD-comment `test.*` properties feed the
   run (`test.run_key`, `test.work_order`, `test.rig`, `test.description`, …), and those are
-  the only claims our traces make. A producer that also sends `test.definitions` states a
-  COMMA-SEPARATED SET, which the run stores as `test_runs.definition_ids`; ours omits it and
-  the definitions are assigned from the Test Run page instead.
+  the only claims our traces make about the chain. `test.definitions` is a COMMA-SEPARATED
+  SET, which the run stores as `test_runs.definition_ids` at `embedded` provenance; ours
+  states it — derived from the test specs' `covers_req_ids`, written by `generate.py` — and
+  the Test Run page is the correction path, not the assignment path.
 - **Registration happens only on the `file_complete` marker.** Files decoded by an older
   decoder never register; the decoder dedups on file sha256, so re-uploading identical bytes
   is skipped — change the route timestamp to re-ingest.
@@ -124,8 +125,9 @@ MF4 Import  --mf4_metadata-->  MF4 Decoder  --"samples" + ONE "file_complete" ma
 **Hierarchy (user's definition, 2026-09-22):** a **work order** is a test campaign and
 contains several **test runs**; one test run (one trace / one bench session) **covers several
 test definitions**; a **test definition** is one test case for one requirement. A trace claims
-its work order, run key and rig from the HD comment (`test.work_order`, `test.run_key`,
-`test.rig`) and nothing else; its definitions are assigned later, on the Test Run page.
+its work order, run key, rig and the definitions it answers from the HD comment
+(`test.work_order`, `test.run_key`, `test.rig`, `test.definitions`); an edit on the Test Run
+page corrects that set and tags it `manual`, after which the trace's claim no longer applies.
 - Definitions and work orders enter **only** via planning: `POST /api/v1/planning/sync` with
   `work_orders[]`, `test_definitions[{{id, work_order_id, title, planned_runs,
   requirements_files[{{name, content}}]}}]`, `links[]`. Requirements files are markdown. There

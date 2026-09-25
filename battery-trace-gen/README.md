@@ -136,9 +136,10 @@ python -m seed links      # POST the same catalog + the 4 links (idempotent)
 
 Each trace states its own chain in its MF4 header — `test.run_key`,
 `test.work_order` and `test.rig` — so a run links itself to its work order on upload
-and `links` only confirms it. The four run keys are `TAS-1001 … TAS-1004`. A trace
-claims no test definition: the definitions of a run are assigned from the Test Run
-page in the Test Manager.
+and `links` only confirms it. The four run keys are `TAS-1001 … TAS-1004`. The header
+also states `test.definitions`, the test cases that trace answers, derived from the
+requirements it evaluates — so a run arrives with its definitions already attached,
+and the Test Run page only corrects them.
 
 ## Layout
 

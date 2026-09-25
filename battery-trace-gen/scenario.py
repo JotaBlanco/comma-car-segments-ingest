@@ -88,7 +88,8 @@ class Scenario:
     start_time_utc: str
     duration_s: float
     #: What this trace claims about the Test Manager chain: its `run_key` and
-    #: its own `description`. Definitions are assigned in the Test Manager.
+    #: its own `description`. The definitions it answers are not authored here
+    #: — they follow from `expectations`, through the specs' `covers_req_ids`.
     test: dict[str, Any]
     path: Path
     source_sha256: str

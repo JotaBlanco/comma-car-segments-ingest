@@ -24,7 +24,7 @@ from controller import params as controller_params
 from controller.params import ControllerParams
 from controller.state_machine import CHARGING, SLEEP
 from runner import TraceRun
-from scenario import Identity
+from scenario import Identity, Scenario
 
 SCHEMA = "battery-trace-manifest/1"
 TOOL_ROOT = Path(__file__).resolve().parent
@@ -211,6 +211,17 @@ def test_case_ids() -> dict[str, str]:
     }
 
 
+def definitions_of(scenario: Scenario, tc_ids: dict[str, str]) -> list[str]:
+    """The test definitions one trace answers — the test case IS the definition.
+
+    In the scenario's ``evaluates`` order, which is the order ``manifest.json``
+    prints and the order the HD comment states. ``generate.py`` and
+    ``manifest.build`` both call this, so the trace's claim and the manifest
+    cannot drift apart.
+    """
+    return [tc_ids[expectation.req_id] for expectation in scenario.expectations]
+
+
 def _expectations(run: TraceRun, tc_ids: dict[str, str]) -> list[dict[str, Any]]:
     nominal = controller_params.load()
     context = CheckContext(
@@ -288,14 +299,11 @@ def build(
                 "trace_id": run.scenario.trace_id,
                 "title": run.scenario.title,
                 "file": run.scenario.output_name,
-                # The run key the trace states in its own HD comment, and the
-                # test cases its expectations cover. The trace claims no
-                # definition; the run is assigned them in the Test Manager.
+                # Both states the trace makes in its own HD comment: the run key
+                # and, from the same expression that fills this field, the test
+                # definitions it answers.
                 "run_key": run.scenario.test["run_key"],
-                "definitions": [
-                    tc_ids[expectation.req_id]
-                    for expectation in run.scenario.expectations
-                ],
+                "definitions": definitions_of(run.scenario, tc_ids),
                 "route": run.scenario.route,
                 "segment": 0,
                 "start_time_utc": run.scenario.start_time_utc,

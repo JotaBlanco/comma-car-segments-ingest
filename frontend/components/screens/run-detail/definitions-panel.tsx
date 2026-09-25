@@ -161,7 +161,8 @@ export function DefinitionsPanel({ run }: { run: TestRun }) {
       )}
       <p className="border-b border-line-2 px-4 py-2 text-[0.7rem] text-ink-3">
         Assigning a definition here makes this run&rsquo;s set manual — a later planning sync
-        leaves it alone.
+        leaves it alone, and so does the trace&rsquo;s own claim: re-uploading the recording
+        then changes nothing here, and says so nowhere.
       </p>
       {failure !== null && (
         <div
