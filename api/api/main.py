@@ -40,6 +40,7 @@ from api.routers import (
     journal,
     mcp,
     planning_sync,
+    quixlab_drafts,
     quixlab_labs,
     requirements,
     results,
@@ -639,6 +640,7 @@ def create_app() -> FastAPI:
         integrations,
         definition_runs,
         quixlab_labs,
+        quixlab_drafts,
     ):
         api.include_router(module.router)
     app.include_router(api)

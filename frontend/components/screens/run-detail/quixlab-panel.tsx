@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AcceptDraftDialog } from "@/components/screens/run-detail/accept-draft-dialog";
 import { NewTabMark } from "@/components/shared/new-tab-mark";
 import { Panel, PanelHead } from "@/components/shared/panel";
 import { Button } from "@/components/ui/button";
@@ -361,6 +362,7 @@ export function QuixLabPanel({
   const [confirming, setConfirming] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [stopping, setStopping] = useState<string | null>(null);
+  const [accepting, setAccepting] = useState<Notebook | null>(null);
   const [error, setError] = useState<string | null>(null);
   /* Portal frames the Test Manager, and the Test Manager frames QuixLab, so a
      notebook in a panel-sized box is unusable. An open notebook therefore always
@@ -647,6 +649,22 @@ export function QuixLabPanel({
                     {stopping === notebook.notebook_id ? "Stopping…" : "Stop"}
                   </Button>
                 )}
+                {notebook.definition_id && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="font-semibold"
+                    disabled={busy}
+                    aria-label={`Accept ${notebook.name}`}
+                    title={`Review the drafted code and store it as the implementation of ${notebook.definition_id}`}
+                    onClick={() => {
+                      setConfirming(null);
+                      setAccepting(notebook);
+                    }}
+                  >
+                    Accept
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -678,6 +696,15 @@ export function QuixLabPanel({
             );
           })}
         </ul>
+      )}
+      {accepting !== null && (
+        <AcceptDraftDialog
+          runId={runId}
+          notebook={accepting}
+          onOpenChange={(open) => {
+            if (!open) setAccepting(null);
+          }}
+        />
       )}
       {signals.length > 0 && (
         <p className="border-b border-line-2 px-4 py-2 text-[0.78rem] text-ink-3">

@@ -159,3 +159,21 @@ class NotebookCreateRequest(RequestModel):
 
     name: str | None = None
     definition_id: str | None = None
+
+
+class DraftImplementation(ApiModel):
+    """What Accept on a draft notebook would store: the module, its name and its digest.
+
+    `code` is exactly the bytes the accept route uploads, so the person reads what lands.
+    """
+
+    definition_id: str
+    filename: str
+    code: str
+    sha256: str
+
+
+class DraftAcceptRequest(RequestModel):
+    """Body of POST .../draft/accept: the digest of the preview the person accepted."""
+
+    sha256: str

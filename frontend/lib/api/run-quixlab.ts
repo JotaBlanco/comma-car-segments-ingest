@@ -104,3 +104,39 @@ export function stopNotebook(runId: string, notebookId: string): Promise<Noteboo
 export function deleteNotebook(runId: string, notebookId: string): Promise<void> {
   return api.deleteVoid(path(runId, notebookId), {});
 }
+
+/** What Accept on a draft notebook would store: exactly these bytes, under this name. */
+export interface DraftImplementation {
+  definition_id: string;
+  filename: string;
+  code: string;
+  sha256: string;
+}
+
+/** The definition's implementation pointer, as the upload route answers it. */
+export interface StoredImplementation {
+  filename: string;
+  sha256: string;
+  size_bytes: number;
+  entrypoint: string;
+}
+
+/**
+ * The draft cell's generated code, lifted out of the notebook as the module Accept stores.
+ * 409 `not_a_draft`, 422 `draft_not_generated` before the cell ran, 422 `draft_invalid`.
+ */
+export function previewDraft(runId: string, notebookId: string): Promise<DraftImplementation> {
+  return api.get<DraftImplementation>(`${path(runId, notebookId)}/draft`);
+}
+
+/**
+ * Store the previewed module as the definition's implementation.
+ * `sha256` is the preview's: 409 `draft_changed` when the cell changed since.
+ */
+export function acceptDraft(
+  runId: string,
+  notebookId: string,
+  sha256: string,
+): Promise<StoredImplementation> {
+  return api.post<StoredImplementation>(`${path(runId, notebookId)}/draft/accept`, { sha256 });
+}
