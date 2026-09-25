@@ -66,7 +66,6 @@ function valuesOf(detail: RequirementDetail): RequirementFormValues {
     figure_refs: joinList(detail.figure_refs),
     related_reqs: joinList(detail.related_reqs),
     verification_criteria: detail.verification_criteria ?? "",
-    status: detail.status,
   };
 }
 
@@ -79,12 +78,11 @@ function sameMeasurand(
 }
 
 /**
- * Only the fields whose form value differs from the loaded detail — a
- * person edits one or two fields, and the route journals one entry per
- * field that actually moved. `status` is never diffed here: the committed
- * `RequirementPatchRequest` carries no `status` field at all (a status move
- * is not this route's job), and `RequestModel`'s `extra="forbid"` would
- * 422 the whole request if it rode along.
+ * Only the fields whose form value differs from the loaded detail — a person
+ * edits one or two fields, and the route journals one entry per field that
+ * actually moved. `status` is deliberately not diffed here: it moves through
+ * the detail screen's status control, not through a content edit
+ * (requirement-status-gates §4.5).
  */
 function diff(
   detail: RequirementDetail,
@@ -230,12 +228,13 @@ export function EditRequirementDialog({ reqId, onClose }: EditRequirementDialogP
 
         {detail !== undefined && values !== null && (
           <>
-            <RequirementFormFields values={values} onChange={setValues} showStatus={false} />
+            <RequirementFormFields values={values} onChange={setValues} />
 
             {needsSecondActor && (
               <div className="grid gap-1">
                 <label htmlFor="req-second-actor" className="text-[0.7rem] font-semibold text-ink-2">
-                  Second reviewer — required while this requirement is Reviewed
+                  Second reviewer — required while this requirement is Reviewed{" "}
+                  <span className="font-normal text-ink-3">(joins the journal entry)</span>
                 </label>
                 <Input
                   id="req-second-actor"

@@ -10,6 +10,13 @@ from api.models.runs import check_custom_properties, primary_definition
 WorkOrderStatus = Literal["active", "closed"]
 DefinitionStatus = Literal["on_plan", "awaiting_data"]
 
+# What the runs decided about a test definition, beside `DefinitionStatus`,
+# which is plan adherence. `not_run` — no run carries it; `no_verdict` — a run
+# carries it and nothing judged it; the other three are the latest verdict's
+# outcome (`dev-planning/test-results-page/spec.md` §3.3). Derived by
+# `api.services.verdict_rollups.definition_verdicts` on every read, never stored.
+DefinitionVerdictState = Literal["not_run", "no_verdict", "passed", "failed", "error"]
+
 
 class WorkOrderRow(ApiModel):
     # Mirror docs store the planning id in _id. The wire keeps "wo_id".
@@ -59,11 +66,25 @@ class WorkOrderDefinition(ApiModel):
     status: DefinitionStatus
 
 
+class DefinitionVerdictRef(ApiModel):
+    """The verdict that decided a definition's `verdict_state`.
+
+    Null while nothing has judged the definition. It names the verdict
+    document, so a screen can link both the run and the result itself.
+    """
+
+    run_id: str
+    result_id: str
+    outcome: Literal["pass", "fail", "error"]
+    produced_at: UtcDatetime | None
+
+
 class TestDefinitionRow(ApiModel):
     """One row of the definition list (TR-001).
 
     Planning owns `title`, `work_order_id`, `planned_runs` and `synced_at`.
-    `actual_runs`, `status` and `orphaned` derive at read time.
+    `actual_runs`, `status`, `orphaned`, `verdict_state` and `latest_verdict`
+    derive at read time.
     """
 
     td_id: str = Field(validation_alias="_id")
@@ -79,6 +100,11 @@ class TestDefinitionRow(ApiModel):
     # requirement's `verified_by` is the inverse of this, computed at read
     # time and never stored (BP5 / D1).
     covers_req_ids: list[str] = Field(default_factory=list)
+    # What the runs decided, and the verdict that decided it. `status` above
+    # stays plan adherence: a definition can be on plan and failed at once,
+    # the way a requirement is Draft and Tested at once.
+    verdict_state: DefinitionVerdictState
+    latest_verdict: DefinitionVerdictRef | None
     synced_at: UtcDatetime
 
 

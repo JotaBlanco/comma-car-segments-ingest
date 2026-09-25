@@ -129,6 +129,11 @@ def patch_requirement(
     `parent_version` must match the stored `item_version` or the write is
     refused `stale_parent` (409). Bytes identical to what is stored are
     refused `no_op_mint` (409) — nothing is written, nothing is journalled.
+
+    A stated `status` must be one the transition table allows from the stored
+    status, or the write is refused `illegal_transition` (409)
+    (`dev-planning/requirement-status-gates/spec.md` §4.1). `Implemented` and
+    `Tested` are never accepted here: they are read off `verification_state`.
     """
     return queries_requirements.patch_requirement(
         db, req_id, body, actor=journal_actor(identity, body.actor)

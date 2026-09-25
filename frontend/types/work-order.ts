@@ -6,6 +6,28 @@ export type WorkOrderStatus = "active" | "closed";
 
 export type DefinitionStatus = "on_plan" | "awaiting_data";
 
+/**
+ * What the runs decided about a test definition, beside `DefinitionStatus`,
+ * which is plan adherence. `not_run` — no run carries it; `no_verdict` — a
+ * run carries it and nothing judged it; the other three are the outcome of
+ * its latest verdict. `error` is never a failure: the evaluator could not
+ * decide.
+ */
+export type DefinitionVerdictState =
+  | "not_run"
+  | "no_verdict"
+  | "passed"
+  | "failed"
+  | "error";
+
+/** The verdict that decided `verdict_state`, and where it came from. */
+export interface DefinitionVerdictRef {
+  run_id: string;
+  result_id: string;
+  outcome: "pass" | "fail" | "error";
+  produced_at: string | null;
+}
+
 export interface WorkOrderListItem {
   wo_id: string;
   title: string;
@@ -124,9 +146,15 @@ export interface TestDefinitionListItem {
   work_order_id: string | null;
   planned_runs: number;
   actual_runs: number;
+  /** Plan adherence: runs recorded against runs planned. Never an outcome. */
   status: DefinitionStatus;
   orphaned: boolean;
   synced_at: string;
+  /** What the latest verdict decided, and the verdict that decided it.
+      Derived by the API on every read, never stored. Optional: an API built
+      before the verdict rollups shipped sends no field. */
+  verdict_state?: DefinitionVerdictState;
+  latest_verdict?: DefinitionVerdictRef | null;
   /** The requirements this definition verifies — authored, mirrored by
       planning (requirement-status-from-runs spec §5.2/§7.2). On both the
       list row and the detail, so the two never disagree. Optional: an API

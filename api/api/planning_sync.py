@@ -36,6 +36,7 @@ from api import config_push
 from api.models.common import Source
 from api.models.journal import EMPTY
 from api.provenance import add_event, derive_status, mirror_tags, plain_values, set_field
+from api.requirement_lifecycle import DERIVED_STATUSES
 from api.services import queries_requirements
 from api.services.queries_runs import CLAIM_RETAINED
 from api.settings import get_settings
@@ -454,6 +455,10 @@ def _mirror_requirements(db: Database, rows: list[dict], now: datetime) -> None:
     push, so a field a manual edit blocked keeps its manual value in the hash.
     It moves, and `normative_changed_at` stamps the moment, only when the
     digest actually differs from the one stored (§4.6).
+
+    One value the mirror never lands is a `status` in `DERIVED_STATUSES`: the
+    planning door is not a way around the status gate
+    (requirement-status-gates §4.1).
     """
     collection = db["requirements"]
     for row in rows:
@@ -477,6 +482,13 @@ def _mirror_requirements(db: Database, rows: list[dict], now: datetime) -> None:
             "related_reqs": row.get("related_reqs") or [],
             "figure_refs": row.get("figure_refs") or [],
         }
+        if values["status"] in DERIVED_STATUSES:
+            # `Implemented` and `Tested` are read off `verification_state` and
+            # are never stored (requirement-status-gates §4.1), whichever door
+            # states them. A push naming one lands every other field and leaves
+            # the status where it was; a row born on such a push starts with
+            # the empty status a push that omits the field already writes.
+            values["status"] = (stored.get("status") or "") if stored else ""
 
         update: dict = {}
         entries: list[dict] = []
