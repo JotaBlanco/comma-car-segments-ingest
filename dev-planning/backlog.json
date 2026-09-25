@@ -227,8 +227,8 @@
     {
       "id": "BL-32",
       "title": "Review page — review a requirement or a test definition",
-      "status": "to do",
-      "notes": "SPEC DONE (dev-planning/review-page/spec.md) — not built",
+      "status": "in progress",
+      "notes": "SPEC DONE (dev-planning/review-page/spec.md) — not built. SPEC REVISED 2026-09-25 (rev 2) against the shipped status gate: dev-planning/review-page/spec.md. A review is a REV-nnn doc in a new 'reviews' collection; requirements join only from Ready for Review and the join fires -> In Review; one open review per requirement. Decisions go through ONE route POST /reviews/{id}/decisions taking req_ids[] - a single decision is a list of one - answering {applied[], refused[{req_id, code, detail}]}: partial apply, always reported, because nothing in api/ opens a Mongo session so atomic would mean a hand-rolled rollback across three collections. Comment required on reject (409 comment_required), optional on accept, one per call. BL-71's demote-to-Draft kills rev-1's whole reviewed_stale machinery. Acceptance confirms NO link - traceability_links is unbuilt (BL-69). 4 OPEN QUESTIONS for the user, chief one: the person barred from accepting is the requirement's CONTENT AUTHOR (solo demo works, since every author is planning-sync today) rather than the review opener (solo demo blocked). REV 3, all four questions answered by the user 2026-09-25: (1) the requirement's CONTENT AUTHOR is barred from accepting, per-member, 409 self_review_refused - solo demo works; (2) a rejection lands in a NEW 'Changes requested' status, NOT Rejected - a NAMED DEPARTURE from the Miro board, recorded in spec §9 with the user's decision as the reason so it is not 'fixed' back. Rejected now means refused outright, Changes requested means needs rework; path back is band A to Draft or Ready for Review (coordinator decision); (3) ONE comment for a bulk rejection, each member still journalled with it, required for rejected AND changes_requested; (4) an ASSIGNEE, no due date. The assignee is grounded in the Portal's real user list - GET /users returns 14 users for this org and is reachable with the PAT, so NO user collection is invented; stored as a SNAPSHOT {user_id, display_name, email} so a departed person still renders and simply leaves the picker. The assignee GATES NOTHING - a second gate would compete with the author rule and make an unassigned review undecidable. 'Assigned to me' filters server-side because view_counts is whole-table. Spec has no open questions left",
       "updated": "2026-09-22"
     },
     {
@@ -255,8 +255,8 @@
     {
       "id": "BL-36",
       "title": "Review window functional — not just a queue",
-      "status": "to do",
-      "notes": "SPEC DONE (dev-planning/review-page/spec.md) — not built",
+      "status": "in progress",
+      "notes": "SPEC DONE (dev-planning/review-page/spec.md) — not built. Folded into BL-32's rev-2 spec",
       "updated": "2026-09-22"
     },
     {
@@ -269,8 +269,8 @@
     {
       "id": "BL-38",
       "title": "Coverage endpoint and matrix (GET /coverage)",
-      "status": "to do",
-      "notes": "existed on the old backend; the board computes coverage at baseline seal. Needed by the requirements page and the work-order rollup (BL-28)",
+      "status": "finished",
+      "notes": "existed on the old backend; the board computes coverage at baseline seal. Needed by the requirements page and the work-order rollup (BL-28). CLOSED 2026-09-25 by deciding AGAINST it: the test-results spec (rev 2) answers the page with the two existing view_counts plus a browser join, following traceability-screen.tsx:13-30's shipped precedent. A third endpoint serving what two already serve is duplication. Reopen only if a consumer needs coverage the browser cannot join",
       "updated": "2026-09-22"
     },
     {
@@ -361,7 +361,7 @@
       "id": "BL-51",
       "title": "Test Results page: requirement coverage, pass/fail counts, per-run outcomes",
       "status": "to do",
-      "notes": "SPEC DONE (dev-planning/test-results-page/spec.md) — not built. GET /coverage + page at /test-results; needs BL-11 to write verdicts into the SHIPPED processed_results.verdict block",
+      "notes": "SPEC DONE (dev-planning/test-results-page/spec.md) — not built. GET /coverage + page at /test-results; needs BL-11 to write verdicts into the SHIPPED processed_results.verdict block. SPEC BEING REVISED 2026-09-25: much of it already shipped. GET /requirements already serves view_counts and it is LIVE with real verdicts - {all:10, not_covered:0, covered:0, exercised:5, failed:2, tested:3}. The gap is the page itself plus a test-definition rollup; /coverage is 404. The honesty problem the spec must name: the board's TESTED needs a confirmed link at (R@v,TC@w) AND a pass pinned to TC version w, and neither the link store (BL-69) nor definition versions (BL-34 half) exist - so this page cannot honestly say TESTED and must say what it does count. SPEC REVISED (rev 2): covered reqs are SERVED but unrendered (no coverage figure anywhere), passed reqs are SERVED AND RENDERED (view_counts.tested, quick view + Verification column), passed TD is the ONLY real gap - TestDefinitionRow (models/planning.py:62-83) carries no outcome. Keeps the word Tested, reusing the shipped five-word verification vocabulary rather than inventing a sixth, plus a PERMANENT header note that ASPICE Tested needs a confirmed link (BL-69) and a TC version (BL-34), neither stored, and that Coverage counts AUTHORED links. One percentage, no compliance score. Page at /test-results, sidebar after Traceability, estate-wide (main thread's call on the one open question). Cuts listed in spec §0. TWO RISKS: it moves two maps out of queries_requirements._fold_inputs into a shared module, touching the LIVE Requirements page; and TestDefinitionPage gaining a required view_counts changes the envelope for the definitions screen, the traceability screen and the six already-red BL-48 mocks. COLLIDES WITH BL-78, which is adding the definition verdict fold right now - the page must CONSUME that fold, never build a second one",
       "updated": "2026-09-23"
     },
     {
@@ -530,6 +530,27 @@
       "title": "second_actor is accepted on a requirement PATCH, then silently dropped",
       "status": "in progress",
       "notes": "found while speccing BL-20. queries_requirements.py:607-609 lists second_actor in body.model_dump(exclude={...}); it appears EXACTLY ONCE in api/api/ outside the models - in that exclude set. Never stored, never compared. Meanwhile edit-requirement-dialog.tsx:166 computes needsSecondActor = status === 'Reviewed' and gates Save on it, so the four-eyes guard is theatre: the UI demands a second name and the API throws it away. Fixed with BL-20 by journalling it, so a four-eyes claim is auditable. Deliberately NOT building an approval workflow around it - that is the review page's job (BL-32)",
+      "updated": "2026-09-25"
+    },
+    {
+      "id": "BL-76",
+      "title": "Bulk run buttons: one atop a test run, one over selected runs on the list",
+      "status": "to do",
+      "notes": "user 2026-09-25. SPEC DONE dev-planning/bulk-run-buttons/spec.md - not built. RUN_CONCURRENCY=3 enforced in the BROWSER, no bulk route: the verdict is written by the per-pair polling GET (definition_runs.py:156-158 calls record_verdict inside get_definition_run), so a bulk POST would leave the expensive half untouched. An empty lake does NOT block - verdict_notebook.py:89-91 turns any exception into a recorded ERROR verdict, and a pre-flight check is the construct the directives refuse. Zero API change; the runs-list multiselect and RunsBatchBar already exist",
+      "updated": "2026-09-25"
+    },
+    {
+      "id": "BL-77",
+      "title": "The implementation .py is copied into the run's blob folder and listed in its Files tab",
+      "status": "to do",
+      "notes": "user 2026-09-25: 'there should be *.py added to blob storage to taht test and listed in files tab', completing the co-location asked for earlier (jama_ui -> test_run_id -> .mf4 and .py). Today the trace sits in jama_ui/TAS-1001/ and the implementation in jama_ui/unassigned/, because the upload route is per-DEFINITION and one definition serves many runs. SPEC DONE dev-planning/implementation-as-run-file/spec.md. Written by the API at run start - POST .../run already injects FileBytesProvider/Writer for ensure_notebook, so zero new deps. Key <digest8>-<filename>: the digest stops a re-run overwriting the bytes a stored verdict's tool_version cites. New role field recording|evaluator; _input_file_ids gains role {$ne: evaluator} so a verdict never claims it read its own evaluator, and $ne matches missing keys so the four traces need no backfill. Sets no version fields - BL-69 forms the chain in register_file_document. BLOCKED on BL-78: both edit queries_runs.py",
+      "updated": "2026-09-25"
+    },
+    {
+      "id": "BL-78",
+      "title": "Runs list shows whether a run was evaluated; a definition shows Passed/Failed and its last run",
+      "status": "in progress",
+      "notes": "user 2026-09-25: 'test run overview doesn't make sence, tehre is no status if it was run or not, it showing TD assigned to it but only one, remove it' and 'test definition should cahnge status from on plan to Passed or Failed and Id of last testrun'. Two separate defects: the Definition column reads definition_id, the LEGACY scalar kept for old readers (models/runs.py:127-129) while a run carries definition_ids; and the Status column is INGESTION status (complete = data arrived), not evaluation. Verdicts are written and live. Following the Requirements screen's shipped idiom rather than the user's literal wording: status (plan adherence) KEPT and a derived Verification added beside it, because on_plan and Passed are different facts - 'Status is what people decide. Verification is what the runs prove.' Both folds derived on read, never stored",
       "updated": "2026-09-25"
     }
   ]
