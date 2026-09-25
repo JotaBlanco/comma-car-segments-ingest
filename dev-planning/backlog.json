@@ -389,7 +389,7 @@
       "id": "BL-55",
       "title": "QuixLab image moved from the pr-42 build to latest main",
       "status": "finished",
-      "notes": "ghcr.io/quixio/quixlab:pr-42-c9939a4 (built 2026-08-19) -> main-a4c31e3 (commit a4c31e39, built 2026-09-11); pinned to the immutable tag, not the floating main",
+      "notes": "ghcr.io/quixio/quixlab:pr-42-c9939a4 (built 2026-08-19) -> main-a4c31e3 (commit a4c31e39, built 2026-09-11); pinned to the immutable tag, not the floating main. REVERSED 2026-09-25 by the user's decision ('take image daniekl is using'): back onto a PR build, pr-71-f35d1ef, because the Run button needs it. quixlab_run.build_run_spec clones the EXISTING QuixLab deployment's image field (quixlab_run.py:88), so a verdict Job always runs on whatever image is deployed - and main-a4c31e3 serves no QUIXLAB_MODE=run (app.yaml and README declare edit/app only, and the headless-launcher-contract.md the code cites exists on neither branch). CAVEAT ACCEPTED BY THE USER: PR #71 is titled 'DO NOT MERGE', still draft, 438 commits / 250 files past main@a4c31e3 - it can be force-pushed or dropped, and it carries unreviewed changes to the editor the TM frames (BL-05). Move back to a main tag once run mode lands there",
       "updated": "2026-09-23"
     },
     {
