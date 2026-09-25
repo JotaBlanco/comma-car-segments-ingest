@@ -13,6 +13,7 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
+from api.services.queries_runs import OPENED_BY_UPLOAD
 from seed import fixtures as fx
 from seed import seed_demo
 
@@ -46,7 +47,8 @@ def test_the_seed_runs_against_a_fresh_database(client, routed_db) -> None:
     counts = seed_demo.seed(routed_db, client, inventory=False, filler_records=False)
 
     assert counts["test_runs"] == len(fx.NAMED_RUNS)
-    assert counts["work_orders"] == len(fx.NAMED_WORK_ORDERS)
+    # The five mirrored campaigns, plus the one the hero's registration opened.
+    assert counts["work_orders"] == len(fx.NAMED_WORK_ORDERS) + 1
     # The named cast, plus the one definition the seed leaves unlinked.
     assert counts["test_definitions"] == len(fx.NAMED_DEFINITIONS) + 1
     assert routed_db["test_runs"].count_documents({}) == len(fx.NAMED_RUNS)
@@ -107,7 +109,7 @@ def test_the_seed_writes_the_demo_reset_watermark(seeded) -> None:
 def test_the_watermark_is_never_older_than_a_seeded_planning_write(seeded) -> None:
     """The reset reverts `api:planning` writes newer than the watermark.
 
-    A seeded write on the wrong side of it means toggle-off eats the seed.
+    A seeded write on the wrong side of it means the demo reset eats the seed.
     """
     watermark = seed_demo.read_watermark(seeded)
     stamps = [
@@ -122,9 +124,13 @@ def test_the_watermark_is_never_older_than_a_seeded_planning_write(seeded) -> No
 
 
 def test_the_watermark_is_never_older_than_a_seeded_mirror(seeded) -> None:
-    """The reset removes mirror rows newer than the watermark."""
+    """The reset removes mirror rows newer than the watermark.
+
+    A campaign the hero's upload opened is not a mirror row and carries no
+    `synced_at`: no sync brought it, and no reset may take it.
+    """
     watermark = seed_demo.read_watermark(seeded)
-    stamps = [doc["synced_at"] for doc in seeded["work_orders"].find()]
+    stamps = [doc["synced_at"] for doc in seeded["work_orders"].find({"raw": {"$ne": None}})]
 
     assert max(stamps) <= watermark
 
@@ -241,11 +247,15 @@ def test_no_route_reseeds_the_registry(client) -> None:
 # --- The hero run ------------------------------------------------------------
 
 
-def test_the_hero_run_waits_for_its_work_order(client, seeded) -> None:
+def test_the_hero_run_links_the_campaign_it_claimed(client, seeded) -> None:
+    """BL-81: the registration opens the campaign the recording states, so the
+    hero is linked in the same request and never waits."""
     body = client.get(f"/api/v1/test-runs/{HERO}").json()
 
-    assert body["work_order_id"] is None
-    assert body["status"] == "awaiting_work_order"
+    assert body["work_order_id"] == fx.HERO_CLAIMED_WORK_ORDER_ID
+    assert body["status"] == "complete"
+    assert body["field_sources"]["work_order_id"]["source"] == "embedded"
+    assert body["project"] == fx.HERO_PLATFORM
 
 
 def test_the_hero_operator_is_a_manual_entry(client, seeded) -> None:
@@ -286,21 +296,21 @@ def test_the_hero_journal_states_every_seeded_write(seeded) -> None:
     every other run: a custom group counts only the runs that carry the key, so
     a hero without them would make the group counts fall one short of the runs
     table. The write is real and manual, so the timeline states it.
+
+    The hero's work-order claim resolves inside the registration, and
+    `_insert_run` journals no separate line for a link written at insert — the
+    campaign's own `work_order.created` entry states it, under the work order.
     """
     fields = [
         entry["field"]
         for entry in seeded["journal_entries"].find({"entity_type": "run", "entity_id": HERO})
     ]
 
-    # The pair-only hero CLAIMS its held-back pair at registration, and an
-    # unresolvable claim journals why the run waits - one more honest line.
     assert sorted(fields) == [
         "run.bench_sw",
         "run.custom_properties",
-        "run.definition_claim_unresolved",
         "run.operator",
         "run.registered",
-        "run.work_order_claim_unresolved",
     ]
 
 
@@ -356,10 +366,16 @@ def test_the_invalid_flag_journals_one_manual_change(seeded) -> None:
 
 
 def test_the_five_named_work_orders_are_mirrored(seeded) -> None:
-    # WO-2026-0853 (road-load acquisition) pre-mirrors DELIBERATELY: it shows
-    # as planned-awaiting-data before the ingestion beat fills it; only the
-    # toggle work order (0851) arrives with the sync.
-    stored = {doc["_id"] for doc in seeded["work_orders"].find({}, {"_id": 1})}
+    """A mirror row is one planning sent, and it carries planning's `raw`.
+
+    WO-2026-0853 (road-load acquisition) pre-mirrors DELIBERATELY: it shows
+    as planned-awaiting-data before the ingestion beat fills it. The sixth
+    work order in the collection is the campaign the hero's upload opened,
+    which planning never sent — see the test below.
+    """
+    stored = {
+        doc["_id"] for doc in seeded["work_orders"].find({"raw": {"$ne": None}}, {"_id": 1})
+    }
 
     assert stored == {
         "WO-2026-0836",
@@ -370,8 +386,21 @@ def test_the_five_named_work_orders_are_mirrored(seeded) -> None:
     }
 
 
+def test_the_hero_upload_opened_a_sixth_work_order(seeded) -> None:
+    """BL-81. The hero claims a campaign no planning row holds, so the
+    registration opens it: six work orders, five of them mirrors."""
+    doc = seeded["work_orders"].find_one({"_id": fx.HERO_CLAIMED_WORK_ORDER_ID})
+
+    assert seeded["work_orders"].count_documents({}) == len(fx.NAMED_WORK_ORDERS) + 1
+    assert doc["title"] == OPENED_BY_UPLOAD
+    assert doc["project"] == fx.HERO_PLATFORM
+    assert doc["raw"] is None
+    assert {entry["source"] for entry in doc["field_sources"].values()} == {"embedded"}
+
+
 def test_the_sync_work_order_is_never_seeded(seeded) -> None:
-    """WO-2026-0851 lives in the planning mock and arrives with the toggle."""
+    """WO-2026-0851 is the row the seed holds back from the mock's cast, so a
+    sync pass in a test has one that visibly arrives."""
     assert seeded["work_orders"].find_one({"_id": fx.SYNC_WORK_ORDER_ID}) is None
 
 
@@ -395,7 +424,9 @@ def test_the_seed_writes_one_orphaned_definition(seeded) -> None:
     assert orphans == [ORPHANED_DEFINITION]
 
 
-def test_every_run_work_order_is_mirrored(seeded) -> None:
+def test_every_run_work_order_exists(seeded) -> None:
+    """A run names a campaign planning mirrored or one an upload opened. Either
+    way the row is there, or the screen renders a dead link."""
     known = {doc["_id"] for doc in seeded["work_orders"].find({}, {"_id": 1})}
     used = {
         doc["work_order_id"] for doc in seeded["test_runs"].find() if doc["work_order_id"]
@@ -412,9 +443,12 @@ def test_a_mirror_row_tags_every_planning_field(seeded) -> None:
     and TR-011 called that the gap: a static badge is not a queryable tag, so
     an untagged row answered no `source` filter and counted in no source
     statistic.
+
+    The campaign the hero's upload opened is not a mirror row — it carries no
+    `raw`, and its fields read `embedded`.
     """
     for collection in ("work_orders", "test_definitions"):
-        for doc in seeded[collection].find():
+        for doc in seeded[collection].find({"_id": {"$ne": fx.HERO_CLAIMED_WORK_ORDER_ID}}):
             tags = doc["field_sources"]
             assert tags, doc["_id"]
             for field, entry in tags.items():
@@ -486,14 +520,16 @@ def test_the_named_cast_matches_the_plan() -> None:
     ]
 
 
-def test_only_the_hero_waits_for_a_work_order() -> None:
-    waiting = [
+def test_only_the_hero_carries_no_planning_work_order() -> None:
+    """Every other named run is linked by a planning tag. The hero's campaign
+    is the one its own registration opened, so nothing tags it."""
+    untagged = [
         record["run_id"]
         for record in fx.NAMED_RUNS
         if not any(tag["field"] == "work_order_id" for tag in record["tags"])
     ]
 
-    assert waiting == [fx.HERO_RUN_ID]
+    assert untagged == [fx.HERO_RUN_ID]
 
 
 def test_the_build_leaves_the_stored_records_alone() -> None:
@@ -610,8 +646,8 @@ def test_a_second_full_seed_duplicates_no_registered_record(
 # --- The seed opens the demo with planning offline (21 Aug 2026) ----------------
 #
 # `record_switch` writes our copy of the switch. Contract #20 probes the LIVE
-# system, so a rehearsal that left the planning mock on made the topbar read ON
-# over an all-amber stage, and the presenter had to flip it by hand.
+# system, so recording our copy alone would leave the topbar reading ON over a
+# planning system the seed believes it switched off.
 
 
 def test_a_top_up_seed_switches_the_live_planning_system_off(

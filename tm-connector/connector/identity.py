@@ -30,6 +30,10 @@ MUST therefore be broken here, and the rule splits by KIND of field:
 * the car (`vehicle`) — **declared wins**, and it never reaches the run body.
   It states which physical vehicle THESE BYTES came off, so it belongs to the
   file the way `source_system` does; a file re-linked to another run keeps it.
+* the platform (`platform`) — **declared wins**, read off the raw bags like the
+  car. It does reach the run body, and the registry stores it on no run: it
+  states the `project` of a campaign the upload opens
+  (api/api/services/queries_runs.py::_open_claimed_work_order).
 
 Nothing is destroyed by losing: `header_properties` rides verbatim on every
 batch, and a disagreement is reported in the `file.header_parsed` note.
@@ -131,6 +135,14 @@ EPOCH_SENTINEL = datetime(1970, 1, 2, tzinfo=UTC)
 # same two rungs for the lake column (`mf4-decoder/identity.py::CLAIMED_COLUMNS`).
 DECLARED_VEHICLE = "vehicle"
 HEADER_VEHICLE = "test.vehicle"
+
+# The platform the recording came off. `mf4-to-blob` sends it on every upload
+# (static/claim-editor.js, the one claim with `alwaysSend`), and the header
+# spells it WITHOUT the `test.` prefix: it sits in the recording's own
+# provenance block, not in the bench's claim block
+# (mf4-decoder/provenance.py::_PROVENANCE_KEYS).
+DECLARED_PLATFORM = "platform"
+HEADER_PLATFORM = "platform"
 
 # `SourceSystem` is Literal["TAS", "INCA", "ifile", "api"]
 # (api/api/models/files.py:13). "api" names a logical file minted by
@@ -279,6 +291,23 @@ def resolve_vehicle(declared: object, header: object) -> str | None:
     return None
 
 
+def resolve_platform(declared: object, header: object) -> str | None:
+    """The platform: what the operator declared, then what the file states.
+
+    Declared outranks the header for the reason every linkage field does — a
+    correction must not need the file edited. None means neither channel named
+    one, and a campaign this upload opens then states an empty project rather
+    than an invented one.
+    """
+    if isinstance(declared, dict):
+        stated = _clean(declared.get(DECLARED_PLATFORM))
+        if stated is not None:
+            return stated
+    if isinstance(header, dict):
+        return _clean(header.get(HEADER_PLATFORM))
+    return None
+
+
 def resolve_source_system(header: dict[str, str] | object, filename: str) -> str:
     """State the producing system, never forwarding an unvalidated string."""
     declared = None
@@ -301,6 +330,9 @@ class Identity:
     source_system: str
     # File-level, like `source_system`: it describes these bytes, not the run.
     vehicle: str | None = None
+    # Read off the raw bags like the car, but it does ride to the registry:
+    # a campaign opened by this upload states it as its project.
+    platform: str | None = None
     # Every other RunUpsertRequest field that resolved, already coerced.
     fields: dict[str, object] = field(default_factory=dict)
     # Human-readable "header said X; declared Y won" lines, for the
@@ -408,8 +440,10 @@ def resolve_identity(
         rig_id=str(rig_id),
         source_system=resolve_source_system(header_raw, filename),
         # Off the RAW bags, like the source system: the per-field precedence
-        # above settles what a run asserts, and the car is not one of those.
+        # above settles what a run asserts, and neither the car nor the
+        # platform is one of those.
         vehicle=resolve_vehicle(declared_raw, header_raw),
+        platform=resolve_platform(declared_raw, header_raw),
         fields=resolved,
         conflicts=conflicts,
         run_id_derived=derived,

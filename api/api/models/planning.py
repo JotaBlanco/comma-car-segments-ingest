@@ -309,11 +309,12 @@ class WorkOrderDetail(ApiModel):
 class WorkOrderCreateRequest(RequestModel):
     """Body of POST /work-orders — a work order a person opens here.
 
-    Planning pushes its own campaigns through `POST /planning/sync`, and this
-    route never writes one of those. The id is typed by the author, the title
-    says what the campaign is, and `project` is optional because a bench
-    campaign need not belong to one. A new campaign is running, so `status`
-    starts `active`.
+    Three doors open a campaign and this is the one a person types into: the
+    others are `POST /planning/sync`, which mirrors what planning owns, and
+    `POST /test-runs`, which opens the campaign an upload claimed. The id is
+    typed by the author, the title says what the campaign is, and `project` is
+    optional because a bench campaign need not belong to one. A new campaign is
+    running, so `status` starts `active`.
     """
 
     wo_id: str

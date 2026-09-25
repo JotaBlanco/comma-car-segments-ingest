@@ -8,6 +8,7 @@ from connector.identity import (
     find_run_key,
     parse_instant,
     resolve_identity,
+    resolve_platform,
     resolve_source_system,
 )
 
@@ -223,6 +224,58 @@ class TestContextPrecedence:
             declared={"operator": "A. Nilsson"}, header={"test.operator": "unknown"}
         )
         assert identity.fields["operator"] == "A. Nilsson"
+
+
+class TestResolvePlatform:
+    """The platform: declared wins, then header, else absent (BL-81).
+
+    Read off the RAW bags like the vehicle, never through `DECLARED_FIELDS` or
+    `LINKAGE_FIELDS` — it is a property of the recording, not an assignment a
+    record makes about a run (identity.py:33-36, 130-145).
+    """
+
+    def test_declared_wins_over_the_header(self):
+        platform = resolve_platform({"platform": "Porsche_Taycan"}, {"platform": "HONDA_CIVIC"})
+        assert platform == "Porsche_Taycan"
+
+    def test_the_header_is_the_only_channel_when_declared_states_none(self):
+        assert resolve_platform({}, {"platform": "HONDA_CIVIC"}) == "HONDA_CIVIC"
+
+    def test_absent_when_neither_channel_states_one(self):
+        assert resolve_platform({}, {}) is None
+        assert resolve_platform(None, None) is None
+
+    def test_a_blank_declared_value_falls_through_to_the_header(self):
+        # `_clean` drops whitespace-only strings.
+        platform = resolve_platform({"platform": "   "}, {"platform": "HONDA_CIVIC"})
+        assert platform == "HONDA_CIVIC"
+
+    def test_a_non_string_declared_value_is_dropped(self):
+        # `_clean` drops anything that is not a string.
+        assert resolve_platform({"platform": 123}, {}) is None
+
+    def test_an_empty_string_header_value_is_dropped(self):
+        assert resolve_platform({}, {"platform": ""}) is None
+
+
+class TestPlatformOnTheIdentity:
+    def test_platform_rides_on_the_identity_off_the_raw_bags(self):
+        identity = _resolve(declared={"platform": "Porsche_Taycan"})
+        assert identity.platform == "Porsche_Taycan"
+
+    def test_platform_never_joins_the_run_bodys_asserted_fields(self):
+        # `platform` is not in DECLARED_FIELDS, so `clean_declared` drops it —
+        # but `resolve_identity` reads the raw bag directly for it, exactly as
+        # it does for the vehicle, so the claim still rides on the Identity.
+        cleaned = clean_declared({"platform": "Porsche_Taycan", "run_id": "TAS-1"})
+        assert "platform" not in cleaned
+
+        identity = _resolve(declared={"platform": "Porsche_Taycan", "run_id": "TAS-1"})
+        assert identity.platform == "Porsche_Taycan"
+        assert "platform" not in identity.fields
+
+    def test_an_absent_platform_is_none_not_a_sentinel(self):
+        assert _resolve().platform is None
 
 
 class TestSourceSystem:

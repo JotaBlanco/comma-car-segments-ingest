@@ -6,7 +6,7 @@
 definition mirrors and every run's planning linkage are READ from
 `api/mock_planning/fixture.json` — the same file the planning mock serves. A
 sync pass therefore refreshes a seeded mirror row with the values it already
-holds, and the toggle-off reset has nothing to restore. Editing the cast means
+holds, and the demo reset has nothing to restore. Editing the cast means
 editing that one JSON file.
 
 **The time-basing rule (BE-PLAN §7).** Every run timestamp below sits on
@@ -23,16 +23,24 @@ the hero. Their `started_at` values are pinned to Lane B's
 `fixtures_inventory.HERO_RUN_STATS` rows, which put lake samples on exactly
 these clocks — a drifted date here empties the statistics screen's history.
 
-**WO-2026-0851 and TD-BAT-114 are never seeded.** They live in the planning
-mock and arrive with the toggle, which is the amber-to-green beat of the demo
-(BE-PLAN §6.7: the only visible delta on toggle-on). `SYNC_WORK_ORDER_ID` and
-`SYNC_DEFINITION_ID` name them so a test can assert their absence.
+**The hero opens the campaign it claims.** TAS-88214 registers stating a work
+order no planning row holds, so `POST /test-runs` opens it and the run links
+itself in the same request (`queries_runs._open_claimed_work_order`). The demo
+therefore opens on one campaign whose every field reads `embedded` beside five
+that read `api:planning`, and on no run that waits for a work order.
+
+**WO-2026-0851 and TD-BAT-114 are never seeded.** They are the one pair of the
+mock's cast the seed holds back, so a sync pass has a row that visibly arrives
+and the demo reset has one to remove. Nothing in the demo brings them: the
+planning mock's deployment and its toggle retired at `38ecd12`.
+`SYNC_WORK_ORDER_ID` and `SYNC_DEFINITION_ID` name them.
 
 **Who owns which field.** A run's `rig_id`, `description`, `test_cell` and time
 range ride the registration call, so they are `embedded`. Everything else comes
 from a system that knows better: the operator from a person, the bench software
-from the config API, and the work order, definition and project from planning.
-The `tags` list on each record states that, and `seed_demo.py` writes it through
+from the config API, and the work order, definition and project from planning —
+except the hero's, which its own registration wrote. The `tags` list on each
+record states that, and `seed_demo.py` writes it through
 `api/provenance.py::set_field`.
 
 **The custom property map is a person's own fact.** A run carries `vehicle` and
@@ -47,13 +55,18 @@ from pathlib import Path
 
 from api.models.common import Source
 
-# --- Identity: one set of demo ids, shared with api/api/stub_data.py ---
+# --- Identity: the demo ids. `api/api/stub_data.py` shares HERO_RUN_ID. ---
 
 HERO_RUN_ID = "TAS-88214"
-HERO_WORK_ORDER_ID = "WO-2026-0847"
 
-# The work order and definition the planning mock holds back. The seed never
-# writes them; they arrive on toggle-on and leave on toggle-off.
+# The campaign the hero's own recording states, and the platform it ran on. No
+# planning row holds this id, so the registration route opens it and the
+# platform becomes its project.
+HERO_CLAIMED_WORK_ORDER_ID = "WO-2026-0858"
+HERO_PLATFORM = "EX90"
+
+# The one pair of the mock's cast the seed holds back, so a sync pass has a row
+# that visibly arrives and the demo reset has one to remove.
 SYNC_WORK_ORDER_ID = "WO-2026-0851"
 SYNC_DEFINITION_ID = "TD-BAT-114"
 
@@ -82,8 +95,8 @@ def _parse_when(value: str) -> datetime:
     return datetime.fromisoformat(value)
 
 
-# The pre-mirrored rows: everything the mock serves except the toggle's own
-# work order and definition. `raw` keeps the exact row the mock will serve, so
+# The pre-mirrored rows: everything the mock serves except the held-back work
+# order and its definition. `raw` keeps the exact row the mock would serve, so
 # a sync refresh writes the values the row already carries.
 
 NAMED_WORK_ORDERS: list[dict] = [
@@ -144,10 +157,9 @@ NAMED_DEFINITIONS: list[dict] = [
 # Run → (work order, definition, project). Stated HERE, not derived from the
 # fixture: planning holds no plan of run ids (24 Aug 2026, TR-002) — these are
 # the claims the seeded runs CARRIED when their data arrived, which is registry
-# knowledge. TAS-88214 (TD-BAT-114) is deliberately absent, so the hero seeds
-# without a planning tag and reads amber for the toggle demo.
-
-_WO_PROJECT = {row["id"]: row["project"] for row in _CAST["work_orders"]}
+# knowledge. TAS-88214 is deliberately absent: the hero's campaign is the one
+# its own registration opened, so its link is `embedded` and no planning tag
+# states it.
 
 _RUN_LINKS: dict[str, tuple[str, str, str]] = {
     "TAS-88104": ("WO-2026-0836", "TD-BAT-091", "EX90"),
@@ -264,32 +276,31 @@ def custom_properties(project: str, index: int) -> dict[str, str]:
 def _project_of(run_id: str) -> str:
     """The project a named run belongs to.
 
-    The hero is linked to nothing while it reads amber, so its project comes
-    from the work order that arrives on the toggle. The car it ran on is a
-    fact whatever the planning system already knows.
+    The hero names no planning row, so its project is the platform its own
+    recording states — the same value the campaign it opens carries.
     """
     link = _RUN_LINKS.get(run_id)
-    return link[2] if link else _WO_PROJECT[SYNC_WORK_ORDER_ID]
+    return link[2] if link else HERO_PLATFORM
 
 
 # --- The five story runs (BE-PLAN §7) ---
 #
-# The hero run comes first. It carries no planning tag, so it reads
-# `awaiting_work_order` — the normal amber state, never an error.
+# The hero run comes first. It carries no planning tag: its campaign is the one
+# its own registration opened, so the link it holds is `embedded`.
 
 STORY_RUNS: list[dict] = [
     {
         "run_id": HERO_RUN_ID,
         "rig_id": "RIG-04",
         "test_cell": "TC-2",
-        # The pair-only toggle beat (24 Aug 2026): the hero ARRIVES CLAIMING
-        # the held-back pair, exactly as a TAS-produced file would. The mirror
-        # does not hold WO-2026-0851 until the toggle, so the claim is
-        # retained and the run waits amber; toggle-on mirrors the pair and
-        # _link_retained_claims turns the hero green. Planning still never
-        # learns a run id.
-        "work_order_id": SYNC_WORK_ORDER_ID,
-        "definition_id": SYNC_DEFINITION_ID,
+        # The hero states its campaign and its platform the way a TAS-produced
+        # file does, in its own header. No mirror holds that campaign, so
+        # `POST /test-runs` opens it at `embedded` with the platform as its
+        # project and the claim resolves in the same request. A trace claims
+        # its work order and nothing else — a test definition is assigned from
+        # the Test Run page.
+        "work_order_id": HERO_CLAIMED_WORK_ORDER_ID,
+        "platform": HERO_PLATFORM,
         "description": "HV battery thermal cycling",
         "started_at": _dt(2026, 8, 14, 9, 41, 7),
         "ended_at": _dt(2026, 8, 14, 11, 18, 52),

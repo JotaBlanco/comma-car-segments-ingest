@@ -75,8 +75,10 @@ CUSTOM_PROPERTIES_FIELD = "custom_properties"
 
 # Planning owns these fields (`api/api/planning_sync.py` PLANNING_FIELDS). The
 # ingestion pipeline may CLAIM the two ids, and a claim is not a planning write.
-# The claim resolves against the mirror the sync fills, so the registry links
-# nothing planning does not already know.
+# A definition claim resolves against the mirror alone, so the registry links no
+# test case planning does not already know. A WORK ORDER claim is answered one
+# step earlier by `_open_claimed_work_order`, which opens the campaign the
+# operator stated, so the row this map looks up normally exists by then.
 _CLAIM_MIRRORS = {"work_order_id": "work_orders", "definition_id": "test_definitions"}
 
 # The journal event an unresolved claim writes (contract §D, run link claims).
@@ -101,6 +103,12 @@ CLAIM_RETAINED = {
     "definition_id": "claimed_definition_id",
 }
 
+# The title a campaign opened by an upload wears. It is written at `embedded`,
+# the lowest rank, so the first person or planning push to state a real one
+# replaces it and `work_order_origin` stops reading `embedded` in the same
+# moment. No route edits a work-order title yet (BL-35).
+OPENED_BY_UPLOAD = "Opened by an upload"
+
 
 def _claimed_ids(body, field: str) -> list[str]:
     """The ids one claim field states, deduplicated and in a stable order.
@@ -120,8 +128,12 @@ def _resolve_claims(db: Database, body) -> tuple[dict, list[tuple[str, str]]]:
 
     A claim names a planning row. The registry links it only when the mirror
     holds that row. An unknown id links nothing and refuses nothing: the run
-    stays amber, keeps the claim (`CLAIM_RETAINED`), and the next planning sync
-    repairs it.
+    stays amber, keeps the claim (`CLAIM_RETAINED`), and a later planning sync
+    or a campaign somebody opens repairs it.
+
+    A claimed WORK ORDER arrives here already opened, on the ordinary path
+    through `_open_claimed_work_order`, so only a refused or raced insert
+    leaves one for the retention to remember.
 
     The resolved definitions land under `definition_ids`, the field the document
     stores, whichever of the two wire fields carried them.
@@ -219,6 +231,41 @@ def _unresolved_claim_events(
     return entries
 
 
+def _open_claimed_work_order(db: Database, body) -> None:
+    """Open the campaign this payload claims, when nobody has opened it yet.
+
+    A trace states its campaign in its own header (`test.work_order`), and a
+    claim naming a campaign the Test Manager had never heard of used to link
+    nothing: the run went amber and waited for a person to open it by hand.
+    This runs before `_resolve_claims`, so the claim then resolves on its
+    ordinary path and the run is linked in the same request.
+
+    The id is only ever ECHOED. A payload stating none opens nothing, and the
+    project states the declared platform — never the rig, which names a bench
+    and not a campaign.
+    """
+    wo_id = (body.work_order_id or "").strip()
+    if not wo_id:
+        return
+    if db["work_orders"].find_one({"_id": wo_id}, {"_id": 1}) is not None:
+        return
+    try:
+        _insert_work_order(
+            db,
+            wo_id,
+            title=OPENED_BY_UPLOAD,
+            project=(body.platform or "").strip(),
+            source=Source.EMBEDDED,
+            actor=body.actor,
+            note=f"Opened by the run {body.run_id}, which claimed it.",
+        )
+    except DuplicateKeyError:
+        # Two markers for one new campaign raced between the read and the
+        # insert. The loser proceeds and its claim resolves against the
+        # winner's row.
+        return
+
+
 def upsert_run(db: Database, body) -> tuple[dict, bool]:
     """Register a run, or merge new facts into the one already stored.
 
@@ -226,7 +273,11 @@ def upsert_run(db: Database, body) -> tuple[dict, bool]:
     payload may arrive many times — a rig retries, the watcher restarts, the
     seed replays — so only the first call writes a registration event, and an
     unchanged replay writes nothing at all.
+
+    A claimed campaign nobody has opened is opened first, so the claim the body
+    carries resolves like any other.
     """
+    _open_claimed_work_order(db, body)
     existing = db["test_runs"].find_one({"_id": body.run_id})
     if existing is None:
         try:
@@ -1854,44 +1905,36 @@ def get_work_order_detail(db: Database, wo_id: str) -> dict:
     }
 
 
-def create_work_order(db: Database, body, *, actor: str) -> dict:
-    """Open one work order from the Test Manager. Refuses 409 `wo_exists`.
+def _insert_work_order(
+    db: Database,
+    wo_id: str,
+    *,
+    title: str,
+    project: str,
+    source: Source,
+    actor: str,
+    note: str | None = None,
+) -> None:
+    """Write one work-order document and its `work_order.created` event.
 
-    Planning pushes its campaigns through `POST /planning/sync`; this is the
-    other door, for a campaign nobody planned there. Every field is written at
-    `manual`, and a sync pass writes only the ids planning sends, so no pass
-    reaches a row opened here. The row carries no `mirrored_at` either, so the
-    demo reset — which removes what a sync created — leaves it alone, exactly
-    as it leaves a manual requirement alone.
-
-    A run that claimed this id before it existed IS linked here, by
-    `planning_sync._link_retained_claims` — the same close the inbound
-    `POST /planning/sync` performs, through the same one write path
-    `planning_sync._write_link`. Opening the work order is the event that
-    closes the claim: the outbound sync pass retired with the planning mock
-    (38ecd12), so nothing else would ever run it.
+    Both doors outside planning come here — `POST /work-orders`, where a person
+    opens a campaign, and the ingest path, which opens the campaign an upload
+    claimed. They differ in the source tag alone, so the stored keys cannot
+    drift apart. Raises `DuplicateKeyError` when the id is already taken.
     """
-    wo_id = body.wo_id.strip()
-    if db["work_orders"].find_one({"_id": wo_id}, {"_id": 1}) is not None:
-        raise ApiError(409, f"Work order {wo_id} already exists", "wo_exists")
-
     update: dict = {}
-    values = {
-        "title": body.title.strip(),
-        "project": body.project.strip(),
-        "status": "active",
-    }
-    for field, value in values.items():
+    values = {"title": title, "project": project, "status": "active"}
+    for name, value in values.items():
         set_field(
             update,
-            field,
+            name,
             value,
-            Source.MANUAL,
+            source,
             actor,
-            note=body.note,
+            note=note,
             entity_type="work_order",
             entity_id=wo_id,
-            field_label=f"work_order.{field}",
+            field_label=f"work_order.{name}",
         )
 
     db["work_orders"].insert_one(
@@ -1913,10 +1956,43 @@ def create_work_order(db: Database, body, *, actor: str) -> dict:
             "work_order",
             wo_id,
             "work_order.created",
-            Source.MANUAL,
+            source,
             actor,
-            note=body.note or f"Created the work order {wo_id}.",
+            note=note or f"Created the work order {wo_id}.",
         )
+    )
+
+
+def create_work_order(db: Database, body, *, actor: str) -> dict:
+    """Open one work order from the Test Manager. Refuses 409 `wo_exists`.
+
+    Planning pushes its campaigns through `POST /planning/sync`, and an upload
+    opens the campaign it claims (`_open_claimed_work_order`); this is the door
+    for a person. Every field is written at `manual`, and a sync pass writes
+    only the ids planning sends, so no pass reaches a row opened here. The row
+    carries no `mirrored_at` either, so the demo reset — which removes what a
+    sync created — leaves it alone, exactly as it leaves a manual requirement
+    alone.
+
+    A run that claimed this id before it existed IS linked here, by
+    `planning_sync._link_retained_claims` — the same close the inbound
+    `POST /planning/sync` performs, through the same one write path
+    `planning_sync._write_link`. Opening the work order is the event that
+    closes the claim: the outbound sync pass retired with the planning mock
+    (38ecd12), so nothing else would ever run it.
+    """
+    wo_id = body.wo_id.strip()
+    if db["work_orders"].find_one({"_id": wo_id}, {"_id": 1}) is not None:
+        raise ApiError(409, f"Work order {wo_id} already exists", "wo_exists")
+
+    _insert_work_order(
+        db,
+        wo_id,
+        title=body.title.strip(),
+        project=body.project.strip(),
+        source=Source.MANUAL,
+        actor=actor,
+        note=body.note,
     )
     # Imported here, not at module scope: `planning_sync` imports this module
     # for CLAIM_RETAINED, so the top-level pair is a cycle.

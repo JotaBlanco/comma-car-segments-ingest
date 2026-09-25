@@ -86,6 +86,23 @@ class TestGoldenRunBody:
 
         assert "lake_table" not in api.bodies("/test-runs")[0]
 
+    def test_the_platform_rides_when_the_bench_declared_it(self, connector, api):
+        """BL-81: the registry uses this to state the `project` of a campaign
+        this upload opens (`_open_claimed_work_order`). The fake validates
+        against the real `RunUpsertRequest`, so this also pins that the API
+        accepts the field."""
+        declared = dict(DECLARED, platform="Porsche_Taycan")
+        connector.on_metadata(metadata_message(declared=declared))
+
+        assert api.bodies("/test-runs")[0]["platform"] == "Porsche_Taycan"
+
+    def test_an_unstated_platform_is_omitted_not_null(self, connector, api):
+        """Absent stays absent, exactly like `lake_table`: a null would state
+        an empty project for a campaign this upload might open."""
+        connector.on_metadata(metadata_message())
+
+        assert "platform" not in api.bodies("/test-runs")[0]
+
     def test_an_unknown_declared_key_never_reaches_the_registry(self, connector, api):
         # RequestModel is extra="forbid": an unknown field is a 422. The fake
         # validates with the real model, so a leak would fail this test loudly.

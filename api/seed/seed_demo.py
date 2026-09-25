@@ -3,12 +3,12 @@
 What one run writes, in this order:
 
 0. the planning switch, off — the live system first, then our copy of it, so
-   the next rehearsal opens amber with the switch reading off;
+   a rehearsal cannot leave it reading on;
 1. every index of BE-PLAN §3, before the first record;
 2. the fifteen named runs (five story, ten battery history), through
    `POST /test-runs`;
 3. the fields no route carries yet, through `api/provenance.py::set_field`;
-4. the four pre-mirrored work orders and their five definitions — read from
+4. the five pre-mirrored work orders and their six definitions — read from
    the planning mock's own `fixture.json` (see `seed/fixtures.py`), so the
    seed and the mock can never disagree about the cast — plus the one
    `ORPHANED_DEFINITION` no work order owns (TR-001);
@@ -22,17 +22,23 @@ other code path that builds an index at runtime.
 
 **The watermark is written last on purpose.** The demo reset (A-14) reverts
 `api:planning` writes and removes mirror rows that are **newer** than the
-watermark. Every record this seed writes must therefore be older than it, or a
-toggle-off would eat the seed. `read_watermark()` is the reader A-14 needs.
+watermark. Every record this seed writes must therefore be older than it, or
+the demo reset would eat the seed. `read_watermark()` is the reader A-14 needs.
 For the same reason, a re-seed WITHOUT `--reset` first runs the demo reset:
 sync writes from a rehearsal would otherwise end up older than the new
-watermark, where no toggle-off could ever reach them, and the stage would be
-stuck green.
+watermark, where no later reset could ever reach them.
 
-**WO-2026-0851 and TD-BAT-114 are not here.** They live in the planning mock
-and arrive with the toggle (BE-PLAN §7).
+**The hero opens its own campaign.** TAS-88214 registers claiming a work order
+no mirror holds, so `POST /test-runs` opens it and links the run in the same
+request. The work-order line of the report counts that row, because the seed
+wrote it (`seed/fixtures.py`).
 
-**Two resets, and they are not the same.** Toggle-off resets the sync.
+**WO-2026-0851 and TD-BAT-114 are not here.** They are the pair the seed holds
+back from the mock's cast, so a sync pass has a row that visibly arrives and
+the demo reset has one to remove (BE-PLAN §7).
+
+**Two resets, and they are not the same.** `demo_reset` undoes what a sync pass
+wrote after the seed, and nothing else.
 `seed --reset` resets the world: it drops every collection first, and it drops
 the QuixLake sample table too. `POST /insert` appends, so without that drop a
 second `--reset` run would double the samples and the statistics would drift.
@@ -66,12 +72,9 @@ from api.settings import get_settings
 from seed import filler, fixtures_inventory
 from seed import fixtures as fx
 
-# The work order that lives only in the planning mock and arrives on the toggle.
-HERO_TOGGLE_WORK_ORDER = "WO-2026-0851"
-
 # The definition no work order owns. TR-001 asks the screen to flag it for
 # review, so the demo needs one row to flag. It is NOT in the planning mock,
-# so a sync pass never adopts it and it stays orphaned across the toggle.
+# so a sync pass never adopts it and it stays orphaned.
 ORPHANED_DEFINITION = {
     "_id": "TD-BAT-126",
     "work_order_id": None,
@@ -117,14 +120,10 @@ def drop_everything(db: Database) -> None:
 def switch_planning_off(client) -> None:
     """Put the LIVE planning system offline — the state the demo opens in.
 
-    `record_switch` writes our copy of the switch only. Contract #20 probes
-    the live system, so the topbar read ON after a reseed until 21 Aug 2026,
-    while every run sat amber. The presenter then had to flip the switch off
-    and on by hand before the money shot.
-
-    The toggle route owns this: it stops the live system AND records the
-    state, in one call. It runs FIRST, so the planning mock cannot push a row
-    into the world the seed is about to write.
+    The toggle route is what this calls, not `record_switch`: contract #20
+    probes the live system, so recording our copy alone would leave the topbar
+    reading ON. It runs FIRST, so a planning system still switched on cannot
+    push a row into the world the seed is about to write.
 
     A planning system nobody can reach is already offline, so a failure here
     is not a seed failure.
@@ -166,12 +165,13 @@ def register_run(client, record: dict) -> None:
         "started_at": record["started_at"].isoformat(),
         "ended_at": record["ended_at"].isoformat(),
     }
-    # A record may CLAIM its pair, like a TAS-produced file does. The route
-    # resolves it against the mirror or retains it - the amber the toggle
-    # beat needs (pair-only planning, 24 Aug 2026).
-    for claim in ("work_order_id", "definition_id"):
-        if record.get(claim):
-            body[claim] = record[claim]
+    # A record may state its campaign and the platform it ran on, the way a
+    # TAS-produced file does in its own header. A campaign no mirror holds is
+    # OPENED by the route, with the platform as its project, and the claim
+    # then resolves in the same request.
+    for field in ("work_order_id", "platform"):
+        if record.get(field):
+            body[field] = record[field]
     response = client.post(f"{fx.API_PREFIX}/test-runs", json=body)
     if response.status_code not in (200, 201):
         raise RuntimeError(
@@ -330,10 +330,9 @@ def seed(
     ):
         # A rehearsal may have left sync writes behind. They would sit OLDER
         # than the new watermark below, where no later reset could ever reach
-        # them and the stage would be stuck green — so undo them first, and
-        # record the switch as off, the state the demo opens in. A database
-        # that never saw a sync has no planning_sync meta doc and nothing to
-        # undo.
+        # them — so undo them first, and record the switch as off, the state
+        # the demo opens in. A database that never saw a sync has no
+        # planning_sync meta doc and nothing to undo.
         demo_reset(db)
         record_switch(db, False)
     ensure_indexes(db)
@@ -343,16 +342,21 @@ def seed(
     started_at = datetime.now(UTC)
     # BE-PLAN §6: a mirror row reads as pulled shortly before the seed ran.
     synced_at = started_at - timedelta(minutes=5)
-    counts = {
-        "test_runs": write_runs(db, client, records["runs"]),
-        "work_orders": write_mirrors(db, records["work_orders"], "work_orders", synced_at),
-        "test_definitions": write_mirrors(
-            db,
-            [*records["definitions"], ORPHANED_DEFINITION],
-            "test_definitions",
-            synced_at,
-        ),
-    }
+    campaigns_before = db["work_orders"].count_documents({})
+    counts = {"test_runs": write_runs(db, client, records["runs"])}
+    # The report states what the seed WROTE, and the hero's registration writes
+    # a work order of its own (`queries_runs._open_claimed_work_order`). A
+    # re-seed opens nothing, so this reads zero the second time.
+    opened = db["work_orders"].count_documents({}) - campaigns_before
+    counts["work_orders"] = opened + write_mirrors(
+        db, records["work_orders"], "work_orders", synced_at
+    )
+    counts["test_definitions"] = write_mirrors(
+        db,
+        [*records["definitions"], ORPHANED_DEFINITION],
+        "test_definitions",
+        synced_at,
+    )
     if inventory:
         counts.update(fixtures_inventory.write_inventory(db, client, seed_day, reset))
     if filler_records:
@@ -372,8 +376,8 @@ def seed(
 def _write_filler(db: Database, records: dict, seed_day: date, synced_at: datetime) -> dict:
     """Pad the cast to the demo's scale. Idempotent, like the rest of the seed.
 
-    The `named_*` counts are read live, so the filler tops up exactly to the
-    DEMO_* constants whatever the named cast and the inventory wrote. The
+    The file and signal counts are read live, so the filler tops up exactly to
+    the DEMO_* constants whatever the named cast and the inventory wrote. The
     inventory registers its files at seed time, so they all count as today's.
     """
     named_runs = records["runs"]
@@ -384,6 +388,12 @@ def _write_filler(db: Database, records: dict, seed_day: date, synced_at: dateti
         and (run.get("first_data_at") or run["started_at"]).date() == seed_day
     )
     named_files = db["files"].count_documents({})
+    # The campaigns the named cast accounts for: the mirrored rows, plus the one
+    # the hero's registration opened from its own claim. Stated from the cast and
+    # not counted off the database, so the filler bundle is the same every run.
+    named_campaigns = {row["_id"] for row in records["work_orders"]} | {
+        fx.HERO_CLAIMED_WORK_ORDER_ID
+    }
 
     bundle = filler.build(
         seed_day,
@@ -392,7 +402,7 @@ def _write_filler(db: Database, records: dict, seed_day: date, synced_at: dateti
         named_files=named_files,
         named_files_today=named_files,
         named_signals=db["signals"].count_documents({}),
-        named_work_orders=len(records["work_orders"]),
+        named_work_orders=len(named_campaigns),
         synced_at=synced_at,
         taken_signal_names=frozenset(db["signals"].distinct("_id")),
     )
@@ -416,16 +426,13 @@ def _write_filler(db: Database, records: dict, seed_day: date, synced_at: dateti
 # --- The self-verify ----------------------------------------------------------
 
 
-def self_verify(db: Database, client) -> dict:
-    """Walk the demo's money shot and prove the seed can carry it.
+def self_verify(db: Database) -> dict:
+    """Walk the state the demo opens in and prove the seed can carry it.
 
-    Toggle on, check the hero went green and the work order arrived, toggle off,
-    reset, check the restore is exact. The stage is left **amber**, because that
-    is where the demo opens.
-
-    **The toggle-off reset the world until 20 Aug 2026.** It only stops the sync
-    now, so this walk calls `demo_reset` itself. That is the same call the
-    seed's top-up path makes, and the restore proof still guards its scope.
+    Check the hero arrived on the seed day, that the campaign it claimed was
+    opened and linked, then run the demo reset and prove it moved nothing the
+    seed wrote. That reset runs on every top-up seed, so a wrong scope would
+    eat the cast between two rehearsals.
 
     Every check is reported, not raised, so one run tells the whole story. A
     stale seed fails here, in a terminal, and never on stage.
@@ -458,6 +465,19 @@ def self_verify(db: Database, client) -> dict:
         f"Only {runs_today} runs are dated today; the Home screen promises {filler.RUNS_TODAY}.",
     )
 
+    record(
+        "the_upload_opened_its_campaign",
+        db["work_orders"].find_one({"_id": fx.HERO_CLAIMED_WORK_ORDER_ID}) is not None,
+        f"{fx.HERO_CLAIMED_WORK_ORDER_ID} was never opened. The hero's registration "
+        "did not open the campaign it claimed.",
+    )
+    record(
+        "the_hero_links_its_campaign",
+        hero.get("work_order_id") == fx.HERO_CLAIMED_WORK_ORDER_ID
+        and hero.get("status") == "complete",
+        "The hero run did not link the campaign it claimed, so the stage opens amber.",
+    )
+
     # Before the restore check: a microsecond mismatch would otherwise read as a
     # reset bug (guard 3, A-01).
     record(
@@ -466,51 +486,21 @@ def self_verify(db: Database, client) -> dict:
         "A timestamp changed on the way through Mongo, so a restore can never compare equal.",
     )
 
-    record(
-        "stage_opens_amber",
-        hero.get("status") == "awaiting_work_order" and hero.get("work_order_id") is None,
-        "The hero run is not amber — the stage would open green. Run seed --reset first.",
-    )
-
-    # The beat needs an amber stage. Running it on a green stage would leave
-    # state this script cannot restore — so it refuses instead.
-    if not checks["stage_opens_amber"]:
-        return {"ok": False, "checks": checks, "failures": failures}
-
     mirrors_before = _mirror_snapshot(db)
     before = db["test_runs"].find_one({"_id": fx.HERO_RUN_ID})
-    try:
-        client.post(f"{fx.API_PREFIX}/planning-sync/toggle", json={"online": True})
-        flipped = db["test_runs"].find_one({"_id": fx.HERO_RUN_ID})
-
-        record(
-            "hero_went_green",
-            flipped.get("status") == "complete" and bool(flipped.get("work_order_id")),
-            "The hero run did not go green on toggle-on. The backfill or the planning mock is wrong.",
-        )
-        record(
-            "work_order_mirrored",
-            db["work_orders"].find_one({"_id": HERO_TOGGLE_WORK_ORDER}) is not None,
-            f"{HERO_TOGGLE_WORK_ORDER} did not arrive on toggle-on.",
-        )
-    finally:
-        # Always back to amber — even when a check above blew up. The toggle
-        # stops the sync, and the reset is the second, named step.
-        client.post(f"{fx.API_PREFIX}/planning-sync/toggle", json={"online": False})
-        demo_reset(db)
-
+    demo_reset(db)
     after = db["test_runs"].find_one({"_id": fx.HERO_RUN_ID})
 
     record(
         "restore_is_exact",
         _same_run(before, after),
-        "The reset did not restore the hero run exactly. The reset scope is wrong.",
+        "The demo reset moved the hero run. Its scope is wrong, and a top-up seed "
+        "would eat the cast.",
     )
     record(
         "mirror_restore_is_exact",
         _mirror_snapshot(db) == mirrors_before,
-        "The reset did not restore the work-order and definition mirrors exactly. "
-        "The seed's cast and the planning mock's cast disagree.",
+        "The demo reset moved a work-order or definition mirror row. Its scope is wrong.",
     )
     record(
         "every_link_resolves",
@@ -546,7 +536,7 @@ def _same_run(before: dict, after: dict) -> bool:
 
 
 def _mirror_snapshot(db: Database) -> dict:
-    """Every mirror row, without what a legal refresh moves.
+    """Every work-order and definition row, without what a legal refresh moves.
 
     `synced_at` is the refresh clock. `field_sources` carries the same clock
     per field, plus the name of whoever ran the refresh — the seed writes
@@ -601,7 +591,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--self-verify",
         action="store_true",
-        help="Walk the demo beat and check it, instead of seeding. Leaves the stage amber.",
+        help="Check the state the demo opens in, instead of seeding. Runs the demo reset.",
     )
     return parser.parse_args(argv)
 
@@ -617,16 +607,16 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     db = get_db()
 
-    with api_client(args.api_url) as client:
-        if args.self_verify:
-            report = self_verify(db, client)
-            for name, ok in report["checks"].items():
-                print(f"{'PASS' if ok else 'FAIL':5} {name}")
-            for failure in report["failures"]:
-                print(f"\n  {failure}")
-            print("\nThe demo is ready." if report["ok"] else "\nFix these before the demo.")
-            return 0 if report["ok"] else 1
+    if args.self_verify:
+        report = self_verify(db)
+        for name, ok in report["checks"].items():
+            print(f"{'PASS' if ok else 'FAIL':5} {name}")
+        for failure in report["failures"]:
+            print(f"\n  {failure}")
+        print("\nThe demo is ready." if report["ok"] else "\nFix these before the demo.")
+        return 0 if report["ok"] else 1
 
+    with api_client(args.api_url) as client:
         counts = seed(db, client, reset=args.reset)
 
     for name, count in sorted(counts.items()):

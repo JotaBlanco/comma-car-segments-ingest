@@ -37,7 +37,8 @@ from api.models.common import Source
 from ingest.store import DEFAULT_PREFIX, stamp_workspace
 from seed.fixtures import PROPERTY_ACTOR, custom_properties
 
-# The scale the contract examples quote (BE-PLAN §7).
+# The scale the contract examples quote (BE-PLAN §7). `api/api/stub_data.py`
+# and `tests/factories_planning.py` pad the stub cast to the same numbers.
 DEMO_RUN_COUNT = 128
 DEMO_WORK_ORDER_COUNT = 42
 DEMO_FILE_COUNT = 512

@@ -76,10 +76,16 @@ def run_body(identity: Identity, actor: str, lake_table: str | None = None) -> d
 
     Only `run_id` and `rig_id` are required. `work_order_id` and `definition_ids`
     ride through as CLAIMS: the connector never pre-validates one against
-    planning, never drops an unresolvable one and never retries on it. A claim
-    the mirror cannot answer links nothing, is remembered on the run, and the run
-    stays `awaiting_work_order` — the amber the demo's payoff needs
-    (api/api/services/queries_runs.py:84-107, :143-155).
+    planning, never drops an unresolvable one and never retries on it. A claimed
+    WORK ORDER nobody has opened is opened by the registry, which links the run
+    in the same request; a claimed DEFINITION the mirror cannot answer links
+    nothing, is remembered on the run, and leaves the run amber
+    (api/api/services/queries_runs.py::_open_claimed_work_order, ::_resolve_claims).
+
+    `platform` states which platform the recording came off. The registry stores
+    it on no run and uses it for one thing: the `project` of a campaign this
+    upload opens. Omitted when neither channel named one, so an unstated
+    platform leaves that project empty instead of inventing it.
 
     `lake_table` states which lakehouse table holds the run's samples. It comes
     from the LAKE_TABLE project variable — the same value mf4-sink's TABLE_NAME
@@ -99,6 +105,8 @@ def run_body(identity: Identity, actor: str, lake_table: str | None = None) -> d
     }
     if lake_table:
         body["lake_table"] = lake_table
+    if identity.platform:
+        body["platform"] = identity.platform
     body.update(identity.fields)
     # Demo dressing, HERE so both lanes agree: an UNKNOWN-rig run sometimes
     # gets a rig from the bench's world, deterministically per run id

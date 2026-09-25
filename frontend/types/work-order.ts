@@ -37,8 +37,9 @@ export interface WorkOrderListItem {
   run_count: number;
   /**
    * Who wrote the row: `api:planning` for a mirrored campaign, `manual` for
-   * one opened in the Test Manager. Absent on a row served before the field
-   * existed, and those all came from planning.
+   * one opened in the Test Manager, `embedded` for one an upload opened by
+   * claiming its id. Absent on a row served before the field existed, and
+   * those all came from planning.
    */
   origin?: SourceTag;
   /** Null on a work order a person opened here — it synced from nowhere. */
@@ -86,8 +87,9 @@ export interface WorkOrderDetail {
 /**
  * Body of `POST /work-orders` — a campaign a person opens in the Test
  * Manager. The row is written at source `manual`; planning's own campaigns
- * arrive through `POST /planning/sync` and never here. `status` starts
- * `active` and the server decides it.
+ * arrive through `POST /planning/sync`, and a campaign an upload claimed is
+ * opened by `POST /test-runs` at source `embedded`. Neither comes through
+ * here. `status` starts `active` and the server decides it.
  */
 export interface WorkOrderCreateBody {
   wo_id: string;
@@ -163,8 +165,9 @@ export interface TestDefinitionListItem {
 }
 
 /**
- * The work order a definition belongs to. Null on an orphan — the registry
- * never creates a work order to repair a link.
+ * The work order a definition belongs to. Null on an orphan: the registry
+ * opens only the campaign an operator stated on an upload, and never invents
+ * one to repair a definition that names nothing.
  */
 export interface TestDefinitionWorkOrder {
   wo_id: string;

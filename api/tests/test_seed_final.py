@@ -1,9 +1,10 @@
 """A-15 — the final seed: demo scale, and a self-verify that runs on stage.
 
 The seed is re-run on the morning of the demo, so it has to prove itself then
-and there. The self-verify walks the money shot — toggle on, check, toggle off,
-reset, check the restore is exact — and leaves the state OFF, because the demo
-opens amber. A stale or wrong seed must fail here, in a terminal, not on stage.
+and there. The self-verify checks the state the demo opens in — the hero on the
+seed day, linked to the campaign its own upload opened — and then runs the demo
+reset and proves it moved nothing. A stale or wrong seed must fail here, in a
+terminal, not on stage.
 """
 
 from datetime import UTC, date, datetime, timedelta
@@ -12,9 +13,14 @@ import pytest
 
 from api.planning_sync import demo_reset
 from seed import filler, seed_demo
+from seed import fixtures as fx
 
 HERO = "TAS-88214"
-HERO_WO = "WO-2026-0851"
+# The campaign the hero's own registration opens, and the pair the seed holds
+# back from the planning mock's cast so a sync pass has a row that arrives.
+HERO_WO = fx.HERO_CLAIMED_WORK_ORDER_ID
+SYNC_WO = fx.SYNC_WORK_ORDER_ID
+SYNC_TD = fx.SYNC_DEFINITION_ID
 
 
 @pytest.fixture
@@ -58,73 +64,93 @@ def test_the_hero_run_arrived_on_the_seed_day(seeded) -> None:
 
 
 def test_the_filler_never_needs_attention(seeded) -> None:
-    """Filler must not inflate the needs-attention block."""
-    assert seeded["test_runs"].count_documents({"status": "awaiting_work_order"}) == 1
+    """Filler must not inflate the needs-attention block.
+
+    No seeded run waits for a campaign any more: the hero opens the one it
+    claims (BL-81), the filler links every run it writes, and a claim naming
+    nothing is the only way left to be amber. The count is 0, not 1.
+    """
+    assert seeded["test_runs"].count_documents({"status": "awaiting_work_order"}) == 0
     assert seeded["test_runs"].count_documents({"status": "invalid"}) == 1
 
 
-def test_the_hero_starts_amber(seeded) -> None:
+def test_the_hero_opens_green_on_the_campaign_it_claimed(seeded) -> None:
     hero = seeded["test_runs"].find_one({"_id": HERO})
 
-    assert hero["work_order_id"] is None
-    assert hero["status"] == "awaiting_work_order"
+    assert hero["work_order_id"] == HERO_WO
+    assert hero["status"] == "complete"
 
 
-def test_the_work_order_that_arrives_on_the_toggle_is_not_seeded(seeded) -> None:
-    assert seeded["work_orders"].find_one({"_id": HERO_WO}) is None
+def test_the_pair_the_seed_holds_back_is_not_written(seeded) -> None:
+    """A sync pass needs a row that visibly arrives, and the demo reset one to
+    remove. Nothing in the demo brings them."""
+    assert seeded["work_orders"].find_one({"_id": SYNC_WO}) is None
+    assert seeded["test_definitions"].find_one({"_id": SYNC_TD}) is None
 
 
 # --- the self-verify --------------------------------------------------------
 
 
-def test_the_self_verify_passes_on_a_fresh_seed(client, seeded) -> None:
-    report = seed_demo.self_verify(seeded, client)
+def test_the_self_verify_passes_on_a_fresh_seed(seeded) -> None:
+    report = seed_demo.self_verify(seeded)
 
     assert report["ok"] is True
     assert report["failures"] == []
 
 
-def test_the_self_verify_leaves_the_demo_amber(client, seeded) -> None:
-    """It walks the beat, then puts the stage back to its opening state."""
-    seed_demo.self_verify(seeded, client)
+def test_the_self_verify_leaves_the_seed_where_it_found_it(seeded) -> None:
+    """It runs the demo reset, so it must prove that reset moved nothing."""
+    seed_demo.self_verify(seeded)
 
     hero = seeded["test_runs"].find_one({"_id": HERO})
-    assert hero["work_order_id"] is None
-    assert hero["status"] == "awaiting_work_order"
-    assert seeded["work_orders"].find_one({"_id": HERO_WO}) is None
+    assert hero["work_order_id"] == HERO_WO
+    assert hero["status"] == "complete"
+    assert seeded["work_orders"].find_one({"_id": HERO_WO}) is not None
 
 
-def test_the_self_verify_proves_the_flip_happened(client, seeded) -> None:
-    report = seed_demo.self_verify(seeded, client)
+def test_the_self_verify_proves_the_upload_opened_its_campaign(seeded) -> None:
+    report = seed_demo.self_verify(seeded)
 
-    assert report["checks"]["hero_went_green"] is True
-    assert report["checks"]["work_order_mirrored"] is True
+    assert report["checks"]["the_upload_opened_its_campaign"] is True
+    assert report["checks"]["the_hero_links_its_campaign"] is True
 
 
-def test_the_self_verify_proves_the_restore_is_exact(client, seeded) -> None:
-    report = seed_demo.self_verify(seeded, client)
+def test_the_self_verify_proves_the_restore_is_exact(seeded) -> None:
+    report = seed_demo.self_verify(seeded)
 
     assert report["checks"]["restore_is_exact"] is True
 
 
-def test_the_precision_check_runs_before_the_restore_check(client, seeded) -> None:
+def test_the_precision_check_runs_before_the_restore_check(seeded) -> None:
     """A microsecond mismatch must not read as a reset bug (guard 3, A-01)."""
-    report = seed_demo.self_verify(seeded, client)
+    report = seed_demo.self_verify(seeded)
 
     order = list(report["checks"])
     assert order.index("timestamps_survive_mongo") < order.index("restore_is_exact")
 
 
-def test_the_self_verify_reports_a_stale_seed(client, seeded) -> None:
+def test_the_self_verify_reports_a_stale_seed(seeded) -> None:
     """Move the hero back a week: the check must fail, and say why."""
     seeded["test_runs"].update_one(
         {"_id": HERO}, {"$set": {"first_data_at": datetime.now(UTC) - timedelta(days=7)}}
     )
 
-    report = seed_demo.self_verify(seeded, client)
+    report = seed_demo.self_verify(seeded)
 
     assert report["ok"] is False
     assert any("seed day" in failure for failure in report["failures"])
+
+
+def test_the_self_verify_reports_a_hero_that_lost_its_campaign(seeded) -> None:
+    """The one state the demo cannot open in: the hero amber on stage."""
+    seeded["test_runs"].update_one(
+        {"_id": HERO}, {"$set": {"work_order_id": None, "status": "awaiting_work_order"}}
+    )
+
+    report = seed_demo.self_verify(seeded)
+
+    assert report["ok"] is False
+    assert report["checks"]["the_hero_links_its_campaign"] is False
 
 
 # --- the two resets ---------------------------------------------------------
@@ -201,10 +227,8 @@ def test_a_sync_and_a_reset_leave_every_mirror_row_byte_identical(client, seeded
 
     Review finding: the two casts disagreed, the sync rewrote the seeded rows
     with mock values, and the reset — correctly — did not touch them.
-    `synced_at` is the one field a refresh may move.
-
-    The toggle-off ran the reset until 20 Aug 2026. The reset is a named step
-    now, so this test calls it. The rule it guards did not change.
+    `synced_at` is the one field a refresh may move. The reset is a named
+    step, so this test calls it after the sync it drives.
     """
     before = seed_demo._mirror_snapshot(seeded)
 
@@ -216,7 +240,7 @@ def test_a_sync_and_a_reset_leave_every_mirror_row_byte_identical(client, seeded
 
 
 def test_no_definition_points_at_a_missing_work_order_after_the_reset(client, seeded) -> None:
-    """The definition that rides the toggle must leave with its work order.
+    """The definition a sync brings must leave with its work order.
 
     A null `work_order_id` is the deliberate orphan of TR-001, so this check
     reads the definitions that NAME a work order. A named id must resolve.
@@ -234,8 +258,8 @@ def test_no_definition_points_at_a_missing_work_order_after_the_reset(client, se
     assert dangling == []
 
 
-def test_the_orphaned_definition_survives_the_toggle_pair(client, seeded) -> None:
-    """TR-001 needs a row to flag on stage, before and after the beat.
+def test_the_orphaned_definition_survives_a_sync_pass(client, seeded) -> None:
+    """TR-001 needs a row to flag on stage, and a sync must not adopt it.
 
     The row is not in the planning mock, so a sync pass never adopts it and
     the demo reset never removes it.
@@ -250,37 +274,24 @@ def test_the_orphaned_definition_survives_the_toggle_pair(client, seeded) -> Non
     assert orphans == [seed_demo.ORPHANED_DEFINITION["_id"]]
 
 
-def test_a_reseed_after_a_rehearsal_goes_back_to_amber(client, seeded) -> None:
-    """Rehearse, forget to toggle off, re-seed WITHOUT --reset: still amber.
+def test_a_reseed_after_a_rehearsal_removes_what_the_sync_wrote(client, seeded) -> None:
+    """Rehearse a sync, forget to switch it off, re-seed WITHOUT --reset.
 
     Review finding: the new watermark used to strand the sync's writes on its
-    safe side, where no later reset could ever reach them.
+    safe side, where no later reset could ever reach them. The held-back pair
+    is what the sync brings, so it is what the re-seed must take away again.
     """
     client.post("/api/v1/planning-sync/toggle", json={"online": True})
-    assert seeded["test_runs"].find_one({"_id": HERO})["status"] == "complete"
+    assert seeded["work_orders"].find_one({"_id": SYNC_WO}) is not None
 
     seed_demo.seed(seeded, client, inventory=False, filler_records=True)
 
-    hero = seeded["test_runs"].find_one({"_id": HERO})
-    assert hero["status"] == "awaiting_work_order"
-    assert hero["work_order_id"] is None
-    assert seeded["work_orders"].find_one({"_id": HERO_WO}) is None
+    assert seeded["work_orders"].find_one({"_id": SYNC_WO}) is None
+    assert seeded["test_definitions"].find_one({"_id": SYNC_TD}) is None
 
 
-def test_the_self_verify_refuses_a_stage_that_opens_green(client, seeded) -> None:
-    """A green stage means a stale rehearsal. The verifier says so, and it
-    must not run the beat on top of state it cannot restore."""
-    client.post("/api/v1/planning-sync/toggle", json={"online": True})
-
-    report = seed_demo.self_verify(seeded, client)
-
-    assert report["ok"] is False
-    assert report["checks"]["stage_opens_amber"] is False
-    assert "hero_went_green" not in report["checks"]
-
-
-def test_the_self_verify_proves_the_mirror_restore(client, seeded) -> None:
-    report = seed_demo.self_verify(seeded, client)
+def test_the_self_verify_proves_the_mirror_restore(seeded) -> None:
+    report = seed_demo.self_verify(seeded)
 
     assert report["checks"]["mirror_restore_is_exact"] is True
     assert report["checks"]["every_link_resolves"] is True
@@ -317,14 +328,21 @@ def test_the_twelve_battery_history_runs_are_seeded(seeded) -> None:
 #
 # The pairs below are what a presenter sees. The route sorts the biggest group
 # first, then by value, so a tie reads in a fixed order.
+#
+# The EX90 fleet reads lopsided, and that is arithmetic, not a bug: BL-81 gave
+# the hero's upload a campaign of its own, so the filler pads with 36 campaigns
+# instead of 37. `build_runs` derives a run's project from its campaign index
+# with a stride of 7, and 36 is a multiple of the three-project pool, so every
+# EX90 filler run lands on the first car of that fleet. VP021 and PP103 carry
+# named runs only. Restoring a spread means changing the pad, not this list.
 
 VEHICLE_GROUPS = [
-    ("EX30-VP002", 36),
-    ("EC40-VP007", 21),
-    ("EX90-VP014", 19),
-    ("EX90-VP021", 18),
-    ("EC40-PP044", 17),
-    ("EX90-PP103", 17),
+    ("EX90-VP014", 43),
+    ("EX30-VP002", 37),
+    ("EC40-VP007", 20),
+    ("EC40-PP044", 19),
+    ("EX90-VP021", 5),
+    ("EX90-PP103", 4),
 ]
 
 PHASE_GROUPS = [
@@ -397,8 +415,10 @@ def test_the_full_seed_matches_the_contract_home_example(client, routed_db, plan
     assert body["counts"]["runs_today"] == 6
     assert body["counts"]["files_today"] == 31
     assert body["counts"]["rig_count"] == 4
+    # `awaiting_work_order` read 1 until BL-81: the hero was the one amber run,
+    # and it now opens the campaign it claims. No seeded run waits any more.
     assert body["needs_attention"] == {
-        "awaiting_work_order": 1, "quarantined_files": 2, "invalid_runs": 1,
+        "awaiting_work_order": 0, "quarantined_files": 2, "invalid_runs": 1,
         "orphaned_definitions": 1,
     }
 

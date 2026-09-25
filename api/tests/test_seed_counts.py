@@ -15,7 +15,8 @@ from seed import seed_demo
 # The scale the demo seed writes, stated by hand. The seed tops the filler up to
 # its own DEMO_WORK_ORDER_COUNT, so a test that reads that constant back compares
 # the seed with itself and passes whatever the seed does. These are the numbers
-# the demo screens quote: 42 work orders in all, 5 of them named.
+# the demo screens quote: 42 work orders in all, 5 of them mirrored from
+# planning and 1 opened by the hero's own upload.
 DEMO_WORK_ORDERS = 42
 NAMED_WORK_ORDERS = 5
 
@@ -34,7 +35,8 @@ def planning(planning_offline):
 
 
 def test_the_report_counts_every_work_order_the_seed_wrote(client, routed_db, planning) -> None:
-    """The filler writes 37 more work orders. The report must state them."""
+    """Five mirrors, one the hero's upload opened, 36 from the filler. The
+    report must state all of them."""
     counts = seed_demo.seed(
         routed_db, client, reset=True, inventory=False, filler_records=True
     )
@@ -44,7 +46,11 @@ def test_the_report_counts_every_work_order_the_seed_wrote(client, routed_db, pl
 
 
 def test_a_re_seed_reports_no_new_filler_work_order(client, routed_db, planning) -> None:
-    """The count means "written", not "present". A second run writes none."""
+    """The count means "written", not "present". A second run writes none.
+
+    The hero's campaign already exists by then, so the registration opens
+    nothing and only the five mirror rows are restated.
+    """
     first = seed_demo.seed(
         routed_db, client, reset=True, inventory=False, filler_records=True
     )

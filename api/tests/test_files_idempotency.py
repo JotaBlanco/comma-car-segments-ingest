@@ -1,9 +1,11 @@
 # POST /files registers a file one time only (ticket B-02, appendix *).
 # The checksum is the idempotency key. Replays return 200 and write nothing.
 
+import logging
 from datetime import UTC, datetime
 
 from api.routers import files as files_router
+from api.services import alerts
 from tests import factories
 from tests.factories import upsert_run
 
@@ -476,6 +478,35 @@ def test_a_quarantined_replay_of_the_same_object_mints_no_second_document(client
     assert second.json()["file_id"] == file_id
     assert files_db["files"].count_documents({}) == 1
     assert _journal_count(files_db, file_id) == 1
+
+
+def test_a_replayed_quarantine_marker_raises_no_second_alert(client, files_db, caplog):
+    """BL-79 (`dev-planning/decode-without-a-database/spec.md` story 4): a
+    reset decoder replays the marker for a file that has never decoded, and
+    the registry must answer it as the replay it is — one document, one
+    journal entry, and no second `QUARANTINE ALERT` line, because the alert
+    fires only on the branch that inserts a new document
+    (`api/api/routers/files.py:1361-1366`), which a replay never reaches."""
+    upsert_run(files_db)
+    body = _unreadable_body(KEY_A)
+
+    with caplog.at_level(logging.WARNING, logger=alerts.logger.name):
+        first = client.post("/api/v1/files", json=body)
+        second = client.post("/api/v1/files", json=body)
+
+    assert first.status_code == 201
+    assert second.status_code == 200
+    file_id = first.json()["file_id"]
+    assert second.json()["file_id"] == file_id
+    assert files_db["files"].count_documents({}) == 1
+    assert _journal_count(files_db, file_id) == 1
+
+    alert_lines = [
+        record
+        for record in caplog.records
+        if record.levelno == logging.WARNING and record.getMessage().startswith(alerts.ALERT_PREFIX)
+    ]
+    assert len(alert_lines) == 1
 
 
 def test_two_unreadable_objects_keep_two_documents(client, files_db):

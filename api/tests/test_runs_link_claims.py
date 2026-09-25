@@ -2,8 +2,15 @@
 
 The ingestion pipeline states the ids its manifest carries. Planning stays the
 owner of both fields. So a claim resolves against the planning mirror, it
-carries the `embedded` tag, and an unknown id links nothing and refuses
-nothing.
+carries the `embedded` tag, and an unknown id refuses nothing.
+
+Since BL-81 (`dev-planning/upload-opens-its-work-order/spec.md`), an unknown
+WORK ORDER no longer links nothing: `_open_claimed_work_order` opens it before
+the claim resolves, so it always links. A definition is an authored test case
+and is never minted, so an unknown definition still links nothing — the
+scenarios this file keeps under "the claim never blocks ingestion" now cover
+that half alone; the opening behaviour has its own file,
+`test_upload_opens_work_order.py`.
 """
 
 import pytest
@@ -113,14 +120,15 @@ def test_a_resolved_claim_is_not_reassigned_by_the_sync(client, routed_db, plann
 # --- the claim never blocks ingestion ---------------------------------------
 
 
-def test_an_unknown_work_order_claim_leaves_the_run_amber_and_still_answers_201(
-    client, mirror
-) -> None:
-    status, body = _post(client, work_order_id=UNKNOWN_WO)
+def test_an_unknown_work_order_claim_opens_it_and_links_the_run(client, mirror) -> None:
+    """BL-81: a work-order claim the registry has never heard of no longer
+    waits — `_open_claimed_work_order` opens it before this resolves, so the
+    run links in the same request (upload-opens-its-work-order spec §3.1)."""
+    status, body = _post(client, work_order_id=UNKNOWN_WO, platform="Porsche_Taycan")
 
     assert status == 201
-    assert body["work_order_id"] is None
-    assert body["status"] == "awaiting_work_order"
+    assert body["work_order_id"] == UNKNOWN_WO
+    assert body["status"] == "complete"
 
 
 def test_an_unknown_definition_claim_links_nothing_and_still_registers(client, mirror) -> None:
@@ -130,20 +138,26 @@ def test_an_unknown_definition_claim_links_nothing_and_still_registers(client, m
     assert body["definition_id"] is None
 
 
-def test_an_unknown_claim_writes_a_journal_event_that_names_the_id(client, mirror) -> None:
-    _post(client, work_order_id=UNKNOWN_WO)
+def test_an_unknown_definition_claim_writes_a_journal_event_that_names_the_id(
+    client, mirror
+) -> None:
+    """A definition is an authored test case and is never minted, so this is
+    the only claim field left that can still go unresolved (BL-81 §2.2)."""
+    _post(client, definition_id=UNKNOWN_TD)
 
-    events = _events(mirror, RUN, "run.work_order_claim_unresolved")
+    events = _events(mirror, RUN, "run.definition_claim_unresolved")
     assert len(events) == 1
-    assert UNKNOWN_WO in events[0]["note"]
+    assert UNKNOWN_TD in events[0]["note"]
 
 
-def test_an_unresolved_claim_is_journalled_once_over_many_replays(client, mirror) -> None:
+def test_an_unresolved_definition_claim_is_journalled_once_over_many_replays(
+    client, mirror
+) -> None:
     """A restarting pipeline must not flood the run timeline."""
     for _ in range(4):
-        _post(client, work_order_id=UNKNOWN_WO)
+        _post(client, definition_id=UNKNOWN_TD)
 
-    assert len(_events(mirror, RUN, "run.work_order_claim_unresolved")) == 1
+    assert len(_events(mirror, RUN, "run.definition_claim_unresolved")) == 1
 
 
 # --- nothing else changes ----------------------------------------------------

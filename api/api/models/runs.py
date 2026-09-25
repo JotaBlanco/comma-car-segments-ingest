@@ -378,9 +378,12 @@ class RunUpsertRequest(RequestModel):
 
     `work_order_id` and `definition_id` are CLAIMS, never planning writes.
     Planning owns both fields. The registry resolves a claim against the
-    planning mirror and tags it `embedded`, so a later sync outranks it. A claim
-    the mirror cannot answer links nothing and is REMEMBERED on the run, so the
-    next sync can honour it. See `queries_runs._resolve_claims`.
+    planning mirror and tags it `embedded`, so a later sync outranks it. A
+    claimed WORK ORDER the mirror does not hold is OPENED, at `embedded`, in
+    this same request (`queries_runs._open_claimed_work_order`); a claimed
+    definition is an authored test case, so an unknown one links nothing and is
+    REMEMBERED on the run for the next sync to honour. See
+    `queries_runs._resolve_claims`.
     """
 
     run_id: str
@@ -405,6 +408,14 @@ class RunUpsertRequest(RequestModel):
     # table; query-time resolution stays with TM_LAKE_TABLE - so a run ingested
     # before a table bump still names the table that actually holds its rows.
     lake_table: str | None = None
+    # The platform the recording came off, claimed by the upload form or read
+    # from the MF4 header. The registry stores it on NO run - the run's own
+    # `project` comes from the work order its claim resolved to, and a second
+    # copy would be a second answer to one question. Its one use is the
+    # `project` of a campaign this request OPENS
+    # (`queries_runs._open_claimed_work_order`). Absent means the upload stated
+    # none, and such a campaign opens with an empty project.
+    platform: str | None = None
     source: Source = Source.EMBEDDED
     actor: Actor = "ingestion"
 
