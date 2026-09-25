@@ -125,11 +125,8 @@ def test_data():
     return ql.lake_partitions({table!r}, {paths!r}, columns={columns!r})
 
 
-@canvas.ai(
-    position=(380, -340),
-    size=(820, 720),
-    viz={{"aiMode": "code", "aiEffort": "medium"}},
-)
+# QuixLab's loader drops a decorator whose closing paren sits on its own line; one line, always.
+@canvas.ai(position=(380, -340), size=(820, 720), code_height=200, viz={{"aiMode": "code", "aiEffort": "medium"}})
 def draft(test_data):
     """{docstring}"""
 '''
