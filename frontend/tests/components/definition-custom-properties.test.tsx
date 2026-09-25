@@ -117,18 +117,17 @@ describe("the card shows what the definition carries", () => {
     ).toBeInTheDocument();
   });
 
-  it("sits in its own card, so no pair reads as a planning field", () => {
+  it("sits in its own card and names the person as author", () => {
     show({ "chamber id": "CH-02" });
 
     // The card names itself, and it names the owner of the pairs.
     expect(screen.getByRole("heading", { name: "Custom properties" })).toBeInTheDocument();
-    expect(screen.getByText(/a person owns these, never the planning system/)).toBeInTheDocument();
+    expect(screen.getByText(/a person authors every pair here/)).toBeInTheDocument();
   });
 
-  it("marks the pairs manual and never api:planning", () => {
+  it("never shows api:planning", () => {
     show({ "chamber id": "CH-02" });
 
-    expect(screen.getByText("manual")).toBeInTheDocument();
     expect(screen.queryByText("api:planning")).toBeNull();
   });
 });

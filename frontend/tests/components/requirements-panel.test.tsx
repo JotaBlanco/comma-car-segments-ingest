@@ -127,11 +127,9 @@ describe("the Requirements panel", () => {
     expect(screen.queryByRole("button", { name: /^Remove/ })).toBeNull();
   });
 
-  it("names the source, and names who added a manual document and when", () => {
+  it("names who added a manual document and when", () => {
     renderPanel([manualFile()]);
 
-    const list = screen.getByRole("list", { name: "Requirements documents" });
-    expect(within(list).getByText("manual")).toBeInTheDocument();
     expect(screen.getByText("a.bergstrom")).toBeInTheDocument();
   });
 
@@ -139,7 +137,7 @@ describe("the Requirements panel", () => {
     renderPanel([planningFile()]);
 
     expect(screen.queryByRole("button", { name: "Remove acceptance-criteria.md" })).toBeNull();
-    expect(screen.getByText(/Owned by the planning system/)).toBeInTheDocument();
+    expect(screen.getByText(/From the catalogue/)).toBeInTheDocument();
   });
 
   it("shows a remove control on a manual document, and deletes by name", async () => {

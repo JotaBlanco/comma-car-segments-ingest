@@ -32,9 +32,9 @@ const variantClass = {
  * links, table cells and filter labels, and a nested control breaks them.
  * `tabIndex` keeps the tooltip reachable by keyboard, so it is not hover-only.
  *
- * The tooltip mounts on the first hover or the first focus. One badge rides on
- * every row of every table, and a mounted tooltip costs real work per badge,
- * so a long table pays for the plain span alone until a person asks.
+ * The badge is used only in provenance views (audit trail, ingestion timeline)
+ * where the source is the subject matter. Displaying it elsewhere adds
+ * scanning cost without communicating actionable information.
  */
 export function SourceBadge({ source, className }: SourceBadgeProps) {
   // null = nobody reached this badge yet, so no tooltip exists.

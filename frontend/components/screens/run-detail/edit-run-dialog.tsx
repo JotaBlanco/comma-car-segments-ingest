@@ -11,7 +11,6 @@ import {
   sameMap,
   type PropertyRow,
 } from "@/components/shared/custom-properties-editor";
-import { SourceBadge } from "@/components/shared/source-badge";
 import { Button } from "@/components/ui/button";
 import {
   Combobox,
@@ -132,9 +131,6 @@ export function EditRunDialog({ run, open, onOpenChange }: EditRunDialogProps) {
     operator: run.operator,
     bench_sw: run.bench_sw,
   };
-  const workOrderProvenance = sourced(run, "work_order_id");
-  const propertyProvenance = sourced(run, "custom_properties");
-
   /* The route offers no "clear a field" semantics, so an emptied box counts as
      no change. Sending "" would store an empty string instead. */
   const changes: Omit<RunPatchBody, "actor"> = {};
@@ -224,7 +220,6 @@ export function EditRunDialog({ run, open, onOpenChange }: EditRunDialogProps) {
                   className={`${fieldClass} flex items-center gap-1.5`}
                 >
                   {field.label}
-                  {provenance.source !== null && <SourceBadge source={provenance.source} />}
                 </label>
                 <Input
                   id={`run-${field.key}`}
@@ -252,9 +247,6 @@ export function EditRunDialog({ run, open, onOpenChange }: EditRunDialogProps) {
               className={`${fieldClass} flex items-center gap-1.5`}
             >
               Work order
-              {workOrderProvenance.source !== null && (
-                <SourceBadge source={workOrderProvenance.source} />
-              )}
             </label>
             {/* Single-select combobox over GET /work-orders?q= — the typed
                 text searches the WHOLE mirror server-side, so the picker no
@@ -310,11 +302,8 @@ export function EditRunDialog({ run, open, onOpenChange }: EditRunDialogProps) {
           </div>
 
           <div className="grid gap-1.5">
-            <span className={`${fieldClass} flex items-center gap-1.5`}>
+            <span className={fieldClass}>
               Custom properties
-              {propertyProvenance.source !== null && (
-                <SourceBadge source={propertyProvenance.source} />
-              )}
             </span>
             <p className="text-[0.7rem] text-ink-3">
               Free name and value pairs. Remove a row to delete that property. A removal is a

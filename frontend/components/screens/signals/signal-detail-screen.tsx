@@ -16,7 +16,6 @@ import { LoadingRows } from "@/components/shared/loading-rows";
 import { MetaCell, MetaGrid } from "@/components/shared/meta-grid";
 import { Panel, PanelHead } from "@/components/shared/panel";
 import { RowLink, RowLinkLabel } from "@/components/shared/row-link";
-import { SourceBadge } from "@/components/shared/source-badge";
 import { StatusBadge, ToneBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -78,14 +77,11 @@ export function SignalDetailScreen({ name }: SignalDetailScreenProps) {
   }
 
   const unit = sourced(signal, "unit");
-  const sensorRef = sourced(signal, "sensor_ref");
-  const catalogRef = sourced(signal, "catalogue_ref");
   const runDescriptions = new Map(
     (runsQuery.data?.items ?? []).map((run) => [run.run_id, run.description ?? "—"])
   );
-  /* Live-derived: the signal's own field sources say whether the unit was
-     entered manually — no static demo list. */
   const manuallyCorrectedUnit = unit.source === "manual" && signal.unit !== null;
+  const catalogueMappedUnit = unit.source === "api:catalogue" && signal.unit !== null;
   const firstSeenDate = signal.first_seen.slice(0, 10);
   /* Two run counts answer two questions, so the screen never blends them.
      `run_count` counts the runs whose file inventory names the signal. The
@@ -120,7 +116,6 @@ export function SignalDetailScreen({ name }: SignalDetailScreenProps) {
                 missing unit
               </ToneBadge>
             )}
-            {signal.unit_source !== null && <SourceBadge source={signal.unit_source} />}
             <FavouriteStar type="signal" id={signal.name} label={signal.name} />
           </div>
           <div className="mt-[3px] text-[0.8rem] text-ink-3">
@@ -144,17 +139,9 @@ export function SignalDetailScreen({ name }: SignalDetailScreenProps) {
       </div>
 
       <Panel>
-        <PanelHead
-          title="Signal metadata"
-          action={
-            <span className="inline-flex items-center gap-1.5 text-[0.7rem] text-ink-3">
-              every field carries its source — <SourceBadge source="embedded" />{" "}
-              <SourceBadge source="api:catalogue" /> <SourceBadge source="manual" />
-            </span>
-          }
-        />
+        <PanelHead title="Signal metadata" />
         <MetaGrid>
-          <MetaCell label="Unit" source={unit.source ?? undefined}>
+          <MetaCell label="Unit">
             {signal.unit !== null ? (
               <>
                 <span className="font-mono text-[0.78rem]">{signal.unit}</span>
@@ -163,6 +150,11 @@ export function SignalDetailScreen({ name }: SignalDetailScreenProps) {
                     unit was missing in file header — corrected
                     {unit.actor !== undefined && ` by ${unit.actor}`}
                     {unit.at !== undefined && `, ${formatDay(unit.at)}`}
+                  </div>
+                )}
+                {catalogueMappedUnit && (
+                  <div className="mt-px text-[0.72rem] font-normal text-ink-3">
+                    mapped from the catalogue
                   </div>
                 )}
               </>
@@ -177,10 +169,10 @@ export function SignalDetailScreen({ name }: SignalDetailScreenProps) {
               </>
             )}
           </MetaCell>
-          <MetaCell label="Data type" source="embedded">
+          <MetaCell label="Data type">
             <span className="font-mono text-[0.78rem]">{signal.dtype}</span>
           </MetaCell>
-          <MetaCell label="Typical rate" source="embedded">
+          <MetaCell label="Typical rate">
             <span className="font-mono text-[0.78rem]">{signal.typical_rate_hz} Hz</span>
           </MetaCell>
           <MetaCell label="Seen in">
@@ -197,7 +189,6 @@ export function SignalDetailScreen({ name }: SignalDetailScreenProps) {
           </MetaCell>
           <MetaCell
             label="Sensor ref"
-            source={sensorRef.source ?? undefined}
             muted={signal.sensor_ref === null}
           >
             {signal.sensor_ref !== null ? (
@@ -213,7 +204,6 @@ export function SignalDetailScreen({ name }: SignalDetailScreenProps) {
           </MetaCell>
           <MetaCell
             label="Catalog entry"
-            source={catalogRef.source ?? undefined}
             muted={signal.catalogue_ref === null}
           >
             {signal.catalogue_ref !== null ? (

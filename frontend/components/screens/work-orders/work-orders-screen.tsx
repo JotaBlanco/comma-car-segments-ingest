@@ -12,7 +12,6 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Panel, PanelHead, TableScrollArea } from "@/components/shared/panel";
 import { QuickViewSegment, type QuickView } from "@/components/shared/quick-view-segment";
 import { SavedSearchButton } from "@/components/shared/saved-search-button";
-import { SourceBadge } from "@/components/shared/source-badge";
 import { ToneBadge } from "@/components/shared/status-badge";
 import { TableEmptyState } from "@/components/shared/table-empty-state";
 import { TablePager } from "@/components/shared/table-pager";
@@ -224,8 +223,7 @@ export function WorkOrdersScreen() {
                 <TableCell>
                   <RowLinkLabel>
                     <span className="font-mono text-[0.78rem]">{workOrder.wo_id}</span>
-                  </RowLinkLabel>{" "}
-                  <SourceBadge source={workOrder.origin ?? "api:planning"} />
+                  </RowLinkLabel>
                 </TableCell>
                 <TableCell className="whitespace-normal">{workOrder.title}</TableCell>
                 <TableCell>

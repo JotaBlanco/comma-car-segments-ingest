@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { EmptyState } from "@/components/shared/empty-state";
 import { MarkdownLite } from "@/components/shared/markdown-lite";
 import { Panel, PanelHead } from "@/components/shared/panel";
-import { SourceBadge } from "@/components/shared/source-badge";
 import { Switch } from "@/components/ui/switch";
 import { ApiError } from "@/lib/api/client";
 import { triggerBrowserDownload } from "@/lib/api/download";
@@ -20,13 +19,13 @@ import { RequirementsFileDialog } from "./requirements-file-dialog";
 /**
  * The Requirements panel of the definition detail screen.
  *
- * A definition carries requirements documents. Planning owns a `planning`
- * document and a person owns a `manual` one. The API serves the list already
- * sorted — manual first, then by name — so this panel never sorts it.
+ * A definition carries requirements documents. The catalogue seed provides a
+ * read-only document; a person adds a `manual` one. The API serves the list
+ * already sorted — manual first, then by name — so this panel never sorts it.
  *
  * A manual TEXT document also carries an Edit control. It opens the same
- * dialog the Add control opens, in its edit mode. A planning document and a
- * binary document carry none: planning owns its own text, and bytes are
+ * dialog the Add control opens, in its edit mode. A catalogue document and a
+ * binary document carry none: catalogue text is read-only, and bytes are
  * replaced by uploading the file again.
  *
  * A document holds text or bytes.
@@ -303,7 +302,6 @@ export function RequirementsPanel({ tdId, files, className }: RequirementsPanelP
                   <span className="font-mono text-[0.74rem] break-all text-foreground">
                     {file.name}
                   </span>
-                  <SourceBadge source={file.source === "manual" ? "manual" : "api:planning"} />
                 </button>
               </li>
             ))}
@@ -321,10 +319,7 @@ export function RequirementsPanel({ tdId, files, className }: RequirementsPanelP
                     · {formatArrival(active.updated_at)}
                   </>
                 ) : (
-                  <>
-                    Owned by the planning system · synced {formatArrival(active.updated_at)} ·
-                    never editable here
-                  </>
+                  <>From the catalogue · {formatArrival(active.updated_at)} · read-only</>
                 )}
               </span>
               {active.source === "manual" && (

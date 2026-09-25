@@ -22,20 +22,6 @@ describe("MetaCell", () => {
     expect(labelEl.closest("div")).toHaveClass("uppercase");
   });
 
-  it("renders a SourceBadge when source is provided", () => {
-    render(
-      <MetaCell label="Definition" source="api:planning">
-        DEF-9
-      </MetaCell>
-    );
-    expect(screen.getByText("api:planning")).toBeInTheDocument();
-  });
-
-  it("omits the SourceBadge when source is not provided", () => {
-    const { container } = render(<MetaCell label="Definition">DEF-9</MetaCell>);
-    expect(container.querySelector(".font-mono")).toBeNull();
-  });
-
   it("applies muted styling to the value when muted", () => {
     render(
       <MetaCell label="Notes" muted>

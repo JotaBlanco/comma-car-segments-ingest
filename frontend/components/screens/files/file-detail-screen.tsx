@@ -25,7 +25,6 @@ import { MetaCell, MetaGrid } from "@/components/shared/meta-grid";
 import { NewTabMark } from "@/components/shared/new-tab-mark";
 import { Panel, PanelHead } from "@/components/shared/panel";
 import { RequestAccessDialog } from "@/components/shared/request-access-dialog";
-import { SourceBadge } from "@/components/shared/source-badge";
 import { StatusBadge, ToneBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,7 +39,6 @@ import { formatArrival, formatBytes } from "@/lib/format";
 import { useFile, useFileJournal, usePageTitle, useRun } from "@/lib/hooks";
 import { openQuixLab, quixLabConfigured } from "@/lib/quixlab";
 import { cn } from "@/lib/utils";
-import { sourced } from "@/types";
 import type { FileLifecycleAction } from "@/lib/hooks";
 import { DownloadButton } from "./download-button";
 import { FileInvalidFlagDialog } from "./file-invalid-flag-dialog";
@@ -126,8 +124,6 @@ export function FileDetailScreen({ fileId }: FileDetailScreenProps) {
   /* A file the registry stored before 24 Aug 2026 carries no block at all, so
      an absent block reads as "nobody marked this file". */
   const invalidFlag = file.invalid;
-  const checksum = sourced(file, "checksum_sha256");
-  const size = sourced(file, "size_bytes");
   const mismatch = file.checksum_state === "mismatch";
   const { stem, extension } = splitExtension(file.filename);
 
@@ -341,19 +337,12 @@ export function FileDetailScreen({ fileId }: FileDetailScreenProps) {
       </div>
 
       <Panel className="mb-3">
-        <PanelHead
-          title="File metadata"
-          action={
-            <span className="inline-flex items-center gap-1.5 text-[0.7rem] text-ink-3">
-              every field carries its source — <SourceBadge source="embedded" />
-            </span>
-          }
-        />
+        <PanelHead title="File metadata" />
         <MetaGrid>
-          <MetaCell label="Size" source={size.source ?? "embedded"}>
+          <MetaCell label="Size">
             <span className="font-mono text-[0.78rem]">{formatBytes(file.size_bytes)}</span>
           </MetaCell>
-          <MetaCell label="Checksum" source={checksum.source ?? "embedded"}>
+          <MetaCell label="Checksum">
             <span
               className={cn(
                 "font-mono text-[0.68rem] break-all",
@@ -364,25 +353,22 @@ export function FileDetailScreen({ fileId }: FileDetailScreenProps) {
               {mismatch && " · mismatch"}
             </span>
           </MetaCell>
-          <MetaCell label="Source system" source="embedded">
+          <MetaCell label="Source system">
             <ToneBadge tone="neutral">{file.source_system}</ToneBadge>
           </MetaCell>
-          <MetaCell label="Format" source="embedded">
+          <MetaCell label="Format">
             <span className="font-mono text-[0.78rem]">{file.format}</span>
           </MetaCell>
-          {/* The car the bytes came off. No source badge when the file names
-              none — a tag on an em dash would claim the pipeline stated it. */}
           <MetaCell
             label="Vehicle"
-            source={file.vehicle ? "embedded" : undefined}
             muted={!file.vehicle}
           >
             <span className="font-mono text-[0.78rem]">{file.vehicle ?? "—"}</span>
           </MetaCell>
-          <MetaCell label="Signals" source="embedded">
+          <MetaCell label="Signals">
             <span className="font-mono text-[0.78rem]">{file.signal_count}</span>
           </MetaCell>
-          <MetaCell label="Time range" source="embedded">
+          <MetaCell label="Time range">
             <span className="font-mono text-[0.74rem]">
               {formatClock(file.time_start)} → {formatClock(file.time_end)}
             </span>
