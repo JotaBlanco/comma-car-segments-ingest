@@ -187,4 +187,32 @@ deployments:
     plugin: {}
     blobStorage:
       bind: true
+  - name: tm-lab-tas-1003-nb-3e0282bfe1a6-377404f8
+    application: quixlab
+    version: latest
+    deploymentType: Service
+    resources:
+      limits:
+        cpu: 500
+        memory: 2000
+    publicAccess:
+      enabled: true
+      urlPrefix: tm-lab-377404f8e6e7
+    state:
+      enabled: true
+      size: 1
+    network:
+      ports:
+        - port: 80
+          targetPort: 80
+    variables:
+      - name: QUIX_PAT_TOKEN
+        description: The lake token the cloned verdict jobs query with. A project secret holding a personal access token.
+      - name: QUIXLAB_MODE
+        inputType: FreeText
+      - name: QUIXLAB_NOTEBOOK
+        value: blob://testrigorg-commacarsegmentsingest-testing/quixlab-runs/TAS-1003/nb-3e0282bfe1a6/analysis.py
+    plugin: {}
+    blobStorage:
+      bind: true
 
