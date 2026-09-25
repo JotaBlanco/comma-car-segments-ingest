@@ -266,18 +266,27 @@ export interface RequirementCreateBody {
 }
 
 /**
- * `PATCH /requirements/{req_id}` — a manual row's authored fields only, a
- * subset, `item_version`-guarded (authoring-controls §6, §9). No `asil`, no
- * `status`: neither exists on the committed `RequirementPatchRequest` — a
- * status move is not this route's job, and `asil` was proposed by
- * `requirements-page/spec.md` but never built (see the architecture doc).
+ * `PATCH /requirements/{req_id}` — a requirement's authored fields, a subset,
+ * `item_version`-guarded (authoring-controls §6, §9). `status` rides along and
+ * is gated server-side by the transition table (requirement-status-gates
+ * §4.1): only the free band — `Draft`, `Ready for Review`, `Rejected` — is
+ * reachable from here, and only from a status the table allows. `In Review`
+ * and `Reviewed` are written by the review flow; `Implemented` and `Tested`
+ * are never stored at all, they are read off `verification_state`. Anything
+ * else answers 409 `illegal_transition`.
+ *
+ * No `asil`: it was proposed by `requirements-page/spec.md` and never built.
  */
 export interface RequirementPatchBody {
   parent_version: number;
   actor: string;
-  /** Required once `status` reads `Reviewed` on the row being edited (§7). */
+  /** Required once `status` reads `Reviewed` on the row being edited (§7).
+      The server records it on the note of every journal entry the edit
+      produces; it is not stored as a field. */
   second_actor?: string;
   note?: string;
+  /** Moved by the detail screen's status control, never by the edit dialog. */
+  status?: string;
   title?: string;
   text?: string;
   chapter?: string;

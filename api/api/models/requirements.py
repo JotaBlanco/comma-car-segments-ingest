@@ -176,10 +176,19 @@ class RequirementPatchRequest(RequestModel):
     §12 OQ5): a status-only edit still mints `item_version`, but is judged for
     `no_op_mint` against its own prior value rather than the content hash.
 
-    A stated `status` takes any value the collection accepts — no transition
-    table, no four-eyes gate; `dev-planning/review-page/spec.md` owns the
-    policy. Omit it and a content change past the authoring states demotes the
-    requirement to `Draft` (`queries_requirements.AUTHORING_STATUSES`).
+    A stated `status` is checked against `AUTHOR_TARGETS` in
+    `api.requirement_lifecycle` and refused `illegal_transition` (409) unless
+    that table allows the move (`dev-planning/requirement-status-gates/spec.md`
+    §4.1). Only the free band is reachable here: `Draft`, `Ready for Review`,
+    `Rejected`. `In Review` and `Reviewed` are written by the review flow,
+    `Obsolete` by `POST /requirements/{req_id}/retire`, and `Implemented` and
+    `Tested` by nobody — they are read off `verification_state`. Omit it and a
+    content change past the authoring states demotes the requirement to `Draft`
+    (`queries_requirements.AUTHORING_STATUSES`).
+
+    `second_actor` is the second person a content edit on a `Reviewed` row
+    names (`dev-planning/authoring-controls/spec.md` §7). It is not stored as a
+    field: it rides on the note of every journal entry the edit produces.
     """
 
     title: str | None = None

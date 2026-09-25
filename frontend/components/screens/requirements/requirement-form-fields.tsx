@@ -20,6 +20,11 @@ import { EARS_PATTERNS, type EarsPattern, type RequirementMeasurand } from "@/ty
  * light functional code over four near-identical list widgets. `measurand`
  * keeps its own row editor because it is not a flat string, it is
  * `{name, unit}`.
+ *
+ * No `status` field either: it is not a content field. The create dialog
+ * picks the birth status itself, and a later move goes through the detail
+ * screen's status control, which is gated by the transition table
+ * (requirement-status-gates §4.5).
  */
 export interface RequirementFormValues {
   title: string;
@@ -35,7 +40,6 @@ export interface RequirementFormValues {
   figure_refs: string;
   related_reqs: string;
   verification_criteria: string;
-  status: string;
 }
 
 export function emptyRequirementFormValues(): RequirementFormValues {
@@ -53,7 +57,6 @@ export function emptyRequirementFormValues(): RequirementFormValues {
     figure_refs: "",
     related_reqs: "",
     verification_criteria: "",
-    status: "Draft",
   };
 }
 
@@ -135,19 +138,9 @@ function MeasurandEditor({
 export function RequirementFormFields({
   values,
   onChange,
-  statusOptions,
-  showStatus = true,
 }: {
   values: RequirementFormValues;
   onChange: (next: RequirementFormValues) => void;
-  /** Free text when absent — the enum is customer configuration and this
-      code does not own it (requirements-page spec §6). Passed only at
-      create time, where the route restricts the choice to NEW/Draft. */
-  statusOptions?: readonly string[];
-  /** False on the edit form: the committed `RequirementPatchRequest` carries
-      no `status` field, so there is nothing here for a status edit to send —
-      the status shown at the top of the edit dialog is display-only. */
-  showStatus?: boolean;
 }) {
   const set = <K extends keyof RequirementFormValues>(key: K, value: RequirementFormValues[K]) =>
     onChange({ ...values, [key]: value });
@@ -315,28 +308,6 @@ export function RequirementFormFields({
           />
         </div>
       </div>
-
-      {showStatus &&
-        (statusOptions !== undefined ? (
-          <SingleSelect
-            label="Status"
-            value={values.status}
-            onChange={(value) => set("status", value)}
-            options={statusOptions.map((option) => ({ value: option, label: option }))}
-          />
-        ) : (
-          <div className="grid gap-1">
-            <label htmlFor="req-status" className={fieldClass}>
-              Status <span className="font-normal text-ink-3">(the review flow moves this on)</span>
-            </label>
-            <Input
-              id="req-status"
-              value={values.status}
-              className="text-[0.8rem]"
-              onChange={(event) => set("status", event.target.value)}
-            />
-          </div>
-        ))}
     </div>
   );
 }
