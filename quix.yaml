@@ -424,6 +424,29 @@ deployments:
         label: Battery Sim
         icon: battery_charging_full
         order: 1
+  - name: tm-run-tas-1004-bat-sys-tc-010-a2dba9dc
+    application: quixlab
+    version: latest
+    deploymentType: Job
+    resources:
+      limits:
+        cpu: 500
+        memory: 2000
+    variables:
+      - name: QUIX_PAT_TOKEN
+        description: The lake token the cloned verdict jobs query with. Bound to the same project secret Grafana reads the lake with; empty would leave the job on the workspace service identity, which is what it cannot query with.
+        variableKey: QuixLakeToken
+      - name: QUIXLAB_MODE
+        inputType: FreeText
+        value: run
+      - name: QUIXLAB_NOTEBOOK
+        value: blob://testrigorg-commacarsegmentsingest-jamaui/jama_ui/definitions/BAT-SYS-TC-010/notebook.py
+      - name: QUIXLAB_PARAMS
+        inputType: FreeText
+        value: '{"run_id": "TAS-1004", "td_id": "BAT-SYS-TC-010", "implementation_key": "testrigorg-commacarsegmentsingest-jamaui/jama_ui/unassigned/c0249f6c-BAT-SYS-TC-010.py", "lake_table": "battery_data_v1", "entrypoint": "evaluate"}'
+    plugin: {}
+    blobStorage:
+      bind: true
 
 # This section describes the Topics of the data pipeline
 topics:
