@@ -77,11 +77,12 @@ NAME_LIMIT = 60
 
 # The URL PREFIX is a different, much tighter limit, and it is not the name's.
 # The Portal answers
-#   400 {"message":"Url prefix '...' must be less than 34 characters"}
-# so a prefix is at most 33. A viewer id alone is a 36-character uuid, so a
+#   400 {"message":"Url prefix '...' must be less than 21 characters"}
+# on a workspace with a long id (the prefix and the workspace id share one host
+# label), so a prefix is at most 20. A viewer id alone is a 36-character uuid, so a
 # readable prefix is not on offer at all: `lab_url_prefix` spends the budget on
 # a digest instead, and the readable identity lives in the deployment name.
-URL_PREFIX_LIMIT = 33
+URL_PREFIX_LIMIT = 20
 
 # The variables that pin ONE QuixLab's identity or runtime mode. Cloning them
 # would make the child masquerade as its template — and the platform re-injects
@@ -180,8 +181,8 @@ def lab_url_prefix(user_id: str, notebook_id: str) -> str:
     still a pure function of the pair, so a lab found by name has the address
     this would have built for it.
     """
-    prefix = f"{LAB_PREFIX}-{_digest(user_id, notebook_id, 16)}"
-    assert len(prefix) <= URL_PREFIX_LIMIT  # 7 + 1 + 16 = 24
+    prefix = f"{LAB_PREFIX}-{_digest(user_id, notebook_id, 12)}"
+    assert len(prefix) <= URL_PREFIX_LIMIT  # 6 + 1 + 12 = 19
     return prefix
 
 

@@ -87,7 +87,7 @@ def test_a_name_fits_what_the_portal_takes() -> None:
 
 
 def test_the_url_prefix_fits_what_the_portal_takes() -> None:
-    """The Portal answers 400 `Url prefix '...' must be less than 34 characters`.
+    """The Portal answers 400 `Url prefix '...' must be less than 21 characters`.
 
     It is a far tighter limit than the deployment name's, and the first version
     of this used the name for both: a viewer id alone is a 36-character uuid, so
@@ -101,7 +101,7 @@ def test_the_url_prefix_fits_what_the_portal_takes() -> None:
     prefix = quixlab_provision.lab_url_prefix(long_user, NB)
 
     assert len(prefix) <= quixlab_provision.URL_PREFIX_LIMIT
-    assert quixlab_provision.URL_PREFIX_LIMIT == 33
+    assert quixlab_provision.URL_PREFIX_LIMIT == 20
     assert prefix == quixlab_provision.sanitize(prefix), "it is also a host name"
     assert prefix == quixlab_provision.lab_url_prefix(long_user, NB), "stable"
     # Two viewers on one notebook are two labs, so they must be two addresses.
