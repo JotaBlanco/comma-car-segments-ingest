@@ -136,6 +136,8 @@ def file_body(
         "filename": filename,
         "run_id": identity.run_id,
         "source_system": identity.source_system,
+        # The car these bytes came off. None when neither channel named one.
+        "vehicle": identity.vehicle,
         "format": file_block.get("format") or "MF4",
         "size_bytes": int(file_block.get("size_bytes") or 0),
         "checksum_sha256": checksum,

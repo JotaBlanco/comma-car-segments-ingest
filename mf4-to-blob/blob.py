@@ -61,6 +61,40 @@ def open_writer(blob_path: str):
     return get_fs().open(blob_path, "wb")
 
 
+def set_object_metadata(blob_path: str, values: dict[str, str]) -> bool:
+    """Write user metadata onto the stored object itself. Report whether it stuck.
+
+    `setxattrs` is adlfs's `set_blob_metadata` (`adlfs/spec.py::_setxattrs`), so
+    the object carries `x-ms-meta-<name>` and the Portal, `az storage blob
+    show` and any SDK reader see it beside the bytes. It REPLACES the whole
+    metadata set, which is what we want: the value is stated once, after the
+    bytes landed, by the side that resolved it.
+
+    Best-effort, like :func:`safe_remove`. The bytes are already written and the
+    registry and the lake carry the same claim, so a storage-side refusal must
+    not turn a finished upload into a failed one. A backend with no metadata
+    concept (LocalFileSystem) has no `setxattrs` and answers False.
+    An upload that claimed nothing states nothing, and makes no call at all.
+    """
+    if not values:
+        return False
+    fs = get_fs()
+    setter = getattr(fs, "setxattrs", None)
+    if setter is None:
+        logger.info(
+            "%s carries no object metadata: %s exposes no setxattrs",
+            blob_path, type(fs).__name__,
+        )
+        return False
+    try:
+        setter(blob_path, **values)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Could not set metadata on %s: %s", blob_path, e)
+        return False
+    logger.info("Object metadata on %s: %s", blob_path, values)
+    return True
+
+
 def safe_remove(blob_path: str) -> None:
     """Best-effort partial-blob cleanup. Tolerate missing-object errors."""
     try:

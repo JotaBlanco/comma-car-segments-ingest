@@ -17,9 +17,9 @@ import pytest
 
 pytest.skip(
     "The demo repo maintains quix.yaml as an OVERLAY with its own estate "
-    "(test bench, importer, decoder, stats, sink, connector, Planning Sync "
-    "Mock) and its own law, tests/test_architecture_law.py in the root "
-    "suite. This suite describes upstream s descriptor, not the overlay.",
+    "(test bench, importer, decoder, stats, sink, connector) and its own law, "
+    "tests/test_architecture_law.py in the root suite. This suite describes "
+    "upstream s descriptor, not the overlay.",
     allow_module_level=True,
 )
 
@@ -369,9 +369,10 @@ def test_every_image_variable_is_really_declared_somewhere(name):
 # error, and names no file in the log.
 
 REQUIRED_VARIABLES = {
-    # No Mongo means no registry. No planning URL means no work orders. No token
-    # means every /api/v1 route answers 401. No TM_INGEST_SOURCE means the
-    # download route answers 503 on every file.
+    # No Mongo means no registry. No token means every /api/v1 route answers
+    # 401. No TM_INGEST_SOURCE means the download route answers 503 on every
+    # file. PLANNING_API_URL is named but may be blank: blank means there is no
+    # planning system and /ready probes none.
     # The lake names are ABSENT here on purpose. The platform injects them through
     # the blob bind, so rule 6 below forbids the declaration this rule would need.
     "Test Manager API": frozenset(
@@ -385,8 +386,6 @@ REQUIRED_VARIABLES = {
     # No API_URL means the proxy calls itself. No TM_BE_URL means the built-in
     # mock answers. No token means every screen answers 401.
     "Test Manager Frontend": frozenset({"API_URL", "TM_BE_URL", "TM_API_TOKEN"}),
-    # Without TM_COMMAND this container runs the API duty, not the mock.
-    "Test Manager Planning Mock": frozenset({"TM_COMMAND"}),
     # No duty, no database, no API address and no lake means the seed writes nothing.
     "Test Manager Seed": frozenset(
         {

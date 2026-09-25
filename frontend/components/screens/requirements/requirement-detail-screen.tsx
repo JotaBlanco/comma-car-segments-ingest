@@ -91,7 +91,7 @@ export function RequirementDetailScreen({ reqId }: RequirementDetailScreenProps)
 
   const origin = requirementOrigin(detail);
   // A row `field_sources` cannot place (an older API, or no field ever
-  // touched) reads as planning-sourced.
+  // touched) reads as seeded through `POST /planning/sync`.
   const badgeSource = origin ?? "api:planning";
 
   return (
@@ -125,8 +125,7 @@ export function RequirementDetailScreen({ reqId }: RequirementDetailScreenProps)
         </div>
         <div className="mt-1.5">
           <span className="inline-flex items-center gap-1.5 text-[0.7rem] text-ink-3">
-            {origin === "manual" ? "Authored in the Test Manager" : "Mirrored from planning"} ·
-            synced_at {detail.synced_at !== null ? formatArrival(detail.synced_at) : "—"}
+            {origin === "manual" ? "Authored in the Test Manager" : "Loaded by the catalogue seed"}
           </span>
         </div>
       </div>

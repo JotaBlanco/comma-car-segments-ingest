@@ -11,7 +11,7 @@ export type FieldSources = Record<string, FieldSource>;
 /** Client-side view-model only — never on the wire. */
 export interface Sourced<T> {
   value: T | null;
-  /** null source + null value = "awaiting sync" empty state. */
+  /** null source + null value = the unhonoured-claim empty state. */
   source: SourceTag | null;
   actor?: string;
   at?: string;

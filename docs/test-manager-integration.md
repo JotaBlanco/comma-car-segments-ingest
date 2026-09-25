@@ -37,8 +37,8 @@ browser ──POST bytes──▶ mf4-to-blob ──mf4_metadata──▶ mf4-de
    Manager exists and the only one holding its token. The metadata lane registers the run the
    moment the upload lands; the batch lane registers the file, its inventory and its timeline
    on the marker.
-4. **The registry** links the claim when planning holds the work order; otherwise the run sits
-   `awaiting_work_order` (amber) until the planning mock's next sync.
+4. **The registry** links the claim when it holds the work order; otherwise the run sits
+   `awaiting_work_order` (amber) until the catalogue names that campaign.
 
 Both kinds ride ONE topic and the readers tell them apart by `kind`: the sink expands
 `samples` and skips the marker, the connector accumulates `samples` and finalizes on the
@@ -84,7 +84,7 @@ from platform and route and a level under it would only repeat what the level ab
 `platform` prefers what the FILE says: the MF4's own header names the vehicle, which beats any
 plan. The `WorkOrder` configuration the Test Manager API pushes to Dynamic Configuration
 (`api/api/config_push.py`, `content.project`) is consulted only when the header named none —
-that keeps the pushed configuration load-bearing without letting a planning value overwrite a
+that keeps the pushed configuration load-bearing without letting a planned value overwrite a
 measured one.
 
 Changing the tree means a NEW `LAKE_TABLE` (the sink refuses an in-place repartition) and a
@@ -97,14 +97,14 @@ This estate reads Dynamic Configuration on two independent paths, and they do no
 | Consumer | Type | Reads |
 |---|---|---|
 | `mf4-decoder` | `dbc` | The CAN database for a file's platform, seeded by `dcm-seed-dbc`. Existed before this integration. |
-| `mf4-datalake-sink` | `WorkOrder` | `$.project` as the platform FALLBACK, pushed by the Test Manager API when planning mirrors a work order. New. |
+| `mf4-datalake-sink` | `WorkOrder` | `$.project` as the platform FALLBACK, pushed by the Test Manager API when a work order enters the catalogue. New. |
 
 ## Project variables
 
 | Variable | Set by | Read by |
 |---|---|---|
 | `LAKE_TABLE` | you | the sink (writes), tm-connector, the API, the frontend |
-| `TM_API_TOKEN` (secret) | you | the API, the planning mock, tm-connector, the frontend |
+| `TM_API_TOKEN` (secret) | you | the API, tm-connector, the frontend |
 | `TM_RUN_KEY_PATTERN` | you | mf4-decoder, tm-connector |
 | `mongo_password` (secret) | existing | the API, the Configuration Manager, the explorer |
 
@@ -115,7 +115,7 @@ pins that no deployment states one literally instead.
 
 | Directory | Deployments | Changed here |
 |---|---|---|
-| `api/` | Test Manager - API, Planning Sync Mock | Mongo pieces point at this estate's `mongodb`; `MF4_IMPORT_URL` at mf4-to-blob; `mock_planning`'s adoption themes and cast are the car estate's |
+| `api/` | Test Manager - API | Mongo pieces point at this estate's `mongodb`; `MF4_IMPORT_URL` at mf4-to-blob; `PLANNING_API_URL` empty, so the registry's own MongoDB is the single store |
 | `frontend/` | Test Manager - Frontend | lake partition defaults; the Workbooks nav entry is gated on `TM_FTS_URL` |
 | `tm-connector/` | TS Metadata sink | back on `mf4_metadata` / `mf4-to-msg`; `format` default `MF4` |
 | `mongo-explorer/` | Mongo Data Explorer | points at `mongodb` / `admin` |
@@ -128,15 +128,16 @@ variable and both light up against whatever is deployed there.
 
 ## The registry's seed
 
-The planning cast in `api/mock_planning/fixture.json` is the MF4 estate's own — six work
-orders over two vehicle programmes, and the cast `api/seed/` is written against. It is a
-PLACEHOLDER for the comma-car campaign, and the Airbus A350 campaign that replaced it in the
-PCAP estate is deliberately not here.
+**The registry's own MongoDB is the single store** for requirements, test definitions and work
+orders. No external planning system feeds this estate: `PLANNING_API_URL` is empty, `/ready`
+reports `planning_api: disabled` and probes nothing, and the catalogue enters through
+`POST /api/v1/planning/sync`, which `python -m seed all` posts from `battery-trace-gen/`.
 
-A claim planning has never heard of is not stranded: `mock_planning/demo_admin.py` adopts it,
-themed from the definition id's family (`TD-BAT-…` → HV battery, `TD-ACC-…` → adaptive cruise
-control), and names the platform from the run's own rig. So an upload can claim any pair and
-still link.
+The `api/mock_planning/` package survives as a fixture, not as a deployment. Its
+`fixture.json` is the demo cast `api/seed/fixtures.py:75` reads, and the package still runs
+as a service under `docker-compose.local.yml:311,322` for local work. Nothing in the cluster
+pushes to the registry — a mirror push overwrites the catalogue it lands on, which is why the
+deployment is gone.
 
 ## Running it
 
@@ -160,14 +161,11 @@ screens work on the numbers the pipeline measured.
 
 ### Deploying
 
-Set the four project variables above, then bring up in this order — planning starts OFFLINE by
-design, and the registry's first sync would otherwise mirror nothing:
+Set the four project variables above, then bring up in this order:
 
-1. **MongoDB**, **Dynamic Configuration Manager**, **Test Manager - API**, **Planning Sync
-   Mock**.
-2. **Bring planning online** — the toggle in the Test Manager's top bar, or
-   `POST /api/v1/planning-sync/toggle` with `{"online": true}` and the bearer. While the
-   switch is off every planning read answers 503.
+1. **MongoDB**, **Dynamic Configuration Manager**, **Test Manager - API**.
+2. **Load the catalogue** — `python -m seed all` from `battery-trace-gen/`, which posts the
+   work order, the definitions and the requirements to `POST /api/v1/planning/sync`.
 3. **MF4 Import**, **MF4 Decoder**, **TS Metadata sink**, **MF4 DataLake Sink**.
 
 The decoder and the sink both carry new consumer groups, so every stored file is re-decoded

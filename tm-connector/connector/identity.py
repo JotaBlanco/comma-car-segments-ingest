@@ -27,6 +27,10 @@ MUST therefore be broken here, and the rule splits by KIND of field:
 * free-text context (`description`, `test_cell`, `operator`, `bench_sw`)
   — **declared wins**, typed by the person who knows.
 
+* the car (`vehicle`) — **declared wins**, and it never reaches the run body.
+  It states which physical vehicle THESE BYTES came off, so it belongs to the
+  file the way `source_system` does; a file re-linked to another run keeps it.
+
 Nothing is destroyed by losing: `header_properties` rides verbatim on every
 batch, and a disagreement is reported in the `file.header_parsed` note.
 
@@ -119,6 +123,14 @@ ASSERTED_FIELDS = frozenset(LINKAGE_FIELDS + CONTEXT_FIELDS)
 # states none", not a real measurement (test-bench/generation.py:76, :806). A
 # false 1970 window is worse than no window.
 EPOCH_SENTINEL = datetime(1970, 1, 2, tzinfo=UTC)
+
+# The car the recording came off. It is a property of the BYTES, like the
+# source system beside it, so it is read off the raw bags and never joins the
+# run body — `api/api/models/files.py::FileRegisterRequest` carries it, and one
+# file names one car whatever run it later hangs from. The decoder climbs the
+# same two rungs for the lake column (`mf4-decoder/identity.py::CLAIMED_COLUMNS`).
+DECLARED_VEHICLE = "vehicle"
+HEADER_VEHICLE = "test.vehicle"
 
 # `SourceSystem` is Literal["TAS", "INCA", "ifile", "api"]
 # (api/api/models/files.py:13). "api" names a logical file minted by
@@ -251,6 +263,22 @@ def find_run_key(filename: str, pattern: str) -> str | None:
     return match.group(0) or None
 
 
+def resolve_vehicle(declared: object, header: object) -> str | None:
+    """The car: what the operator declared, then what the file states.
+
+    Declared outranks the header for the reason every linkage field does — a
+    correction must not need the file edited. None means neither channel named
+    a car, and the registry stores that as no claim rather than a sentinel.
+    """
+    if isinstance(declared, dict):
+        stated = _clean(declared.get(DECLARED_VEHICLE))
+        if stated is not None:
+            return stated
+    if isinstance(header, dict):
+        return _clean(header.get(HEADER_VEHICLE))
+    return None
+
+
 def resolve_source_system(header: dict[str, str] | object, filename: str) -> str:
     """State the producing system, never forwarding an unvalidated string."""
     declared = None
@@ -271,6 +299,8 @@ class Identity:
     run_id: str | None
     rig_id: str
     source_system: str
+    # File-level, like `source_system`: it describes these bytes, not the run.
+    vehicle: str | None = None
     # Every other RunUpsertRequest field that resolved, already coerced.
     fields: dict[str, object] = field(default_factory=dict)
     # Human-readable "header said X; declared Y won" lines, for the
@@ -377,6 +407,9 @@ def resolve_identity(
         run_id=run_id,
         rig_id=str(rig_id),
         source_system=resolve_source_system(header_raw, filename),
+        # Off the RAW bags, like the source system: the per-field precedence
+        # above settles what a run asserts, and the car is not one of those.
+        vehicle=resolve_vehicle(declared_raw, header_raw),
         fields=resolved,
         conflicts=conflicts,
         run_id_derived=derived,

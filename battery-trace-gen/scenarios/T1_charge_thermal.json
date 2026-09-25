@@ -1,8 +1,8 @@
 {
   "trace_id": "T1",
   "title": "Charge and thermal — 300 A charge into a warm pack with the chiller off",
-  "route": "a3f1c07d9b4e2610--2026-09-23--12-30-00",
-  "start_time_utc": "2026-09-23T12:30:00Z",
+  "route": "a3f1c07d9b4e2610--2026-09-24--09-00-00",
+  "start_time_utc": "2026-09-24T09:00:00Z",
   "duration_s": 900,
   "test": {
     "run_key": "TAS-1001",

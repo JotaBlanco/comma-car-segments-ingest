@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-24",
+  "updated": "2026-09-25",
   "statuses": [
     "to do",
     "discuss",
@@ -80,8 +80,8 @@
     {
       "id": "BL-11",
       "title": "Run the 10 implementations against the lake and write verdicts",
-      "status": "in progress",
-      "notes": "user 2026-09-23 asked for a Run button instead of a jump to QuixLab. Spec at dev-planning/run-a-definition/spec.md; the verdict record it writes is defined in dev-planning/test-results-page/spec.md",
+      "status": "finished",
+      "notes": "user 2026-09-23 asked for a Run button instead of a jump to QuixLab. Spec at dev-planning/run-a-definition/spec.md; the verdict record it writes is defined in dev-planning/test-results-page/spec.md. MERGED from Daniel's origin/quixlab-testing 2026-09-25: six feature commits cherry-picked (5c6577b api/ job+verdict, ac4da64, c5080b4 frontend run cell, fcc776b user-token lake query, af22aa5 QuixLab lake-token secret, 4c60d15 run-all button). 9fa44f0 skipped as a verified no-op (our MongoDB already had state enabled/size 1). d1c89fd 'trim the environment' REFUSED: it cut quix.yaml from 14 deployments to 5, deleting the whole ingestion pipeline and resurrecting the Planning Sync Mock. Two conflicts in definitions-panel.tsx, both because his branch predates our multi-select AddDefinitionsDialog: kept ours + runDefinitionFailure, took his DefinitionRunCell/planRunAll/RowRunState/sameRowState, dropped DefinitionPicker/FAILURES/messageFor/ApiError/useAddRunDefinition as unused after the merge. OPEN RISK: his branch runs QuixLab pr-71-f35d1ef, we stay on main-a4c31e3 (BL-55) because the bump lived only in the refused commit - if the verdict jobs need a pr-71 endpoint the Run button fails at runtime",
       "updated": "2026-09-22"
     },
     {
@@ -143,8 +143,8 @@
     {
       "id": "BL-20",
       "title": "Status lifecycle NEW/Draft/Ready for Review/In Review/Reviewed/Implemented/Tested + Rejected/Obsolete",
-      "status": "discuss",
-      "notes": "our 10 reqs are all Draft; adopt the enum when the TM models it",
+      "status": "in progress",
+      "notes": "user 2026-09-25 set the policy: 'moving to rady for review, to draft, rejected or obsolete can be done freely, ready for rweview -> review must pass review -> implemented/tested must be by TRun coverage'. SPEC DONE dev-planning/requirement-status-gates/spec.md, building. The derived half ALREADY SHIPS: Implemented and Tested are projections of verification_state (Implemented = exercised|failed, Tested = tested), computed from run coverage on every read, never stored - so a regression needs no fallback rule, evidence_stale already degrades tested -> exercised. Net new: one table module, one check in patch_requirement, a mirror guard for planning_sync's status:'' write, a detail-header status control, refusal code illegal_transition (409). DEPARTURE FROM THE MIRO BOARD, accepted by the user: the board has Implemented set by the developer; the user put it under run coverage. CONSEQUENCE: Reviewed is unreachable until the review page (BL-32) ships, so a requirement can reach Ready for Review and stop - the disabled control has to say so. Retirement is final, a planning push stating a derived status is skipped silently",
       "updated": "2026-09-22"
     },
     {
@@ -389,7 +389,7 @@
       "id": "BL-55",
       "title": "QuixLab image moved from the pr-42 build to latest main",
       "status": "finished",
-      "notes": "ghcr.io/quixio/quixlab:pr-42-c9939a4 (built 2026-08-19) -> main-a4c31e3 (commit a4c31e39, built 2026-09-11); pinned to the immutable tag, not the floating main",
+      "notes": "ghcr.io/quixio/quixlab:pr-42-c9939a4 (built 2026-08-19) -> main-a4c31e3 (commit a4c31e39, built 2026-09-11); pinned to the immutable tag, not the floating main. REVERSED 2026-09-25 by the user's decision ('take image daniekl is using'): back onto a PR build, pr-71-f35d1ef, because the Run button needs it. quixlab_run.build_run_spec clones the EXISTING QuixLab deployment's image field (quixlab_run.py:88), so a verdict Job always runs on whatever image is deployed - and main-a4c31e3 serves no QUIXLAB_MODE=run (app.yaml and README declare edit/app only, and the headless-launcher-contract.md the code cites exists on neither branch). The 'DO NOT MERGE' title is NOT a quality signal - user 2026-09-25: it says that because the PR targets main, which is not QuixLab's leading branch at the moment. pr-71-f35d1ef is the build QuixLab development is actually on, and it is the one that serves QUIXLAB_MODE=run. Do not re-raise the title as a risk",
       "updated": "2026-09-23"
     },
     {
@@ -503,6 +503,34 @@
       "status": "finished",
       "notes": "fd56ad0: system rides seed -> planning sync -> model -> projection -> filter -> facets, seeded BMS; not on the definition, which derives it from covers_req_ids. In content_sha256 (else a subsystem move is refused as a no-op), out of NORMATIVE_FIELDS (else every link suspects). A content edit outside NEW/Draft returns the row to Draft with its own journal entry; frozen is defined by complement because status is a free-form string. The seed's set_canonical_sha256 had been stale since verified_by was deleted at 3b3910a and now covers both drifts",
       "updated": "2026-09-24"
+    },
+    {
+      "id": "BL-72",
+      "title": "Planning Sync Mock removed - the Test Manager's MongoDB is the single store",
+      "status": "finished",
+      "notes": "user 2026-09-24: 'get rid of it, keem in mongo'. The mock ran a push worker that POSTed api/mock_planning/fixture.json (6 Volvo work orders, 7 definitions, 0 requirements) to POST /planning/sync and replaced the battery catalog twice on 2026-09-24 (08:53, 11:18); _write_mirror (planning_sync.py:286-308) is a plain update_one with no precedence check, so a mirror push beats a manual edit. Deployment STOPPED via the Portal, block deleted from quix.yaml, PLANNING_API_URL blanked on the API. POST /planning/sync SURVIVES - it is how `python -m seed catalog` loads the catalog. api/mock_planning/ stays on disk: api/seed/fixtures.py:75 reads its fixture.json as CAST_PATH and six test modules import it. The /planning-sync/{status,toggle,trigger} routes stay too - removing them drags in five green test modules. DONE 38ecd12, gate green (new=0 pre-existing=54). Leftovers: two strings still name the planning system and are pinned by green tests - custom-properties-panel.tsx:96 (definition-custom-properties.test.tsx:125) and requirements-panel.tsx:325 (requirements-panel.test.tsx:142,162,173); string and assertion must move in ONE commit. frontend/e2e/trace-history.spec.ts step 1 asserts 'Read-only mirror', which the same change deleted from work-order-detail-screen.tsx - red until that assertion moves",
+      "updated": "2026-09-24"
+    },
+    {
+      "id": "BL-73",
+      "title": "MF4 Import prefills its claim fields from the trace's own header; a retyped value wins",
+      "status": "finished",
+      "notes": "user 2026-09-24: 'prefill with trace data, on retyping by user it wins'. Cause: a typed claim beats the recording (metadata.py:227) and the form was filled by hand, so the lake carries work_order=WO-2026-PT-001 rig_id=0225 vehicle=Taycan while the traces' HD comment states WO-BAT-2026-001 / battery-sim-01 / WP0ZZZY1ZMSA10042. No code swaps any field - the whole path form -> declared.* -> CLAIMED_COLUMNS -> lake column was traced and each field stays in its lane; a run's project comes off its work-order mirror (queries_runs.py:142), never off the rig. Two wrinkles the spec must settle: multi-file selection (each trace carries its own test.run_key, one shared claim card cannot prefill four files) and provenance (a prefilled-but-untouched field sent verbatim converts an embedded claim into a declared one - dirty-tracking needed). Spec at dev-planning/import-prefill-from-trace/spec.md. BUILT: mf4-to-blob/static/{mdf-header,claim-editor,upload-page}.js, shared card deleted. Two File.slice() reads (0..136 for the ##HD links, then md_comment..+1MiB for the ##MD XML); offsets verified independently against TAS-1001 (##HD at 0x40, links_nr 6, md_comment 168). R2 EXECUTED in node: nothing typed sends no declared.* and one &vehicle= stamp, a typed field sends only itself, a cleared field sends nothing. R1 (a half-typed claim surviving a progress tick) was NEVER EXECUTED - the Playwright file-chooser handle was stale for both Tester and the main thread, so no file reached the page. Static reading says it holds (render() appends only when !e.parts, updateRow writes only into entry.parts, no input.value write is on the progress path) but that is reasoning, not a keystroke. USER QA in the Portal is what closes it",
+      "updated": "2026-09-24"
+    },
+    {
+      "id": "BL-74",
+      "title": "MF4 Import declares the platform per file, so two car lines do not share a lake partition",
+      "status": "finished",
+      "notes": "user 2026-09-25: 'imagine you are uploading traces for Porsche Taycan and Porsche Macan, cannot be stored under same project in lake'. DBC_PLATFORM is one deployment variable doing two jobs - the DCM target_key that picks the DBC, and the batch's platform - so a Macan trace was decoded with the TAYCAN DBC and filed under platform=Porsche_Taycan. Field is platform, labelled Platform not Project (work_orders.project is a different, visible column). TWO decoder channels had to agree: main.py:1131 feeds the DCM key, and build_provenance (main.py:804) feeds the lake column off the MF4 header - one statement reconciles them. platform ALONE breaks dirty-tracking and is sent even untouched (alwaysSend), because the decoder cannot read the header before the DBC lookup runs, so silence means DBC_PLATFORM and the failure fires exactly when the user trusts a correct prefill. Gets a _DECLARED_PATTERNS entry - the deliberate exception to no-new-shape-checks, because it is a partition directory AND a DCM target_key. No trace regeneration: bus/mf4.py:152 already writes a top-level platform HD property and provenance.py:42 already reads it. No lake change - platform is already in HIVE_COLUMNS. Spec+architecture dev-planning/upload-claims-platform/. PREREQUISITE: each platform needs <PLATFORM>.dbc in DCM before its first upload; a missing one fails QUIETLY (lookup miss, one warning, zero batches, marker with no decode_error, mark_decoded still fires) so recovery needs the DBC and new bytes",
+      "updated": "2026-09-25"
+    },
+    {
+      "id": "BL-75",
+      "title": "second_actor is accepted on a requirement PATCH, then silently dropped",
+      "status": "in progress",
+      "notes": "found while speccing BL-20. queries_requirements.py:607-609 lists second_actor in body.model_dump(exclude={...}); it appears EXACTLY ONCE in api/api/ outside the models - in that exclude set. Never stored, never compared. Meanwhile edit-requirement-dialog.tsx:166 computes needsSecondActor = status === 'Reviewed' and gates Save on it, so the four-eyes guard is theatre: the UI demands a second name and the API throws it away. Fixed with BL-20 by journalling it, so a four-eyes claim is auditable. Deliberately NOT building an approval workflow around it - that is the review page's job (BL-32)",
+      "updated": "2026-09-25"
     }
   ]
 }

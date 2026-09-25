@@ -1,8 +1,11 @@
 """A-05 — contract #10 and #11 read the mirrors from Mongo.
 
-The mirrors are read-only. Planning owns every field, so no write route exists
-and no document carries `field_sources`. `definition_count`, `run_count`,
-`actual_runs` and the definition status derive at read time.
+Planning owns the CONTENT of the campaigns it pushes, so no route edits a
+mirrored title or project. Three writes exist: `POST /work-orders` opens a
+campaign planning never knew about, `PATCH /work-orders/{wo_id}` closes or
+reopens one, and the delete takes one no run names. `definition_count`,
+`run_count`, `actual_runs`, `origin` and the definition status derive at read
+time.
 """
 
 from datetime import UTC, datetime
@@ -195,19 +198,25 @@ def test_a_work_order_without_definitions_or_runs_reads_empty(client, routed_db)
     assert body["runs"] == []
 
 
-# --- planning owns the content; delete is the one write ---------------------
+# --- create, status and delete are the writes; a replace is not one ---------
 
 
-def test_the_mirror_rejects_content_writes(client, routed_db) -> None:
-    """Planning authors a work order, so no route edits one in place."""
+def test_the_mirror_rejects_a_wholesale_replace(client, routed_db) -> None:
+    """A work order is created, closed or deleted — never replaced in place."""
     seed_mirror(routed_db)
 
-    for response in (
-        client.post("/api/v1/work-orders", json={"title": "x"}),
-        client.put("/api/v1/work-orders/WO-2026-0847", json={"title": "x"}),
-        client.patch("/api/v1/work-orders/WO-2026-0847", json={"title": "x"}),
-    ):
-        assert response.status_code == 405
+    response = client.put("/api/v1/work-orders/WO-2026-0847", json={"title": "x"})
+
+    assert response.status_code == 405
+
+
+def test_the_patch_takes_the_status_and_nothing_else(client, routed_db) -> None:
+    """The status is the one field a PATCH moves; a content key is 422."""
+    seed_mirror(routed_db)
+
+    response = client.patch("/api/v1/work-orders/WO-2026-0847", json={"title": "x"})
+
+    assert response.status_code == 422
 
 
 def test_a_work_order_holding_runs_cannot_be_deleted(client, routed_db) -> None:
@@ -221,7 +230,7 @@ def test_a_work_order_holding_runs_cannot_be_deleted(client, routed_db) -> None:
 
 
 def test_the_mirror_carries_no_field_sources(client, routed_db) -> None:
-    """Planning owns every mirror field, so the UI badges them statically."""
+    """The detail body names no source map, whatever the row stores."""
     seed_mirror(routed_db)
 
     body = _get(client, "/work-orders/WO-2026-0847").json()

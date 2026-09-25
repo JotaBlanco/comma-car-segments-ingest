@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { Plus } from "lucide-react";
+import { useMemo, useState } from "react";
 import { RowLink, RowLinkLabel } from "@/components/shared/row-link";
 import { ActiveFilterPills, type FilterPill } from "@/components/shared/active-filter-pills";
 import { ErrorState } from "@/components/shared/error-state";
@@ -16,24 +17,26 @@ import { ToneBadge } from "@/components/shared/status-badge";
 import { TableEmptyState } from "@/components/shared/table-empty-state";
 import { TablePager } from "@/components/shared/table-pager";
 import { TableSearchInput } from "@/components/shared/table-search-input";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { formatArrival } from "@/lib/format";
-import { usePlanningSyncStatus, useWorkOrderFacets, useWorkOrders } from "@/lib/hooks";
+import { useWorkOrderFacets, useWorkOrders } from "@/lib/hooks";
 import { useTableState, type TableStateConfig } from "@/lib/table-state";
 import type { WorkOrderListFilters, WorkOrderStatus } from "@/types";
+import { AddWorkOrderDialog } from "./add-work-order-dialog";
 
 /**
  * Work orders — LIGHT treatment (spec §0, §4).
  *
- * 42 mirrored rows: quick status views + one Project filter + search + pills + pager.
- * NO sortable headers — the endpoint 422s on `sort`/`order` params. The mirror-note header
- * and the api:planning badges stay unchanged.
+ * 42 rows: quick status views + one Project filter + search + pills + pager.
+ * NO sortable headers — the endpoint 422s on `sort`/`order` params. Each row
+ * badges the source the API reports rather than an assumed one, so rows that
+ * predate the registry owning the catalogue still read `api:planning`.
  */
 
 const WO_COLUMNS = 6;
 
 /* The project options come from GET /work-orders/facets over the WHOLE
-   mirror. The typed list this replaced never learned a newly mirrored
+   collection. The typed list this replaced never learned a newly added
    project. The facets arrive sorted ascending (contract §10b). */
 const projectOptions = (values: readonly string[] | undefined): FilterOption[] =>
   (values ?? []).map((value) => ({
@@ -70,6 +73,7 @@ function WorkOrderStatusBadge({ status }: { status: WorkOrderStatus }) {
 export function WorkOrdersScreen() {
   const table = useTableState(WO_TABLE_CONFIG, "/work-orders");
   const { state, activeQuickViewId } = table;
+  const [addOpen, setAddOpen] = useState(false);
 
   const filters: WorkOrderListFilters = useMemo(() => {
     const next: WorkOrderListFilters = {
@@ -86,10 +90,8 @@ export function WorkOrdersScreen() {
 
   const { data, isPending, isError, refetch } = useWorkOrders(filters);
   const { data: facets } = useWorkOrderFacets();
-  const { data: syncStatus } = usePlanningSyncStatus();
   const workOrders = data?.items;
   const viewCounts = data?.view_counts;
-  const lastSyncAt = syncStatus?.last_sync_at ?? null;
 
   const quickViews: readonly QuickView[] = [
     { id: "all", label: "All", count: viewCounts?.all },
@@ -138,9 +140,8 @@ export function WorkOrdersScreen() {
       <PageHeader
         title="Work orders"
         sub={
-          <span className="inline-flex items-center gap-1.5 text-[0.7rem] text-ink-3">
-            <SourceBadge source="api:planning" />
-            Read-only mirror of the planning system — Test Manager never creates or edits these.
+          <span className="text-[0.7rem] text-ink-3">
+            Every campaign lives here — open one, edit it, and its test runs hang from it.
           </span>
         }
       />
@@ -170,19 +171,16 @@ export function WorkOrdersScreen() {
           pathname="/work-orders"
           query={table.buildQuery(state)}
         />
+        <Button size="sm" onClick={() => setAddOpen(true)}>
+          <Plus className="size-[13px]" strokeWidth={2.2} />
+          New work order
+        </Button>
       </div>
       <ActiveFilterPills pills={pills} onClearAll={() => table.clearAll()} />
       <Panel className="flex min-h-0 flex-1 flex-col">
-        <PanelHead
-          title="Mirrored work orders"
-          action={
-            <span className="font-mono text-[0.68rem] text-ink-3">
-              synced_at: {lastSyncAt !== null ? formatArrival(lastSyncAt) : "—"}
-            </span>
-          }
-        />
+        <PanelHead title="Work orders" />
         <TableScrollArea>
-          <Table aria-label="Mirrored work orders">
+          <Table aria-label="Work orders">
           <TableHeader>
             <TableRow>
               <TableHead>Work order</TableHead>
@@ -206,7 +204,7 @@ export function WorkOrdersScreen() {
               <TableRow className="hover:bg-transparent">
                 <TableCell colSpan={WO_COLUMNS} className="p-0!">
                   <span className="grid place-items-center px-4 py-7 text-[0.78rem] text-ink-3">
-                    No work orders mirrored yet.
+                    No work orders yet.
                   </span>
                 </TableCell>
               </TableRow>
@@ -227,7 +225,7 @@ export function WorkOrdersScreen() {
                   <RowLinkLabel>
                     <span className="font-mono text-[0.78rem]">{workOrder.wo_id}</span>
                   </RowLinkLabel>{" "}
-                  <SourceBadge source="api:planning" />
+                  <SourceBadge source={workOrder.origin ?? "api:planning"} />
                 </TableCell>
                 <TableCell className="whitespace-normal">{workOrder.title}</TableCell>
                 <TableCell>
@@ -258,6 +256,9 @@ export function WorkOrdersScreen() {
           />
         )}
       </Panel>
+      {/* Mounted on demand, the way the requirements screen mounts its own
+          add dialog — a shut dialog asks the registry nothing. */}
+      {addOpen && <AddWorkOrderDialog open={addOpen} onOpenChange={setAddOpen} />}
     </FullHeightPage>
   );
 }

@@ -225,7 +225,9 @@ ROUTE_ERRORS: dict[str, tuple[tuple[int, str], ...]] = {
         (422, "custom_property_key_too_long"),
         (422, "custom_property_value_too_long"),
     ),
+    "POST /api/v1/work-orders": ((409, "wo_exists"),),
     "GET /api/v1/work-orders/{wo_id}": ((404, "wo_not_found"),),
+    "PATCH /api/v1/work-orders/{wo_id}": ((404, "wo_not_found"),),
     "DELETE /api/v1/work-orders/{wo_id}": (
         (404, "wo_not_found"),
         (409, "work_order_has_runs"),
@@ -659,11 +661,14 @@ def create_app() -> FastAPI:
                 get_client().admin.command("ping")
         except PyMongoError as exc:
             raise ApiError(503, "mongo ping failed", "not_ready") from exc
-        try:
-            response = httpx.get(f"{settings.planning_api_url}/health", timeout=1.0)
-            planning = "ok" if response.status_code == 200 else "offline"
-        except httpx.HTTPError:
-            planning = "offline"
+        if not settings.planning_api_url:
+            planning = "disabled"
+        else:
+            try:
+                response = httpx.get(f"{settings.planning_api_url}/health", timeout=1.0)
+                planning = "ok" if response.status_code == 200 else "offline"
+            except httpx.HTTPError:
+                planning = "offline"
         # A probe or a person can now ask "can you serve statistics? can you
         # serve downloads?" and read a straight answer. This never decides the
         # status: the registry works without either value, so a missing

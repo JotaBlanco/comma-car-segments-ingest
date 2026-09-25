@@ -64,6 +64,10 @@ export interface FileEntity {
   time_start: string | null;
   time_end: string | null;
   registered_at: string;
+  /* The physical car the recording came off, claimed on upload or stated in
+     the MF4 header. Optional: a file registered before the field existed, and
+     one whose producer named no car, both arrive without it. */
+  vehicle?: string | null;
 }
 
 export interface FileDetail extends FileEntity {

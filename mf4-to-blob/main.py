@@ -23,8 +23,12 @@ to this app and we stream it into blob storage through the fsspec writer:
                                 metadata message.
 
 Both paths mint the pipeline key once via `metadata.make_upload_id`, write
-under `<workspace>/<BLOB_ROOT>/<run_id>/`, keep `state.py` progress current and
+under `<workspace>/<BLOB_ROOT>/<run_id>/`, keep `state.py` progress current,
+stamp the stored object the same way (`metadata.object_metadata`) and
 emit the same `mf4_metadata` message, so everything downstream is identical.
+The stamp is a separate call on both paths and never rides with the bytes: on
+the SAS path this process never holds them, and one mechanism for two paths
+beats two.
 """
 
 
@@ -40,6 +44,7 @@ import anyio
 from dotenv import load_dotenv
 from fastapi import FastAPI, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from quixstreams import Application
 
@@ -92,6 +97,14 @@ _UNSAFE_SEGMENT = re.compile(r"[^A-Za-z0-9._-]")
 _SEGMENT_LIMIT = 120
 
 app = FastAPI()
+
+# The page is three files now: the document, its logic and the MDF4 header
+# reader it imports. `GET /` still serves the document by hand.
+app.mount(
+    "/static",
+    StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")),
+    name="static",
+)
 
 _quix_app: Optional[Application] = None
 _topic = None
@@ -181,13 +194,17 @@ class CompleteRequest(BaseModel):
 
 
 @app.post("/upload/sas")
-async def upload_sas(req: SasRequest, request: Request):
+async def upload_sas(req: SasRequest, request: Request, vehicle: str = Query("")):
     """Validate and mint a per-blob SAS for the browser to PUT to.
 
     The claim is collected HERE, at mint time, and stashed on the progress
     record. `/upload/complete` reads it back rather than taking it again, so the
     bytes that were uploaded and the claim that names them are decided in one
     place and a second caller cannot re-label a finished upload.
+
+    `vehicle` is the recording's own statement about the car, read off its
+    header by the import page; it stamps the stored object and is stashed the
+    same way (`metadata.object_metadata`).
     """
     try:
         declared = metadata.collect_declared(request.query_params)
@@ -222,7 +239,10 @@ async def upload_sas(req: SasRequest, request: Request):
         )
 
     state.init(upload_id, req.filename, req.size)
-    state.set_status(upload_id, "uploading", blob_path=blob_path, declared=declared)
+    state.set_status(
+        upload_id, "uploading",
+        blob_path=blob_path, declared=declared, stated={"vehicle": vehicle},
+    )
 
     return {
         "uploadId": upload_id,
@@ -282,6 +302,14 @@ async def upload_complete(req: CompleteRequest, request: Request):
             status_code=409,
         )
 
+    # The browser PUT the bytes and states no metadata on them; this is the
+    # first moment the server can touch the finished object, and it happens
+    # before the pipeline is told the object exists.
+    blob.set_object_metadata(
+        req.blobPath,
+        metadata.object_metadata(info.get("declared"), info.get("stated")),
+    )
+
     payload = metadata.build_payload(
         upload_id=req.uploadId,
         filename=filename,
@@ -337,6 +365,7 @@ async def upload_direct(
     request: Request,
     filename: str = Query(..., min_length=1),
     size: int = Query(0, ge=0),
+    vehicle: str = Query(""),
 ):
     """Stream the raw request body into blob storage - any provider.
 
@@ -350,6 +379,10 @@ async def upload_direct(
     blocks, so peak memory is one block regardless of file size. `size` is
     advisory (used for the progress percentage and an early 413); the
     authoritative size is what we actually wrote.
+
+    `vehicle` is the recording's own statement about the car, read off its
+    header by the import page; it stamps the stored object and never enters the
+    `declared` bag (`metadata.object_metadata`).
     """
     # Before the first byte: a malformed claim must cost nothing written.
     try:
@@ -408,6 +441,10 @@ async def upload_direct(
         )
 
     state.set_status(upload_id, "finalizing", blob_path=blob_path, size_bytes=size_bytes)
+
+    blob.set_object_metadata(
+        blob_path, metadata.object_metadata(declared, {"vehicle": vehicle})
+    )
 
     payload = metadata.build_payload(
         upload_id=upload_id,

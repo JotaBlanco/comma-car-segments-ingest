@@ -34,12 +34,12 @@ import { RequirementsPanel } from "./requirements-panel";
  * Every other node of work order -> definition -> run -> file already had a
  * screen. The definition did not, so its id was dead text in three places
  * (FR-DM-074). The screen reuses the work-order detail's layout, badges and
- * breadcrumb, because the two screens read the same read-only mirror.
+ * breadcrumb, because the two screens carry the same core fields.
  *
  * The history panel is the same `EntityHistoryPanel` the file, signal and
- * work-order screens show. The planning mirror journals a definition, so this
- * timeline says who moved a title or a run count, and when. Planning is the
- * only writer, so nobody edits a definition here.
+ * work-order screens show. A catalogue push journals a definition, so this
+ * timeline says who moved a title or a run count, and when. No route edits
+ * those fields, so the panels below carry every control this screen has.
  */
 
 const RUN_COLUMNS = 7;
@@ -88,7 +88,7 @@ export function DefinitionDetailScreen({ tdId }: DefinitionDetailScreenProps) {
           <Skeleton className="h-4 w-96" />
         </div>
         <Panel>
-          <PanelHead title="Planning metadata" />
+          <PanelHead title="Definition metadata" />
           <Table>
             <TableBody>
               <LoadingRows rows={4} cols={4} />
@@ -140,25 +140,25 @@ export function DefinitionDetailScreen({ tdId }: DefinitionDetailScreenProps) {
           <div className="mt-[3px] text-[0.78rem] text-amber">
             {definition.work_order_id === null
               ? "This definition names no work order."
-              : `This definition names ${definition.work_order_id}, which this registry does not mirror.`}{" "}
+              : `This definition names ${definition.work_order_id}, which this registry does not hold.`}{" "}
             A person repairs the link on the run, never here.
           </div>
         )}
         <div className="mt-1.5">
           <span className="inline-flex items-center gap-1.5 text-[0.7rem] text-ink-3">
             <Lock size={12} strokeWidth={2} />
-            Read-only mirror — owned by the planning system · synced_at{" "}
-            {formatArrival(definition.synced_at)}
+            Title, work order and run counts arrive with the catalogue and no route moves them;
+            requirement files, custom properties and the implementation are edited below.
           </span>
         </div>
       </div>
 
       <Panel className="mb-3">
         <PanelHead
-          title="Planning metadata"
+          title="Definition metadata"
           action={
             <span className="inline-flex items-center gap-1.5 text-[0.7rem] text-ink-3">
-              all fields <SourceBadge source="api:planning" /> — never editable here
+              all fields <SourceBadge source="api:planning" /> — no route edits them
             </span>
           }
         />
@@ -229,8 +229,8 @@ export function DefinitionDetailScreen({ tdId }: DefinitionDetailScreenProps) {
         </MetaGrid>
       </Panel>
 
-      {/* The documents that say what the definition must prove. Planning owns
-          a planning document; a person adds and removes a manual one. */}
+      {/* The documents that say what the definition must prove. A seeded
+          document is read-only; a person adds and removes a manual one. */}
       <RequirementsPanel
         className="mb-3"
         tdId={definition.td_id}
@@ -246,7 +246,7 @@ export function DefinitionDetailScreen({ tdId }: DefinitionDetailScreenProps) {
       />
 
       {/* The pairs a person types. They sit in their own card, never in the
-          planning grid above, so nobody reads one as a planning field. */}
+          metadata grid above, so nobody reads one as a catalogue field. */}
       <CustomPropertiesPanel
         className="mb-3"
         tdId={definition.td_id}
@@ -325,8 +325,8 @@ export function DefinitionDetailScreen({ tdId }: DefinitionDetailScreenProps) {
         onParamsChange={setJournalParams}
         action={<AddNoteButton onClick={() => setNoteOpen(true)} />}
       />
-      {/* Planning owns every definition field, but a note changes no field:
-          it joins the journal beside the mirror entries, under the person's
+      {/* No route edits a definition field, but a note changes no field: it
+          joins the journal beside the catalogue entries, under the person's
           own name. Mounted on demand, so a screen nobody writes on asks the
           Portal nothing. */}
       {noteOpen && (

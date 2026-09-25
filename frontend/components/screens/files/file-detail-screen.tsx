@@ -370,6 +370,15 @@ export function FileDetailScreen({ fileId }: FileDetailScreenProps) {
           <MetaCell label="Format" source="embedded">
             <span className="font-mono text-[0.78rem]">{file.format}</span>
           </MetaCell>
+          {/* The car the bytes came off. No source badge when the file names
+              none — a tag on an em dash would claim the pipeline stated it. */}
+          <MetaCell
+            label="Vehicle"
+            source={file.vehicle ? "embedded" : undefined}
+            muted={!file.vehicle}
+          >
+            <span className="font-mono text-[0.78rem]">{file.vehicle ?? "—"}</span>
+          </MetaCell>
           <MetaCell label="Signals" source="embedded">
             <span className="font-mono text-[0.78rem]">{file.signal_count}</span>
           </MetaCell>

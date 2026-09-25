@@ -114,9 +114,9 @@ def _coerce_value(raw):
 def _expand_columnar(value):
     """Expand a per-channel batched message into N per-row dicts.
 
-    Scalars (file_name, upload_id, the provenance block, signal, unit and the
-    DBC-derived block) are repeated; arrays (ts_ms, value, value_text) are
-    indexed.
+    Scalars (file_name, upload_id, the provenance block, the two traceability
+    claims, signal, unit and the DBC-derived block) are repeated; arrays
+    (ts_ms, value, value_text) are indexed.
 
     Every yielded row carries *both* ``value`` and ``value_text``, one of them
     ``None``. A row that omitted a key would make the column set vary between
@@ -172,6 +172,10 @@ def _expand_columnar(value):
     if platform == UNKNOWN:
         platform = value.get(F_WORK_ORDER_PLATFORM) or UNKNOWN
     work_order = value.get("work_order") or UNASSIGNED
+    # Plain columns, so no sentinel: null states honestly that the file named
+    # neither, and only a partition key needs a directory to live in.
+    vehicle = value.get("vehicle") or None
+    rig_id = value.get("rig_id") or None
     device = value.get("device") or UNKNOWN
     route = value.get("route") or UNKNOWN
     segment = value.get("segment") or UNKNOWN
@@ -231,6 +235,12 @@ def _expand_columnar(value):
             "ts_ms":         ts_arr[i],
             "value":         num,
             "value_text":    None if text is None else str(text),
+            # Appended last, after the shipped column order: the table is
+            # created with a minimal schema and every column is inferred from
+            # the rows, so a new key lands in the new parquet files only and
+            # every row written before today reads null for it.
+            "vehicle":       vehicle,
+            "rig_id":        rig_id,
         }
 
 

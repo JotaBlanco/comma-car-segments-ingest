@@ -215,10 +215,13 @@ def _record_base(file_scalars, signal, unit, channel_name, frame_name, sender_no
     ``channel`` before the ``mf4_signals_v3`` table; the sink still accepts that
     spelling so the ``mf4-to-msg`` backlog written by the old decoder replays.
 
-    Every value is a non-empty string by construction - see
-    ``provenance.UNKNOWN``. Nothing in this dict may be ``None``: these fields
-    become Hive partition keys (physical or virtual) downstream, and a null
-    partition value either drops the row or defeats the catalog's pruning index.
+    Every PARTITIONING value is a non-empty string by construction - see
+    ``provenance.UNKNOWN``. None of those may be ``None``: they become Hive
+    partition keys (physical or virtual) downstream, and a null partition value
+    either drops the row or defeats the catalog's pruning index. The
+    traceability claims partition nothing and are null when unclaimed
+    (``identity.resolve_claims``, and ``run_id``, whose absence drops the batch
+    at the sink rather than defaulting it).
     """
     base = dict(file_scalars)
     base["signal"] = signal
@@ -790,15 +793,20 @@ def process(metadata: dict, state: State):
         mdf = MDF(tmp_path)
         start_ms = int(mdf.header.start_time.timestamp() * 1000)
 
-        # Provenance comes out of the file's own HD comment, not out of the
-        # upload metadata: an MF4 written by rlog-to-mf4 already states which
-        # platform / device / route / segment it came from and which DBC
-        # revision (dcm.config_id) is authoritative for decoding it. Files
-        # uploaded straight from a browser have none of these keys and get the
-        # literal "unknown" for each - never None, because these are Hive
-        # partition keys downstream.
+        # Provenance comes out of the file's own HD comment: an MF4 written by
+        # rlog-to-mf4 already states which platform / device / route / segment
+        # it came from and which DBC revision (dcm.config_id) is authoritative
+        # for decoding it. Files uploaded straight from a browser have none of
+        # these keys and get the literal "unknown" for each - never None,
+        # because these are Hive partition keys downstream.
         header_properties = parse_header_properties(mdf)
         provenance_fields = build_provenance(header_properties)
+        # `platform` is the one provenance field the message may answer: under
+        # the default DBC_SOURCE=dcm it is the target_key the CAN database was
+        # resolved with (F_DCM_KEY, computed before the download), so the
+        # partition has to name the platform the decode actually used.
+        if declared_platform := str(metadata.get("platform") or "").strip():
+            provenance_fields["platform"] = declared_platform
         bus_channels = parse_bus_channels(header_properties)
 
         # upload_id is defaulted the same way for the same reason. It stopped
@@ -839,6 +847,11 @@ def process(metadata: dict, state: State):
             "work_order": identity.resolve_work_order(
                 metadata, declared, header_properties
             ),
+            # Plain columns, not partition keys: the car the recording came off
+            # and the rig it ran on. They answer "which bench, which vehicle"
+            # inside a lake query, which until now only the registry could
+            # answer. Null when nothing claims them — see `resolve_claims`.
+            **identity.resolve_claims(declared, header_properties),
         }
 
         logger.info(

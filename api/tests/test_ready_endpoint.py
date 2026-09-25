@@ -110,6 +110,30 @@ def test_ready_reuses_one_client_across_requests(bare_client, monkeypatch):
     assert len({id(c) for c in handed_out}) == 1, "one client for all requests"
 
 
+def test_ready_reports_planning_api_disabled_on_a_blank_url(bare_client, monkeypatch):
+    """A blank PLANNING_API_URL means no planning system exists to probe.
+
+    `/ready` must answer 200 with `planning_api: "disabled"` and make NO
+    outbound HTTP call — a blank URL is a deliberate absence, not an
+    unreachable target to time out against.
+    """
+    monkeypatch.setenv("PLANNING_API_URL", "")
+    fake = _FakeClient()
+    monkeypatch.setattr(main, "get_client", lambda: fake)
+
+    def _tripwire(*args, **kwargs):
+        raise AssertionError("ready() called httpx.get with a blank PLANNING_API_URL")
+
+    monkeypatch.setattr(main.httpx, "get", _tripwire)
+
+    response = bare_client.get("/ready")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ready"
+    assert body["planning_api"] == "disabled"
+
+
 def test_ready_bounds_the_ping_with_a_timeout(bare_client, monkeypatch):
     """A hung Mongo must read as a failure, not as a hang.
 

@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import ConfigDict, Field, model_validator
 
-from api.models.common import ApiModel, Page, RequestModel, UtcDatetime
+from api.models.common import ApiModel, Page, RequestModel, Source, UtcDatetime
 from api.models.runs import check_custom_properties, primary_definition
 
 WorkOrderStatus = Literal["active", "closed"]
@@ -19,7 +19,12 @@ class WorkOrderRow(ApiModel):
     status: WorkOrderStatus
     definition_count: int
     run_count: int
-    synced_at: UtcDatetime
+    # Who wrote this row: planning mirrored it, or a person typed it into the
+    # Test Manager. Derived at read time off the title's source tag, so the
+    # screens badge what the row really is instead of assuming the mirror.
+    origin: Source = Source.API_PLANNING
+    # Null on a row a person created here — it never synced from anywhere.
+    synced_at: UtcDatetime | None
 
 
 class WorkOrderViewCounts(ApiModel):
@@ -269,9 +274,39 @@ class WorkOrderDetail(ApiModel):
     department: str | None
     priority: str | None
     created_at_source: UtcDatetime | None
-    synced_at: UtcDatetime
+    origin: Source = Source.API_PLANNING
+    synced_at: UtcDatetime | None
     definitions: list[WorkOrderDefinition]
     runs: list[WorkOrderRun]
+
+
+class WorkOrderCreateRequest(RequestModel):
+    """Body of POST /work-orders — a work order a person opens here.
+
+    Planning pushes its own campaigns through `POST /planning/sync`, and this
+    route never writes one of those. The id is typed by the author, the title
+    says what the campaign is, and `project` is optional because a bench
+    campaign need not belong to one. A new campaign is running, so `status`
+    starts `active`.
+    """
+
+    wo_id: str
+    title: str
+    project: str = ""
+    note: str | None = None
+
+
+class WorkOrderStatusRequest(RequestModel):
+    """Body of PATCH /work-orders/{wo_id}: the status, and nothing else.
+
+    Planning authors the content of a work order — title, project, requestor.
+    The status is the one field a person decides here, so this model names it
+    alone and `extra="forbid"` answers 422 to a body that tries to edit the
+    rest. The body states no actor: the route reads the verified caller, as
+    the delete route on the same entity does.
+    """
+
+    status: WorkOrderStatus
 
 
 class WorkOrderDeletionReport(ApiModel):

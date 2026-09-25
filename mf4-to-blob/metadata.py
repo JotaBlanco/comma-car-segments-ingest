@@ -41,13 +41,15 @@ _TM_ID = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._-]{0,63}\Z")
 # The declared keys this app validates rather than merely carrying. Everything
 # else rides through untouched - mf4-to-blob cannot know the registry's whole
 # vocabulary, and tm-connector drops what the registry does not know
-# (`connector/identity.py::DECLARED_FIELDS`). These three become lake partition
+# (`connector/identity.py::DECLARED_FIELDS`). These four become lake partition
 # directories or a registry id, which is why their shape is checked HERE, at the
-# only door a caller can reach.
+# only door a caller can reach. `platform` is both at once: the lake's top-level
+# directory and the DCM target_key the decoder resolves the CAN database with.
 _DECLARED_PATTERNS = {
     "run_id": _TM_ID,
     "work_order_id": _TM_ID,
     "rig_id": _TM_ID,
+    "platform": _TM_ID,
 }
 
 # The claim a producer can write into the filename, so an upload needs no form
@@ -61,6 +63,34 @@ _DECLARED_PATTERNS = {
 _FILENAME_CLAIM = {
     "work_order_id": "WO-",
 }
+
+# The fields copied onto the STORED OBJECT as `x-ms-meta-<name>`, so the car is
+# legible from the blob alone. The run id is already the object's folder and the
+# work order is one hop away in the Test Manager, so neither needs repeating
+# here.
+#
+# Azure takes a metadata NAME that is a valid C# identifier and a VALUE that is
+# header-safe ASCII.
+OBJECT_METADATA_FIELDS = ("vehicle",)
+
+
+def object_metadata(
+    declared: Optional[dict[str, str]],
+    stated: dict[str, str] | None = None,
+) -> dict[str, str]:
+    """What rides on the stored object beside its bytes.
+
+    `stated` is what the RECORDING says about itself - the import page reads it
+    out of the file's HD comment and sends it whether or not anyone typed
+    anything, so an upload nobody edited still carries the car. It is not a
+    claim and never enters the `declared` bag; where a claim was made, it wins.
+    """
+    source = {**(stated or {}), **(declared or {})}
+    return {
+        field: value
+        for field in OBJECT_METADATA_FIELDS
+        if (value := str(source.get(field) or "").strip())
+    }
 
 
 def make_upload_id(filename: str, minted_at: Optional[datetime] = None) -> str:
@@ -193,10 +223,22 @@ def build_payload(
     verbatim, which is why the registry's own field names are used inside it
     (``work_order_id``, not ``work_order``).
 
-    The claim also rides in a second, flat spelling — ``work_order`` — because
-    that is the LAKE's partition column name, and the decoder copies it onto
-    every batch. One fact, two spellings, both written here so the two readers
-    cannot drift apart.
+    A claim that names a lake partition column also rides in a second, flat
+    spelling — ``work_order`` and ``platform`` — because that is the LAKE's
+    name for it, and the decoder copies it onto every batch. One fact, two
+    spellings, both written here so the two readers cannot drift apart.
+
+    ``platform`` has a second reader that makes the flat spelling mandatory: the
+    decoder picks the CAN database with it, in an ``sdf.apply`` that runs before
+    the file is downloaded (``mf4-decoder/main.py``, ``F_DCM_KEY``). That reader
+    sees the top-level key only, never the ``declared`` bag, and it cannot open
+    the recording to ask it instead.
+
+    ``vehicle`` and ``rig_id`` get NO second spelling: they partition nothing,
+    so the lake column keeps the bag's own name and the decoder reads them
+    straight off the bag (``mf4-decoder/identity.py::CLAIMED_COLUMNS``).
+    ``vehicle`` alone among them is not shape-checked — a car is named by whoever states
+    it, not by a pattern.
 
     **A caller's claim always wins.** The filename is consulted only for a field
     the uploader left blank: a person who typed a work order on the import page
@@ -219,8 +261,9 @@ def build_payload(
         "uploader_ip": uploader_ip,
         "source": "mf4-to-blob",
         "declared": declared,
-        # The lake's spelling of the same claim. `run_id` is absent on purpose:
+        # The lake's spelling of the same claims. `run_id` is absent on purpose:
         # nothing here can resolve it, and a key holding None would read as a
         # stated null rather than as the question the decoder answers.
         "work_order": declared.get("work_order_id"),
+        "platform": declared.get("platform"),
     }

@@ -122,27 +122,27 @@ const tabTriggerClass =
   "flex-none px-3.5 py-[9px] text-[0.8rem] font-semibold text-ink-3 hover:text-ink-2 data-active:text-primary group-data-horizontal/tabs:after:bottom-[-1px] after:h-0.5 after:bg-primary";
 
 /**
- * The empty state of a link the mirror has not honoured yet.
+ * The empty state of a link the registry cannot honour yet.
  *
  * A run can carry the id the rig CLAIMED at ingest (`claimed_work_order_id`,
- * `claimed_definition_id`) while the mirror holds no such row yet. Showing
- * only "awaiting sync" hid that claim, so a person could not see what the run
- * was actually waiting on. The claim is a claim, not a link, so it renders as
- * muted text and never as a link.
+ * `claimed_definition_id`) while no such row exists here. Naming the claim is
+ * the whole point of the state: it says which row has to exist before the link
+ * closes. The claim is a claim, not a link, so it renders as muted text and
+ * never as a link.
  */
-function AwaitingSync({ claimedId }: { claimedId?: string | null }) {
+function UnhonouredClaim({ claimedId }: { claimedId?: string | null }) {
   if (claimedId != null) {
     return (
       // text-ink-2, stated: the cell's inherited tone fails 4.5:1 in dark
       // at this size (axe color-contrast on the signals-tab scan).
       <span className="text-[0.7rem] text-ink-2">
-        claimed <span className="font-mono">{claimedId}</span> · awaiting sync
+        claimed <span className="font-mono">{claimedId}</span> · no such row here yet
       </span>
     );
   }
   return (
     <>
-      — <span className="text-[0.7rem]">awaiting sync</span>
+      — <span className="text-[0.7rem]">not linked</span>
     </>
   );
 }
@@ -190,7 +190,7 @@ function runMetaFields(run: TestRun): RunMetaField[] {
             {workOrder.value}
           </Link>
         ) : (
-          <AwaitingSync claimedId={run.claimed_work_order_id} />
+          <UnhonouredClaim claimedId={run.claimed_work_order_id} />
         ),
     },
     {
@@ -212,7 +212,7 @@ function runMetaFields(run: TestRun): RunMetaField[] {
             )}
           </>
         ) : (
-          <AwaitingSync claimedId={run.claimed_definition_id} />
+          <UnhonouredClaim claimedId={run.claimed_definition_id} />
         ),
     },
     {
@@ -1005,8 +1005,8 @@ function StandardRunHeader({
         ) : (
           <Crumb type="WO" missing>
             {run.claimed_work_order_id != null
-              ? `claimed ${run.claimed_work_order_id} · awaiting sync`
-              : "not yet synced"}
+              ? `claimed ${run.claimed_work_order_id} · no such row here yet`
+              : "not linked"}
           </Crumb>
         )}
         {run.definition_id !== null ? (
@@ -1019,8 +1019,8 @@ function StandardRunHeader({
         ) : (
           <Crumb type="Def" missing>
             {run.claimed_definition_id != null
-              ? `claimed ${run.claimed_definition_id} · awaiting sync`
-              : "not yet synced"}
+              ? `claimed ${run.claimed_definition_id} · no such row here yet`
+              : "not linked"}
           </Crumb>
         )}
         <Crumb type="Run" current>
