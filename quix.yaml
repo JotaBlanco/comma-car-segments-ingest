@@ -111,7 +111,6 @@ deployments:
         value: python -m api.start_registry
       - name: PLANNING_API_URL
         description: An external planning system to mirror work orders from. EMPTY on purpose - this estate has none, and the registry's own MongoDB is the single store for requirements, test definitions and work orders. A value here revives the readiness probe and lets a mirror push overwrite the catalog.
-        value: ''
       - name: CONFIG_API_URL
         description: The deployed Configuration Manager. Every new or changed work order is pushed there as a WorkOrder configuration, which is where the lake sink reads the platform fallback from. Empty disables the push.
         value: http://config-api-svc
