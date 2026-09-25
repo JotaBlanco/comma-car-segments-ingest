@@ -35,7 +35,8 @@ carry raises LookupError naming it.
 
 
 def _text(value: object) -> str:
-    return str(value or "").strip()
+    # A NUL byte cannot sit in Python source, whatever the escaping.
+    return str(value or "").replace("\x00", "").strip()
 
 
 def draft_source(
@@ -88,6 +89,8 @@ def draft_source(
         f"the specification states as named constants. Finish the cell with "
         f"`return evaluate({run_id!r}, {table!r})` so the verdict and evidence show below."
     )
+    # The prompt is the AI cell's docstring: a literal, so it is escaped as one.
+    docstring = prompt.replace("\\", "\\\\").replace('"', '\\"')
     paths = list(folders)
     tree = lake_tree(table, paths[0])
     columns = list(TEST_DATA_COLUMNS)
@@ -128,5 +131,5 @@ def test_data():
     viz={{"aiMode": "code", "aiEffort": "medium"}},
 )
 def draft(test_data):
-    """{prompt}"""
+    """{docstring}"""
 '''

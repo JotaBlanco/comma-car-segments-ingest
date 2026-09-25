@@ -952,3 +952,34 @@ def test_a_draft_refuses_a_definition_the_run_does_not_cover(
     assert response.json()["code"] == "definition_not_on_run"
     assert written == []
     assert routed_db["notebooks"].count_documents({}) == 0
+
+
+def test_a_draft_title_cannot_break_out_of_the_prompt_docstring(
+    client, routed_db, portal, written, monkeypatch
+) -> None:
+    """A title holding quotes and backslashes stays inside the AI cell's docstring."""
+    import ast
+
+    from api.services import lake
+
+    _seed_battery(routed_db)
+    _seed_draft_definition(routed_db)
+    routed_db["test_definitions"].update_one(
+        {"_id": "BAT-SYS-TC-003"},
+        {"$set": {"title": 'Temp """ held\\n"; import os; os.system("x")'}},
+    )
+    monkeypatch.setattr(lake, "is_configured", lambda: True)
+    monkeypatch.setattr(lake, "run_partitions", lambda table, run_id: [BATTERY_FOLDER])
+
+    response = client.post(
+        f"/api/v1/test-runs/{BATTERY_RUN}/notebooks",
+        headers=VIEWER,
+        json={"definition_id": "BAT-SYS-TC-003"},
+    )
+
+    assert response.status_code == 201, response.text
+    _, source = written[0]
+    module = ast.parse(source)
+    draft = next(n for n in module.body if isinstance(n, ast.FunctionDef) and n.name == "draft")
+    assert 'Temp """ held' in ast.get_docstring(draft, clean=False)
+    assert len(draft.body) == 1, "the docstring is the whole body: nothing escaped into code"
