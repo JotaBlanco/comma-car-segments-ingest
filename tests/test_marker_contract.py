@@ -128,6 +128,35 @@ def test_a_decode_failure_is_stated_by_the_producer(marker):
     assert file_body["quarantine_reason"] == "ValueError: not an MDF file"
 
 
+def test_a_missing_database_quarantines_the_file(marker):
+    """The 25 Sep failure, end to end: no DBC in DCM, 180,000 frames, 0 signals.
+
+    The decoder's own predicate builds the reason, the connector's real reader
+    turns it into a body, and the registry's real model accepts it — so the
+    quarantine branch of `register_file_document` (`files.py:1279-1280`) is the
+    one this file lands in, instead of registering as a clean decode of nothing.
+    """
+    from api.models.files import FileRegisterRequest
+    from decodability import decode_failure
+
+    marker["batch"]["decode_error"] = decode_failure(
+        bus_frames=180_000,
+        decoded_signals=0,
+        dbc_reason="no CAN database resolved for platform Porsche_Taycan",
+        platform="Porsche_Taycan",
+    )
+    marker["batch"]["inventory"] = []
+    _run, file_body = _bodies(marker)
+
+    FileRegisterRequest.model_validate(file_body)
+    assert file_body["quarantine_reason"] == (
+        "no CAN database resolved for platform Porsche_Taycan - "
+        "180000 CAN frame(s) could not be decoded"
+    )
+    assert file_body["conversion_status"] == "failed"
+    assert file_body["stage_error"] == file_body["quarantine_reason"]
+
+
 def test_a_successful_decode_states_no_stage_field(marker):
     """The registry DERIVES success from a non-empty inventory. Leave it to."""
     _run, file_body = _bodies(marker)

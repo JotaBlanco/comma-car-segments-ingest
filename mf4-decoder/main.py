@@ -15,6 +15,7 @@ from quixstreams.dataframe.joins.lookups import QuixConfigurationService
 
 import dcm_dbc
 import identity
+from decodability import DECODING_OFF, decode_failure
 from idempotency import decode_identity, log_mode, mark_decoded, needs_decode
 from inventory import FileInventory
 from marker import build_marker
@@ -578,13 +579,18 @@ def _extract_dbc_files(mdf, attachment_indices, target_dir):
     return paths
 
 
-def _decode_can_bus_logging(mdf, target_dir, dcm_doc=None):
+def _decode_can_bus_logging(mdf, target_dir, dcm_doc=None, platform=UNKNOWN):
     """Decode raw CAN frames into named signals using the file's own DBC.
 
-    Returns ``(decoded_mdf, dbc_paths)``. ``decoded_mdf`` is one channel group
-    per CAN message with one channel per signal, or ``None`` when no usable
-    database is available - which is not an error: the caller drops the raw
-    frame channels and logs the drop.
+    Returns ``(decoded_mdf, dbc_paths, dbc_reason)``. ``decoded_mdf`` is one
+    channel group per CAN message with one channel per signal, or ``None`` when
+    no usable database is available.
+
+    ``dbc_reason`` is ``None`` on success and one short sentence on every path
+    that returns no database. It becomes the file's quarantine reason via
+    ``decodability.decode_failure``, so it names the cause rather than the
+    symptom, and it renders as a table cell - keep it under ~120 characters and
+    free of stack traces.
 
     ``dbc_paths`` is returned alongside because the same on-disk databases are
     read a second time, by ``provenance.build_signal_frame_map``, to recover the
@@ -594,7 +600,7 @@ def _decode_can_bus_logging(mdf, target_dir, dcm_doc=None):
     """
     if DBC_SOURCE == "none":
         logger.warning("DBC_SOURCE=none - CAN bus logging will not be decoded")
-        return None, []
+        return None, [], DECODING_OFF
 
     if DBC_SOURCE == "dcm":
         # The document arrived on the message from the DCM lookup. `fallback` and
@@ -607,18 +613,22 @@ def _decode_can_bus_logging(mdf, target_dir, dcm_doc=None):
                 "Check that a '%s' configuration exists for its platform.",
                 DCM_TYPE,
             )
-            return None, []
+            return None, [], f"no CAN database resolved for platform {platform}"
         try:
             dbc_path, dropped = dcm_dbc.materialise(dcm_doc, target_dir / "dcm.dbc")
         except Exception:
             logger.exception("Could not turn the DCM document into a loadable database")
-            return None, []
+            return None, [], (
+                f"the DCM document for {platform} is not a loadable database"
+            )
         database_files = {"CAN": [(str(dbc_path), 0)]}
         try:
-            return mdf.extract_bus_logging(database_files=database_files), [dbc_path]
+            return mdf.extract_bus_logging(database_files=database_files), [dbc_path], None
         except Exception:
             logger.exception("extract_bus_logging failed with the DCM database")
-            return None, [dbc_path]
+            return None, [dbc_path], (
+                f"extract_bus_logging failed with the {platform} database"
+            )
 
     if DBC_SOURCE != "embedded":
         logger.warning("Unknown DBC_SOURCE=%r - treating it as 'embedded'", DBC_SOURCE)
@@ -630,24 +640,24 @@ def _decode_can_bus_logging(mdf, target_dir, dcm_doc=None):
             "(%d attachment(s) present) - no signals can be decoded",
             len(getattr(mdf, "attachments", None) or ()),
         )
-        return None, []
+        return None, [], "the file carries no embedded .dbc attachment"
 
     dbc_paths = _extract_dbc_files(mdf, attachment_indices, target_dir)
     if not dbc_paths:
         logger.warning("No embedded CAN database could be extracted - nothing to decode")
-        return None, []
+        return None, [], "no embedded CAN database could be extracted"
 
     # Bus channel 0 means "applies to any bus channel". The embedded database is
     # by definition the one that describes this file's buses, so there is no
     # per-channel mapping to guess at.
     database_files = {"CAN": [(str(path), 0) for path in dbc_paths]}
     try:
-        return mdf.extract_bus_logging(database_files=database_files), dbc_paths
+        return mdf.extract_bus_logging(database_files=database_files), dbc_paths, None
     except Exception:
         logger.exception(
             "extract_bus_logging failed with %d embedded database(s)", len(dbc_paths)
         )
-        return None, dbc_paths
+        return None, dbc_paths, "extract_bus_logging failed with the embedded database(s)"
 
 
 def _emit_signals(
@@ -876,6 +886,13 @@ def process(metadata: dict, state: State):
         bus_groups = _find_can_bus_logging_groups(mdf)
         raw_bus_channels = 0
         raw_bus_frames = 0
+        # Why no database was resolved, or None. Stays None for a file with no
+        # bus-logging group, which asks for no database.
+        dbc_reason = None
+        # The name the DBC was looked up under: under DBC_SOURCE=dcm the lookup
+        # wrote its target key onto the message, so it is the platform the
+        # decode actually asked DCM for, not the one the header states.
+        dbc_platform = str(metadata.get(F_DCM_KEY) or provenance_fields["platform"])
         # signal name -> (frame_name, sender_node), and decoded group index ->
         # bus name. Empty for ordinary MF4s, which have neither.
         signal_frame_map: dict[str, tuple[str, str]] = {}
@@ -889,8 +906,8 @@ def process(metadata: dict, state: State):
                 filename, len(bus_groups), raw_bus_channels, raw_bus_frames,
             )
             dbc_dir = pathlib.Path(tempfile.mkdtemp(prefix="mf4-dbc-"))
-            decoded, dbc_paths = _decode_can_bus_logging(
-                mdf, dbc_dir, dcm_doc=metadata.get(F_DBC_DOC)
+            decoded, dbc_paths, dbc_reason = _decode_can_bus_logging(
+                mdf, dbc_dir, dcm_doc=metadata.get(F_DBC_DOC), platform=dbc_platform
             )
 
             if decoded is not None:
@@ -942,6 +959,16 @@ def process(metadata: dict, state: State):
                 "written to the signals table (decoded-signals-only policy).",
                 raw_bus_channels, raw_bus_frames, filename,
             )
+
+        # None unless CAN frames went in and no signal came out. Then it is the
+        # reason, and the marker below states it instead of registering the file
+        # as a clean decode of nothing.
+        decode_error = decode_failure(
+            bus_frames=raw_bus_frames,
+            decoded_signals=decoded_signals,
+            dbc_reason=dbc_reason,
+            platform=dbc_platform,
+        )
 
         # Ordinary (non bus-logging) channel groups keep the original
         # behaviour: every channel is emitted as-is.
@@ -1043,6 +1070,7 @@ def process(metadata: dict, state: State):
             declared=declared,
             header_properties=header_properties,
             inv=inv,
+            decode_error=decode_error,
             samples_suppressed=(
                 None if run_id is not None else
                 "the file names no run, so its rows have no lake partition"
@@ -1054,11 +1082,23 @@ def process(metadata: dict, state: State):
         # no-op instead of a second copy in the lake. Deliberately the last
         # statement of the try: anything that raised above leaves the file
         # unmarked and therefore retryable, so the mark is never more durable
-        # than the rows it vouches for. total_msgs == 0 is marked too —
-        # decoded-but-produced-nothing (no DBC, no decodable channel) is a
-        # completed decode, and re-running it would download and decode the file
-        # again for the same empty result.
-        mark_decoded(state, metadata, samples=total_samples)
+        # than the rows it vouches for.
+        #
+        # Producing nothing is a completed decode only when there was nothing to
+        # decode; `decode_failure` is what tells that apart from frames nothing
+        # could read. A file whose frames could not be decoded stays UNMARKED,
+        # so the same bytes decode again once the database is back. It is marked
+        # anyway once rows exist: those are in the lake and a re-decode would
+        # append a second copy.
+        if decode_error is None or total_samples > 0:
+            mark_decoded(state, metadata, samples=total_samples)
+        else:
+            logger.warning(
+                "NOT marking %s decoded: %s. Restore the database in DCM and "
+                "upload the same file again - it will decode, and that decode "
+                "closes this one too (the dedup key is the file's sha256).",
+                filename, decode_error,
+            )
 
     except Exception as error:
         logger.exception(

@@ -200,7 +200,9 @@ def mark_decoded(state: State, value: dict, *, samples: int) -> None:
     Called from ``process()`` only after the decode finished and the producer
     was flushed: the marker must never be more durable than the rows it vouches
     for. A file whose decode raised is left unmarked and is retried on the next
-    delivery.
+    delivery. So is one whose CAN frames could not be decoded at all
+    (``decodability.decode_failure``), so the same bytes decode again once the
+    database is back.
     """
     global _decoded_total
 
