@@ -30,9 +30,12 @@ from datetime import UTC, datetime
 # triple-quoted string. No quote, no backslash, no newline, no `"""`.
 _SAFE = re.compile(r"[A-Za-z0-9._:=/-]{1,200}")
 
-# The partition columns of the lake, outermost first. The sink writes this tree
-# (`HIVE_COLUMNS`), and the run's own row names the first three.
-PARTITIONS = ("platform", "work_order", "test_definition", "run_id")
+# The physical partition columns of the lake, outermost first: the head of the sink's
+# `HIVE_COLUMNS` (`mf4-datalake-sink/main.py`). There is no `test_definition` level.
+PARTITIONS = ("platform", "work_order", "run_id")
+
+# The columns `test_data` narrows to, as the sink writes them (`mf4-datalake-sink/expand.py`).
+TEST_DATA_COLUMNS = ("file_name", "route", "ts_ms", "frame_name", "signal", "value")
 
 
 class UnsafeValue(ValueError):
@@ -46,20 +49,16 @@ def _literal(value: str, field: str) -> str:
     return f"'{value}'"
 
 
-def lake_tree(table: str, parts: dict[str, str]) -> list[str]:
+def lake_tree(table: str, folder: str) -> list[str]:
     """The partition folders the lake browser opens with, outermost first.
 
-    Each entry is the one above it plus one `column=value` segment, which is
-    the shape `ql.Canvas(lake_tree_open=...)` takes and the shape the seeded
-    notebook already carries (`QuixLabNotebooks/quixlab/main.py`).
+    Each entry is the one above it plus one `column=value` segment of `folder`, which
+    is the shape `ql.Canvas(lake_tree_open=...)` takes.
     """
     out = [table]
     path = table
-    for column in PARTITIONS:
-        value = (parts.get(column) or "").strip()
-        if not value:
-            break
-        path = f"{path}/{column}={value}"
+    for segment in folder.split("/"):
+        path = f"{path}/{segment}"
         out.append(path)
     return out
 
@@ -67,10 +66,8 @@ def lake_tree(table: str, parts: dict[str, str]) -> list[str]:
 def partition_path(parts: dict[str, str]) -> str:
     """The run's own folder of the lake, as one `column=value/...` path.
 
-    This is what a person ticks in QuixLab's partition tree, and what the
-    dataset node below carries: `ql.lake_partitions(table, [path])`. Only the
-    columns the run actually names are written, outermost first — a run with
-    no work order still gets a working folder, just a wider one.
+    Only the columns the run actually names are written, outermost first; a missing
+    column ends the folder, because the levels below it would be a guess.
     """
     # Every value is checked, whether or not it lands in the path: a bad one is a bug.
     for column in PARTITIONS:
@@ -88,28 +85,28 @@ def partition_path(parts: dict[str, str]) -> str:
     return "/".join(segments)
 
 
-def notebook_source(*, run_id: str, table: str, parts: dict[str, str]) -> str:
-    """The whole `analysis.py` for one run.
+def notebook_source(*, run_id: str, table: str, folders: list[str]) -> str:
+    """The whole `analysis.py` for one run, ticked on the run's own lake folders.
 
-    Two partition datasets, and no more: `samples`, the whole run as a table,
-    and `test_data`, the same folder narrowed to the four columns an analysis
-    starts from - `ts_ns`, the nanosecond clock the recorder stamped, rather
-    than the millisecond `timestamp` the lake partitions by. A starting point is the point — a person opens the lab to ask
-    their own question, and a canvas full of somebody else's cells is in the way.
+    Two partition datasets, and no more: `samples`, the whole run as a table, and
+    `test_data`, the same folders narrowed to `TEST_DATA_COLUMNS`. Both bodies are
+    `ql.lake_partitions(table, folders)`, which QuixLab shows as its partition picker
+    with those folders ticked, and runs at boot so the data is on screen on arrival.
 
-    **Both are partition datasets.** The node body is
-    `ql.lake_partitions(table, [<the run's folder>])`, which QuixLab shows as
-    its partition picker with the run's folders ticked, not as SQL: a person
-    widens or narrows the selection by clicking, and the rows are loaded when
-    the lab boots (QuixLab runs every node at boot), so the data is on screen
-    when they arrive.
+    `folders` are full `column=value/...` paths, outermost first. A run whose files
+    claimed two work orders sits in two folders, and both are ticked.
     """
     if not _SAFE.fullmatch(table or ""):
         raise UnsafeValue("the lake table is not a name this notebook may query")
-    filters = dict(parts)
-    filters["run_id"] = run_id
-    path = partition_path(filters)
-    tree = lake_tree(table, filters)
+    _literal(run_id, "the run id")
+    if not folders:
+        raise UnsafeValue("the notebook needs at least one partition to open on")
+    for folder in folders:
+        if not _SAFE.fullmatch(folder or ""):
+            raise UnsafeValue("a partition folder is not a value this notebook may name")
+    paths = list(folders)
+    tree = lake_tree(table, paths[0])
+    columns = list(TEST_DATA_COLUMNS)
     return f'''"""Analysis of test run {run_id}.
 
 Test Manager wrote this notebook into the run's own folder, which is this
@@ -135,12 +132,12 @@ canvas = ql.Canvas(
     viz={{"datasetMode": "partitions", "type": "table"}},
 )
 def samples():
-    return ql.lake_partitions({table!r}, [{path!r}])
+    return ql.lake_partitions({table!r}, {paths!r})
 
 
 @canvas.dataset(position=(147, -326), size=(740, 399), code_height=200, viz={{'datasetMode': 'partitions'}})
 def test_data():
-    return ql.lake_partitions("{table}", ["{path}"], columns=["ts_ns", "signal", "value", "value_text"])
+    return ql.lake_partitions({table!r}, {paths!r}, columns={columns!r})
 '''
 
 
@@ -171,6 +168,7 @@ def manifest_source(notebook_name: str, text: str) -> str:
 
 __all__ = [
     "PARTITIONS",
+    "TEST_DATA_COLUMNS",
     "UnsafeValue",
     "lake_tree",
     "manifest_source",

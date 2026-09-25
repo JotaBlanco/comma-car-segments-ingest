@@ -30,7 +30,14 @@ from api import quix_identity, quixlab_provision
 from api.db import get_db
 from api.errors import ApiError
 from api.models.integrations import Notebook, NotebookCreateRequest, RunQuixLab
-from api.services import file_bytes, file_writes, queries_runs, quixlab_notebook, run_deletion
+from api.services import (
+    file_bytes,
+    file_writes,
+    lake,
+    queries_runs,
+    quixlab_notebook,
+    run_deletion,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -60,18 +67,32 @@ def _identity(token: str):
 
 
 def _partitions(run: dict) -> dict[str, str]:
-    """The lake partition values this run names, by the lake's own column names.
+    """The lake partition values the run document itself names, by the lake's column names.
 
-    `project` is what the registry calls the platform, and `platform` is what
-    the sink partitions on — the WorkOrder config carries the value across
-    (`$.project`). The mapping lives here so the notebook module needs to know
-    nothing about a run document.
+    Only the fallback for `_run_folders`: `project` is the work order's planning name, and
+    the sink partitions on the platform the MF4 header states, which may be spelled apart.
     """
     return {
         "platform": (run.get("project") or "").strip(),
-        "work_order": (run.get("work_order_id") or "").strip(),
-        "test_definition": (run.get("definition_id") or "").strip(),
+        "work_order": (run.get("work_order_id") or run.get("claimed_work_order_id") or "").strip(),
+        "run_id": str(run.get("_id") or run.get("run_id") or "").strip(),
     }
+
+
+def _run_folders(table: str, run: dict) -> list[str]:
+    """The run's own folders of the lake, as the lake lists them; the run document otherwise."""
+    run_id = str(run.get("_id") or run.get("run_id") or "")
+    if lake.is_configured():
+        try:
+            folders = lake.run_partitions(table, run_id)
+        except lake.LakeError as error:
+            logger.warning("the lake folders of run %s were not listed: %s", run_id, error)
+        else:
+            if folders:
+                logger.info("run %s opens on %d lake folder(s) of %s", run_id, len(folders), table)
+                return folders
+            logger.info("the lake holds no folder of run %s in %s yet", run_id, table)
+    return [quixlab_notebook.partition_path(_partitions(run))]
 
 
 def _lab_dto(lab: quixlab_provision.Lab) -> RunQuixLab:
@@ -223,7 +244,7 @@ def create_notebook(
     table = run_deletion.lake_table_of(run)
     try:
         source = quixlab_notebook.notebook_source(
-            run_id=run_id, table=table, parts=_partitions(run)
+            run_id=run_id, table=table, folders=_run_folders(table, run)
         )
     except quixlab_notebook.UnsafeValue as error:
         raise ApiError(500, str(error), "quixlab_unsafe_value") from error

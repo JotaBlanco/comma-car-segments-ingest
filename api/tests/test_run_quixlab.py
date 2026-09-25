@@ -200,38 +200,68 @@ def test_a_lab_spec_clones_the_template_and_pins_its_own_notebook() -> None:
     assert "deploymentId" not in spec, "the Portal mints the id"
 
 
+BATTERY_RUN = "T1_20260915T090000000Z"
+BATTERY_FOLDER = f"platform=Porsche_Taycan/work_order=WO-BAT-2026-001/run_id={BATTERY_RUN}"
+BATTERY_COLUMNS = '["file_name", "route", "ts_ms", "frame_name", "signal", "value"]'
+
+
 def test_the_notebook_names_the_run_and_compiles() -> None:
     source = quixlab_notebook.notebook_source(
-        run_id=RUN,
-        table="pcap_data_v1",
-        parts={"platform": "sn002", "work_order": "WO-1", "test_definition": "TD-1"},
+        run_id=BATTERY_RUN, table="battery_data_v1", folders=[BATTERY_FOLDER]
     )
 
     compile(source, "analysis.py", "exec")  # a notebook that will not parse is no notebook
     # The data is a PARTITION dataset with the run's own folder ticked - QuixLab
     # draws it as its picker, not as SQL, and runs it at boot.
-    folder = f"platform=sn002/work_order=WO-1/test_definition=TD-1/run_id={RUN}"
-    assert f"return ql.lake_partitions('pcap_data_v1', ['{folder}'])" in source
+    assert f"return ql.lake_partitions('battery_data_v1', ['{BATTERY_FOLDER}'])" in source
     assert '"datasetMode": "partitions"' in source
     assert "SELECT" not in source, "no SQL to read; the picker is the query"
     # In the middle: the dataset straddles the origin.
     assert "@canvas.dataset(\n    position=(-420, -300),\n    size=(840, 600)," in source
-    # And the same folder narrowed to the four columns an analysis starts from.
+    # And the same folder narrowed to the columns the sink writes for a sample.
     assert (
-        f'return ql.lake_partitions("pcap_data_v1", ["{folder}"], '
-        'columns=["ts_ns", "signal", "value", "value_text"])'
+        f"return ql.lake_partitions('battery_data_v1', ['{BATTERY_FOLDER}'], "
+        f"columns={BATTERY_COLUMNS.replace(chr(34), chr(39))})"
     ) in source
     assert "def test_data():" in source
     assert "@canvas.cell" not in source, "two datasets, no cells"
+    assert "test_definition" not in source, "the lake has no definition level"
+    assert "ts_ns" not in source, "this lake stamps milliseconds"
+
+
+def test_the_lake_browser_opens_down_to_the_run() -> None:
+    assert quixlab_notebook.lake_tree("battery_data_v1", BATTERY_FOLDER) == [
+        "battery_data_v1",
+        "battery_data_v1/platform=Porsche_Taycan",
+        "battery_data_v1/platform=Porsche_Taycan/work_order=WO-BAT-2026-001",
+        f"battery_data_v1/{BATTERY_FOLDER}",
+    ]
+
+
+def test_a_run_in_two_folders_ticks_both() -> None:
+    """A run whose files claimed two work orders sits in two folders of the lake."""
+    other = f"platform=Porsche_Taycan/work_order=unassigned/run_id={BATTERY_RUN}"
+
+    source = quixlab_notebook.notebook_source(
+        run_id=BATTERY_RUN, table="battery_data_v1", folders=[BATTERY_FOLDER, other]
+    )
+
+    assert (
+        f"return ql.lake_partitions('battery_data_v1', ['{BATTERY_FOLDER}', '{other}'])" in source
+    )
 
 
 def test_the_notebook_folder_names_only_the_partitions_the_run_has() -> None:
+    assert quixlab_notebook.PARTITIONS == ("platform", "work_order", "run_id")
     assert (
         quixlab_notebook.partition_path({"platform": "sn002", "work_order": ""}) == "platform=sn002"
     )
     assert (
         quixlab_notebook.partition_path({"platform": "sn002", "work_order": "WO-1", "run_id": "r"})
-        == "platform=sn002/work_order=WO-1"
+        == "platform=sn002/work_order=WO-1/run_id=r"
+    )
+    assert (
+        quixlab_notebook.partition_path({"platform": "sn002", "run_id": "r"}) == "platform=sn002"
     ), "a missing middle column ends the folder; the run id alone would be a lie"
     with pytest.raises(quixlab_notebook.UnsafeValue):
         quixlab_notebook.partition_path({})
@@ -242,8 +272,14 @@ def test_the_notebook_refuses_a_value_it_cannot_safely_carry() -> None:
     refused rather than escaped twice."""
     with pytest.raises(quixlab_notebook.UnsafeValue):
         quixlab_notebook.notebook_source(
-            run_id="r'; DROP TABLE x; --", table="pcap_data_v1", parts={"platform": "sn002"}
+            run_id="r'; DROP TABLE x; --", table="battery_data_v1", folders=[BATTERY_FOLDER]
         )
+    with pytest.raises(quixlab_notebook.UnsafeValue):
+        quixlab_notebook.notebook_source(
+            run_id=BATTERY_RUN, table="battery_data_v1", folders=["platform=Porsche Taycan"]
+        )
+    with pytest.raises(quixlab_notebook.UnsafeValue):
+        quixlab_notebook.notebook_source(run_id=BATTERY_RUN, table="battery_data_v1", folders=[])
 
 
 # --------------------------------------------------------------------------
@@ -416,6 +452,75 @@ def test_creating_a_notebook_writes_the_file_before_the_deployment(
     assert response.status_code == 201, response.text
     kinds = [kind for kind, _ in portal["calls"]]
     assert kinds == ["WRITE", "WRITE", "POST"], "the notebook, its manifest, then the deployment"
+
+
+def _seed_battery(db) -> None:
+    """A battery run as this registry holds it: `project` is the work order's planning name."""
+    db["test_runs"].insert_one(
+        {
+            "_id": BATTERY_RUN,
+            "description": None,
+            "work_order_id": "WO-BAT-2026-001",
+            "definition_id": "BAT-SYS-TC-001",
+            "definition_ids": ["BAT-SYS-TC-001", "BAT-SYS-TC-002", "BAT-SYS-TC-003"],
+            "project": "Porsche Taycan",
+            "rig_id": "RIG-01",
+            "status": "complete",
+            "lake_table": "battery_data_v1",
+            "invalid": {"flagged": False, "reason": None, "actor": None, "at": None},
+            "field_sources": {},
+            "first_data_at": datetime(2026, 9, 15, 9, 0, tzinfo=UTC),
+            "created_at": datetime(2026, 9, 15, 9, 0, tzinfo=UTC),
+            "updated_at": datetime(2026, 9, 15, 9, 0, tzinfo=UTC),
+        }
+    )
+
+
+def test_a_battery_notebook_opens_on_the_folder_the_lake_lists(
+    client, routed_db, portal, written, monkeypatch
+) -> None:
+    """The lake's platform is the MF4 header's (`Porsche_Taycan`), not the run's
+    `project` (`Porsche Taycan`), so the folder comes from the lake's own listing."""
+    from api.services import lake
+
+    _seed_battery(routed_db)
+    asked: list[tuple[str, str]] = []
+
+    def run_partitions(table: str, run_id: str) -> list[str]:
+        asked.append((table, run_id))
+        return [BATTERY_FOLDER]
+
+    monkeypatch.setattr(lake, "is_configured", lambda: True)
+    monkeypatch.setattr(lake, "run_partitions", run_partitions)
+
+    response = client.post(f"/api/v1/test-runs/{BATTERY_RUN}/notebooks", headers=VIEWER, json={})
+
+    assert response.status_code == 201, response.text
+    assert asked == [("battery_data_v1", BATTERY_RUN)]
+    _, source = written[0]
+    assert f"return ql.lake_partitions('battery_data_v1', ['{BATTERY_FOLDER}'])" in source
+    assert f"columns={BATTERY_COLUMNS.replace(chr(34), chr(39))}" in source
+
+
+def test_a_notebook_falls_back_to_the_run_document_when_the_lake_cannot_list(
+    client, routed_db, portal, written, monkeypatch
+) -> None:
+    from api.services import lake
+
+    _seed(routed_db)
+
+    def refuse(table: str, run_id: str) -> list[str]:
+        raise lake.LakeError("QuixLake answered 502")
+
+    monkeypatch.setattr(lake, "is_configured", lambda: True)
+    monkeypatch.setattr(lake, "run_partitions", refuse)
+
+    response = client.post(PATH, headers=VIEWER, json={})
+
+    assert response.status_code == 201, response.text
+    _, source = written[0]
+    folder = f"platform=sn002/work_order=WO-1/run_id={RUN}"
+    assert f"return ql.lake_partitions('pcap_data_v1', ['{folder}'])" in source
 
 
 def test_a_new_notebook_is_listed_and_its_lab_opens_on_its_own_folder(
